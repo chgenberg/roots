@@ -49,6 +49,15 @@ app.use("*", async (c, next) => {
   return next();
 });
 
+app.get("/", (c) =>
+  c.json({
+    name: "Roots Nordic API",
+    version: "1.0.0",
+    status: "ok",
+    docs: "/health",
+  })
+);
+
 app.get("/health", (c) =>
   c.json({ status: "ok", timestamp: new Date().toISOString() })
 );
