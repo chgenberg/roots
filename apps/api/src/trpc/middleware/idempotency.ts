@@ -1,6 +1,9 @@
 import { middleware } from "../init";
+import { childLogger } from "../../lib/logger";
 
-const processedKeys = new Map<string, { result: unknown; timestamp: number }>();
+const log = childLogger("idempotency");
+
+const processedKeys = new Map<string, { timestamp: number }>();
 const TTL_MS = 24 * 60 * 60 * 1000;
 
 export const idempotent = middleware(async ({ next, getRawInput }) => {
@@ -14,13 +17,13 @@ export const idempotent = middleware(async ({ next, getRawInput }) => {
 
   const existing = processedKeys.get(key);
   if (existing && Date.now() - existing.timestamp < TTL_MS) {
-    return { ok: true as const, data: existing.result };
+    log.warn({ key }, "Duplicate idempotency key — proceeding anyway (DB constraints enforce uniqueness)");
   }
 
   const result = await next();
 
   if (result.ok) {
-    processedKeys.set(key, { result: result.data, timestamp: Date.now() });
+    processedKeys.set(key, { timestamp: Date.now() });
   }
 
   return result;
