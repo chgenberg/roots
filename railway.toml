@@ -1,7 +1,9 @@
 [build]
 builder = "NIXPACKS"
+buildCommand = "pnpm install --frozen-lockfile && cd apps/api && npx tsup src/index.ts --format esm"
 
 [deploy]
+startCommand = "node apps/api/dist/index.js"
 numReplicas = 1
 healthcheckPath = "/health"
 restartPolicyType = "ON_FAILURE"
