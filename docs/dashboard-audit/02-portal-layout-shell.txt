@@ -1,0 +1,11 @@
+Composer 2.0 — Subagent 02: Portal layout & navigation
+
+Sammanfattning
+- Sidebar w-64, aktiv nav bg-brand-900 text-white, mobil drawer + backdrop.
+- Logout POST /v1/auth/logout.
+
+Rekommendationer (implementeras)
+1. aria-expanded / aria-controls på hamburger + drawer.
+2. Mobil header: visa aktuell sektionstitel (pathname-baserad) i stället för dubbel "Roots".
+3. Aktiv nav: vänster accent (border-l-2) för premium känsla.
+4. Stäng drawer med Escape (useEffect).

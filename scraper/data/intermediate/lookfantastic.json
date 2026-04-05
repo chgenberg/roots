@@ -1,0 +1,23 @@
+[
+  {
+    "segment": "shampoo",
+    "product_name": "Find Your Perfect Concealer",
+    "brand": "",
+    "price_original": null,
+    "currency": "GBP",
+    "price_sek": null,
+    "volume_ml": null,
+    "average_rating": null,
+    "num_reviews": null,
+    "source": "Lookfantastic",
+    "url": "https://www.lookfantastic.com/c/health-beauty/make-up/concealer-finder/products/",
+    "ingredients_raw": "",
+    "ingredients_list": [],
+    "natural_ingredient_count": 0,
+    "synthetic_ingredient_count": 0,
+    "total_ingredient_count": 0,
+    "ewg_score": null,
+    "fit_score": null,
+    "fit_motivation": ""
+  }
+]

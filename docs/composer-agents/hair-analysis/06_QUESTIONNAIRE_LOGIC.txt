@@ -1,0 +1,24 @@
+AGENT 06 — FRÅGEFORMULÄR, LOGIK, TAXONOMI
+=========================================
+
+SYFTE
+-----
+Kombinera **synlig** information (Vision) med **beteende/kontext** (frågor) för bättre rekommendationer.
+
+FÄLT (EXEMPEL — ANPASSA)
+------------------------
+- Tvättfrekvens: enum [dagligen, varannan dag, 2–3/vecka, sällan]
+- Värmeverktyg: enum [aldrig, ibland, ofta]
+- Kemisk behandling: enum [ingen, färg, blek, permanent, flera]
+- Simning/klor: boolean + frekvens
+- Stress/sömn (självskattning 1–5)
+- Huvudbesvär: fri text (kort) — flagga känsliga svar i moderering (server-side)
+
+SCORING (VALFRITT)
+------------------
+- En enkel viktad poäng för "barriärstress" / "mechanisk slitage" som bara påverkar **ordval** i rekommendation, inte medicinska påståenden.
+
+GRENAR
+------
+- Om användaren väljer "mycket torrt" + synligt frizz i bild → prioritera fukt/ mild rengöring i copy.
+- Om "ofta hårbotten kliar" → föreslå att söka vård vid uthålliga symtom (standardtext).

@@ -1,0 +1,29 @@
+AGENT 02 — VISUELL RIKTLINJE & MIKROCOPY
+=========================================
+
+MÅL
+---
+Luftig, nordisk, "möbelrent" känsla: mycket whitespace, tydlig typografi, inga emojis i UI.
+
+HERO & CTA
+----------
+- Primär CTA: verb i nutid, låg friktion: "Starta håranalysen"
+- Sekundär: befintliga ("Prata med oss", "Se produkterna") ska inte konkurrera visuellt — sekundär variant.
+
+MODAL / WIZARD
+--------------
+- Rubrik per steg max 1–2 rader; brödtext max 3–4 korta meningar.
+- Hjälpetext för foto: punktlista med nummer (1–2–3) istället för långa stycken.
+
+FEL & TILLSTÅND
+---------------
+- Uppladdning misslyckades: lugn ton, konkret nästa steg ("Prova mindre fil eller JPEG").
+- API otillgänglig: "Vi kan inte analysera just nu" + behåll data lokalt om möjligt.
+
+DISCLAIMER (KORT, I UI)
+-----------------------
+- "Indikativ analys, inte medicinsk diagnos" — länk till fullständig juridisk text vid behov.
+
+TON
+---
+- Professionell, vänlig, aldrig skuld: undvik ord som "fel" om hårkvalitet.

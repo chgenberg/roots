@@ -1,0 +1,34 @@
+AGENT 04 — BACKEND: API, DATA, LAGRING
+=======================================
+
+ENDPOINT (FÖRSLAG)
+------------------
+`POST /v1/ai/hair-analysis`
+
+Request body (JSON):
+- `consentAccepted`: boolean (obligatorisk)
+- `consentVersion`: string
+- `email`: string | null (beroende på affärsregel)
+- `answers`: objekt med strukturerade fält (se agent 06)
+- `images`: { `back`: string (base64 eller data URL), `top`: string }
+- `locale`: "sv-SE" (valfritt)
+
+Response:
+- `analysis`: string (markdown eller plain text)
+- `hairSummary`: kort struktur { textureGuess, shine, scalpVisibleSignals } — valfritt om modellen JSON-mode används
+- `recommendations`: { lifestyle: string[], nutritionGeneral: string[], products: string[] }
+- `disclaimer`: string
+
+LAGRING
+-------
+- **MVP:** ingen permanent lagring av bilder på server — skicka vidare till modellen och kassera buffer i minnet efter svar.
+- **Senare:** S3-kompatibel bucket + krypterade metadata om compliance kräver spårbarhet.
+
+RATE LIMIT
+----------
+- Per IP för publikt endpoint (t.ex. 10/dygn) + striktare vid missbruk.
+- Logga endast aggregerad stat, inte bildinnehåll.
+
+IDEMPOTENS
+----------
+- Vid e-post insamlad: idempotency-key header för att undvika dubbel lead vid dubbelklick.

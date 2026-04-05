@@ -1,0 +1,27 @@
+AGENT 05 — GPT VISION, MODELLVAL, SÄKERHET
+===========================================
+
+MÅL
+---
+Använda multimodal LLM för att bedöma synliga hår- och hårbotten-signaler från två vinklar.
+
+MODELL
+------
+- Använd konfigurerad `OPENAI_DEFAULT_MODEL` om den stödjer vision; annars dedikerad vision-modell via env (t.ex. `OPENAI_VISION_MODEL`).
+- Timeout och max tokens satta konservativt för att undvika kostnadssmäll.
+
+PROMPTSTRATEGI
+--------------
+1. Systemprompt: ni är hår- och hårbotten-rådgivare på allmän nivå — inte läkare.
+2. Förbjud diagnoser (t.ex. alopeci, psoriasis) som säkra; formulera som "kan tyda på … sök legitimerad hudläkare vid …".
+3. Be modellen uttryckligen skilja på **observation** (vad som syns) och **hypotes** (sannolik tolkning).
+4. Be om strukturerad JSON i svaret om ni ska parsa (annars markdown).
+
+BILDKVALITET
+------------
+- Instruera användaren: jämnt ljus, ingen blixt som bleker, håret löst, ingen filter som döljer struktur.
+
+SÄKERHET
+--------
+- Innehållspolicy: om bilden inte visar hår/huvud — avbryt vänligt.
+- Logga aldrig rå base64 i applikationsloggar.

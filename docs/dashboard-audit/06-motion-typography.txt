@@ -1,0 +1,8 @@
+Composer 2.0 — Subagent 06: Motion & typografi (Agent 02)
+
+Sammanfattning
+- Portal använder animate-in 500ms + slide; Agent 02 föreslår fade ~200ms, begränsad rörelse.
+
+Rekommendationer (implementeras)
+1. Ny utility .dashboard-enter: fade + lätt translateY, motion-reduce: endast opacity.
+2. Ersätt slide-in-from-bottom-4 med mildare variant där reducerad motion respekteras.

@@ -1,0 +1,22 @@
+AGENT 08 — SÄKERHET, INTEGRITET, JURIDIK
+=======================================
+
+GDPR / PERSONUPPGIFTER
+----------------------
+- Behandlingsgrund: samtycke (analys + ev. nyhetsbrev separat).
+- Informera om kategorier: kontaktuppgifter, fotografier (särskilda kategorier kan aktiveras — konsultera jurist om ni lagrar bilder långsiktigt).
+- Rätt att radera: process för att ta bort lead i CRM.
+
+FOTO & BARN
+-----------
+- Rekommenderad åldersgräns 16+ om inte målsman samtycker — sätt i copy och validering.
+
+MEDICINSK DISCLAIMER
+---------------------
+- Tjänsten är välmående-/skönhetsinriktad, ersätter inte diagnostik. Vid håravfall, eksem, smärta: sök vård.
+
+SÄKERHET TEKNISK
+----------------
+- HTTPS endast, strikt CSP, inga AI-nycklar i klient.
+- Rate limit, valfri CAPTCHA vid missbruk.
+- Säker hantering av multipart/base64 (max storlek, MIME-validering).

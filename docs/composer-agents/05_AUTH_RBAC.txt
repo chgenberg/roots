@@ -1,0 +1,85 @@
+AGENT 05 — AUTHENTICATION, SESSIONS & RBAC
+============================================
+Roll: Security-focused Application Architect
+Version: 1.0
+
+----------------------------------------------------------------------
+1. PRINCIP
+----------------------------------------------------------------------
+Två distinkta användarupplevelser efter inloggning:
+  A) Klubb — fokus beställning och historik
+  B) Säljare — fokus offerter, ordrar, kundlista
+
+Samma identitetslagring (User) men strikt rollstyrning (RBAC). Undvik att blanda
+vyer i samma layout utan tydlig kontext.
+
+----------------------------------------------------------------------
+2. AUTH-METOD (REKOMMENDATION)
+----------------------------------------------------------------------
+Primär: E-post + lösenord med stark hash (Argon2id eller bcrypt med work factor
+enligt aktuell best practice).
+
+MFA: TOTP (authenticator app) för säljare och admins — obligatoriskt för SALES_ADMIN
+och INTERNAL_ADMIN; valfritt uppmuntrat för CLUB_ADMIN.
+
+Session: HttpOnly Secure SameSite=Lax cookies med server-side session store (Redis)
+ELLER kortlivad JWT + refresh rotation — för webb rekommenderas cookie-session för
+enklare CSRF-hantering med dubbel cookie pattern.
+
+----------------------------------------------------------------------
+3. ROLLMATRIS (FÖRENKLAD)
+----------------------------------------------------------------------
+Action                        | CLUB_MEMBER | CLUB_ADMIN | SALES_REP | SALES_ADMIN
+------------------------------|-------------|------------|-----------|------------
+Se egna org-ordrar            | ja          | ja         | nej*      | nej*
+Lägga order för egen org      | ja          | ja         | nej       | nej
+Hantera org-användare         | nej         | ja         | nej       | nej
+Skapa offert                  | nej         | nej        | ja        | ja
+Order åt vald kund/org        | nej         | nej        | ja        | ja
+Se alla organisationer        | nej         | nej        | begränsat | ja
+Admin: användare              | nej         | nej        | nej       | ja
+
+*Säljare ser ordrar för kunder de tilldelats — inte "alla" om inte affärsregel säger det.
+
+Implementera policy checks i backend (inte bara UI).
+
+----------------------------------------------------------------------
+4. ROUTE PROTECTION
+----------------------------------------------------------------------
+Middleware (Next.js) eller gateway:
+  - Matcher /club/* → kräver session + roll CLUB_*
+  - Matcher /sales/* → kräver session + roll SALES_*
+
+Vid obehörig: 302 till /login?next=... eller 403 sida.
+
+----------------------------------------------------------------------
+5. KLUBBREGISTRERING
+----------------------------------------------------------------------
+Flöde MVP:
+  1) Ansökan / intresseformulär ELLER direkt registrering med org-nummer-validering
+  2) Manuell godkännande (admin) innan beställning tillåts — rekommenderas för B2B
+     för att undvika spam och säkra marginaler.
+
+Säljare skapas endast av admin (inga öppna registreringar).
+
+----------------------------------------------------------------------
+6. LÖSENORDSPOLICY
+----------------------------------------------------------------------
+Minst 12 tecken, ingen komplexitetsregel som frustrerar — men blocklist av
+vanliga lösenord. Rate limit på login endpoint (t.ex. 5 försök / 15 min / IP+email).
+
+----------------------------------------------------------------------
+7. CSRF
+----------------------------------------------------------------------
+För cookie-session: CSRF-token på alla state-changing POST/PUT/PATCH/DELETE.
+
+----------------------------------------------------------------------
+8. LEVERANSER
+----------------------------------------------------------------------
+[ ] Rollenum i kod och databas
+[ ] Seed-användare per roll
+[ ] E2E-test: klubb kan inte nå /sales
+[ ] E2E-test: säljare kan inte lägga order som klubb utan explicit "impersonera"
+    (undvik impersonation i v1 — håll separata actions)
+
+SLUT AGENT 05

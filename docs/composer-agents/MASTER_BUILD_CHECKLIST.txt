@@ -1,0 +1,62 @@
+ROOTS — MASTER BUILD CHECKLIST (Composer / multi-agent)
+==========================================================
+Använd denna checklista när du bygger sajten i Cursor Composer eller med agenter.
+Varje rad refererar till detaljer i motsvarande .txt-fil.
+
+FAAS 0 — FÖRBEREDELSE
+---------------------
+[ ] Läs INDEX.txt
+[ ] Läs 01–08 i ordning eller parallellt per disciplin
+[ ] Sätt env-variabler enligt 03, 04, 06, 07 (stubba Fortnox och Open Claw)
+
+FAS 1 — DESIGN & PUBLIK SAJT
+-----------------------------
+[ ] Implementera design tokens från 02_VISUAL_DESIGN_MOTION.txt (CSS variables)
+[ ] Bygg layout enligt 01_UX_IA_NAVIGATION.txt (få menyval, hero, sektioner)
+[ ] Lägg Unsplash-bilder med attribution (02)
+[ ] CTA: primär + sekundär enligt 01
+[ ] Motion: pulserande CTA + flytande SVG-dekor (02, prefers-reduced-motion)
+
+FAS 2 — FRONTEND APP
+--------------------
+[ ] Next.js (eller val från 03) med route groups (marketing / club / sales)
+[ ] Komponentbibliotek i /packages/ui
+[ ] A11y och performance budget (03)
+
+FAS 3 — BACKEND & DATA
+----------------------
+[ ] Postgres + modell från 04_BACKEND_API_DATA.txt
+[ ] API /v1 enligt lista i 04
+[ ] Idempotency på order (04)
+
+FAS 4 — AUTH
+------------
+[ ] RBAC enligt 05_AUTH_RBAC.txt
+[ ] Separata inlogg för klubb och säljare (routes + middleware)
+[ ] Rate limit login (05, 08)
+
+FAS 5 — AI / OPEN CLAW
+----------------------
+[ ] BFF /v1/ai/chat — aldrig exponera nycklar i browser (06)
+[ ] RAG stub eller pgvector-pipeline
+[ ] Chat widget UI (06)
+
+FAS 6 — FORTNOX (FÖRBEREDD)
+---------------------------
+[ ] Tabeller + InvoiceProvider abstraction (07)
+[ ] Feature flag: integration disabled default
+
+FAS 7 — SÄKERHET & LAUNCH
+---------------------------
+[ ] Headers, CSP, HSTS (08)
+[ ] SEO: meta, sitemap, robots (08)
+[ ] Analytics privacy-first (08)
+
+VERIFIERING
+-----------
+[ ] Lighthouse marketing ≥ 90 performance (mål)
+[ ] Klubb kan inte nå sälj-routes
+[ ] Säljare kan inte lägga order som klubb utan explicit flöde
+[ ] AI fallback när Open Claw nere
+
+SLUT MASTER CHECKLIST

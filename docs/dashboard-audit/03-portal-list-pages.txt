@@ -1,0 +1,10 @@
+Composer 2.0 — Subagent 03: Portal listor & tabeller
+
+Sammanfattning
+- Enhetlig space-y-6 + animate-in; KPI 3 vs 4 kolumner inkonsekvent; medlemmar KPI hardcodad vs tabell.
+
+Rekommendationer (delvis MVP)
+1. Enhetlig sidhuvudrad (flex justify-between) där möjligt.
+2. Medlemmar: härled statistik från MEMBERS-array.
+3. Offerter: använd statusIcon eller ta bort död kod.
+4. Pipeline: tom kolumn-hint.

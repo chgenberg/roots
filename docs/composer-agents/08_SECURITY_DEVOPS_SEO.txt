@@ -1,0 +1,94 @@
+AGENT 08 — SECURITY, DEVOPS, SEO & ANALYTICS
+=============================================
+Roll: SecOps / Growth Engineer
+Version: 1.0
+
+----------------------------------------------------------------------
+1. SÄKERHET — HEADERS
+----------------------------------------------------------------------
+Content-Security-Policy: default-src 'self'; img-src 'self' https://images.unsplash.com
+  data:; script-src 'self'; connect-src 'self' https://api.*; frame-ancestors 'none';
+  base-uri 'self'; form-action 'self'
+
+Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+
+X-Content-Type-Options: nosniff
+
+Referrer-Policy: strict-origin-when-cross-origin
+
+Permissions-Policy: camera=(), microphone=(), geolocation=()
+
+----------------------------------------------------------------------
+2. INFRASTRUKTUR
+----------------------------------------------------------------------
+Hosting: Vercel/Netlify för frontend ELLER egen container på AWS/GCP.
+API: separat tjänst bakom load balancer, minst 2 instanser i prod.
+
+Secrets: miljövariabler från secret manager — inte i git.
+
+----------------------------------------------------------------------
+3. CI/CD
+----------------------------------------------------------------------
+Pipeline:
+  1) lint + typecheck + unit tests
+  2) build
+  3) deploy till staging (auto)
+  4) manuell godkännande till prod
+
+Databasmigrationer: körs som separat steg före app start i prod.
+
+----------------------------------------------------------------------
+4. BACKUPS
+----------------------------------------------------------------------
+PostgreSQL: dagliga snapshots, point-in-time recovery (PITR) om möjligt.
+Testa återställning kvartalsvis.
+
+----------------------------------------------------------------------
+5. SEO (MARKETING)
+----------------------------------------------------------------------
+Title template: "Roots | [Page] — Föreningsnära hudvård"
+Meta description: unik per sida, max 155 tecken.
+
+Sitemap.xml: indexera publika sidor, exkludera /club och /sales.
+
+Robots.txt: disallow /api, /club, /sales.
+
+Strukturerad data: Organization + Product schema på produktsidor.
+
+----------------------------------------------------------------------
+6. ANALYTICS
+----------------------------------------------------------------------
+Privacy-first: Plausible eller Fathom (inga cookies) ELLER server-side GA4
+med consent banner om krävs.
+
+Händelser: CTA click, signup started, order completed (anonymiserad).
+
+----------------------------------------------------------------------
+7. OBSERVABILITY
+----------------------------------------------------------------------
+APM: OpenTelemetry eller Sentry för fel och prestanda.
+
+Loggar: centraliserade, retention 30–90 dagar.
+
+Alerts: 5xx rate, latency p95, job failures.
+
+----------------------------------------------------------------------
+8. RATE LIMITING
+----------------------------------------------------------------------
+API gateway: global per IP + strängare per endpoint (login, AI chat).
+
+----------------------------------------------------------------------
+9. INCIDENT RESPONSE
+----------------------------------------------------------------------
+Runbook: rotera API-nycklar, revoka sessions, meddela berörda (GDPR 72h vid personuppgiftsincident).
+
+----------------------------------------------------------------------
+10. CHECKLISTA INNAN LAUNCH
+----------------------------------------------------------------------
+[ ] SSL A+ (SSL Labs)
+[ ] Security headers verifierade
+[ ] Penetrationstest eller OWASP ZAP baseline
+[ ] Cookie-policy om spårning
+[ ] GDPR-register för personuppgiftsbehandling
+
+SLUT AGENT 08

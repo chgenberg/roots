@@ -1,0 +1,94 @@
+import { Hono } from "hono";
+import { eq } from "drizzle-orm";
+import { db } from "@roots/db";
+import { sellers, teams, campaigns } from "@roots/db/schema";
+import { getSession, SESSION_COOKIE_NAME } from "../lib/session";
+import { getInviteTemplate, getShopShareTemplate } from "../lib/communication-templates";
+import type { SessionData } from "../lib/session";
+import { childLogger } from "../lib/logger";
+
+const log = childLogger("sharing");
+
+export const sharing = new Hono();
+
+function getSessionId(c: any): string | null {
+  const cookie = c.req.header("cookie") || "";
+  const match = cookie.match(new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`));
+  return match ? match[1] : null;
+}
+
+async function requireSession(c: any): Promise<SessionData | null> {
+  const sessionId = getSessionId(c);
+  if (!sessionId) return null;
+  try {
+    return await getSession(sessionId);
+  } catch {
+    return null;
+  }
+}
+
+sharing.get("/invite-template/:teamId", async (c) => {
+  const session = await requireSession(c);
+  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+
+  const teamId = c.req.param("teamId");
+
+  try {
+    const [team] = await db.select().from(teams).where(eq(teams.id, teamId)).limit(1);
+    if (!team) return c.json({ error: "Lag hittades inte" }, 404);
+
+    const hasAccess =
+      session.role === "INTERNAL_ADMIN" ||
+      (session.role === "ASSOCIATION_ADMIN" && session.orgId === team.orgId) ||
+      (session.role === "TEAM_LEADER" && team.leaderId === session.userId);
+
+    if (!hasAccess) {
+      return c.json({ error: "Behörighet saknas" }, 403);
+    }
+
+    const [campaign] = await db.select().from(campaigns).where(eq(campaigns.id, team.campaignId)).limit(1);
+
+    const template = getInviteTemplate({
+      teamName: team.name,
+      campaignName: campaign?.name || "",
+      story: campaign?.story || "",
+      inviteToken: team.inviteToken,
+      leaderName: "Lagansvarig",
+    });
+
+    return c.json(template);
+  } catch (err) {
+    log.error({ err }, "Failed to fetch invite template");
+    return c.json({ error: "Kunde inte hämta data" }, 500);
+  }
+});
+
+sharing.get("/shop-share-template", async (c) => {
+  const session = await requireSession(c);
+  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+
+  try {
+    const [seller] = await db
+      .select()
+      .from(sellers)
+      .where(eq(sellers.userId, session.userId))
+      .limit(1);
+
+    if (!seller) return c.json({ error: "Ingen säljar-profil" }, 404);
+
+    const [team] = await db.select().from(teams).where(eq(teams.id, seller.teamId)).limit(1);
+    const [campaign] = await db.select().from(campaigns).where(eq(campaigns.id, seller.campaignId)).limit(1);
+
+    const template = getShopShareTemplate({
+      sellerName: seller.displayName,
+      shopSlug: seller.shopSlug,
+      teamName: team?.name || "",
+      story: campaign?.story || "",
+    });
+
+    return c.json(template);
+  } catch (err) {
+    log.error({ err }, "Failed to fetch shop share template");
+    return c.json({ error: "Kunde inte hämta data" }, 500);
+  }
+});

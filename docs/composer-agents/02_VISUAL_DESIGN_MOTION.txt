@@ -1,0 +1,148 @@
+AGENT 02 — VISUAL DESIGN SYSTEM & MOTION
+========================================
+Roll: Art Director / Design System Lead
+Version: 1.0
+
+----------------------------------------------------------------------
+1. DESIGNINTENTION
+----------------------------------------------------------------------
+Referens: nordisk "cleant" möbel- och inredningsvarumärken — luft, precision,
+materialkänsla (trä, linne, sten), fotografi med naturligt ljus. Inte: gradient-
+mesh, neon, glassmorphism-heavy, eller generisk AI-estetik.
+
+Webbplatsen ska kännas som en genomarbetad produktkatalog + B2B-portal, inte
+som en startup-template.
+
+----------------------------------------------------------------------
+2. FÄRGPALETT (LOCKED)
+----------------------------------------------------------------------
+Bakgrund:
+  --bg-primary:     #FFFFFF  (vit huvudyta)
+  --bg-subtle:      #FAFAF9  (mycket svag varm off-white för sektioner)
+  --bg-elevated:    #FFFFFF med 1px border #E8E4E0 för kort
+
+Signatur (mörkbrun):
+  --brand-900:      #1C1410  (nästan svart brun — primär text, knappar)
+  --brand-800:      #2A1F18  (hover på primär knapp)
+  --brand-700:      #3D2E26  (sekundär text, ikoner)
+  --brand-600:      #5C4A3F  (muted labels)
+  --brand-accent:   #4A372C  (CTA-outline, länkar)
+
+Accent / signal (sparsam användning):
+  --signal:         #6B5344  (fokusring, aktiva steg i stegindikator)
+  --error:          #8C2F2F  (fel — håll samma varma familj, inte ren röd neon)
+  --success:        #2F4A3C  (diskret grön-grå, inte skrikigt)
+
+Text:
+  --text-primary:   var(--brand-900)
+  --text-secondary: var(--brand-700)
+  --text-muted:     var(--brand-600)
+
+Gränser:
+  --border-subtle:  #E8E4E0
+  --border-strong:  #D4CCC4
+
+Kontrastkrav: Primär text mot vit ska uppfylla WCAG AA (minst 4.5:1). Testa
+mörkbrun #1C1410 mot #FFFFFF (god marginal).
+
+----------------------------------------------------------------------
+3. TYPOGRAFI
+----------------------------------------------------------------------
+Primär font (display / rubriker): En geometrisk men mänsklig grotesk.
+  Förslag: "Söhne", "GT America", "Neue Haas Grotesk", eller systemstack:
+  ui-sans-serif med fallback: -apple-system, BlinkMacSystemFont, "Segoe UI",
+  sans-serif — men välj EN köpt webfont för varumärke om budget finns.
+
+Brödtext: samma familj eller kompletterande serif med restriktion:
+  Undvik klassisk tidnings-serif; välj något med nordisk neutralitet
+  (t.ex. lättare vikt 400–450, radhöjd 1.55–1.65).
+
+Skala (clamp för fluid typography):
+  --text-xs:    clamp(0.75rem, 0.7rem + 0.2vw, 0.8125rem)
+  --text-sm:    clamp(0.875rem, 0.8rem + 0.25vw, 0.9375rem)
+  --text-base:  clamp(1rem, 0.95rem + 0.2vw, 1.0625rem)
+  --text-lg:    clamp(1.125rem, 1rem + 0.35vw, 1.25rem)
+  --text-xl:    clamp(1.25rem, 1.1rem + 0.5vw, 1.5rem)
+  --text-2xl:   clamp(1.5rem, 1.25rem + 0.75vw, 2rem)
+  --text-hero:  clamp(2.25rem, 1.75rem + 2vw, 3.5rem)
+
+Max bredd för läsbarhet: 65ch för brödtext, 45–55ch för marknadscopy.
+
+----------------------------------------------------------------------
+4. LAYOUT & RUTNÄT
+----------------------------------------------------------------------
+Container max-width: 1280px (desktop), 100% med 24px gutter (mobil), 40px (desktop).
+
+Sektion spacing: py-20 till py-32 (80–128px) mellan stora block — luft är varumärke.
+
+Kort: border-radius 8px eller 12px (välj en, var konsekvent). Shadow extremt subtil:
+  box-shadow: 0 1px 2px rgba(28, 20, 16, 0.04), 0 8px 24px rgba(28, 20, 16, 0.06);
+
+----------------------------------------------------------------------
+5. KOMPONENTER — CTA
+----------------------------------------------------------------------
+Primär knapp:
+  Bakgrund: brand-900, text vit, padding 14px 28px, font-weight 500
+  Hover: brand-800, transition 150ms ease
+  Focus: 2px outline offset 2px i signal-färg
+
+Sekundär knapp:
+  Transparent, border 1px brand-900, text brand-900
+  Hover: bg-subtle
+
+Ingen gradient-knapp. Ingen "glöd".
+
+----------------------------------------------------------------------
+6. MOTION & DEKORATION (PROFESSIONELL, INTE LEKSAK)
+----------------------------------------------------------------------
+Princip: en animation gör ett jobb. Max 2 samtidiga rörelser i viewport.
+
+"Pulserande box":
+  - Använd för EN primär CTA eller viktig informationsruta (t.ex. "Ny säsong")
+  - Implementation: subtil scale 1 → 1.01 → 1 på 3s ease-in-out, infinite,
+    eller opacity på border 0.4 → 1 — INTE blinkande färger.
+
+"Flygande element":
+  - Abstrakta former (SVG circles/ellipser) med opacity 0.03–0.08 i brand-700,
+    position absolute, slow parallax på scroll (transform translateY baserat på
+    scrollY * 0.05). Max 3 former per sektion.
+
+Page transition: fade 200ms, inga slide-wipes.
+
+Respect prefers-reduced-motion: stäng av infinite animations, sänk till opacity-only.
+
+----------------------------------------------------------------------
+7. BILDMATERIAL (UNSPLASH — TILLFÄLLIGA)
+----------------------------------------------------------------------
+Söktermer (exempel): "scandinavian bathroom natural light", "minimal soap bottle",
+"linen texture neutral", "forest fog sweden", "wood grain close up"
+
+Regler:
+  - Inga övermättade stockfoton med människor som ser ut som reklam 2015
+  - Preferera: dagsljus, skandinaviska interiörer, närbild material
+  - Produktfoton: när riktiga finns — ersätt placeholders
+
+Attribution: Unsplash kräver fotograf-länk i footer eller bredvid bild i dev-läge.
+
+----------------------------------------------------------------------
+8. IKONOGRAFI
+----------------------------------------------------------------------
+Stroke-baserade ikoner, 1.5px stroke, rundade hörn, färg brand-700. Bibliotek:
+Lucide eller liknande outline-set. Undvik fyllda "bubbliga" ikoner.
+
+----------------------------------------------------------------------
+9. FORMULÄR
+----------------------------------------------------------------------
+Inputs: vit bakgrund, border border-subtle, focus ring brand-900.
+Labels alltid synliga (inte bara placeholder).
+Felmeddelanden under fält, text error-färg.
+
+----------------------------------------------------------------------
+10. LEVERANSER TILL FIGMA / KOD
+----------------------------------------------------------------------
+[ ] design-tokens.json eller CSS variables (en källa till sanning)
+[ ] Komponentlista: Button, Card, Section, Nav, Footer, Input, Table
+[ ] Motion specs (duration, easing) i en tabell
+[ ] Unsplash URL-lista per sektion
+
+SLUT AGENT 02

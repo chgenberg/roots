@@ -1,0 +1,27 @@
+AGENT 07 — REKOMMENDATIONER: LIVSSTIL, KOST, PRODUKTER
+=====================================================
+
+RAM
+---
+Alla kosttips är **allmänna hälsoråd** (vätska, proteinrik kost i normal omfattning, mångfald) — inte individuell dietistbedömning.
+
+LIVSSTIL
+--------
+- Sömn, stress, utomhusmiljö (sol/vind), hatt/keps, träningsfrekvens — koppla till hår som utsätts för friktion och svett.
+
+PRODUKTER (ROOTS)
+-----------------
+- Mappa analys + svar till **ett av tre paketlägen**: underhåll / extra fukt / "balanserad rutin" — använd befintliga produktnamn.
+- Undvik att påstå att en ingrediens "botar" — beskriv **varför rutinen passar** den bedömda profilen.
+
+OUTPUTFORMAT
+------------
+1. Kort sammanfattning (3 meningar).
+2. Bullets: observationer från bild (om tillåtet).
+3. Bullets: vanor att överväga.
+4. Produktrekommendation: schampo + balsam + body wash som helhet.
+5. Disclaimer.
+
+A/B-TEST (SENARE)
+-----------------
+- Olika rubriker på resultat-skärmen för att mäta klick till "Beställ paket".

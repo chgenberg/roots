@@ -1,0 +1,117 @@
+AGENT 04 — BACKEND, API & DATA MODEL
+======================================
+Roll: Backend Architect
+Version: 1.0
+
+----------------------------------------------------------------------
+1. PLATFORMSVAL
+----------------------------------------------------------------------
+Rekommendation: Node.js (NestJS eller Hono + tRPC) ELLER Python (FastAPI) om team
+är starkare där. För snabb vertikal integration med Next.js: tRPC eller REST
+med OpenAPI.
+
+Databas: PostgreSQL (relationsdata för ordrar, offerter, användare).
+
+Cache: Redis för sessions, rate limits, kö-jobb (Fortnox sync).
+
+----------------------------------------------------------------------
+2. KÄRNA ENTITETER (DOMAIN MODEL — UTKAST)
+----------------------------------------------------------------------
+Organization (Förening / klubb)
+  id, name, orgNumber (optional), billingAddress, shippingAddresses[], status,
+  createdAt, fortnoxCustomerId (nullable)
+
+User
+  id, email, passwordHash (eller SSO sub), role, organizationId (nullable för säljare),
+  mfaEnabled, createdAt
+
+Role enum: PUBLIC (ingen), CLUB_ADMIN, CLUB_MEMBER, SALES_REP, SALES_ADMIN, INTERNAL_ADMIN
+
+Product
+  id, sku, name, description, unitPriceExVat, vatRate, bundleId (optional)
+
+Bundle (paket: schampo+balsam+body wash)
+  id, name, priceExVat, productIds[], active
+
+Quote (Offert)
+  id, organizationId, createdByUserId (säljare), status (draft/sent/accepted/rejected),
+  lineItems[], validUntil, pdfUrl (nullable), createdAt
+
+Order
+  id, organizationId, createdByUserId (klubb eller säljare), quoteId (nullable),
+  status (pending/confirmed/invoiced/cancelled), lineItems[], totals, fortnoxInvoiceId (nullable)
+
+LineItem
+  productId eller bundleId, quantity, unitPriceSnapshot, vatSnapshot
+
+AuditLog
+  actorUserId, action, entityType, entityId, payloadJson, createdAt
+
+----------------------------------------------------------------------
+3. API ENDPOINTS (REST — EXEMPEL)
+----------------------------------------------------------------------
+Public:
+  GET  /health
+  GET  /v1/products
+  GET  /v1/bundles
+
+Auth:
+  POST /v1/auth/login
+  POST /v1/auth/logout
+  POST /v1/auth/refresh        (om JWT)
+  POST /v1/auth/password-reset/request
+
+Club (kräver session + CLUB_*):
+  GET  /v1/club/me
+  GET  /v1/club/orders
+  POST /v1/club/orders
+  GET  /v1/club/orders/:id
+
+Sales (kräver SALES_*):
+  GET  /v1/sales/organizations
+  POST /v1/sales/quotes
+  PATCH /v1/sales/quotes/:id
+  POST /v1/sales/orders          (order åt kund)
+  GET  /v1/sales/pipeline        (aggregat)
+
+Admin:
+  POST /v1/admin/users
+  PATCH /v1/admin/organizations/:id
+
+Webhook mottagning (Fortnox):
+  POST /v1/integrations/fortnox/webhook  (verify signature)
+
+----------------------------------------------------------------------
+4. VALIDERING
+----------------------------------------------------------------------
+All input: Zod eller Pydantic models. Versionsnummer i API: /v1/.
+
+----------------------------------------------------------------------
+5. IDEMPOTENCY
+----------------------------------------------------------------------
+POST order: acceptera Idempotency-Key header för att undvika dubbel order vid retry.
+
+----------------------------------------------------------------------
+6. BAKGRUNDSJOBB
+----------------------------------------------------------------------
+Kö (BullMQ / pg-boss / Celery):
+  - Sync invoice status från Fortnox
+  - Skicka e-post vid offert accepterad
+  - Daglig rapport till sälj (valfritt)
+
+----------------------------------------------------------------------
+7. LOGGNING & SPÅRBARHET
+----------------------------------------------------------------------
+Strukturerad JSON-logg. correlationId per request. PII maskeras i loggar.
+
+----------------------------------------------------------------------
+8. MIGRATIONER
+----------------------------------------------------------------------
+Prisma eller Drizzle (Node) / Alembic (Python). Alla schemaändringar versionerade.
+
+----------------------------------------------------------------------
+9. SEED DATA (DEV)
+----------------------------------------------------------------------
+En demo-klubb, en demo-säljare, tre produkter, ett paket.
+
+SLUT AGENT 04

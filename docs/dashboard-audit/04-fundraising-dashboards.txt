@@ -1,0 +1,9 @@
+Composer 2.0 — Subagent 04: Fundraising (lag, förening, min-shop, layout)
+
+Sammanfattning
+- Delad fetch/loading/error; KPI 4-up grid; mobil nav saknar ibland aktiv stil.
+
+Rekommendationer (implementeras selektivt)
+1. Fundraising layout: matcha aktiv länk-stil på mobil.
+2. Färger: toning emerald/amber mot brand där rimligt (lag KPI + orders).
+3. Skeleton är större ändring — hoppa över i denna runda.

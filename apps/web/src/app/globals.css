@@ -1,0 +1,199 @@
+@import "tailwindcss";
+
+@theme extend {
+  /* ── Brand palette ───── */
+  --color-brand-900: #1C1410;
+  --color-brand-800: #2A1F18;
+  --color-brand-700: #3B2D22;
+  --color-brand-600: #4A372C;
+  --color-brand-500: #6B5344;
+  --color-brand-400: #8C7466;
+  --color-brand-300: #B5A89E;
+  --color-brand-200: #D4CCC4;
+  --color-brand-100: #E8E4E0;
+  --color-brand-50: #F5F3F1;
+  --color-brand-accent: #4A372C;
+
+  /* ── Semantic tokens ─── */
+  --color-background: #FFFFFF;
+  --color-foreground: #1C1410;
+  --color-muted: #F5F3F1;
+  --color-muted-foreground: #6B5344;
+  --color-border: #E8E4E0;
+  --color-ring: #1C1410;
+  --color-primary: #1C1410;
+  --color-primary-foreground: #FFFFFF;
+  --color-secondary: #F5F3F1;
+  --color-secondary-foreground: #1C1410;
+  --color-accent: #F5F3F1;
+  --color-accent-foreground: #1C1410;
+  --color-destructive: #8C2F2F;
+  --color-destructive-foreground: #FFFFFF;
+  --color-success: #2F4A3C;
+  --color-success-foreground: #FFFFFF;
+
+  /* ── Surfaces ─── */
+  --color-card: #FFFFFF;
+  --color-card-foreground: #1C1410;
+  --color-popover: #FFFFFF;
+  --color-popover-foreground: #1C1410;
+
+  /* ── Legacy compat ─── */
+  --color-bg-primary: #FFFFFF;
+  --color-bg-subtle: #FAFAF9;
+  --color-signal: #6B5344;
+  --color-error: #8C2F2F;
+  --color-border-default: #E8E4E0;
+  --color-border-strong: #D4CCC4;
+
+  /* ── Custom font size ─── */
+  --font-size-hero: clamp(2.5rem, 1.75rem + 3.75vw, 4.5rem);
+
+  /* ── Radius ─── */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  /* ── Animations ─── */
+  --animate-subtle-pulse: subtle-pulse 3s ease-in-out infinite;
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-fade-in: fade-in 0.3s ease-out;
+  --animate-slide-up: slide-up 0.4s ease-out;
+  --animate-slide-down: slide-down 0.3s ease-out;
+  --animate-spin-slow: spin-slow 4s linear infinite;
+}
+
+/* ── Shadow tokens (Agent 02 spec) ─── */
+:root {
+  --shadow-card: 0 1px 2px rgba(28, 20, 16, 0.04), 0 8px 24px rgba(28, 20, 16, 0.06);
+  --shadow-elevated: 0 4px 32px rgba(28, 20, 16, 0.08);
+  --shadow-dialog: 0 24px 64px rgba(28, 20, 16, 0.12);
+}
+
+@keyframes subtle-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.85; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-12px) rotate(1deg); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-down {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse-shadow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(28, 20, 16, 0.25); }
+  50% { box-shadow: 0 0 0 12px rgba(28, 20, 16, 0); }
+}
+
+@keyframes pulse-shadow-light {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.3); }
+  50% { box-shadow: 0 0 0 10px rgba(255, 255, 255, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+* {
+  border-color: var(--color-border);
+}
+
+body {
+  color: var(--color-foreground);
+  background-color: var(--color-background);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background-color: var(--color-brand-900);
+  color: white;
+}
+
+/* Dark mode — toggled via class="dark" on <html> */
+.dark {
+  --color-background: #1a1412;
+  --color-foreground: #f5f0eb;
+  --color-muted: #1f1a16;
+  --color-muted-foreground: #a89585;
+  --color-border: #2d2420;
+  --color-brand-50: #1f1a16;
+  --color-brand-100: #2d2420;
+  --color-brand-200: #3d3028;
+  --color-brand-300: #5a4a3c;
+  --color-brand-500: #c4a882;
+  --color-brand-800: #e8d5c0;
+  --color-brand-900: #f5ece0;
+  --color-card: #1f1a16;
+  --color-card-foreground: #f5f0eb;
+  --color-popover: #1f1a16;
+  --color-popover-foreground: #f5f0eb;
+  --color-primary: #f5ece0;
+  --color-primary-foreground: #1a1412;
+  --color-secondary: #2d2420;
+  --color-secondary-foreground: #f5f0eb;
+  --shadow-card: 0 1px 2px rgba(245, 236, 224, 0.04), 0 8px 24px rgba(245, 236, 224, 0.06);
+  --shadow-elevated: 0 4px 32px rgba(245, 236, 224, 0.08);
+  --shadow-dialog: 0 24px 64px rgba(245, 236, 224, 0.12);
+}
+
+.page-enter {
+  animation: fade-in 0.25s ease-out both;
+}
+
+.section-spacing {
+  padding-top: 5rem;
+  padding-bottom: 5rem;
+}
+@media (min-width: 768px) {
+  .section-spacing {
+    padding-top: 7rem;
+    padding-bottom: 7rem;
+  }
+}
+@media (min-width: 1024px) {
+  .section-spacing {
+    padding-top: 8rem;
+    padding-bottom: 8rem;
+  }
+}
+
+img {
+  transition: filter 0.2s ease;
+}
+
+a, button {
+  transition-property: color, background-color, border-color, box-shadow, transform, opacity;
+  transition-timing-function: ease;
+  transition-duration: 150ms;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 2px;
+}

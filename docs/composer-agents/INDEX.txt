@@ -1,0 +1,46 @@
+ROOTS WEBBPLATS — COMPOSER 2.0 / MULTI-AGENT STRATEGIPAKET
+===========================================================
+
+Mapp: docs/composer-agents/
+
+Åtta strategidokument (en agent per fil). Varje fil är avsedd att matas in i Composer
+eller användas som referens när kod genereras. Byggordning rekommenderas 01 → 08.
+
+FILER
+-----
+
+01_UX_IA_NAVIGATION.txt          Strateg för information architecture, navigation, funnel
+02_VISUAL_DESIGN_MOTION.txt    Design system, färger, typografi, motion, Unsplash
+03_FRONTEND_STACK.txt          Frontend-arkitektur, komponenter, performance, tillgänglighet
+04_BACKEND_API_DATA.txt        API, databas, domänmodell, orderflöden
+05_AUTH_RBAC.txt                Klubb-login, säljare-login, roller, sessioner
+06_AI_OPENCLAW.txt             AI-lager, Open Claw, agentflöden, MCP
+07_FORTNOX_COMMERCE.txt        Fortnox-förberedelse, faktura, produkt-synk
+08_SECURITY_DEVOPS_SEO.txt     Säkerhet, CI/CD, SEO, analytics
+
+GLOBALA PREMISSER (alla agenter)
+--------------------------------
+- Tre produkter: schampo, balsam, body wash
+- Nordisk, minimalistisk, "cleant möbelföretag"-känsla
+- Företagsberättelse: tre grundare över 1,95 m, olika bakgrund, gemensamt mål att stärka
+  svenskt föreningsliv
+- Få menyval, men kraftfull backend; ren frontend
+- Vit bakgrund, mörkbrun signaturfärg
+- Ingen emoji-estetik; professionell UI med subtil motion (pulserande accenter, flytande
+  dekorativa element — sparsamt)
+- Placeholders: Unsplash (fotorealistiskt, nordiskt ljus)
+- Två inloggningsspår: klubbar (beställning) och säljare (order + offerter)
+- Fortnox-koppling förberedd från början
+- Open Claw integrerat från start (AI-/agentperspektiv)
+
+UNDERTILLÄGG — HÅRANALYS (LEADMAGNET)
+--------------------------------------
+Mapp: docs/composer-agents/hair-analysis/ (atta agenter + INDEX + checklist).
+Används för GPT Vision, wizard och rekommendationer — se .cursor/skills/roots-hair-analysis-composer/SKILL.md
+
+NÄSTA STEG EFTER STRATEGI
+-------------------------
+1. Granska alla åtta .txt-filer
+2. Skapa repo-struktur (monorepo eller app + api)
+3. Implementera design tokens innan sidor
+4. Bygg auth och API-kontrakt innan UI-polish

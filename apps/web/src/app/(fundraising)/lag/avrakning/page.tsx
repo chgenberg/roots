@@ -1,0 +1,266 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  CreditCard,
+  Loader2,
+  TrendingUp,
+  ArrowDownRight,
+  ArrowUpRight,
+  Package,
+} from "lucide-react";
+import type { TeamDashboard, CustomerOrder } from "@/types/fundraising";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+
+export default function TeamSettlementPage() {
+  const [data, setData] = useState<TeamDashboard | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const myTeamRes = await fetch(`${API_URL}/v1/dashboard/my-team`, {
+          credentials: "include",
+        });
+        if (!myTeamRes.ok) {
+          setError("Kunde inte hämta lagdata. Försök igen.");
+          return;
+        }
+        const { teamId } = await myTeamRes.json();
+
+        const teamRes = await fetch(
+          `${API_URL}/v1/dashboard/team/${teamId}`,
+          { credentials: "include" }
+        );
+        if (teamRes.ok) {
+          setData(await teamRes.json());
+        } else {
+          setError("Kunde inte hämta lagdata. Försök igen.");
+        }
+      } catch {
+        setError("Ett nätverksfel uppstod. Försök igen.");
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-6 w-6 animate-spin text-brand-400" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-20">
+        <p className="text-sm text-destructive">{error}</p>
+        <Button variant="outline" onClick={() => window.location.reload()}>
+          Försök igen
+        </Button>
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="flex flex-col items-center gap-3 py-20">
+        <CreditCard className="h-10 w-10 text-muted-foreground" />
+        <p className="text-sm text-muted-foreground">Inget lag hittades</p>
+      </div>
+    );
+  }
+
+  const orders: CustomerOrder[] = data.orders || [];
+  const marginPercent = data.stats?.marginPercent || 0;
+  const totalSales = data.stats?.totalSalesOre || 0;
+  const teamEarnings = data.stats?.teamEarningsOre || 0;
+  const rootsShare = totalSales - teamEarnings;
+
+  const paidOrders = orders.filter(
+    (o: CustomerOrder) =>
+      o.status === "PAID" ||
+      o.status === "CONFIRMED" ||
+      o.status === "SHIPPED" ||
+      o.status === "DELIVERED"
+  );
+
+  const klarnaOrders = paidOrders.filter(
+    (o: CustomerOrder) => o.paymentMethod === "KLARNA"
+  );
+  const directOrders = paidOrders.filter(
+    (o: CustomerOrder) => o.paymentMethod === "DIRECT_TO_LEADER"
+  );
+  const directDeliveries = paidOrders.filter(
+    (o: CustomerOrder) => o.deliveryType === "DIRECT"
+  );
+
+  const klarnaPaidTotal = klarnaOrders.reduce(
+    (sum: number, o: CustomerOrder) => sum + (o.totalOre || 0),
+    0
+  );
+  const directPaidTotal = directOrders.reduce(
+    (sum: number, o: CustomerOrder) => sum + (o.totalOre || 0),
+    0
+  );
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold">Avräkning</h1>
+        <p className="text-sm text-muted-foreground">
+          Intjänat och betalstatus för {data.team?.name}
+        </p>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardContent className="p-5">
+            <p className="text-sm text-muted-foreground">Total försäljning</p>
+            <p className="mt-1 text-2xl font-bold">
+              {(totalSales / 100).toLocaleString("sv-SE")} kr
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="border-brand-200">
+          <CardContent className="p-5">
+            <div className="flex items-center gap-1.5">
+              <TrendingUp className="h-3.5 w-3.5 text-brand-400" />
+              <p className="text-sm text-muted-foreground">Lagets förtjänst</p>
+            </div>
+            <p className="mt-1 text-2xl font-bold text-brand-700">
+              {(teamEarnings / 100).toLocaleString("sv-SE")} kr
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {marginPercent}% av försäljningen
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-center gap-1.5">
+              <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">Roots-andel</p>
+            </div>
+            <p className="mt-1 text-2xl font-bold">
+              {(rootsShare / 100).toLocaleString("sv-SE")} kr
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {100 - marginPercent}% av försäljningen
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-5">
+            <p className="text-sm text-muted-foreground">Betalda ordrar</p>
+            <p className="mt-1 text-2xl font-bold">{paidOrders.length}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-center gap-1.5 mb-1">
+              <CreditCard className="h-3.5 w-3.5 text-brand-400" />
+              <p className="text-sm font-medium">Betalt via Klarna</p>
+            </div>
+            <p className="text-xl font-bold">
+              {(klarnaPaidTotal / 100).toLocaleString("sv-SE")} kr
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {klarnaOrders.length} ordrar — betalat direkt till Roots
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-center gap-1.5 mb-1">
+              <ArrowDownRight className="h-3.5 w-3.5 text-brand-500" />
+              <p className="text-sm font-medium">Betala till ansvarig</p>
+            </div>
+            <p className="text-xl font-bold">
+              {(directPaidTotal / 100).toLocaleString("sv-SE")} kr
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {directOrders.length} ordrar — ska samlas in
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-center gap-1.5 mb-1">
+              <Package className="h-3.5 w-3.5 text-muted-foreground" />
+              <p className="text-sm font-medium">Direktleveranser</p>
+            </div>
+            <p className="text-xl font-bold">{directDeliveries.length}</p>
+            <p className="text-xs text-muted-foreground">
+              Skickas direkt hem till kund
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Betalstatus per kund</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {paidOrders.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-6">
+              Inga betalda ordrar ännu
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {paidOrders.map((order: CustomerOrder) => (
+                <div
+                  key={order.id}
+                  className="flex items-center justify-between rounded-lg border p-3"
+                >
+                  <div className="space-y-0.5">
+                    <p className="text-sm font-medium">{order.customerName}</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      <Badge
+                        variant="secondary"
+                        className={`text-xs ${
+                          order.paymentMethod === "KLARNA"
+                            ? "bg-brand-100 text-brand-700"
+                            : "bg-brand-50 text-brand-600"
+                        }`}
+                      >
+                        {order.paymentMethod === "KLARNA"
+                          ? "Betalt till Roots"
+                          : "Samlas in av ansvarig"}
+                      </Badge>
+                      {order.deliveryType === "DIRECT" && (
+                        <Badge variant="secondary" className="text-xs">
+                          Direktleverans
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-semibold">
+                      {(order.totalOre / 100).toLocaleString("sv-SE")} kr
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(order.createdAt).toLocaleDateString("sv-SE")}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

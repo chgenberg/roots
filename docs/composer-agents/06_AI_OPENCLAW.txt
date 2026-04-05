@@ -1,0 +1,107 @@
+AGENT 06 — AI LAYER & OPEN CLAW INTEGRATION
+============================================
+Roll: AI Systems / Automation Architect
+Version: 1.0
+
+----------------------------------------------------------------------
+1. SYFTE
+----------------------------------------------------------------------
+Webbplatsen ska kännas "intelligent" inte genom att överösa användaren med AI-text,
+utan genom att:
+  - Ge snabba, korrekta svar på frågor om föreningsmodellen och produkterna
+  - Hjälpa klubbar att fylla i beställningar (guidning, validering)
+  - Assistera säljare med utkast till offerter (struktur, inte juridisk rådgivning)
+
+Open Claw ("OpenClaw") integreras från start som den primära agent-/automations-
+anslutningen för MCP-verktyg, hemligheter och ev. flera modeller.
+
+OBS: Exakt upstream API för OpenClaw kan ändras — denna fil definierar kontrakt och
+integrationspunkter som implementationen ska följa.
+
+----------------------------------------------------------------------
+2. ARKITEKTUR (REKOMMENDERAD)
+----------------------------------------------------------------------
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│  Web client     │────▶│  BFF / API       │────▶│  Open Claw      │
+│  (chat widget)  │     │  /v1/ai/chat     │     │  gateway        │
+└─────────────────┘     └─────────────────┘     └────────┬────────┘
+                                                       │
+                        ┌──────────────────────────────┼── MCP tools
+                        ▼                              ▼
+                 ┌──────────────┐              ┌──────────────┐
+                 │ Product docs │              │ Order status │
+                 │ (RAG)        │              │ (read-only)  │
+                 └──────────────┘              └──────────────┘
+
+Principer:
+  - Frontend anropar aldrig Open Claw direkt med hemliga nycklar
+  - All AI-trafik går via backend som autentiserar användaren och applicerar RBAC
+  - Verktyg (MCP) exponerar endast läsoperationer för känslig data som standard
+  - Skrivoperationer (t.ex. skapa order) kräver explicit användar-bekräftelse i UI
+
+----------------------------------------------------------------------
+3. USE CASES (MVP → V2)
+----------------------------------------------------------------------
+MVP:
+  - "Fråga om Roots" — RAG över godkänd varumärkes-/produktdokumentation
+  - Klubb: förklara beställningssteg
+  - Säljare: förslag på offert-rader baserat på valda produkter (ej pris utan godkännande)
+
+V2:
+  - Sammanfattning av orderhistorik för säljare
+  - Automatisk översättning av kundmejl (om tillåtet)
+
+----------------------------------------------------------------------
+4. RAG (RETRIEVAL)
+----------------------------------------------------------------------
+Källa: vector store (pgvector i Postgres eller separat tjänst)
+Innehåll: produktblad, FAQ, föreningsmodell, leveransvillkor (public)
+
+Uppdatering: när innehåll ändras — re-embed pipeline (batch job).
+
+Guardrails:
+  - System prompt: svara endast utifrån källor; om okänt: hänvisa till support
+  - Citera inte interna marginaler eller kunddata i chat som någon utanför rollen kan se
+
+----------------------------------------------------------------------
+5. OPEN CLAW — KONFIGURATION (MILJÖVARIABLER)
+----------------------------------------------------------------------
+OPENCLAW_BASE_URL=https://...
+OPENCLAW_API_KEY=...                    (server only, never NEXT_PUBLIC)
+OPENCLAW_DEFAULT_MODEL=...              (om tillämpligt)
+OPENCLAW_MCP_TIMEOUT_MS=30000
+
+Backend lagrar nycklar i secrets manager (AWS/GCP/ Vault) i produktion.
+
+----------------------------------------------------------------------
+6. CHAT WIDGET (UI)
+----------------------------------------------------------------------
+Placering: diskret knapp nedre högra hörnet (vit/brun, inte "chat bubble neon")
+
+Tillgänglighet: tangentbordsnavigering, stäng med Esc, fokusfälla i modal
+
+Disclaimer: "Svaren kan vara fel — viktiga avtal bekräftas alltid med oss."
+
+----------------------------------------------------------------------
+7. LOGGNING & COMPLIANCE
+----------------------------------------------------------------------
+Logga: sessionId, userId (hash eller id), frågetyp, latency
+Logga INTE: fullständiga konversationer i klartext i produktion om inte nödvändigt;
+anonymisera eller korta retention (t.ex. 30 dagar).
+
+GDPR: informera i integritetspolicy om AI-assistent och behandling av meddelanden.
+
+----------------------------------------------------------------------
+8. FALLBACK
+----------------------------------------------------------------------
+Om Open Claw otillgänglig: visa statisk FAQ + kontaktformulär — ingen tom spinner.
+
+----------------------------------------------------------------------
+9. LEVERANSER
+----------------------------------------------------------------------
+[ ] POST /v1/ai/chat endpoint med streaming (SSE) eller chunked JSON
+[ ] Tool definitions för MCP (read products, read order summary)
+[ ] Admin flag för att stänga av AI globalt
+[ ] Rate limit per användare per minut
+
+SLUT AGENT 06

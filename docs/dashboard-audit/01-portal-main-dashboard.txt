@@ -1,0 +1,13 @@
+Composer 2.0 — Subagent 01: Portal huvuddashboard (portal/page.tsx)
+
+Sammanfattning
+- ClubDashboard / SalesDashboard / AdminDashboard: KPI-rutnät, sidokolumn med snabbåtgärder, gradient AI-kort.
+- Mönster: Card border-0 shadow-sm, ikonrutor rounded-xl, listor med border-b.
+- Problem: Link+nested button, alert() för AI, blandade färger (emerald/blue) vs brand tokens, Admin-kort tungt, pipeline smal skärm.
+
+Rekommendationer (implementeras)
+1. Snabbåtgärder: Button asChild + Link (ingen nästlad button).
+2. AI-CTA: ersätt alert med inline banner/toast-liknande state.
+3. KPI/pipeline: brand-* där det passar; responsiv pipeline grid (2 col sm, 4 lg).
+4. Tomma listor: kort copy när ingen aktivitet.
+5. prefers-reduced-motion: fade kortare utan slide vid reduced motion.

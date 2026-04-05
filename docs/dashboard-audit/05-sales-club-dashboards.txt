@@ -1,0 +1,10 @@
+Composer 2.0 — Subagent 05: Sales & Club dashboard
+
+Sammanfattning
+- Sales/club smalare max-width, enklare statkort, ingen portal-liknande motion eller mobil drawer.
+
+Rekommendationer (implementeras)
+1. animate-in fade på dashboard-sidor.
+2. Statkort: samma recept som portal (ikon-chip + text-2xl).
+3. Välkomstext personaliserad om data finns.
+4. Lättare: full bredd md:p-8 matchning.

@@ -1,0 +1,404 @@
+import { z } from "zod";
+import { eq, and } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
+import { router, publicProcedure } from "../init";
+import { isAuthenticated, isTeamLeader, isAssociationAdmin } from "../middleware/auth";
+import { db } from "@roots/db";
+import {
+  campaigns,
+  teams,
+  teamGoals,
+  sellers,
+  organizations,
+} from "@roots/db/schema";
+import {
+  CreateCampaignSchema,
+  UpdateCampaignSchema,
+  SetTeamGoalSchema,
+} from "@roots/contracts";
+
+const protectedProcedure = publicProcedure.use(isAuthenticated);
+const teamLeaderProcedure = publicProcedure.use(isTeamLeader);
+const associationProcedure = publicProcedure.use(isAssociationAdmin);
+
+function generateSlug(name: string): string {
+  return (
+    name
+      .toLowerCase()
+      .replace(/[åä]/g, "a")
+      .replace(/ö/g, "o")
+      .replace(/[^a-z0-9]/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "") +
+    "-" +
+    crypto.randomUUID().slice(0, 6)
+  );
+}
+
+function generateToken(): string {
+  return crypto.randomUUID().replace(/-/g, "").slice(0, 32);
+}
+
+async function verifyCampaignOwnership(campaignId: string, orgId: string) {
+  const [campaign] = await db
+    .select()
+    .from(campaigns)
+    .where(eq(campaigns.id, campaignId))
+    .limit(1);
+
+  if (!campaign) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Kampanj hittades inte" });
+  }
+
+  if (campaign.orgId !== orgId) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Behörighet saknas för denna kampanj" });
+  }
+
+  return campaign;
+}
+
+async function verifyTeamOwnership(teamId: string, orgId: string) {
+  const [team] = await db
+    .select()
+    .from(teams)
+    .where(eq(teams.id, teamId))
+    .limit(1);
+
+  if (!team) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Lag hittades inte" });
+  }
+
+  if (team.orgId !== orgId) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Behörighet saknas för detta lag" });
+  }
+
+  return team;
+}
+
+export const campaignsRouter = router({
+  create: associationProcedure
+    .input(CreateCampaignSchema)
+    .mutation(async ({ ctx, input }) => {
+      const slug = generateSlug(input.name);
+
+      const [campaign] = await db
+        .insert(campaigns)
+        .values({
+          orgId: ctx.orgId,
+          name: input.name,
+          slug,
+          description: input.description || "",
+          story: input.story || "",
+          goalType: input.goalType,
+          goalValue: input.goalValue,
+          startDate: input.startDate,
+          endDate: input.endDate,
+          deliveryType: input.deliveryType,
+          shippingThresholdOre: input.shippingThresholdOre ?? 0,
+          shippingFeeOre: input.shippingFeeOre ?? 4900,
+          marginPercent: input.marginPercent,
+        })
+        .returning();
+
+      return campaign;
+    }),
+
+  get: protectedProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      if (!ctx.orgId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Ingen organisation kopplad till sessionen" });
+      }
+
+      const [campaign] = await db
+        .select()
+        .from(campaigns)
+        .where(eq(campaigns.id, input.id))
+        .limit(1);
+
+      if (!campaign) return null;
+
+      if (campaign.orgId !== ctx.orgId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Behörighet saknas" });
+      }
+
+      return campaign;
+    }),
+
+  listByOrg: protectedProcedure.query(async ({ ctx }) => {
+    if (!ctx.orgId) return [];
+    return db
+      .select()
+      .from(campaigns)
+      .where(eq(campaigns.orgId, ctx.orgId))
+      .orderBy(campaigns.createdAt);
+  }),
+
+  update: associationProcedure
+    .input(
+      UpdateCampaignSchema.extend({
+        id: z.string().uuid(),
+        status: z.enum(["DRAFT", "ACTIVE", "ENDED", "SETTLED"]).optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { id, ...updates } = input;
+
+      const [updated] = await db
+        .update(campaigns)
+        .set({ ...updates, updatedAt: new Date() })
+        .where(and(eq(campaigns.id, id), eq(campaigns.orgId, ctx.orgId)))
+        .returning();
+
+      if (!updated) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Kampanjen hittades inte" });
+      }
+
+      return updated;
+    }),
+
+  activate: associationProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const [updated] = await db
+        .update(campaigns)
+        .set({ status: "ACTIVE", updatedAt: new Date() })
+        .where(
+          and(eq(campaigns.id, input.id), eq(campaigns.orgId, ctx.orgId))
+        )
+        .returning();
+
+      if (!updated) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Kampanjen hittades inte" });
+      }
+
+      return updated;
+    }),
+});
+
+export const teamsRouter = router({
+  create: teamLeaderProcedure
+    .input(
+      z.object({
+        name: z.string().min(2),
+        campaignId: z.string().uuid(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      await verifyCampaignOwnership(input.campaignId, ctx.orgId);
+
+      const inviteToken = generateToken();
+
+      const [team] = await db
+        .insert(teams)
+        .values({
+          orgId: ctx.orgId,
+          campaignId: input.campaignId,
+          leaderId: ctx.userId,
+          name: input.name,
+          inviteToken,
+        })
+        .returning();
+
+      return { ...team, inviteToken };
+    }),
+
+  listByCampaign: protectedProcedure
+    .input(z.object({ campaignId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      await verifyCampaignOwnership(input.campaignId, ctx.orgId!);
+
+      const teamList = await db
+        .select({
+          id: teams.id,
+          name: teams.name,
+          memberCount: teams.memberCount,
+          inviteToken: teams.inviteToken,
+          leaderId: teams.leaderId,
+          createdAt: teams.createdAt,
+        })
+        .from(teams)
+        .where(eq(teams.campaignId, input.campaignId));
+
+      return teamList;
+    }),
+
+  getByInviteToken: publicProcedure
+    .input(z.object({ token: z.string() }))
+    .query(async ({ input }) => {
+      const [team] = await db
+        .select({
+          id: teams.id,
+          name: teams.name,
+          orgId: teams.orgId,
+          campaignId: teams.campaignId,
+        })
+        .from(teams)
+        .where(eq(teams.inviteToken, input.token))
+        .limit(1);
+
+      if (!team) return null;
+
+      const [campaign] = await db
+        .select({ name: campaigns.name, story: campaigns.story })
+        .from(campaigns)
+        .where(eq(campaigns.id, team.campaignId))
+        .limit(1);
+
+      const [org] = await db
+        .select({ name: organizations.name })
+        .from(organizations)
+        .where(eq(organizations.id, team.orgId))
+        .limit(1);
+
+      return {
+        ...team,
+        campaignName: campaign?.name || "",
+        campaignStory: campaign?.story || "",
+        orgName: org?.name || "",
+      };
+    }),
+
+  setGoal: associationProcedure
+    .input(SetTeamGoalSchema)
+    .mutation(async ({ ctx, input }) => {
+      await verifyCampaignOwnership(input.campaignId, ctx.orgId);
+      await verifyTeamOwnership(input.teamId, ctx.orgId);
+
+      const [goal] = await db
+        .insert(teamGoals)
+        .values({
+          teamId: input.teamId,
+          campaignId: input.campaignId,
+          goalType: input.goalType,
+          goalValue: input.goalValue,
+        })
+        .onConflictDoUpdate({
+          target: [teamGoals.teamId, teamGoals.campaignId],
+          set: {
+            goalType: input.goalType,
+            goalValue: input.goalValue,
+          },
+        })
+        .returning();
+
+      return goal;
+    }),
+
+  regenerateInviteToken: teamLeaderProcedure
+    .input(z.object({ teamId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      await verifyTeamOwnership(input.teamId, ctx.orgId);
+
+      const newToken = generateToken();
+
+      const [updated] = await db
+        .update(teams)
+        .set({ inviteToken: newToken, updatedAt: new Date() })
+        .where(
+          and(eq(teams.id, input.teamId), eq(teams.leaderId, ctx.userId))
+        )
+        .returning();
+
+      if (!updated) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Laget hittades inte eller saknar behörighet" });
+      }
+
+      return updated;
+    }),
+});
+
+export const sellersRouter = router({
+  listByTeam: protectedProcedure
+    .input(z.object({ teamId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      await verifyTeamOwnership(input.teamId, ctx.orgId!);
+
+      const sellerList = await db
+        .select({
+          id: sellers.id,
+          displayName: sellers.displayName,
+          shopSlug: sellers.shopSlug,
+          individualGoal: sellers.individualGoal,
+          status: sellers.status,
+          userId: sellers.userId,
+          createdAt: sellers.createdAt,
+        })
+        .from(sellers)
+        .where(eq(sellers.teamId, input.teamId));
+
+      return sellerList;
+    }),
+
+  getMyShop: protectedProcedure.query(async ({ ctx }) => {
+    const [seller] = await db
+      .select()
+      .from(sellers)
+      .where(eq(sellers.userId, ctx.userId))
+      .limit(1);
+
+    if (!seller) return null;
+
+    const [team] = await db
+      .select()
+      .from(teams)
+      .where(eq(teams.id, seller.teamId))
+      .limit(1);
+
+    const [campaign] = await db
+      .select()
+      .from(campaigns)
+      .where(eq(campaigns.id, seller.campaignId))
+      .limit(1);
+
+    return {
+      ...seller,
+      teamName: team?.name || "",
+      campaignName: campaign?.name || "",
+      campaignStory: campaign?.story || "",
+    };
+  }),
+
+  getBySlug: publicProcedure
+    .input(z.object({ slug: z.string() }))
+    .query(async ({ input }) => {
+      const [seller] = await db
+        .select()
+        .from(sellers)
+        .where(eq(sellers.shopSlug, input.slug))
+        .limit(1);
+
+      if (!seller) return null;
+
+      const [team] = await db
+        .select()
+        .from(teams)
+        .where(eq(teams.id, seller.teamId))
+        .limit(1);
+
+      const [campaign] = await db
+        .select()
+        .from(campaigns)
+        .where(eq(campaigns.id, seller.campaignId))
+        .limit(1);
+
+      const [org] = await db
+        .select({ name: organizations.name })
+        .from(organizations)
+        .where(eq(organizations.id, team?.orgId || ""))
+        .limit(1);
+
+      return {
+        id: seller.id,
+        displayName: seller.displayName,
+        shopSlug: seller.shopSlug,
+        teamName: team?.name || "",
+        campaignName: campaign?.name || "",
+        campaignStory: campaign?.story || "",
+        orgName: org?.name || "",
+        campaignId: seller.campaignId,
+        teamId: seller.teamId,
+        individualGoal: seller.individualGoal,
+      };
+    }),
+});

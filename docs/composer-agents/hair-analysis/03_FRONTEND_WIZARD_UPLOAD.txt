@@ -1,0 +1,29 @@
+AGENT 03 — FRONTEND: WIZARD, UPPLADDNING, TILLGÄNGLIGHET
+========================================================
+
+STACK
+-----
+Next.js App Router, React client components för wizard, shadcn Dialog, befintlig design tokens.
+
+UPPLADDNING
+-----------
+1. Två obligatoriska vyer: hår bakifrån, hår uppifrån (kan utökas senare med sidoprofil — out of scope om ej specificerat).
+2. `input type="file" accept="image/*" capture` — dokumentera att mobil kan använda kamera; desktop filväljare.
+3. Förhandsvisning med `URL.createObjectURL`; `revokeObjectURL` vid unmount eller byte av fil.
+4. Max filstorlek klient-side (t.ex. 4 MB) innan upload till API.
+5. Komprimera inte aggressivt utan strategi — kan läggas i senare iteration (agent 04).
+
+TILLGÄNGLIGHET
+--------------
+- Fokusfälla i modal, stäng med Escape, aria-labels på ikoner.
+- Tydliga etiketter för varje foto ("Bakifrån", "Uppifrån").
+- `role="status"` för laddning/analys.
+
+STATE
+-----
+- Steg-index + svar + File-referenser i React state; valfritt persist i sessionStorage (JSON, inga File — återskapa från base64 endast om ni accepterar kostnad).
+
+API-ANROP
+---------
+- POST till BFF med JSON: base64 data-URLs eller rena base64-strängar + metadata.
+- Visa progress: "Analyserar dina bilder och svar …"

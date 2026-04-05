@@ -1,0 +1,33 @@
+ROOTS — HÅRANALYS ONLINE (LEADMAGNET) / COMPOSER 2.0
+=====================================================
+
+Mapp: docs/composer-agents/hair-analysis/
+
+Atta strategidokument (en agent per fil). Använd tillsammans med Composer 2.0 när ni bygger
+eller utökar den interaktiva håranalysen, GPT Vision-flödet och rekommendationsmotorn.
+
+Byggordning rekommenderas 01 → 08.
+
+FILER
+-----
+
+01_UX_FLOW_IA_CONSENT.txt       Flöde, steg, leadmagnet, samtycke, avslut
+02_VISUAL_COPY_MICROCOPY.txt    Ton, luftig UI, CTA, inga emojis i UI
+03_FRONTEND_WIZARD_UPLOAD.txt   Wizard, bilduppladdning, preview, a11y, fel
+04_BACKEND_API_STORAGE.txt      API-kontrakt, lagring, PII, idempotens
+05_VISION_MODEL_SAFETY.txt      GPT Vision, bildkrav, bias, medicinsk disclaimer
+06_QUESTIONNAIRE_LOGIC.txt      Frågor, scoring, hårtyp-taxonomi, grenar
+07_RECOMMENDATIONS_ENGINE.txt   Livsstil, kost (allmänt), produktkoppling Roots
+08_SECURITY_PRIVACY_LEGAL.txt   GDPR, retention, barn, fotoinstruktioner
+
+KOPPLING TILL BEFINTLIG PLATTFORM
+---------------------------------
+- Marketing-site CTA öppnar modal/wizard (ingen nyckel i browser).
+- Backend BFF anropar OpenAI (Vision + text) — samma princip som befintlig AI-chat.
+- Produkter: schampo, balsam, body wash — rekommendationer får aldrig ersätta professionell rådgivning.
+
+NÄSTA STEG
+----------
+1. Läs 01 och 08 först (flöde + juridik).
+2. Implementera API enligt 04 och 05.
+3. Bygg frontend enligt 03; polera copy enligt 02.

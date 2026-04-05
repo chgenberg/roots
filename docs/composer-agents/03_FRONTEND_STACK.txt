@@ -1,0 +1,93 @@
+AGENT 03 — FRONTEND ARCHITECTURE & IMPLEMENTATION
+==================================================
+Roll: Frontend Lead / Performance
+Version: 1.0
+
+----------------------------------------------------------------------
+1. TEKNISK RIKTING
+----------------------------------------------------------------------
+Mål: Minimal JavaScript till besökare, snabb TTFB, ren komponentarkitektur.
+Rekommendation: Next.js (App Router) + React Server Components där möjligt,
+TypeScript strict, Tailwind CSS med design tokens från Agent 02.
+
+Alternativ om team föredrar: Remix eller Astro + öar för interaktivitet — men
+Next.js ger stark ekosystem-stöd för auth, API routes, och edge.
+
+----------------------------------------------------------------------
+2. PROJEKTSTRUKTUR (MONOREPO-VÄNLIG)
+----------------------------------------------------------------------
+/apps
+  /web                 — publik sajt + inloggade ytor (samma app, route groups)
+/packages
+  /ui                  — delade komponenter, design tokens
+  /contracts           — Zod schemas delade med backend
+  /config              — eslint, tsconfig
+
+Använd route groups:
+  app/(marketing)/...  — publika sidor
+  app/(club)/...       — klubb-dashboard (middleware skyddar)
+  app/(sales)/...      — säljportal
+
+----------------------------------------------------------------------
+3. RENDERING STRATEGI
+----------------------------------------------------------------------
+Marketing-sidor: Static + ISR (revalidate t.ex. 3600s) där innehåll sällan ändras.
+Dashboard: Dynamic, server-side data fetching med cache headers prudent.
+
+Undvik client-only för hela sidor; hydrera endast widgets (cart summary, charts).
+
+----------------------------------------------------------------------
+4. TILLGÄNGLIGHET (A11Y)
+----------------------------------------------------------------------
+- Semantisk HTML: nav, main, section, heading hierarchy h1→h2→h3
+- Focus management i modaler och efter navigation
+- aria-label på ikon-knappar
+- Färg är inte enda signalen för tillstånd
+
+----------------------------------------------------------------------
+5. PERFORMANCE BUDGET
+----------------------------------------------------------------------
+- LCP < 2.5s på 4G (mät med Lighthouse)
+- CLS < 0.1
+- Total JS per route: sträva efter < 150kb gzip för marketing (exkl. analytics)
+
+Bilder: next/image, AVIF/WebP, sizes korrekt, priority endast hero.
+
+----------------------------------------------------------------------
+6. INTERNATIONALISERING (FRAMTID)
+----------------------------------------------------------------------
+Struktur: next-intl eller liknande. Default locale sv. Route prefix /en senare.
+All användartext i translation files, inte hårdkodad i komponenter där det är
+marknadstext.
+
+----------------------------------------------------------------------
+7. TILLSTÅNDSHANTERING
+----------------------------------------------------------------------
+Server state: TanStack Query för data efter inloggning (cache, retries).
+Client UI state: Zustand eller React context sparsamt — undvik Redux om inte nödvändigt.
+
+Formulär: React Hook Form + Zod (delade scheman med backend).
+
+----------------------------------------------------------------------
+8. API-ANROP
+----------------------------------------------------------------------
+Central fetch wrapper med:
+  - Base URL från env
+  - Credentials include för cookie-baserad session ELLER Bearer om JWT
+  - Enhetlig felhantering (toast + loggning till observability)
+
+----------------------------------------------------------------------
+9. MILJÖVARIABLER (WEB)
+----------------------------------------------------------------------
+NEXT_PUBLIC_SITE_URL=
+NEXT_PUBLIC_API_URL=
+NEXT_PUBLIC_OPENCLAW_* (se Agent 06)
+
+----------------------------------------------------------------------
+10. CI CHECKS (FRONTEND)
+----------------------------------------------------------------------
+- ESLint + Prettier
+- Typecheck
+- Playwright smoke: startsida laddar, login-sida svarar 200
+
+SLUT AGENT 03

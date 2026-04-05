@@ -1,0 +1,89 @@
+AGENT 07 — FORTNOX INTEGRATION & COMMERCE READINESS
+===================================================
+Roll: Finance / Integration Architect
+Version: 1.0
+
+----------------------------------------------------------------------
+1. AFFÄRSMODELL (KONTEXT)
+----------------------------------------------------------------------
+Klubbar beställer paket (B2B). Fakturering ska kunna ske via Fortnox när order
+bekräftas. Integrationen ska vara förberedd från första koden: abstraktionslager
+så att manuell fakturering kan användas tills OAuth är godkänd.
+
+----------------------------------------------------------------------
+2. FORTNOX — ÖVERSIKT
+----------------------------------------------------------------------
+Fortnox erbjuder API för kunder, fakturor, artiklar m.m. Autentisering sker via
+OAuth2 (Authorization Code flow) för användar-/företagskoppling.
+
+Dokumentation: https://developer.fortnox.se/
+
+----------------------------------------------------------------------
+3. FÖRBEREDELSE I DATABAS (UTAN ATT KALLA API I MVP)
+----------------------------------------------------------------------
+Tabell integration_fortnox:
+  id, organizationId (nullable för global), accessTokenEncrypted, refreshTokenEncrypted,
+  expiresAt, scope, companyId (fortnox), createdAt, updatedAt
+
+Tabell organization:
+  fortnoxCustomerId (nullable) — koppling när kund skapats/syncats i Fortnox
+
+Tabell order:
+  fortnoxInvoiceId (nullable), invoiceStatus (enum: none/pending/issued/paid/cancelled)
+
+----------------------------------------------------------------------
+4. ABSTRAKTIONSKLANTT
+----------------------------------------------------------------------
+Interface InvoiceProvider:
+  createOrUpdateCustomer(org) -> externalCustomerId
+  createInvoiceFromOrder(orderId) -> invoiceId
+  getInvoiceStatus(invoiceId) -> status
+
+Implementation FortnoxInvoiceProvider: anropas när credentials finns.
+Implementation NullInvoiceProvider: loggar intent, markerar order som "pending manual".
+
+----------------------------------------------------------------------
+5. WEBHOOKS
+----------------------------------------------------------------------
+Fortnox kan meddela ändringar (beroende på API-version och tillgänglighet).
+Mottagning:
+  - Verifiera signatur / payload enligt dokumentation
+  - Uppdatera order.fortnoxInvoiceId status
+  - Idempotent hantering
+
+----------------------------------------------------------------------
+6. SYNC-JOBS
+----------------------------------------------------------------------
+Cron: var 6:e timme, hämta status för alla fakturor i tillstånd pending/issued.
+
+----------------------------------------------------------------------
+7. PRODUKT- OCH PRIS-SYNK
+----------------------------------------------------------------------
+Artiklar i Fortnox bör mappas mot Product.sku. Vid prisändring i Roots:
+  - antingen push till Fortnox via API
+  - eller manuell process tills automation är klar
+
+Bundling: antingen en artikel "Paket" i Fortnox eller tre rader — beslut av
+redovisning; dokumentera i ekonomi-handbok.
+
+----------------------------------------------------------------------
+8. SÄKERHET
+----------------------------------------------------------------------
+Tokens: kryptera at rest (KMS). Rotera refresh tokens. Logga aldrig tokens.
+
+Åtkomst: endast backend service account, aldrig frontend.
+
+----------------------------------------------------------------------
+9. COMPLIANCE
+----------------------------------------------------------------------
+Bokföringslagen: krav på oföränderlighet för fakturor — ändra inte historiska
+belopp utan kreditfaktura.
+
+----------------------------------------------------------------------
+10. LEVERANSER (MVP)
+----------------------------------------------------------------------
+[ ] DB-fält och abstraktion
+[ ] "Connect Fortnox" admin-sida (dold/bakom feature flag)
+[ ] Manuell export av order CSV som fallback till kund
+
+SLUT AGENT 07

@@ -1,0 +1,10 @@
+{
+  "name": "@roots/config",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    "./tailwind": "./tailwind-preset.ts",
+    "./typescript/base": "./tsconfig.base.json",
+    "./eslint": "./eslint.config.mjs"
+  }
+}

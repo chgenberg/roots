@@ -1,0 +1,9 @@
+Composer 2.0 — Subagent 07: Portal AI & Produkter
+
+Sammanfattning
+- AI: tom start; key={i} på meddelanden; produkter: sticky bar kan dölja innehåll.
+
+Rekommendationer (implementeras)
+1. AI: förslagschips under välkommen; stabila message keys (id/timestamp).
+2. Produkter: pb sätts när varukorg aktiv; header-länk till beställningar.
+3. Titelhierarki text-2xl konsekvent.

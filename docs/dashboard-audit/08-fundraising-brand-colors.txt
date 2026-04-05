@@ -1,0 +1,8 @@
+Composer 2.0 — Subagent 08: Fundraising färg & brand
+
+Sammanfattning
+- Lag använder emerald för pengar/order; förening blandar amber/grå medaljer.
+
+Rekommendationer (implementeras selektivt)
+1. Lag KPI "förtjänst": brand-700 i stället för emerald-600 där det inte sabbar kontrast.
+2. Order badges: brand/emerald behålls för betald status (läsbarhet) — mild toning endast.

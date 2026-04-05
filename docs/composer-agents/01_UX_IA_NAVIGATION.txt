@@ -1,0 +1,126 @@
+AGENT 01 — UX, INFORMATION ARCHITECTURE & NAVIGATION
+=====================================================
+Roll: Lead UX / IA-strateg för Roots webbplats
+Version: 1.0
+Språk: Svenska (innehåll), tekniska termer på engelska där branschstandard
+
+----------------------------------------------------------------------
+1. SYFTE
+----------------------------------------------------------------------
+Definiera en webbplats som känns intelligent genom enkelhet: få val i menyn,
+djup funktionalitet bakom inloggning och API. Användaren ska aldrig känna
+överväldigande navigation; istället guidas till tydlig nästa handling (CTA).
+
+----------------------------------------------------------------------
+2. MÅLGRUPPER (PRIMARY / SECONDARY)
+----------------------------------------------------------------------
+Primary A — Besökare (B2C-orienterad kommunikation men B2B2C):
+  Förtroende, förståelse av varumärket, väg till "kontakta oss" eller
+  "bli partner" utan att kräva konto.
+
+Primary B — Klubbar / föreningar (inloggade):
+  Snabb beställning av paket (3 produkter), orderhistorik, leveransadresser,
+  ev. kampanjkoder.
+
+Primary C — Säljare (inloggade, separat roll):
+  Skapa offerter, lägga order åt klubb, se pipeline, status på ordrar.
+
+Secondary — Media, investerare, rekrytering:
+  Tillgång via footer-länkar, inte primär navigation.
+
+----------------------------------------------------------------------
+3. SIDKARTA (PUBLIC — FÅ MENYVAL)
+----------------------------------------------------------------------
+Föreslagen huvudnavigation (max 4 punkter + varumärke):
+
+  [Roots logotyp]  |  Produkter  |  Föreningsliv  |  Om oss  |  [ Logga in ]
+
+Undermenyer ska UNDVIKAS i desktop header. Istället:
+  - "Produkter" leder till en samlad products-landing med tre sektioner
+    (anchor links eller subtil scroll) — INTE tre separata toppmenyval.
+  - "Föreningsliv" = en sida som förklarar modellen (intäkter till föreningen,
+    enkelhet, hållbarhet).
+  - "Om oss" = berättelsen om de tre grundarna (diskret höjd-humor tillåten
+    som mänsklig detalj, inte gimmick), värderingar, kontakt.
+
+Footer (sekundär, rik men inte i topbar):
+  - Juridik: integritetspolicy, cookies, köpvillkor (B2B)
+  - Kontakt: e-post, ev. telefontid
+  - För press
+  - Jobb (valfritt)
+
+----------------------------------------------------------------------
+4. LANDING PAGE — HIERARKI OCH CTA
+----------------------------------------------------------------------
+Hero:
+  - En rad value proposition (kort, nordisk ton)
+  - Primär CTA: "Boka demo" ELLER "Prata med oss" (välj EN primär beroende på
+    go-to-market; sekundär: "Se produkterna")
+  - Ingen karusell med fem slides. En hero, en bild (Unsplash: nordiskt ljus,
+    badrum/trä/bomull — inte stock "AI hands").
+
+Sektion 2 — Produkterna (tre kort):
+  Schampo | Balsam | Body wash
+  Varje kort: namn, en mening nytta, länk till anchor på samma sida eller
+  dedikerad undersida /produkter/[slug] om SEO kräver det.
+
+Sektion 3 — Föreningsmodellen:
+  En enkel trestegsgrafik: Registrera → Sälj → Intäkt till föreningen
+  CTA: "Kom igång som förening" → leder till registrering/inlogg för klubb
+  (om self-service) eller formulär.
+
+Sektion 4 — Social proof (minimal):
+  Citat eller logotyper (placeholder tills riktiga finns). Undvik fejk-siffror.
+
+Sektion 5 — Footer CTA:
+  Upprepa primär CTA i nedtonad band-design.
+
+----------------------------------------------------------------------
+5. INLOGGADE FLÖDEN — KLUBB (B2B light)
+----------------------------------------------------------------------
+Efter inloggning: dashboard med:
+  - Snabborder: paket (3 produkter) × antal, leveransadress, bekräftelse
+  - Orderhistorik (tabell, filtrerbar enkelt)
+  - Kontouppgifter, fakturaadress
+  - Hjälp / kontakt (chat-widget eller länk till AI-assistent om Open Claw)
+
+Undvik undernav med fler än 5 items: Dashboard | Beställ | Historik | Konto | Logga ut
+
+----------------------------------------------------------------------
+6. INLOGGADE FLÖDEN — SÄLJARE
+----------------------------------------------------------------------
+Separat bas-URL: /sälj (eller /rep) för tydlig mental modell.
+
+Funktioner:
+  - Skapa offert (PDF/email-export senare; MVP: sparad offert i system)
+  - Lägga order åt kund (välj befintlig klubb eller skapa lead)
+  - Orderlista med status (draft, sent, accepted, invoiced)
+  - Kunna se provision / marginal om affärslogik finns (annars dölja)
+
+Navigation: Dashboard | Offerter | Ordrar | Kunder | (Admin endast om roll)
+
+----------------------------------------------------------------------
+7. MICROCOPY & TON
+----------------------------------------------------------------------
+- Kort, aktiv röst. Undvik hype-ord ("världsunik", "revolutionerande").
+- Föreningsliv: respektfullt, konkret om nytta (ekonomi, enkelhet, gemenskap).
+- Längd på grundare: en mening om "tre personer med olika bakgrund och ett
+  gemensamt mål" — inte skämt som tar över varumärket.
+
+----------------------------------------------------------------------
+8. EDGE CASES
+----------------------------------------------------------------------
+- Mobil: hamburger räcker; behåll max 4 menypunkter i sheet.
+- Språk: svenska default; förbered struktur för engelska (hreflang senare).
+- Tillgänglighet: fokusordning, skip-länk, kontrast för mörkbrun på vit.
+
+----------------------------------------------------------------------
+9. LEVERANSER TILL UTVECKLING (CHECKLISTA)
+----------------------------------------------------------------------
+[ ] Wireframe-beskrivning per sida (denna fil + design-agent)
+[ ] Definierade URL:er och redirects
+[ ] CTA-hierarki dokumenterad
+[ ] Roller och vad varje roll ser i menyn
+[ ] Empty states för dashboard (första inloggning)
+
+SLUT AGENT 01

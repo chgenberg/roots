@@ -1,0 +1,13 @@
+Composer 2.0 — Dashboard audit (8 subagents)
+
+Rapporter:
+01-portal-main-dashboard.txt
+02-portal-layout-shell.txt
+03-portal-list-pages.txt
+04-fundraising-dashboards.txt
+05-sales-club-dashboards.txt
+06-motion-typography.txt
+07-portal-ai-produkter.txt
+08-fundraising-brand-colors.txt
+
+Implementationsstatus: se git-historik / portal-layout, portal/page, globals .dashboard-shell, m.m.

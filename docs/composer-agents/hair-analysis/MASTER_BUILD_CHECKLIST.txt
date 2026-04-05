@@ -1,0 +1,22 @@
+HÅRANALYS ONLINE — MASTER CHECKLIST (BYGGORDNING)
+=================================================
+
+Fas 1 — Strategi & copy
+[ ] Läs INDEX + 01, 08 (flöde, samtycke, juridik)
+[ ] Lås copy för hero-CTA och disclaimer (02)
+
+Fas 2 — Backend
+[ ] Rate limit per IP (04, 08)
+[ ] POST /v1/ai/hair-analysis med validering av bildstorlek och samtycke
+[ ] Vision + text i ett anrop (05); strukturerat svar (JSON eller markdown)
+[ ] Logga aldrig base64
+
+Fas 3 — Frontend
+[ ] Dialog + wizard-steg (03)
+[ ] Två foto-uploads + preview, base64 till API
+[ ] Frågeformulär + resultatvy
+[ ] Fel- och tomtilstånd
+
+Fas 4 — Polish
+[ ] Tillgänglighet (fokus, Escape)
+[ ] Produktions-CORS och env för vision-modell om separat
