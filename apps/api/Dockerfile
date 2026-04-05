@@ -18,8 +18,10 @@ COPY . .
 RUN cd apps/api && npx tsup src/index.ts --format esm
 
 FROM base AS runtime
+WORKDIR /app
 COPY --from=build /app/apps/api/dist ./dist
 COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/packages ./packages
 EXPOSE 4000
 ENV PORT=4000
 CMD ["node", "dist/index.js"]

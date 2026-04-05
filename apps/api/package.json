@@ -13,6 +13,8 @@
     "@node-rs/argon2": "^2.0.2",
     "@roots/contracts": "workspace:*",
     "@roots/db": "workspace:*",
+    "drizzle-orm": "^0.39",
+    "postgres": "^3.4",
     "@trpc/server": "^11.0.0-rc.700",
     "hono": "^4.7",
     "ioredis": "^5.10.1",
