@@ -8,7 +8,8 @@ COPY apps/web/package.json apps/web/
 COPY packages/contracts/package.json packages/contracts/
 COPY packages/config/package.json packages/config/
 COPY packages/ui/package.json packages/ui/
-RUN pnpm install --frozen-lockfile --filter @roots/web...
+RUN echo "node-linker=hoisted" > .npmrc && \
+    pnpm install --frozen-lockfile --filter @roots/web...
 
 FROM base AS build
 COPY --from=deps /app/node_modules ./node_modules
