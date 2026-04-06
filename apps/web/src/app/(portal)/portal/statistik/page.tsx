@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -12,6 +13,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { portalFetch } from "@/lib/portal-api";
+import { publicProductHref } from "@/lib/portal-products";
 
 const FALLBACK_MONTHLY_DATA = [
   { month: "Okt", orders: 8, revenue: 4200 },
@@ -54,9 +56,27 @@ const FALLBACK_KPI_CARDS = [
 ];
 
 const FALLBACK_TOP_PRODUCTS = [
-  { name: "First Growth (Schampo)", sold: 156, revenue: "23 244 kr", share: 38 },
-  { name: "Pure Root (Balsam)", sold: 142, revenue: "21 158 kr", share: 35 },
-  { name: "Soft Rinse (Body Wash)", sold: 124, revenue: "15 996 kr", share: 27 },
+  {
+    name: "First Growth (Schampo)",
+    slug: "shampoo",
+    sold: 156,
+    revenue: "23 244 kr",
+    share: 38,
+  },
+  {
+    name: "Pure Root (Balsam)",
+    slug: "conditioner",
+    sold: 142,
+    revenue: "21 158 kr",
+    share: 35,
+  },
+  {
+    name: "Soft Rinse (Body Wash)",
+    slug: "body-wash",
+    sold: 124,
+    revenue: "15 996 kr",
+    share: 27,
+  },
 ];
 
 export default function StatistikPage() {
@@ -159,8 +179,13 @@ export default function StatistikPage() {
             <div className="mt-4 space-y-4">
               {topProducts.map((p) => (
                 <div key={p.name}>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">{p.name}</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <Link
+                      href={publicProductHref(p.slug)}
+                      className="min-w-0 text-sm font-medium hover:text-brand-800 hover:underline"
+                    >
+                      {p.name}
+                    </Link>
                     <span className="text-sm font-semibold">{p.revenue}</span>
                   </div>
                   <div className="mt-1.5 flex items-center gap-2">

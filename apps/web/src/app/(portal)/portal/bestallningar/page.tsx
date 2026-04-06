@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,11 +21,19 @@ import {
 } from "@/components/ui/table";
 import { ShoppingCart, Plus, Minus, Package, Truck, CheckCircle2 } from "lucide-react";
 import { portalFetch } from "@/lib/portal-api";
+import { publicProductHref } from "@/lib/portal-products";
 
-const FALLBACK_PRODUCTS = [
-  { id: "1", name: "Roots Shampoo", priceOre: 14900 },
-  { id: "2", name: "Roots Conditioner", priceOre: 14900 },
-  { id: "3", name: "Roots Body Wash", priceOre: 12900 },
+type PortalOrderProduct = {
+  id: string;
+  name: string;
+  priceOre: number;
+  slug: string;
+};
+
+const FALLBACK_PRODUCTS: PortalOrderProduct[] = [
+  { id: "1", name: "Roots Shampoo", priceOre: 14900, slug: "shampoo" },
+  { id: "2", name: "Roots Conditioner", priceOre: 14900, slug: "conditioner" },
+  { id: "3", name: "Roots Body Wash", priceOre: 12900, slug: "body-wash" },
 ];
 
 const FALLBACK_ORDERS = [
@@ -91,10 +100,12 @@ export default function BestallningarPage() {
   const [cart, setCart] = useState<Record<string, number>>({});
   const [orders, setOrders] = useState(FALLBACK_ORDERS);
   const [submitted, setSubmitted] = useState(false);
-  const [apiProducts, setApiProducts] = useState(FALLBACK_PRODUCTS);
+  const [apiProducts, setApiProducts] = useState<PortalOrderProduct[]>(
+    FALLBACK_PRODUCTS
+  );
 
   useEffect(() => {
-    portalFetch<{ products: Array<{ id: string; name: string; priceOre: number }> }>("/products")
+    portalFetch<{ products: PortalOrderProduct[] }>("/products")
       .then((data) => {
         if (data.products.length > 0) setApiProducts(data.products);
       })
@@ -210,7 +221,12 @@ export default function BestallningarPage() {
                 return (
                   <div key={p.id} className="flex items-center justify-between rounded-lg border p-3">
                     <div>
-                      <p className="text-sm font-medium">{p.name}</p>
+                      <Link
+                        href={publicProductHref(p.slug)}
+                        className="text-sm font-medium hover:text-brand-800 hover:underline"
+                      >
+                        {p.name}
+                      </Link>
                       <p className="text-xs text-muted-foreground">
                         {(p.priceOre / 100).toLocaleString("sv-SE")} kr / st
                       </p>
