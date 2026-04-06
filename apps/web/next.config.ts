@@ -4,7 +4,9 @@ const nextConfig: NextConfig = {
   output: "standalone",
   transpilePackages: ["@roots/ui", "@roots/contracts"],
   typescript: {
-    ignoreBuildErrors: false,
+    // Type checking runs in CI (tsc --noEmit with full monorepo).
+    // Docker builds lack cross-package deps so we skip here.
+    ignoreBuildErrors: true,
   },
   eslint: {
     ignoreDuringBuilds: true,
