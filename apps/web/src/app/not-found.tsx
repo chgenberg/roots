@@ -15,7 +15,7 @@ export default function NotFound() {
       </p>
       <Link
         href="/"
-        className="mt-8 inline-flex items-center rounded-full bg-brand-900 px-6 py-2.5 text-sm font-medium text-white transition-colors duration-150 hover:bg-brand-800"
+        className="mt-8 inline-flex items-center rounded-full bg-inverse-surface px-6 py-2.5 text-sm font-medium text-inverse-on-surface transition-colors duration-150 hover:bg-inverse-surface-hover"
       >
         Till startsidan
       </Link>

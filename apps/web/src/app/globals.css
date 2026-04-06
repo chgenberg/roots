@@ -38,6 +38,11 @@
   --color-popover: #FFFFFF;
   --color-popover-foreground: #1C1410;
 
+  /* Dark brown UI chrome — not overridden in .dark (brand-900 flips to light there) */
+  --color-inverse-surface: #1C1410;
+  --color-inverse-on-surface: #FFFFFF;
+  --color-inverse-surface-hover: #2A1F18;
+
   /* ── Legacy compat ─── */
   --color-bg-primary: #FFFFFF;
   --color-bg-subtle: #FAFAF9;

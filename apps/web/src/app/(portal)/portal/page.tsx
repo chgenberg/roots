@@ -277,8 +277,8 @@ function SalesDashboard({ name }: { name: string }) {
                     <div
                       className={`flex h-10 w-10 items-center justify-center rounded-full border-2 text-sm font-bold ${
                         p.active
-                          ? "border-brand-900 bg-brand-900 text-white"
-                          : "border-brand-200 bg-white text-brand-500"
+                          ? "border-inverse-surface bg-inverse-surface text-inverse-on-surface"
+                          : "border-border bg-card text-muted-foreground"
                       }`}
                     >
                       {p.count}

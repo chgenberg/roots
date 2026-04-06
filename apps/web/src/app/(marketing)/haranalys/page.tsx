@@ -57,8 +57,8 @@ export default function HaranalysPage() {
               { icon: Sparkles, title: "Få rekommendation", desc: "Personlig analys på under 2 min" },
             ].map((s) => (
               <div key={s.title} className="flex flex-col items-center text-center">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-sm">
-                  <s.icon className="h-6 w-6 text-foreground" />
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-card text-card-foreground shadow-sm">
+                  <s.icon className="h-6 w-6" />
                 </div>
                 <h3 className="mt-4 font-semibold">{s.title}</h3>
                 <p className="mt-1 text-sm text-muted-foreground">{s.desc}</p>
@@ -98,8 +98,8 @@ export default function HaranalysPage() {
             ].map((b) => (
               <Card key={b.title} className="border-0 bg-brand-50/40 shadow-sm hover:shadow-md transition-shadow duration-200 rounded-3xl">
                 <CardContent className="p-6">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white">
-                    <b.icon className="h-6 w-6 text-foreground" />
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-card text-card-foreground">
+                    <b.icon className="h-6 w-6" />
                   </div>
                   <h3 className="mt-4 text-lg font-semibold">{b.title}</h3>
                   <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
@@ -189,7 +189,7 @@ export default function HaranalysPage() {
             {FAQ_ITEMS.map((faq, i) => (
               <div
                 key={i}
-                className="rounded-2xl border border-border bg-white transition-shadow hover:shadow-sm"
+                className="rounded-2xl border border-border bg-card text-card-foreground transition-shadow hover:shadow-sm"
               >
                 <button
                   onClick={() => toggleFaq(i)}

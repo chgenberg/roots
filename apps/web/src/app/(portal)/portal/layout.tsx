@@ -126,7 +126,7 @@ export default function PortalLayout({
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-brand-50/30">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-200 border-t-brand-900" />
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-200 border-t-inverse-surface" />
       </div>
     );
   }
@@ -182,7 +182,7 @@ export default function PortalLayout({
                   className={cn(
                     "flex items-center gap-3 rounded-lg border-l-2 py-2 pl-3 pr-3 text-sm transition-colors",
                     active
-                      ? "border-brand-900 bg-brand-50 font-medium text-foreground"
+                      ? "border-inverse-surface bg-brand-50 font-medium text-foreground"
                       : "border-transparent text-muted-foreground hover:bg-brand-50/50 hover:text-foreground"
                   )}
                 >

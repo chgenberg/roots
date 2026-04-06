@@ -163,7 +163,7 @@ export default function ProdukterPortalPage() {
       </div>
 
       {totalItems > 0 && (
-        <Card className="sticky bottom-6 border-0 bg-brand-900 text-white shadow-xl">
+        <Card className="sticky bottom-6 border-0 bg-inverse-surface text-inverse-on-surface shadow-xl">
           <CardContent className="flex items-center justify-between p-5">
             <div className="flex items-center gap-3">
               <ShoppingCart className="h-5 w-5" />
@@ -171,12 +171,12 @@ export default function ProdukterPortalPage() {
                 <p className="font-semibold">
                   {totalItems} produkt{totalItems !== 1 ? "er" : ""} i varukorgen
                 </p>
-                <p className="text-sm text-white/70">
+                <p className="text-sm text-inverse-on-surface/70">
                   Totalt: {totalPrice.toLocaleString("sv-SE")} kr
                 </p>
               </div>
             </div>
-            <Button className="bg-white text-brand-900 hover:bg-white/90" onClick={() => window.location.href = "/portal/bestallningar"}>
+            <Button className="bg-white text-neutral-900 shadow-sm hover:bg-neutral-100" onClick={() => window.location.href = "/portal/bestallningar"}>
               Gå till beställning
             </Button>
           </CardContent>

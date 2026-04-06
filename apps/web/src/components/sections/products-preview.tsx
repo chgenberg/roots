@@ -49,7 +49,7 @@ export function ProductsPreview() {
         <div className="mt-16 grid gap-6 md:grid-cols-3">
           {PRODUCTS.map((product) => (
             <Link key={product.slug} href={`/produkter/${product.slug}`} className="group">
-              <Card className="overflow-hidden border-0 bg-brand-50/50 shadow-none transition-all duration-500 hover:bg-white hover:shadow-[var(--shadow-elevated)]">
+              <Card className="overflow-hidden border-0 bg-brand-50/50 shadow-none transition-all duration-500 hover:bg-card hover:shadow-[var(--shadow-elevated)]">
                 <div className="relative aspect-[4/5] overflow-hidden rounded-xl">
                   <Image
                     src={product.image}
@@ -82,9 +82,9 @@ export function ProductsPreview() {
         </div>
 
         <div className="mt-12 text-center">
-          <div className="inline-flex items-center rounded-xl border border-border bg-white px-6 py-4 shadow-[var(--shadow-card)]">
+          <div className="inline-flex items-center rounded-xl border border-border bg-card px-6 py-4 text-card-foreground shadow-[var(--shadow-card)]">
             <div>
-              <p className="text-lg font-bold text-foreground">399 kr</p>
+              <p className="text-lg font-bold">399 kr</p>
               <p className="text-sm text-muted-foreground">Komplett paket — alla tre</p>
             </div>
           </div>

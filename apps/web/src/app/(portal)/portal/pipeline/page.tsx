@@ -65,7 +65,7 @@ const FALLBACK_COLUMNS: {
 
 function DealCard({ deal }: { deal: Deal }) {
   return (
-    <div className="rounded-xl border border-border bg-white p-3 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 cursor-grab">
+    <div className="cursor-grab rounded-xl border border-border bg-card p-3 text-card-foreground shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
       <p className="text-sm font-semibold">{deal.club}</p>
       <p className="mt-0.5 text-xs text-muted-foreground">{deal.contact}</p>
       <div className="mt-2 flex items-center justify-between">
@@ -141,7 +141,7 @@ export default function PipelinePage() {
               <div className={`-mx-4 -mt-4 mb-4 flex items-center gap-2 rounded-t-lg px-4 py-3 ${col.headerBg}`}>
                 <col.icon className="h-4 w-4 text-brand-400" />
                 <span className="text-sm font-semibold">{col.stage}</span>
-                <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-white text-xs font-bold shadow-sm">
+                <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-background text-xs font-bold shadow-sm ring-1 ring-border">
                   {col.deals.length}
                 </span>
               </div>

@@ -124,18 +124,18 @@ export default function ForeningslivPage() {
         </div>
       </section>
 
-      <section className="bg-brand-900 py-16 text-white md:py-20">
+      <section className="bg-inverse-surface py-16 text-inverse-on-surface md:py-20">
         <div className="mx-auto max-w-[1280px] px-6 text-center md:px-10">
           <h2 className="text-3xl font-bold tracking-tight">
             Redo att börja?
           </h2>
-          <p className="mx-auto mt-4 max-w-xl text-brand-200">
+          <p className="mx-auto mt-4 max-w-xl text-inverse-on-surface/80">
             Anslut din förening idag och ge era medlemmar tillgång till naturlig,
             nordisk hudvård.
           </p>
           <Button
             size="lg"
-            className="mt-8 bg-white text-foreground hover:bg-brand-50"
+            className="mt-8 bg-white text-neutral-900 shadow-sm hover:bg-neutral-100"
             asChild
           >
             <Link href="/registrera">

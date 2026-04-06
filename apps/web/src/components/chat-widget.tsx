@@ -218,7 +218,7 @@ export function ChatWidget() {
                 className={cn(
                   "max-w-[85%] rounded-xl px-4 py-2.5 text-sm leading-relaxed",
                   msg.role === "user"
-                    ? "rounded-br-sm bg-brand-900 text-white"
+                    ? "rounded-br-sm bg-inverse-surface text-inverse-on-surface"
                     : "rounded-bl-sm bg-brand-50 text-foreground"
                 )}
               >
@@ -251,7 +251,7 @@ export function ChatWidget() {
               type="button"
               onClick={handleSend}
               disabled={!input.trim() || streaming}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-900 text-white transition-all duration-200 hover:bg-brand-800 disabled:opacity-40"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-inverse-surface text-inverse-on-surface transition-all duration-200 hover:bg-inverse-surface-hover disabled:opacity-40"
               aria-label="Skicka meddelande"
             >
               {streaming ? (
@@ -273,7 +273,7 @@ export function ChatWidget() {
         onClick={() => setOpen((v) => !v)}
         className={cn(
           "fixed bottom-6 right-6 z-50 flex h-12 w-12 items-center justify-center rounded-full shadow-lg transition-all duration-200 hover:shadow-xl active:scale-95",
-          "bg-brand-900 text-white"
+          "bg-inverse-surface text-inverse-on-surface"
         )}
         aria-label={open ? "Stäng chatt" : "Öppna chatt"}
       >

@@ -153,7 +153,7 @@ export default function StatistikPage() {
                       {(d.revenue / 1000).toFixed(1)}k
                     </span>
                     <div
-                      className="w-full rounded-t-lg bg-brand-900 transition-all hover:bg-brand-800"
+                      className="w-full rounded-t-lg bg-inverse-surface transition-all hover:bg-inverse-surface-hover"
                       style={{ height: `${h}%` }}
                     />
                     <span className="text-xs text-muted-foreground">{d.month}</span>
@@ -191,7 +191,7 @@ export default function StatistikPage() {
                   <div className="mt-1.5 flex items-center gap-2">
                     <div className="h-2 flex-1 rounded-full bg-brand-100">
                       <div
-                        className="h-2 rounded-full bg-brand-900 transition-all"
+                        className="h-2 rounded-full bg-inverse-surface transition-all"
                         style={{ width: `${p.share}%` }}
                       />
                     </div>

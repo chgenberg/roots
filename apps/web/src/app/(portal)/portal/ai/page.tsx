@@ -210,8 +210,8 @@ export default function AIPage() {
     <div className="page-enter flex h-[calc(100vh-8rem)] flex-col">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-brand-900 to-brand-700 shadow-sm">
-            <Sparkles className="h-5 w-5 text-white" />
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-inverse-surface to-brand-700 shadow-sm">
+            <Sparkles className="h-5 w-5 text-inverse-on-surface" />
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Roots AI-assistent</h1>
@@ -272,7 +272,7 @@ export default function AIPage() {
                 className={cn(
                   "max-w-[75%] rounded-2xl px-4 py-3 text-sm leading-relaxed",
                   msg.role === "user"
-                    ? "rounded-br-md bg-brand-900 text-white"
+                    ? "rounded-br-md bg-inverse-surface text-inverse-on-surface"
                     : "rounded-bl-md bg-brand-50 text-foreground"
                 )}
               >
@@ -287,8 +287,8 @@ export default function AIPage() {
                   ) : null)}
               </div>
               {msg.role === "user" && (
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-900">
-                  <User className="h-4 w-4 text-white" />
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-inverse-surface">
+                  <User className="h-4 w-4 text-inverse-on-surface" />
                 </div>
               )}
             </div>
@@ -311,7 +311,7 @@ export default function AIPage() {
               type="button"
               onClick={() => handleSend()}
               disabled={!input.trim() || streaming}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-900 text-white transition-all duration-200 hover:bg-brand-800 disabled:opacity-40"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-inverse-surface text-inverse-on-surface transition-all duration-200 hover:bg-inverse-surface-hover disabled:opacity-40"
               aria-label="Skicka meddelande"
             >
               {streaming ? (

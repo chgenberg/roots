@@ -62,7 +62,7 @@ export default function ProdukterPage() {
 
           <div className="mt-12 flex flex-wrap items-center justify-center gap-6">
             {VALUES.map((v) => (
-              <div key={v.label} className="flex items-center gap-2 rounded-full border border-border bg-white px-4 py-2 text-sm shadow-sm">
+              <div key={v.label} className="flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-sm text-card-foreground shadow-sm">
                 <v.icon className="h-4 w-4 text-muted-foreground" />
                 {v.label}
               </div>
@@ -128,7 +128,7 @@ export default function ProdukterPage() {
 
       <section className="border-t border-border bg-brand-50/40 py-16 md:py-20">
         <div className="mx-auto max-w-[1280px] px-6 text-center md:px-10">
-          <Card className="mx-auto inline-flex max-w-md items-center gap-6 border-0 bg-white p-8 shadow-md">
+          <Card className="mx-auto inline-flex max-w-md items-center gap-6 border-0 p-8 shadow-md">
             <CardContent className="p-0">
               <p className="text-3xl font-bold">399 kr</p>
               <p className="mt-1 text-sm text-muted-foreground">Komplett paket — schampo, balsam och body wash</p>

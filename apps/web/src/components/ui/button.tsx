@@ -11,7 +11,7 @@ const buttonVariants = cva(
         default:
           "bg-primary text-primary-foreground hover:bg-brand-800 active:scale-[0.98]",
         secondary:
-          "border border-brand-200 bg-white text-foreground hover:bg-brand-50 hover:border-brand-300 active:scale-[0.98]",
+          "border border-border bg-card text-card-foreground hover:bg-brand-100/80 dark:hover:bg-brand-200/15 active:scale-[0.98]",
         outline:
           "border border-brand-200 bg-transparent text-foreground hover:bg-brand-50",
         ghost:

@@ -15,8 +15,8 @@ export function FoundersSection() {
               sizes="(max-width: 1024px) 100vw, 50vw"
             />
           </div>
-          <div className="absolute -bottom-4 -right-4 rounded-xl border border-border bg-white px-5 py-4 shadow-[var(--shadow-card)]">
-            <p className="text-2xl font-bold text-foreground">3</p>
+          <div className="absolute -bottom-4 -right-4 rounded-xl border border-border bg-card px-5 py-4 text-card-foreground shadow-[var(--shadow-card)]">
+            <p className="text-2xl font-bold">3</p>
             <p className="text-xs text-muted-foreground">Grundare över 1,95 m</p>
           </div>
         </div>

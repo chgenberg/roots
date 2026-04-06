@@ -29,7 +29,7 @@ export default function SalesLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-brand-50/30">
-      <header className="sticky top-0 z-50 border-b border-border bg-white/80 backdrop-blur-xl">
+      <header className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-[1400px] items-center justify-between px-4 md:px-6">
           <Link href="/" className="text-xl font-bold tracking-tight text-foreground">
             Roots
@@ -37,7 +37,7 @@ export default function SalesLayout({ children }: { children: ReactNode }) {
           <Badge variant="outline">Säljportal</Badge>
         </div>
         <nav
-          className="flex gap-1 overflow-x-auto border-t border-border bg-white/95 px-3 py-2.5 md:hidden [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+          className="flex gap-1 overflow-x-auto border-t border-border bg-background/95 px-3 py-2.5 md:hidden [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
           aria-label="Säljportal"
         >
           {SALES_NAV.map((item) => (
@@ -47,7 +47,7 @@ export default function SalesLayout({ children }: { children: ReactNode }) {
               className={cn(
                 "shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
                 pathname === item.href
-                  ? "bg-brand-900 text-white shadow-sm"
+                  ? "bg-inverse-surface text-inverse-on-surface shadow-sm"
                   : "bg-brand-50 text-muted-foreground hover:bg-brand-100"
               )}
             >
@@ -58,7 +58,7 @@ export default function SalesLayout({ children }: { children: ReactNode }) {
       </header>
 
       <div className="mx-auto flex max-w-[1400px]">
-        <nav className="sticky top-16 hidden h-[calc(100vh-4rem)] w-56 shrink-0 border-r border-border bg-white p-4 md:block">
+        <nav className="sticky top-16 hidden h-[calc(100vh-4rem)] w-56 shrink-0 border-r border-border bg-background p-4 md:block">
           <ul className="space-y-1">
             {SALES_NAV.map((item) => (
               <li key={item.href}>
