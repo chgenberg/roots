@@ -14,7 +14,9 @@ import {
 } from "lucide-react";
 import type { TeamDashboard, CustomerOrder } from "@/types/fundraising";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { getBrowserApiBase } from "@/lib/api-base";
+
+const API_URL = getBrowserApiBase();
 
 export default function TeamSettlementPage() {
   const [data, setData] = useState<TeamDashboard | null>(null);

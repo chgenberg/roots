@@ -3,14 +3,15 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { MessageCircle, X, Send, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getBrowserApiBase } from "@/lib/api-base";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
 }
 
-const BASE_API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-const API_URL = BASE_API + "/v1/ai/public-chat";
+const BASE_API = getBrowserApiBase();
+const API_URL = `${BASE_API}/v1/ai/public-chat`;
 
 let _csrfCache: string | null = null;
 async function getCsrf(): Promise<string> {

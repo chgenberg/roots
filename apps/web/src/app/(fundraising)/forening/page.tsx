@@ -12,8 +12,9 @@ import {
   Loader2,
 } from "lucide-react";
 import type { AssociationDashboard as AssociationDashboardData, Campaign } from "@/types/fundraising";
+import { getBrowserApiBase } from "@/lib/api-base";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+const API_URL = getBrowserApiBase();
 
 interface TeamData {
   id: string;

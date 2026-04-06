@@ -14,7 +14,9 @@ import {
 } from "@/components/ui/card";
 import { Loader2, CheckCircle2, ShoppingBag } from "lucide-react";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { getBrowserApiBase } from "@/lib/api-base";
+
+const API_URL = getBrowserApiBase();
 
 export default function SellerRegistrationPage() {
   const router = useRouter();

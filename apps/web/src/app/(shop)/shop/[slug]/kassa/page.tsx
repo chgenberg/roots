@@ -14,8 +14,9 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, Loader2, Package, Truck } from "lucide-react";
 import Link from "next/link";
+import { getBrowserApiBase } from "@/lib/api-base";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+const API_URL = getBrowserApiBase();
 
 export default function CheckoutPage() {
   const params = useParams();

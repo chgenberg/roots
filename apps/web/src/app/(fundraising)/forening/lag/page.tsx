@@ -8,7 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { Copy, Users, CheckCircle2, Loader2 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { getBrowserApiBase } from "@/lib/api-base";
+
+const API_URL = getBrowserApiBase();
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
 interface Team {

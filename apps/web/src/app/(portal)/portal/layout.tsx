@@ -24,8 +24,9 @@ import {
   PortalUserProvider,
   type PortalUser,
 } from "@/lib/portal-context";
+import { getBrowserApiBase } from "@/lib/api-base";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+const API_URL = getBrowserApiBase();
 
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
 

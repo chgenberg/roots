@@ -6,7 +6,9 @@ import { Button } from "@/components/ui/button";
 import { CreditCard, TrendingUp, Loader2 } from "lucide-react";
 import type { AssociationDashboard, Campaign, Team } from "@/types/fundraising";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { getBrowserApiBase } from "@/lib/api-base";
+
+const API_URL = getBrowserApiBase();
 
 export default function SettlementPage() {
   const [data, setData] = useState<AssociationDashboard | null>(null);

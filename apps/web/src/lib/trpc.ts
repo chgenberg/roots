@@ -5,11 +5,17 @@ import superjson from "superjson";
 // In a monorepo, the type-only import ensures no runtime dependency on the API.
 import type { AppRouter } from "../../../api/src/trpc/router";
 
+import { getBrowserApiBase } from "./api-base";
+
 function getBaseUrl() {
   if (typeof window !== "undefined") {
-    return process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+    return getBrowserApiBase();
   }
-  return process.env.API_URL || "http://localhost:4000";
+  return (
+    process.env.API_BACKEND_URL ||
+    process.env.API_URL ||
+    "http://127.0.0.1:4000"
+  );
 }
 
 export const trpc = createTRPCClient<AppRouter>({

@@ -14,8 +14,9 @@ import {
 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import type { TeamDashboard, Seller } from "@/types/fundraising";
+import { getBrowserApiBase } from "@/lib/api-base";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+const API_URL = getBrowserApiBase();
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
 export default function TeamSellersPage() {

@@ -6,8 +6,9 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CheckCircle2, Loader2, Share2, AlertCircle } from "lucide-react";
+import { getBrowserApiBase } from "@/lib/api-base";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+const API_URL = getBrowserApiBase();
 
 interface OrderConfirmation {
   orderId: string;

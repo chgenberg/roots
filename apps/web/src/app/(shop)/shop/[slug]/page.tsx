@@ -19,7 +19,9 @@ import {
   Package,
 } from "lucide-react";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { getBrowserApiBase } from "@/lib/api-base";
+
+const API_URL = getBrowserApiBase();
 
 interface Product {
   id: string;

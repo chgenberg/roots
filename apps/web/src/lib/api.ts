@@ -1,4 +1,6 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { getBrowserApiBase } from "./api-base";
+
+const API_URL = getBrowserApiBase();
 
 let csrfToken: string | null = null;
 

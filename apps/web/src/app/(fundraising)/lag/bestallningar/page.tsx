@@ -12,7 +12,9 @@ import {
 import { Button } from "@/components/ui/button";
 import type { TeamDashboard, CustomerOrder, Seller } from "@/types/fundraising";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { getBrowserApiBase } from "@/lib/api-base";
+
+const API_URL = getBrowserApiBase();
 
 type FilterStatus = "ALL" | "PAID" | "PENDING" | "DRAFT" | "FAILED" | "CANCELLED";
 

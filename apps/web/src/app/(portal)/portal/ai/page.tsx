@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { usePortalUser } from "@/lib/portal-context";
+import { getBrowserApiBase } from "@/lib/api-base";
 
 interface Message {
   id: string;
@@ -13,9 +14,7 @@ interface Message {
   content: string;
 }
 
-const API_URL =
-  (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000") +
-  "/v1/ai/public-chat";
+const API_URL = `${getBrowserApiBase()}/v1/ai/public-chat`;
 
 function getWelcomeMessage(role: string, name: string): string {
   if (role === "CLUB_ADMIN" || role === "CLUB_MEMBER") {

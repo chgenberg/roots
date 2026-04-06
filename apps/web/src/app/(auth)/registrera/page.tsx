@@ -24,6 +24,9 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { getBrowserApiBase } from "@/lib/api-base";
+
+const API_URL = getBrowserApiBase();
 
 type RegistrationType = "association" | "team" | null;
 
@@ -73,7 +76,8 @@ export default function RegisterPage() {
     }
     try {
       const res = await fetch(
-        `${API_URL}/v1/auth/organizations/search?q=${encodeURIComponent(query)}`
+        `${API_URL}/v1/auth/organizations/search?q=${encodeURIComponent(query)}`,
+        { credentials: "include" }
       );
       const data = await res.json();
       setOrgSearchResults(data.organizations || []);

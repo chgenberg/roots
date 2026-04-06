@@ -15,8 +15,9 @@ import {
   LogOut,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { getBrowserApiBase } from "@/lib/api-base";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+const API_URL = getBrowserApiBase();
 
 interface FundraisingUser {
   email: string;

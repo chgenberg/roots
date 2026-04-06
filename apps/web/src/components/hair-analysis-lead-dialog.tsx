@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
+import { getBrowserApiBase } from "@/lib/api-base";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -46,7 +47,7 @@ const STEP_LABELS: Record<Step, string> = {
 
 const VISIBLE_STEPS = STEPS.filter((s) => s !== "loading" && s !== "result");
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+const API_BASE = getBrowserApiBase();
 const CONSENT_VERSION = "2026-04-02";
 
 let _hairCsrf: string | null = null;

@@ -6,7 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Target, Loader2 } from "lucide-react";
 import type { AssociationDashboard, Campaign, Team } from "@/types/fundraising";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { getBrowserApiBase } from "@/lib/api-base";
+
+const API_URL = getBrowserApiBase();
 
 export default function GoalsPage() {
   const [data, setData] = useState<AssociationDashboard | null>(null);

@@ -26,8 +26,9 @@ export async function middleware(request: NextRequest) {
 
   // Validate session by calling the API
   try {
-    const apiUrl = process.env.API_URL || "http://localhost:4000";
-    const res = await fetch(`${apiUrl}/trpc/auth.me`, {
+    const apiUrl =
+      process.env.API_BACKEND_URL || process.env.API_URL || "http://127.0.0.1:4000";
+    const res = await fetch(`${apiUrl.replace(/\/$/, "")}/trpc/auth.me`, {
       headers: {
         cookie: `rootsSessionId=${sessionCookie.value}`,
       },
