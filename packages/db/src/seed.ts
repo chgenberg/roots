@@ -36,7 +36,7 @@ async function ensureOrg(values: {
   return created;
 }
 
-async function ensureUser(values: {
+async function syncDemoUser(values: {
   email: string;
   passwordHash: string;
   role:
@@ -52,7 +52,16 @@ async function ensureUser(values: {
     .where(eq(users.email, values.email))
     .limit(1);
   if (existing) {
-    console.log(`User already exists: ${values.email} (skip)`);
+    await db
+      .update(users)
+      .set({
+        passwordHash: values.passwordHash,
+        role: values.role,
+        orgId: values.orgId,
+        contactName: values.contactName,
+      })
+      .where(eq(users.email, values.email));
+    console.log(`Updated demo user (password + profile): ${values.email}`);
     return;
   }
   await db.insert(users).values(values);
@@ -76,7 +85,7 @@ async function seed() {
     type: "internal",
   });
 
-  await ensureUser({
+  await syncDemoUser({
     email: "klubb@demo.se",
     passwordHash,
     role: "CLUB_ADMIN",
@@ -84,7 +93,7 @@ async function seed() {
     contactName: "Anna Klubbsson",
   });
 
-  await ensureUser({
+  await syncDemoUser({
     email: "salj@roots.se",
     passwordHash,
     role: "SALES_REP",
@@ -92,7 +101,7 @@ async function seed() {
     contactName: "Erik Säljare",
   });
 
-  await ensureUser({
+  await syncDemoUser({
     email: "admin@roots.se",
     passwordHash,
     role: "INTERNAL_ADMIN",

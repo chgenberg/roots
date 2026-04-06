@@ -13,6 +13,8 @@ export interface SessionData {
   role: Role;
   orgId: string | null;
   createdAt: number;
+  /** In-memory demo login (no DB row); used by /me when userId is not in DB. */
+  demoProfile?: { email: string; name: string; orgName: string };
 }
 
 // In-memory fallback for development when Redis is unavailable

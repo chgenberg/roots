@@ -29,6 +29,10 @@ export const auth = new Hono();
 
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
 
+/** Off by default in production; set ROOTS_ENABLE_DEMO_ACCOUNTS=true for staging demos. */
+const DEMO_ACCOUNTS_ENABLED =
+  !IS_PRODUCTION || process.env.ROOTS_ENABLE_DEMO_ACCOUNTS === "true";
+
 const ARGON2_OPTIONS = {
   memoryCost: 19456,
   timeCost: 2,
@@ -39,9 +43,8 @@ const ARGON2_OPTIONS = {
 const DEMO_ACCOUNTS: Record<
   string,
   { password: string; role: string; name: string; orgName: string }
-> = IS_PRODUCTION
-  ? {}
-  : {
+> = DEMO_ACCOUNTS_ENABLED
+  ? {
       "klubb@demo.se": {
         password: "Demo1234!",
         role: "CLUB_ADMIN",
@@ -60,7 +63,8 @@ const DEMO_ACCOUNTS: Record<
         name: "Roots Admin",
         orgName: "Roots AB",
       },
-    };
+    }
+  : {};
 
 auth.post("/login", async (c) => {
   let body: { email: string; password: string };
@@ -75,6 +79,7 @@ auth.post("/login", async (c) => {
   }
 
   const email = body.email.toLowerCase().trim();
+  const password = body.password.trim();
   const ip =
     c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
 
@@ -86,14 +91,63 @@ auth.post("/login", async (c) => {
     );
   }
 
-  // Demo accounts — disabled in production
+  // Prefer DB users (seed/registration) so sessions use real userId + orgId.
+  try {
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, email))
+      .limit(1);
+
+    if (user) {
+      const valid = await verify(user.passwordHash, password);
+      if (!valid) {
+        return c.json({ error: "Felaktig e-post eller lösenord." }, 401);
+      }
+
+      const sessionData: SessionData = {
+        userId: user.id,
+        role: user.role as SessionData["role"],
+        orgId: user.orgId,
+        createdAt: Date.now(),
+      };
+
+      let orgName: string | null = null;
+      if (user.orgId) {
+        const [org] = await db
+          .select()
+          .from(organizations)
+          .where(eq(organizations.id, user.orgId))
+          .limit(1);
+        orgName = org?.name ?? null;
+      }
+
+      const sessionId = await createSession(sessionData);
+      setCookie(c, SESSION_COOKIE_NAME, sessionId, SESSION_COOKIE_OPTIONS);
+
+      return c.json({
+        ok: true,
+        user: {
+          email: user.email,
+          role: user.role,
+          name: user.contactName || email,
+          orgName: orgName || "",
+        },
+      });
+    }
+  } catch {
+    return c.json({ error: "Felaktig e-post eller lösenord." }, 401);
+  }
+
+  // Fallback: in-memory demo (local dev, or ROOTS_ENABLE_DEMO_ACCOUNTS on Railway)
   const demo = DEMO_ACCOUNTS[email];
-  if (demo && demo.password === body.password) {
+  if (demo && demo.password === password) {
     const sessionData: SessionData = {
       userId: crypto.randomUUID(),
       role: demo.role as SessionData["role"],
       orgId: null,
       createdAt: Date.now(),
+      demoProfile: { email, name: demo.name, orgName: demo.orgName },
     };
 
     try {
@@ -109,55 +163,7 @@ auth.post("/login", async (c) => {
     });
   }
 
-  // Try DB lookup
-  try {
-    const [user] = await db
-      .select()
-      .from(users)
-      .where(eq(users.email, email))
-      .limit(1);
-
-    if (!user) {
-      return c.json({ error: "Felaktig e-post eller lösenord." }, 401);
-    }
-
-    const valid = await verify(user.passwordHash, body.password, ARGON2_OPTIONS);
-    if (!valid) {
-      return c.json({ error: "Felaktig e-post eller lösenord." }, 401);
-    }
-
-    const sessionData: SessionData = {
-      userId: user.id,
-      role: user.role as SessionData["role"],
-      orgId: user.orgId,
-      createdAt: Date.now(),
-    };
-
-    let orgName: string | null = null;
-    if (user.orgId) {
-      const [org] = await db
-        .select()
-        .from(organizations)
-        .where(eq(organizations.id, user.orgId))
-        .limit(1);
-      orgName = org?.name ?? null;
-    }
-
-    const sessionId = await createSession(sessionData);
-    setCookie(c, SESSION_COOKIE_NAME, sessionId, SESSION_COOKIE_OPTIONS);
-
-    return c.json({
-      ok: true,
-      user: {
-        email: user.email,
-        role: user.role,
-        name: user.contactName || email,
-        orgName: orgName || "",
-      },
-    });
-  } catch (dbError) {
-    return c.json({ error: "Felaktig e-post eller lösenord." }, 401);
-  }
+  return c.json({ error: "Felaktig e-post eller lösenord." }, 401);
 });
 
 auth.post("/logout", async (c) => {
@@ -211,6 +217,10 @@ auth.get("/me", async (c) => {
               .limit(1);
             orgName = org?.name ?? "";
           }
+        } else if (session.demoProfile) {
+          email = session.demoProfile.email;
+          name = session.demoProfile.name;
+          orgName = session.demoProfile.orgName;
         }
       } catch {}
 
