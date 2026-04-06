@@ -2,7 +2,8 @@ import { getBrowserApiBase } from "./api-base";
 
 let csrfToken: string | null = null;
 
-async function getCsrfToken(): Promise<string> {
+/** Shared CSRF fetch for any `fetch` that bypasses `apiFetch` (e.g. streaming AI). */
+export async function getCsrfToken(): Promise<string> {
   if (csrfToken) return csrfToken;
 
   const base = getBrowserApiBase();

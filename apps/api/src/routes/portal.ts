@@ -68,7 +68,10 @@ portal.get("/dashboard", async (c) => {
             })
             .from(orders)
             .where(
-              and(eq(orders.orgId, session.orgId), eq(orders.status, "PAID"))
+              and(
+                eq(orders.orgId, session.orgId),
+                eq(orders.invoiceStatus, "PAID")
+              )
             )
         : [{ total: 0 }];
 
@@ -127,7 +130,7 @@ portal.get("/dashboard", async (c) => {
         total: sql<number>`coalesce(sum(${orders.totalOre}), 0)`,
       })
       .from(orders)
-      .where(eq(orders.status, "PAID"));
+      .where(eq(orders.invoiceStatus, "PAID"));
 
     return c.json({
       role,
@@ -433,8 +436,8 @@ portal.get("/income", async (c) => {
       .from(orders)
       .where(
         session.orgId
-          ? and(eq(orders.orgId, session.orgId), eq(orders.status, "PAID"))
-          : eq(orders.status, "PAID")
+          ? and(eq(orders.orgId, session.orgId), eq(orders.invoiceStatus, "PAID"))
+          : eq(orders.invoiceStatus, "PAID")
       )
       .groupBy(sql`to_char(${orders.createdAt}, 'YYYY-MM')`)
       .orderBy(sql`to_char(${orders.createdAt}, 'YYYY-MM') DESC`)
@@ -447,8 +450,8 @@ portal.get("/income", async (c) => {
       .from(orders)
       .where(
         session.orgId
-          ? and(eq(orders.orgId, session.orgId), eq(orders.status, "PAID"))
-          : eq(orders.status, "PAID")
+          ? and(eq(orders.orgId, session.orgId), eq(orders.invoiceStatus, "PAID"))
+          : eq(orders.invoiceStatus, "PAID")
       );
 
     return c.json({

@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { usePortalUser } from "@/lib/portal-context";
 import { getBrowserApiBase } from "@/lib/api-base";
+import { getCsrfToken } from "@/lib/api";
 
 interface Message {
   id: string;
@@ -92,9 +93,13 @@ export default function AIPage() {
     setMessages((prev) => [...prev, assistantMsg]);
 
     try {
+      const csrf = await getCsrfToken();
       const res = await fetch(API_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-csrf-token": csrf,
+        },
         credentials: "include",
         body: JSON.stringify({
           message: text,
