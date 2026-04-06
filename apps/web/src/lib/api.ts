@@ -1,13 +1,12 @@
 import { getBrowserApiBase } from "./api-base";
 
-const API_URL = getBrowserApiBase();
-
 let csrfToken: string | null = null;
 
 async function getCsrfToken(): Promise<string> {
   if (csrfToken) return csrfToken;
 
-  const res = await fetch(`${API_URL}/v1/csrf-token`, {
+  const base = getBrowserApiBase();
+  const res = await fetch(`${base}/v1/csrf-token`, {
     credentials: "include",
   });
   const data = await res.json();
@@ -28,7 +27,8 @@ export async function apiFetch<T>(
     headers["x-csrf-token"] = await getCsrfToken();
   }
 
-  const res = await fetch(`${API_URL}${path}`, {
+  const base = getBrowserApiBase();
+  const res = await fetch(`${base}${path}`, {
     method,
     credentials: "include",
     headers,

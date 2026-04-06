@@ -185,7 +185,7 @@ auth.get("/me", async (c) => {
   const match = cookie.match(new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`));
 
   if (!match) {
-    return c.json({ user: null }, 401);
+    return c.json({ user: null }, 200);
   }
 
   const sessionId = match[1];
@@ -237,7 +237,7 @@ auth.get("/me", async (c) => {
     }
   } catch {}
 
-  return c.json({ user: null }, 401);
+  return c.json({ user: null }, 200);
 });
 
 auth.post("/register/association", async (c) => {

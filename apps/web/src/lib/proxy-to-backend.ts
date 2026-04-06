@@ -32,12 +32,23 @@ export async function proxyRequestToBackend(
       l === "host" ||
       l === "connection" ||
       l === "content-length" ||
-      l === "transfer-encoding"
+      l === "transfer-encoding" ||
+      l === "cookie"
     ) {
       return;
     }
     headers.set(key, value);
   });
+
+  const cookieHeader =
+    req.headers.get("cookie") ||
+    req.cookies
+      .getAll()
+      .map((c) => `${c.name}=${c.value}`)
+      .join("; ");
+  if (cookieHeader) {
+    headers.set("Cookie", cookieHeader);
+  }
 
   const init: RequestInit = {
     method: req.method,
