@@ -189,7 +189,7 @@ export default function TeamOrdersPage() {
                   <div className="space-y-1">
                     <p className="text-sm font-medium">{order.customerName}</p>
                     <p className="text-xs text-muted-foreground">
-                      Säljare: {sellerMap.get(order.sellerId) || "Okänd"}
+                      Säljare: {sellerMap.get(order.sellerId ?? "") || "Okänd"}
                     </p>
                     <div className="flex flex-wrap gap-1.5">
                       <Badge

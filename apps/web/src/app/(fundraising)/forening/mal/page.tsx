@@ -79,9 +79,11 @@ export default function GoalsPage() {
               <div>
                 <p className="text-sm text-muted-foreground">Totalt mål</p>
                 <p className="text-xl font-bold">
-                  {campaign.goalType === "AMOUNT"
-                    ? `${campaign.goalValue.toLocaleString("sv-SE")} kr`
-                    : `${campaign.goalValue} paket`}
+                  {campaign.goalValue != null
+                    ? campaign.goalType === "AMOUNT"
+                      ? `${campaign.goalValue.toLocaleString("sv-SE")} kr`
+                      : `${campaign.goalValue} paket`
+                    : "–"}
                 </p>
               </div>
               <div>
@@ -93,7 +95,7 @@ export default function GoalsPage() {
                   Mål per lag (snitt)
                 </p>
                 <p className="text-xl font-bold">
-                  {teams.length > 0
+                  {teams.length > 0 && campaign.goalValue != null
                     ? campaign.goalType === "AMOUNT"
                       ? `${Math.round(campaign.goalValue / teams.length).toLocaleString("sv-SE")} kr`
                       : `${Math.round(campaign.goalValue / teams.length)} paket`

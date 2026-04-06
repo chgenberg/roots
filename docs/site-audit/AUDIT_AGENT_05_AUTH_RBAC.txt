@@ -1,0 +1,49 @@
+AGENT 05 — GRANSKNING: AUTH, SESSION & RBAC
+===========================================
+Referens: docs/composer-agents/05_AUTH_RBAC.txt
+Granskat: apps/web/src/middleware.ts, API auth routes, portal layout patterns.
+
+SAMMANFATTNING
+---------------
+Två tydliga ytor skyddas i Next-middleware: /club och /sales med rollkontroll via
+trpc auth.me. Session cookie rootsSessionId och redirect till /login?next= följer
+mönstret i spec. Backend ska fortsatt vara sanningskälla för policy (spec påpekar
+att UI inte räcker).
+
+STYRKOR
+-------
+- Separata upplevelser för klubb och sälj (layouts, nav).
+- 403 vid fel roll för skyddade prefix (middleware).
+- Argon2, MFA-relaterad kod finns på API-sidan enligt tidigare genomgång.
+
+LUCKOR & FÖRBÄTTRINGAR (prioriterade)
+--------------------------------------
+
+P1 — Portal (/portal) saknas i middleware matcher
+  Endast /club och /sales valideras i middleware.ts. Om /portal ska vara skyddad på
+  samma sätt (cookie + roll) bör matcher utökas eller motsvarande server-side gate
+  dokumenteras — annars risk för direkt URL om klientkontroller misslyckas.
+
+P1 — Fundraising och shop
+  /shop/*, /forening/*, /lag/*, /min-shop — granska att obehörig åtkomst alltid stoppas
+  i API, inte bara dold UI.
+
+P2 — MFA-policy vs spec
+  Spec: obligatorisk MFA för vissa admin-roller. Verifiera att enforcement sker vid
+  login och att bypass inte finns i demo-läge i produktion.
+
+P2 — CSRF
+  API har CSRF-token för muterande anrop i produktion — säkerställ att alla web-form
+  och muterande fetch från BFF skickar header konsekvent (dokumentera för nya features).
+
+P3 — Sessionutgång och "kom ihåg"
+  UX för utloggning, session timeout och tydlig feltext när cookie saknas.
+
+P3 — Registrering och godkännande
+  Spec nämner manuellt godkännande för B2B — om flödet finns, synka copy på /registrera
+  med faktisk affärsprocess.
+
+KPI:ER
+------
+- Antal obehöriga åtkomstförsök som blockerats, tid till återställning vid stulen session,
+  supportärenden "kan inte logga in".

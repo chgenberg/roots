@@ -1,0 +1,46 @@
+AGENT 07 — GRANSKNING: FORTNOX & COMMERCE READINESS
+===================================================
+Referens: docs/composer-agents/07_FORTNOX_COMMERCE.txt
+Granskat: apps/api invoicing (Fortnox provider, null provider), webhook, Klarna lib,
+order/faktura-fält i schema.
+
+SAMMANFATTNING
+---------------
+Abstraktionsmönstret InvoiceProvider / NullInvoiceProvider stämmer med spec ("manuellt
+tills OAuth finns"). Webhook-route och fält för fortnoxInvoiceId m.m. finns i modellen.
+Full automatisk synk, cron och produkt/pris-sync mot Fortnox behöver fortsatt vara en
+medveten roadmap-punkt.
+
+STYRKOR
+-------
+- Kan köra utan Fortnox-credentials (null provider) utan att krascha affärslogik om
+  implementationen är konsekvent.
+- Klarna-modul finns som grund för konsument/checkout-spår.
+- Tydlig koppling order ↔ faktura i datamodellen (enligt tidigare inventering).
+
+LUCKOR & FÖRBÄTTRINGAR (prioriterade)
+--------------------------------------
+
+P1 — Operationalisera webhook + status
+  Verifiera signatur/HMAC-flöde i produktion, idempotens, och att UI (portal) visar
+  fakturastatus som matchar Fortnox.
+
+P1 — Sync-jobb
+  Implementera schemalagd hämtning av fakturastatus för pending/issued (spec) eller
+  dokumentera manuell process tills det finns.
+
+P2 — Kundsync
+  createOrUpdateCustomer — säkerställ att org-nummer, moms och adressfält mappas enligt
+  svensk B2B-praxis och Fortnox fält.
+
+P2 — Bokföring och avvikelser
+  Rutin för delbetalning, kreditfaktura och avbokning — även om sällan i MVP.
+
+P3 — Produkt- och pris-sync
+  När artiklar ändras i intern DB: definiera om Fortnox är master eller slav och bygg
+  envägssync därefter.
+
+KPI:ER
+------
+- Andel ordrar med korrekt faktura-id, tid till faktura efter order, antal manuella
+  bokföringsjusteringar per månad.

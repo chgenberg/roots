@@ -7,7 +7,11 @@ import { Card, CardContent } from "@/components/ui/card";
 
 import { ArrowRight, Users, ShieldCheck, Truck, BarChart3 } from "lucide-react";
 
-export const metadata: Metadata = { title: "Föreningsliv" };
+export const metadata: Metadata = {
+  title: "Föreningsliv",
+  description:
+    "Stärk er förening med Roots. Sälj naturlig hårvård och generera intäkter till laget — enkelt, snabbt och utan startavgift.",
+};
 
 const STEPS = [
   { step: "01", title: "Anslut", description: "Registrera din förening — tar bara några minuter." },
@@ -31,7 +35,7 @@ export default function ForeningslivPage() {
         <div className="mx-auto grid max-w-[1280px] items-center gap-12 px-6 md:px-10 lg:grid-cols-2 lg:gap-20">
           <div className="max-w-lg">
             <Badge variant="secondary" className="mb-4">För föreningar</Badge>
-            <h1 className="text-5xl font-bold leading-[1.05] tracking-tight md:text-6xl lg:text-7xl">
+            <h1 className="text-[length:var(--font-size-hero)] font-bold leading-[1.05] tracking-tight">
               Gör föreningslivet
               <span className="block text-brand-500">starkare</span>
             </h1>

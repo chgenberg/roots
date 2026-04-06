@@ -30,7 +30,7 @@ export default function HaranalysPage() {
         <div className="mx-auto max-w-[1280px] px-6 md:px-10">
           <div className="mx-auto max-w-2xl text-center">
             <Badge variant="secondary" className="mb-4">AI-driven håranalys</Badge>
-            <h1 className="text-4xl font-bold tracking-tight md:text-5xl lg:text-6xl">
+            <h1 className="text-[length:var(--font-size-hero)] font-bold tracking-tight">
               Gratis håranalys online
             </h1>
             <p className="mt-6 text-lg leading-relaxed text-muted-foreground md:text-xl">
@@ -96,7 +96,7 @@ export default function HaranalysPage() {
                 desc: "Ingen betalning, inget abonnemang. Gör analysen hur många gånger du vill.",
               },
             ].map((b) => (
-              <Card key={b.title} className="border-0 bg-brand-50/40 shadow-sm hover:shadow-md transition-shadow duration-200 rounded-3xl">
+              <Card key={b.title} className="border-0 bg-brand-50/40 shadow-sm hover:shadow-md transition-shadow duration-200 rounded-2xl">
                 <CardContent className="p-6">
                   <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-card text-card-foreground">
                     <b.icon className="h-6 w-6" />

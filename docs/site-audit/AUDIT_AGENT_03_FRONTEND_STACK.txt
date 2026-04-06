@@ -1,0 +1,56 @@
+AGENT 03 — GRANSKNING: FRONTEND-ARKITEKTUR & IMPLEMENTATION
+============================================================
+Referens: docs/composer-agents/03_FRONTEND_STACK.txt
+Granskat: Next.js App Router, route groups, BFF, client/server-gräns, a11y, performance.
+
+SAMMANFATTNING
+---------------
+Stacken matchar rekommendationen: Next.js (App Router), TypeScript, Tailwind med tokens,
+monorepo med delade paket. Många sidor är möjliga att server-rendera; interaktiva delar
+(dialoger, theme, header) är client där det behövs.
+
+STYRKOR
+-------
+- Route groups: (marketing), (auth), (club), (sales), (portal), (shop), (fundraising) —
+  tydlig separation.
+- BFF: api/trpc och api/v1 proxar till backend — nycklar och affärslogik inte i browsern
+  för dessa vägar.
+- next/image med AVIF/WebP (next.config.ts).
+- Komponentbibliotek under components/ui (Radix-baserat) + @roots/ui primitives.
+
+LUCKOR & FÖRBÄTTRINGAR (prioriterade)
+--------------------------------------
+
+P1 — Build-kvalitet
+  next.config.ts sätter typescript.ignoreBuildErrors och eslint.ignoreDuringBuilds.
+  Det underminerar "strict TypeScript"-målet i spec. Förslag: successivt minska
+  ignore, fixa fundraising-TS-fel som kända blockers, återaktivera lint i CI för web.
+
+P2 — ISR / static vs dynamic
+  Spec föreslår ISR för marketing där innehåll sällan ändras. Granska per sida om
+  export const revalidate kan sättas (t.ex. 3600) utan att bryta dynamiska delar.
+
+P2 — Tillgänglighet
+  - Säkerställ h1 per sida och logisk rubrikordning på alla 47 routes.
+  - Fokusfälla i modaler (hair-analysis-lead-dialog, sheet) — verifiera mot Radix defaults.
+  - Ikonknappar: dubbelkolla aria-label (header, theme toggle, stäng-knappar).
+
+P2 — Internationalisering
+  Spec nämner framtida next-intl; all copy är hårdkodad svenska. När /en behövs:
+  extrahera strängar till meddelandefiler tidigt för att minska omskrivning.
+
+P3 — State och data
+  Spec nämner TanStack Query för inloggad data — verifiera att portal/shop använder
+  enhetlig cache/invalidation och inte dubbel-fetch.
+
+P3 — JS-budget
+  Kör bundle-analys (next build --analyze eller @next/bundle-analyzer) på / och /portal
+  för att säkerställa att marketing håller sig under rimlig gzip-gräns.
+
+P3 — Tester
+  Playwright finns i root package.json men få/inga e2e i repo enligt tidigare inventering.
+  Lägg till röktester för login, checkout happy path, håranalys-dialog öppnas.
+
+KPI:ER
+------
+- LCP/CLS på mobil (Lighthouse), build utan ignoreBuildErrors, antal a11y violations i CI.

@@ -101,6 +101,7 @@ export interface SellerDashboard {
     shopSlug: string;
     campaignId: string;
     teamId: string;
+    individualGoal?: number | null;
   };
   team: { id: string; name: string } | null;
   campaign: { id: string; name: string; story: string | null; marginPercent: number } | null;

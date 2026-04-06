@@ -34,7 +34,7 @@ export function HeroSection() {
         {/* Text content — top left */}
         <div className="relative flex h-full flex-col justify-start p-6 pt-10 md:p-10 md:pt-14">
           <div className="max-w-md">
-            <h1 className="text-3xl font-bold leading-[1.1] tracking-tight text-white md:text-4xl lg:text-5xl">
+            <h1 className="text-[length:var(--font-size-hero)] font-bold leading-[1.1] tracking-tight text-white">
               Naturlig hårvård.
               <br />
               Ren känsla.

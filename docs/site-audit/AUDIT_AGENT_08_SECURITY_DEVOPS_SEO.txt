@@ -1,0 +1,57 @@
+AGENT 08 — GRANSKNING: SÄKERHET, DEVOPS, SEO & ANALYTICS
+=======================================================
+Referens: docs/composer-agents/08_SECURITY_DEVOPS_SEO.txt
+Granskat: next.config.ts headers, robots.ts, sitemap.ts, layout metadata, CI workflow,
+Plausible.
+
+SAMMANFATTNING
+---------------
+Flera säkerhetsheaders är satta (HSTS, X-Content-Type-Options, Referrer-Policy,
+Permissions-Policy, X-Frame-Options). SEO-grund finns: metadata template, OG/Twitter,
+Organization JSON-LD, sitemap och robots. CI kör typecheck, build, migration drift,
+Docker på main. Luckor: CSP saknas; robots-disallow är ofullständig mot alla privata
+ytor; build ignorerar TS/ESLint (se även agent 03).
+
+STYRKOR
+-------
+- HSTS med lång max-age och preload flagga (next.config.ts).
+- metadataBase och delad OG-bild (layout.tsx).
+- sitemap inkluderar viktiga publika sidor inkl. /haranalys, /kontakt, juridik.
+- Plausible kan aktiveras via NEXT_PUBLIC_PLAUSIBLE_DOMAIN (privacy-vänlig analytics).
+
+LUCKOR & FÖRBÄTTRINGAR (prioriterade)
+--------------------------------------
+
+P1 — Content-Security-Policy
+  Spec föreslår CSP inkl. img-src för Unsplash m.m. Idag ingen CSP — inför gradvis
+  (report-only först) för att undvika att bryta Plausible, bilder och API-anrop.
+
+P1 — robots.txt täckning
+  robots disallow: /api/, /club/, /sales/, /login, /registrera — överväg även /portal,
+  /shop, /forening, /lag, /min-shop och andra inloggade eller personliga routes om de
+  inte ska indexeras (sitemap indexerar redan inte dessa, men crawlers kan följa länkar).
+
+P2 — Title template vs spec
+  Spec exempel: "Roots | [Page] — Föreningsnära hudvård". Nu: "Roots | %s" och default
+  "Roots — Föreningsnära hudvård". Justera per sida för unika titlar + beskrivningar
+  (max ~155 tecken) på alla marketing-sidor.
+
+P2 — Strukturerad data
+  Organization finns — säkerställ Product JSON-LD på /produkter/[slug] enligt spec
+  (om inte redan fullt ut).
+
+P2 — CI vs spec
+  Spec nämner unit tests — utöka pipeline med minsta testsvit när stubbar ersätts.
+  Docker build på main: bra; lägg staging/prod-promotion policy skriftligt.
+
+P3 — Cookies-sida
+  Footer nämner integritet och villkor; om Plausible eller andra cookies används,
+  länka cookie-policy om juridiskt krävs utöver integritetssidan.
+
+P3 — Backups och DR
+  Dokumentera Postgres backup/PITR utanför repo (Railway/hosting) — operativ checklista.
+
+KPI:ER
+------
+- Lighthouse SEO score, antal CSP violations i report-only, indexerade sidor i GSC,
+  Core Web Vitals i fältdata.

@@ -1,0 +1,59 @@
+AGENT 01 — GRANSKNING: UX, IA & NAVIGATION
+==========================================
+Referens: docs/composer-agents/01_UX_IA_NAVIGATION.txt
+Granskat: apps/web (marketing, footers, headers), route groups, primära flöden.
+
+SAMMANFATTNING
+---------------
+Stommen följer strategin väl: få toppnivålänkar (Produkter, Föreningsliv, Om oss),
+djupare funktion bakom inloggning. Flera sidor och leadmagneten håranalys ligger
+utanför toppmenyn vilket är rimligt om målet är max fyra punkter.
+
+STYRKOR
+-------
+- Header (apps/web/src/components/header.tsx): tre publika menyval + varumärke,
+  konsekvent med "få val i menyn".
+- Footer (components/footer.tsx): tydlig sekundär IA — produkter, företag, juridik;
+  håranalys nås via footer under Produkter (bra kompromiss mot tunn topbar).
+- Startsida (app/(marketing)/page.tsx): tydlig sekvens — hero, produktförhandsvisning,
+  föreningsblock, social proof, gamification, grundare.
+- Målgruppsplit: separata ytor för klubb (/club), sälj (/sales), portal (/portal),
+  shop och fundraising — stödjer "djup efter inloggning".
+
+LUCKOR & FÖRBÄTTRINGAR (prioriterade)
+--------------------------------------
+
+P1 — Primär CTA på hero vs strategi
+  Strategin föreslår EN primär CTA: "Boka demo" ELLER "Prata med oss", sekundär
+  "Se produkterna". Idag är primär knapp "Starta din håranalys" (hero-lead.tsx).
+  Förslag: A) Behåll håranalys som growth-CTA men lägg till tydlig B2B-väg
+  (t.ex. "Prata med oss" / kontakt eller registrering) som likvärdig visuell vikt,
+  eller B) gör håranalys sekundär och flytta B2B-CTA till primär om GTM är ren B2B2C.
+
+P1 — "Logga in" och målgruppsval
+  Användare som ska till klubb vs sälj vs portal kan behöva en kort förklaring
+  eller val på /login (om flera identiteter). Granska om copy eller länkar från
+  föreningsliv/registrera minskar felinloggningar.
+
+P2 — Portal och övriga inloggade ytor i wayfinding
+  Portal (/portal) nämns inte i samma enkla berättelse som klubb/sälj i publik nav.
+  Om organisationer ofta landar där: överväg footer-rad eller tydlig post-login landning.
+
+P2 — Undermenyer
+  Strategin säger undvik dropdowns i desktop header — nuvarande lösning följer detta.
+  Säkerställ att produktsidor och ev. ankare på /produkter fortsätter vara skannbara
+  utan extra klick (scroll/anchor där det passar SEO).
+
+P3 — Footer enligt spec (press, jobb)
+  Strategin nämner press och ev. jobb som sekundära länkar — saknas idag. Lägg till
+  när innehåll finns, eller "Kommer snart" för att visa struktur.
+
+P3 — Konsekvent "nästa steg" i portaler
+  Kollegial feedback kring logistik (orderlistor, betalstatus) — koppla portal-/kampanj-
+  flöden till tydliga checklistor i UI (onboarding-steg), i linje med IA som minskar
+  kognitiv last.
+
+KPI:ER ATT MÄTA (förslag)
+-------------------------
+- Klick hero primär vs sekundär, bounce från /produkter, completion /registrera,
+  andel som når rätt portal efter login.

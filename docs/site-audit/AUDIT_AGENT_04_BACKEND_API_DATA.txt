@@ -1,0 +1,50 @@
+AGENT 04 — GRANSKNING: BACKEND, API & DATA
+==========================================
+Referens: docs/composer-agents/04_BACKEND_API_DATA.txt
+Granskat: apps/api (Hono, routes, tRPC), packages/db (Drizzle schema).
+
+SAMMANFATTNING
+---------------
+Arkitekturen stämmer med rekommendation: Node API separat från webb, PostgreSQL via
+Drizzle, Redis för rate limit/session-relaterat, REST + tRPC. Domänmodellen täcker
+organisationer, användare, produkter, ordrar, kampanjer, lag, säljare, utbetalningar
+mm. — bredare än minimal MVP i spec, vilket är positivt för B2B2C.
+
+STYRKOR
+-------
+- Tydlig uppdelning REST under /v1/* och tRPC för typsäkra klienter.
+- Stöd för shop, checkout, settlement, portal, dashboard — speglar verkliga flöden.
+- Audit och integrationsfält (Fortnox m.m.) förberedda i datamodellen.
+
+LUCKOR & FÖRBÄTTRINGAR (prioriterade)
+--------------------------------------
+
+P1 — API-dokumentation och kontrakt
+  Delade typer finns i packages/contracts — säkerställ att varje ny REST-route har
+  motsvarande typ/version och att web-klienten inte divergerar tyst.
+
+P1 — Bakgrundsjobb
+  pg-boss finns i beroenden men sync-invoice-status är stub — färdigställ eller ta bort
+  död kod för att minska driftförvirring. Cron för fakturastatus (spec agent 07) saknas
+  som produktionsklar.
+
+P2 — Idempotens och webhooks
+  Checkout och externa webhooks: dokumentera idempotency-nycklar och retry-strategi
+  för operatörer.
+
+P2 — Observability
+  Pino finns — säkerställ strukturerad korrelation (requestId) mellan web BFF och API
+  i produktion.
+
+P3 — Rate limiting
+  Hair analysis och public chat har IP-baserade gränser — granska att de är tillräckliga
+  under kampanjtoppar och att felmeddelanden är användarvänliga.
+
+P3 — Dataseed och demo
+  Seed-data för demo-konton — håll synkad med dokumentation för sälj/demo så att
+  frontend alltid har realistiska listor (orderlistor, pipeline).
+
+KPI:ER
+------
+- API latency p95, felrate på checkout, tid från order till faktura-status uppdaterad,
+  antal 5xx vid trafiktoppar.

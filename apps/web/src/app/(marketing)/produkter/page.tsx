@@ -6,7 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArrowUpRight, Leaf, Droplets, Sparkles } from "lucide-react";
 
-export const metadata: Metadata = { title: "Produkter" };
+export const metadata: Metadata = {
+  title: "Produkter",
+  description:
+    "Tre noggrant formulerade produkter med nordiska ingredienser. Utan sulfater, silikoner eller parabener.",
+};
 
 const PRODUCTS = [
   {
@@ -53,7 +57,7 @@ export default function ProdukterPage() {
       <section className="bg-brand-50/40 py-20 md:py-28">
         <div className="mx-auto max-w-[1280px] px-6 md:px-10">
           <div className="mx-auto max-w-2xl text-center">
-            <h1 className="text-5xl font-bold tracking-tight md:text-6xl lg:text-7xl">Våra produkter</h1>
+            <h1 className="text-[length:var(--font-size-hero)] font-bold tracking-tight">Våra produkter</h1>
             <p className="mt-4 text-lg text-muted-foreground">
               Tre noggrant formulerade produkter med nordiska ingredienser.
               Utan sulfater, silikoner eller parabener.

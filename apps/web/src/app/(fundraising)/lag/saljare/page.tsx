@@ -215,7 +215,7 @@ export default function TeamSellersPage() {
                       </Button>
                     </div>
                   )}
-                  {seller.individualGoal > 0 && (
+                  {seller.individualGoal != null && seller.individualGoal > 0 && (
                     <div className="ml-10">
                       <div className="h-2 overflow-hidden rounded-full bg-brand-100 mt-1">
                         <div

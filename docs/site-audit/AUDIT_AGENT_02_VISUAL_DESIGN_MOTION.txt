@@ -1,0 +1,53 @@
+AGENT 02 — GRANSKNING: VISUELL DESIGN, TOKENS & MOTION
+======================================================
+Referens: docs/composer-agents/02_VISUAL_DESIGN_MOTION.txt
+Granskat: apps/web/src/app/globals.css, komponenter, marketing-sektioner, dark mode.
+
+SAMMANFATTNING
+---------------
+Varumärkesriktningen (vit yta, mörkbrun skala, luft, subtil skugga) är genomförd
+via Tailwind @theme och semantiska tokens. Dark mode (.dark på html) är implementerad
+med kompletterande tokens; tidigare kontrastproblem vit-på-vit har åtgärdats med
+inverse-surface och card-tokens där det behövts.
+
+STYRKOR
+-------
+- Låst palett i globals.css nära spec (brand-900 … brand-50, semantic background,
+  foreground, card, destructive, success).
+- Maxbredd 1280px i header/footer, generös sektionspadding i line med "luft är varumärke".
+- Motion: subtle-pulse, float, pulse-shadow — används sparsamt (t.ex. hero-knapp).
+- Ingen uppenbar "neon/template"-överlast; fotografi via next/image på hero.
+
+LUCKOR & FÖRBÄTTRINGAR (prioriterade)
+--------------------------------------
+
+P1 — Typografi vs spec
+  Spec nämner möjlig Söhne / GT America / Neue Haas; implementation använder Inter
+  (layout.tsx). För starkare varumärkeskillnad: överväg en display-font för rubriker
+  eller en köpt neutral grotesk om budget finns.
+
+P2 — Fluid typography
+  Agent 02 föreslår clamp-skala för xs → hero. Mycket är idag Tailwind-standardstorlekar.
+  Förslag: inför CSS-variabler för text-hero/text-steg och använd i marketing-rubriker
+  för mer konsekvent skalning mellan mobil och desktop.
+
+P2 — Kontrast och regressionstest
+  Efter dark mode-fixar: kör regelbundet axe/Lighthouse på /produkter, /portal/*,
+  /haranalys i båda teman. Dokumentera "golden routes" i CI eller manuell checklista.
+
+P2 — Radius och skugg-konsistens
+  Blandning av rounded-xl, rounded-3xl, rounded-full på kort — medvetet kan vara okej,
+  men granska om en primär "kortradius" (8 eller 12px) ska dominera för "möbelkatalog"-känsla.
+
+P3 — Unsplash vs egna bilder
+  Strategin nämner Unsplash; sajten använder egna assets under /public/images. Bra för
+  autenticitet — säkerställ att alla nya bilder håller samma ljus och färgtemperatur.
+
+P3 — Dekorativa element
+  Flytande former / gamification-sektion — håll mängden konstant låg så det inte bryter
+  mot "sparsamt" i spec.
+
+KPI:ER
+------
+- Lighthouse "Accessibility" score på nyckelsidor, användarfeedback på läsbarhet,
+  varumärkesenkät internt (känns "Roots" vs generisk).

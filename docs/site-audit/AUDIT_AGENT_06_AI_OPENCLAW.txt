@@ -1,0 +1,51 @@
+AGENT 06 — GRANSKNING: AI-SKIK, CHATT & HÅRANALYS
+================================================
+Referens: docs/composer-agents/06_AI_OPENCLAW.txt (+ hair-analysis/ vid leadmagnet)
+Granskat: API routes (ai-chat, public-chat, hair-analysis), web (widget, portal/ai,
+hair-analysis-lead-dialog), lib/ai.
+
+SAMMANFATTNING
+---------------
+Principen "inga hemligheter i browsern" följs: OpenAI-anrop sker server-side. Det finns
+streaming-chatt för inloggad portal, publik chatt med rate limit, och GPT Vision-flöde
+för håranalys med produktmappning. RAG, full MCP-verktygsstack och vissa tRPC AI-
+vägar är delvis stubbade eller begränsade jämfört med visionen i spec.
+
+STYRKOR
+-------
+- Tydlig separation public vs authenticated chat.
+- Hair analysis som leadmagnet kopplad till marketing (hero + egen sida + dialog).
+- Systemprompts centraliserade; rate limiting på känsliga endpoints.
+
+LUCKOR & FÖRBÄTTRINGAR (prioriterade)
+--------------------------------------
+
+P1 — RAG enligt spec
+  Agent 06 beskriver vektorlagring och re-embed pipeline. Implementation saknar ännu
+  full RAG över godkänd dokumentation — svar kan bli mer generiska. Prioritera MVP-RAG
+  (t.ex. pgvector + indexerade FAQ/produktblad) innan fler agentfeatures.
+
+P1 — MCP / verktyg
+  mcp-tools är delvis stub. För produktion: definiera read-only verktyg (produktlookup,
+  orderstatus) med strikt RBAC och auditlogg, eller dokumentera att de är avstängda.
+
+P2 — tRPC ai-router
+  Vissa metoder (t.ex. chat) kan vara stub — alignera web-klient så den inte förlitar
+  sig på halvimplementerade endpoints.
+
+P2 — Innehåll och compliance (håranalys)
+  Följ hair-analysis-agenterna (docs/composer-agents/hair-analysis/) för samtycke,
+  datalagring, och medicinska formuleringar — separat checklist där.
+
+P2 — Kvalitet och kostnad
+  Logga modellversion, token usage, felorsaker; sätt tak per org/användare för portal-AI
+  om kostnaden skenar.
+
+P3 — "Intelligent utan att överösa"
+  Granska chat-widgetens default copy och triggers så de inte konkurrerar med primär
+  B2B-funnel om fokus skiftar.
+
+KPI:ER
+------
+- Konvertering håranalys → lead, CSAT på AI-svar, andel hallucination-rapporter,
+  kostnad per 1000 chattar, latency till första token.

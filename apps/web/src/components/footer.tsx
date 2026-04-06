@@ -17,6 +17,8 @@ const FOOTER_LINKS = [
       { href: "/foreningsliv", label: "Föreningsliv" },
       { href: "/om-oss", label: "Om oss" },
       { href: "/kontakt", label: "Kontakt" },
+      { href: "/om-oss#press", label: "Press" },
+      { href: "/om-oss#jobb", label: "Jobb" },
     ],
   },
   {

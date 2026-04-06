@@ -5,7 +5,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Heart, Leaf, Shield } from "lucide-react";
 
-export const metadata: Metadata = { title: "Om oss" };
+export const metadata: Metadata = {
+  title: "Om oss",
+  description:
+    "Tre grundare, ett mål: stärka svenskt föreningsliv med naturlig hårvård utvecklad i Norden.",
+};
 
 const VALUES = [
   {
@@ -35,7 +39,7 @@ export default function OmOssPage() {
         <div className="mx-auto max-w-[1280px] px-6 md:px-10">
           <div className="mx-auto max-w-2xl text-center">
             <Badge variant="secondary" className="mb-4">Om oss</Badge>
-            <h1 className="text-5xl font-bold tracking-tight md:text-6xl lg:text-7xl">
+            <h1 className="text-[length:var(--font-size-hero)] font-bold tracking-tight">
               Tre män. Ett mål.
             </h1>
             <p className="mt-6 text-lg text-muted-foreground">
