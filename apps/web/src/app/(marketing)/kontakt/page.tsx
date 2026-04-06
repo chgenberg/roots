@@ -6,8 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Mail, MapPin, Send } from "lucide-react";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { apiFetch } from "@/lib/api";
 
 export default function KontaktPage() {
   const [sent, setSent] = useState(false);
@@ -28,14 +27,12 @@ export default function KontaktPage() {
     };
 
     try {
-      const res = await fetch(`${API_URL}/v1/contact`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        throw new Error(body?.error || "Något gick fel.");
+      const { ok, data: resData } = await apiFetch<{ error?: string }>(
+        "/v1/contact",
+        { method: "POST", body: data }
+      );
+      if (!ok) {
+        throw new Error(resData?.error || "Något gick fel.");
       }
       setSent(true);
     } catch (err) {

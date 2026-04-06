@@ -48,6 +48,15 @@ const VISIBLE_STEPS = STEPS.filter((s) => s !== "loading" && s !== "result");
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 const CONSENT_VERSION = "2026-04-02";
+
+let _hairCsrf: string | null = null;
+async function getHairCsrf(): Promise<string> {
+  if (_hairCsrf) return _hairCsrf;
+  const r = await fetch(`${API_BASE}/v1/csrf-token`, { credentials: "include" });
+  const d = await r.json();
+  _hairCsrf = d.token;
+  return _hairCsrf!;
+}
 const SESSION_KEY = "roots_hair_wizard";
 const SESSION_TTL_MS = 30 * 60 * 1000;
 
@@ -279,12 +288,15 @@ export function HairAnalysisLeadDialog({
 
       const idempotencyKey = crypto.randomUUID();
 
+      const csrf = await getHairCsrf();
       const res = await fetch(`${API_BASE}/v1/ai/hair-analysis`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Idempotency-Key": idempotencyKey,
+          "x-csrf-token": csrf,
         },
+        credentials: "include",
         body: JSON.stringify({
           consentAccepted: true,
           consentVersion: CONSENT_VERSION,

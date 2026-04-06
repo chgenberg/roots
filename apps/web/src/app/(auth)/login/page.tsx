@@ -16,9 +16,7 @@ import {
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Loader2 } from "lucide-react";
-
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { apiFetch } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -33,16 +31,12 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${API_URL}/v1/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ email, password }),
-      });
+      const { ok, data } = await apiFetch<{ error?: string; user?: { role: string } }>(
+        "/v1/auth/login",
+        { method: "POST", body: { email, password } }
+      );
 
-      const data = await res.json();
-
-      if (!res.ok) {
+      if (!ok) {
         setError(data.error || "Något gick fel. Försök igen.");
         return;
       }

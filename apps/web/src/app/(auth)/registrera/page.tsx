@@ -23,8 +23,7 @@ import {
   ArrowLeft,
   CheckCircle2,
 } from "lucide-react";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { apiFetch } from "@/lib/api";
 
 type RegistrationType = "association" | "team" | null;
 
@@ -88,11 +87,6 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      const endpoint =
-        type === "association"
-          ? `${API_URL}/v1/auth/register/association`
-          : `${API_URL}/v1/auth/register/team-leader`;
-
       const body =
         type === "association"
           ? {
@@ -121,16 +115,17 @@ export default function RegisterPage() {
               postalCode: postalCode || undefined,
             };
 
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(body),
-      });
+      const endpoint =
+        type === "association"
+          ? "/v1/auth/register/association"
+          : "/v1/auth/register/team-leader";
 
-      const data = await res.json();
+      const { ok: resOk, data } = await apiFetch<{ error?: string }>(
+        endpoint,
+        { method: "POST", body }
+      );
 
-      if (!res.ok) {
+      if (!resOk) {
         setError(data.error || "Något gick fel. Försök igen.");
         return;
       }

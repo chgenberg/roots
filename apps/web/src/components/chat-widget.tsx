@@ -9,9 +9,17 @@ interface Message {
   content: string;
 }
 
-const API_URL =
-  (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000") +
-  "/v1/ai/public-chat";
+const BASE_API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+const API_URL = BASE_API + "/v1/ai/public-chat";
+
+let _csrfCache: string | null = null;
+async function getCsrf(): Promise<string> {
+  if (_csrfCache) return _csrfCache;
+  const r = await fetch(`${BASE_API}/v1/csrf-token`, { credentials: "include" });
+  const d = await r.json();
+  _csrfCache = d.token;
+  return _csrfCache!;
+}
 
 const WELCOME_MESSAGE: Message = {
   role: "assistant",
@@ -61,9 +69,14 @@ export function ChatWidget() {
     setMessages((prev) => [...prev, assistantMsg]);
 
     try {
+      const csrf = await getCsrf();
       const res = await fetch(API_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-csrf-token": csrf,
+        },
+        credentials: "include",
         body: JSON.stringify({
           message: text,
           stream: true,

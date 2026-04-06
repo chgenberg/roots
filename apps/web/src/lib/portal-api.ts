@@ -1,26 +1,17 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-
-interface FetchOptions {
-  method?: string;
-  body?: unknown;
-}
+import { apiFetch } from "./api";
 
 export async function portalFetch<T>(
   path: string,
-  options: FetchOptions = {}
+  options: { method?: string; body?: unknown } = {}
 ): Promise<T> {
-  const { method = "GET", body } = options;
-  const res = await fetch(`${API_URL}/v1/portal${path}`, {
-    method,
-    credentials: "include",
-    headers: body ? { "Content-Type": "application/json" } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  const { ok, data, status } = await apiFetch<T & { error?: string }>(
+    `/v1/portal${path}`,
+    options
+  );
 
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || `API error ${res.status}`);
+  if (!ok) {
+    throw new Error((data as { error?: string })?.error || `API error ${status}`);
   }
 
-  return res.json();
+  return data as T;
 }
