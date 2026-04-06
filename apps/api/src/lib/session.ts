@@ -91,10 +91,11 @@ export async function refreshSession(id: string): Promise<void> {
 
 export const SESSION_COOKIE_NAME = "rootsSessionId";
 
+/** In production the web app and API are on different hosts; Lax would block cookies on cross-origin fetch. */
 export const SESSION_COOKIE_OPTIONS = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: "lax" as const,
+  secure: IS_PRODUCTION,
+  sameSite: (IS_PRODUCTION ? "none" : "lax") as "none" | "lax",
   path: "/",
   maxAge: SESSION_TTL,
 };
