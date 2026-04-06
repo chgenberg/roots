@@ -3,6 +3,11 @@
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import { portalFetch } from "@/lib/portal-api";
+import {
+  toPortalProductCard,
+  type ApiProductRow,
+  type PortalProductCard,
+} from "@/lib/portal-products";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ShoppingCart, Minus, Plus } from "lucide-react";
 
-const FALLBACK_PRODUCTS = [
+const FALLBACK_PRODUCTS: PortalProductCard[] = [
   {
     name: "First Growth",
     type: "Schampo",
@@ -39,12 +44,16 @@ const FALLBACK_PRODUCTS = [
 
 export default function ProdukterPortalPage() {
   const [quantities, setQuantities] = useState<Record<string, number>>({});
-  const [products, setProducts] = useState(FALLBACK_PRODUCTS);
+  const [products, setProducts] = useState<PortalProductCard[]>(
+    FALLBACK_PRODUCTS
+  );
 
   useEffect(() => {
-    portalFetch<{ products: any[] }>("/products")
+    portalFetch<{ products: ApiProductRow[] }>("/products")
       .then((data) => {
-        if (data.products?.length) setProducts(data.products);
+        if (data.products?.length) {
+          setProducts(data.products.map(toPortalProductCard));
+        }
       })
       .catch(() => {});
   }, []);
