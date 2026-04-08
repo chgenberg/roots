@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const PROTECTED_ROUTES = {
+const PROTECTED_ROUTES: Record<string, string[]> = {
   "/club": ["CLUB_ADMIN", "CLUB_MEMBER"],
   "/sales": ["SALES_REP", "SALES_ADMIN", "INTERNAL_ADMIN"],
+  "/forening": ["ASSOCIATION_ADMIN", "INTERNAL_ADMIN"],
+  "/lag": ["TEAM_LEADER", "ASSOCIATION_ADMIN", "INTERNAL_ADMIN"],
+  "/min-shop": ["SELLER", "TEAM_LEADER", "ASSOCIATION_ADMIN", "INTERNAL_ADMIN"],
 };
 
 export async function middleware(request: NextRequest) {
@@ -24,7 +27,6 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Validate session by calling the API
   try {
     const apiUrl =
       process.env.API_BACKEND_URL || process.env.API_URL || "http://127.0.0.1:4000";
@@ -42,8 +44,7 @@ export async function middleware(request: NextRequest) {
 
     const data = await res.json();
     const role = data?.result?.data?.json?.role ?? data?.result?.data?.role;
-    const allowedRoles =
-      PROTECTED_ROUTES[matchedPrefix as keyof typeof PROTECTED_ROUTES];
+    const allowedRoles = PROTECTED_ROUTES[matchedPrefix];
 
     if (!role || !allowedRoles.includes(role)) {
       return new NextResponse("Forbidden", { status: 403 });
@@ -58,5 +59,11 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/club/:path*", "/sales/:path*"],
+  matcher: [
+    "/club/:path*",
+    "/sales/:path*",
+    "/forening/:path*",
+    "/lag/:path*",
+    "/min-shop/:path*",
+  ],
 };

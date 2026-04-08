@@ -17,6 +17,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
+import { GradeBadge, GradeProgress } from "@/components/seller-grade";
 import type { SellerDashboard as SellerDashboardData, Milestone } from "@/types/fundraising";
 import QRCode from "qrcode";
 
@@ -184,6 +185,26 @@ export default function SellerDashboard() {
           </Card>
         )}
       </div>
+
+      {/* Grade card */}
+      {data.grade && (
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <GradeBadge grade={data.grade} size="lg" />
+                <div>
+                  <p className="text-sm font-medium">Din nivå</p>
+                  <p className="text-xs text-muted-foreground">
+                    Baserat på total försäljning
+                  </p>
+                </div>
+              </div>
+            </div>
+            <GradeProgress grade={data.grade} className="mt-4" />
+          </CardContent>
+        </Card>
+      )}
 
       {/* Progress bar */}
       {progress !== null && (

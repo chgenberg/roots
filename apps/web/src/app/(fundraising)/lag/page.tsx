@@ -15,8 +15,11 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
+import { GradeBadge, GradeProgress } from "@/components/seller-grade";
 import type { TeamDashboard as TeamDashboardData, Seller, Milestone, CustomerOrder } from "@/types/fundraising";
 import { getBrowserApiBase } from "@/lib/api-base";
+
+const PODIUM_ICONS = ["🥇", "🥈", "🥉"];
 
 const API_URL = getBrowserApiBase();
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
@@ -238,16 +241,25 @@ export default function TeamDashboard() {
                   key={seller.id}
                   className="flex items-center gap-3 rounded-lg border p-3"
                 >
-                    <span className="text-sm font-medium text-brand-500 w-5 text-center shrink-0">
-                      {i + 1}
-                    </span>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">{seller.displayName}</p>
+                  <span
+                    className={`w-6 text-center shrink-0 text-sm font-bold ${
+                      i < 3 ? "text-brand-700" : "text-muted-foreground"
+                    }`}
+                  >
+                    {i < 3 ? PODIUM_ICONS[i] : i + 1}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium truncate">
+                        {seller.displayName}
+                      </p>
+                      <GradeBadge grade={seller.grade} size="sm" />
+                    </div>
                     <p className="text-xs text-muted-foreground">
                       {seller.orderCount} ordrar
                     </p>
                   </div>
-                  <p className="text-sm font-semibold">
+                  <p className="text-sm font-semibold shrink-0">
                     {(seller.totalSalesOre / 100).toLocaleString("sv-SE")} kr
                   </p>
                 </div>

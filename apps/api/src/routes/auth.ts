@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { setCookie, deleteCookie } from "hono/cookie";
 import { hash, verify } from "@node-rs/argon2";
-import { eq, and, ilike } from "drizzle-orm";
+import { eq, and, ilike, sql } from "drizzle-orm";
 import { db } from "@roots/db";
 import {
   users,
@@ -565,6 +565,11 @@ auth.post("/register/seller", async (c) => {
         shopSlug,
         displayName,
       });
+
+      await tx
+        .update(teams)
+        .set({ memberCount: sql`${teams.memberCount} + 1` })
+        .where(eq(teams.id, team.id));
 
       return user;
     });

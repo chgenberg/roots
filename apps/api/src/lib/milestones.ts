@@ -6,6 +6,53 @@ interface Milestone {
   thresholdPackages?: number;
 }
 
+export type SellerGrade = "starter" | "bronze" | "silver" | "gold" | "diamond";
+
+interface GradeDef {
+  grade: SellerGrade;
+  label: string;
+  thresholdOre: number;
+}
+
+const GRADE_TIERS: GradeDef[] = [
+  { grade: "diamond", label: "Diamant", thresholdOre: 1500000 },
+  { grade: "gold", label: "Guld", thresholdOre: 700000 },
+  { grade: "silver", label: "Silver", thresholdOre: 300000 },
+  { grade: "bronze", label: "Brons", thresholdOre: 100000 },
+  { grade: "starter", label: "Starter", thresholdOre: 0 },
+];
+
+export function getSellerGrade(totalSalesOre: number): {
+  grade: SellerGrade;
+  label: string;
+  thresholdOre: number;
+  nextGrade: { grade: SellerGrade; label: string; remainingOre: number } | null;
+} {
+  let current = GRADE_TIERS[GRADE_TIERS.length - 1];
+  let nextTier: GradeDef | null = null;
+
+  for (let i = 0; i < GRADE_TIERS.length; i++) {
+    if (totalSalesOre >= GRADE_TIERS[i].thresholdOre) {
+      current = GRADE_TIERS[i];
+      nextTier = i > 0 ? GRADE_TIERS[i - 1] : null;
+      break;
+    }
+  }
+
+  return {
+    grade: current.grade,
+    label: current.label,
+    thresholdOre: current.thresholdOre,
+    nextGrade: nextTier
+      ? {
+          grade: nextTier.grade,
+          label: nextTier.label,
+          remainingOre: nextTier.thresholdOre - totalSalesOre,
+        }
+      : null,
+  };
+}
+
 export const MILESTONES: Milestone[] = [
   {
     id: "first_sale",

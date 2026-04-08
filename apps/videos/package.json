@@ -1,0 +1,25 @@
+{
+  "name": "@roots/videos",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "remotion studio",
+    "build:forening": "remotion render src/index.ts ForeningVideo out/forening.mp4",
+    "build:saljare": "remotion render src/index.ts SaljareVideo out/saljare.mp4",
+    "build:company": "remotion render src/index.ts CompanyVideo out/company.mp4",
+    "build:all": "npm run build:forening && npm run build:saljare && npm run build:company"
+  },
+  "dependencies": {
+    "@remotion/cli": "latest",
+    "@remotion/google-fonts": "latest",
+    "@remotion/transitions": "latest",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "remotion": "latest"
+  },
+  "devDependencies": {
+    "@remotion/eslint-config": "latest",
+    "@types/react": "^19.0.0",
+    "typescript": "^5.7"
+  }
+}

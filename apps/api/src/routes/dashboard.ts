@@ -1,17 +1,28 @@
 import { Hono } from "hono";
 import { eq, and, sql } from "drizzle-orm";
+import { hash } from "@node-rs/argon2";
 import { db } from "@roots/db";
 import {
   campaigns,
   teams,
   sellers,
+  users,
   customerOrders,
   teamGoals,
 } from "@roots/db/schema";
 import { getSession, SESSION_COOKIE_NAME } from "../lib/session";
 import type { SessionData } from "../lib/session";
-import { getAchievedMilestones, getNextMilestone } from "../lib/milestones";
+import { getAchievedMilestones, getNextMilestone, getSellerGrade } from "../lib/milestones";
+import { getEmailSender } from "../lib/email";
+import { welcomeEmail } from "../lib/email/templates";
 import { childLogger } from "../lib/logger";
+
+const ARGON2_OPTIONS = {
+  memoryCost: 19456,
+  timeCost: 2,
+  outputLen: 32,
+  parallelism: 1,
+};
 
 const log = childLogger("dashboard");
 
@@ -211,13 +222,15 @@ dashboard.get("/team/:teamId", async (c) => {
         : null,
       sellers: sellerList.map((s) => {
         const sales = salesBySeller.find((ss) => ss.sellerId === s.id);
+        const sellerSalesOre = Number(sales?.total || 0);
         return {
           id: s.id,
           displayName: s.displayName,
           shopSlug: s.shopSlug,
-          totalSalesOre: Number(sales?.total || 0),
+          totalSalesOre: sellerSalesOre,
           orderCount: Number(sales?.count || 0),
           individualGoal: s.individualGoal,
+          grade: getSellerGrade(sellerSalesOre),
         };
       }),
       orders: orders.map((o) => ({
@@ -245,6 +258,114 @@ dashboard.get("/team/:teamId", async (c) => {
   } catch (err) {
     log.error({ err }, "Failed to fetch team dashboard");
     return c.json({ error: "Kunde inte hämta data" }, 500);
+  }
+});
+
+dashboard.post("/team/:teamId/sellers", async (c) => {
+  const session = await requireSession(c);
+  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+
+  const teamId = c.req.param("teamId");
+
+  let body: any;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+  }
+
+  const { displayName, email, password } = body;
+  if (!displayName || !email || !password) {
+    return c.json({ error: "Namn, e-post och lösenord krävs." }, 400);
+  }
+
+  try {
+    const [team] = await db
+      .select()
+      .from(teams)
+      .where(eq(teams.id, teamId))
+      .limit(1);
+
+    if (!team) return c.json({ error: "Lag hittades inte" }, 404);
+
+    const hasAccess =
+      session.role === "INTERNAL_ADMIN" ||
+      (session.role === "ASSOCIATION_ADMIN" && session.orgId === team.orgId) ||
+      (session.role === "TEAM_LEADER" && team.leaderId === session.userId);
+
+    if (!hasAccess) {
+      return c.json({ error: "Behörighet saknas" }, 403);
+    }
+
+    const [existing] = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, email.toLowerCase().trim()))
+      .limit(1);
+
+    if (existing) {
+      return c.json({ error: "E-postadressen är redan registrerad." }, 409);
+    }
+
+    const passwordHash = await hash(password, ARGON2_OPTIONS);
+    const shopSlug =
+      displayName.toLowerCase().replace(/[^a-z0-9]/g, "-") +
+      "-" +
+      crypto.randomUUID().slice(0, 6);
+
+    const result = await db.transaction(async (tx) => {
+      const [user] = await tx
+        .insert(users)
+        .values({
+          email: email.toLowerCase().trim(),
+          passwordHash,
+          role: "SELLER",
+          orgId: team.orgId,
+          contactName: displayName,
+        })
+        .returning();
+
+      const [seller] = await tx
+        .insert(sellers)
+        .values({
+          userId: user.id,
+          teamId: team.id,
+          campaignId: team.campaignId,
+          shopSlug,
+          displayName,
+        })
+        .returning();
+
+      await tx
+        .update(teams)
+        .set({ memberCount: sql`${teams.memberCount} + 1` })
+        .where(eq(teams.id, team.id));
+
+      return { user, seller };
+    });
+
+    getEmailSender()
+      .sendEmail({
+        to: result.user.email,
+        ...welcomeEmail(displayName, "SELLER"),
+      })
+      .catch((e) => log.error({ err: e }, "Seller invite email failed"));
+
+    return c.json({
+      ok: true,
+      seller: {
+        id: result.seller.id,
+        displayName: result.seller.displayName,
+        shopSlug: result.seller.shopSlug,
+        totalSalesOre: 0,
+        orderCount: 0,
+        individualGoal: 0,
+        grade: getSellerGrade(0),
+      },
+    });
+  } catch (err: any) {
+    log.error({ err }, "Failed to create seller inline");
+    return c.json({ error: "Kunde inte skapa säljare." }, 500);
   }
 });
 
@@ -318,6 +439,7 @@ dashboard.get("/seller", async (c) => {
         orderCount,
         estimatedEarningsOre,
       },
+      grade: getSellerGrade(totalSalesOre),
       milestones: {
         achieved: achieved.map((m) => ({ id: m.id, label: m.label, description: m.description })),
         next: next ? { label: next.label, remaining: next.remaining } : null,

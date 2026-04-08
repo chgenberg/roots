@@ -1,3 +1,16 @@
+export type SellerGradeId = "starter" | "bronze" | "silver" | "gold" | "diamond";
+
+export interface SellerGrade {
+  grade: SellerGradeId;
+  label: string;
+  thresholdOre: number;
+  nextGrade: {
+    grade: SellerGradeId;
+    label: string;
+    remainingOre: number;
+  } | null;
+}
+
 export interface Campaign {
   id: string;
   orgId: string;
@@ -30,6 +43,7 @@ export interface Seller {
   totalSalesOre: number;
   orderCount: number;
   individualGoal: number | null;
+  grade?: SellerGrade;
 }
 
 export interface CustomerOrder {
@@ -110,6 +124,7 @@ export interface SellerDashboard {
     orderCount: number;
     estimatedEarningsOre: number;
   };
+  grade?: SellerGrade;
   milestones: {
     achieved: Milestone[];
     next: MilestoneNext | null;

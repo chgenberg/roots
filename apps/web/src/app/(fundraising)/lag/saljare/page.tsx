@@ -11,13 +11,19 @@ import {
   Trophy,
   Copy,
   CheckCircle2,
+  UserPlus,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
+import { GradeBadge, GradeProgress } from "@/components/seller-grade";
 import type { TeamDashboard, Seller } from "@/types/fundraising";
 import { getBrowserApiBase } from "@/lib/api-base";
 
 const API_URL = getBrowserApiBase();
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+
+const PODIUM_ICONS = ["🥇", "🥈", "🥉"];
 
 export default function TeamSellersPage() {
   const [data, setData] = useState<TeamDashboard | null>(null);
@@ -27,35 +33,44 @@ export default function TeamSellersPage() {
   const [copiedShop, setCopiedShop] = useState<string | null>(null);
   const { toast } = useToast();
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const myTeamRes = await fetch(`${API_URL}/v1/dashboard/my-team`, {
-          credentials: "include",
-        });
-        if (!myTeamRes.ok) {
-          setError("Kunde inte hämta lagdata. Försök igen.");
-          return;
-        }
-        const { teamId } = await myTeamRes.json();
+  // Inline create seller state
+  const [showCreate, setShowCreate] = useState(false);
+  const [createName, setCreateName] = useState("");
+  const [createEmail, setCreateEmail] = useState("");
+  const [createPassword, setCreatePassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [creating, setCreating] = useState(false);
 
-        const teamRes = await fetch(
-          `${API_URL}/v1/dashboard/team/${teamId}`,
-          { credentials: "include" }
-        );
-        if (teamRes.ok) {
-          setData(await teamRes.json());
-        } else {
-          setError("Kunde inte hämta lagdata. Försök igen.");
-        }
-      } catch {
-        setError("Ett nätverksfel uppstod. Försök igen.");
-      } finally {
-        setLoading(false);
-      }
-    }
+  useEffect(() => {
     load();
   }, []);
+
+  async function load() {
+    try {
+      const myTeamRes = await fetch(`${API_URL}/v1/dashboard/my-team`, {
+        credentials: "include",
+      });
+      if (!myTeamRes.ok) {
+        setError("Kunde inte hämta lagdata. Försök igen.");
+        return;
+      }
+      const { teamId } = await myTeamRes.json();
+
+      const teamRes = await fetch(
+        `${API_URL}/v1/dashboard/team/${teamId}`,
+        { credentials: "include" }
+      );
+      if (teamRes.ok) {
+        setData(await teamRes.json());
+      } else {
+        setError("Kunde inte hämta lagdata. Försök igen.");
+      }
+    } catch {
+      setError("Ett nätverksfel uppstod. Försök igen.");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   function copyInviteLink() {
     if (!data?.team?.inviteToken) return;
@@ -77,6 +92,48 @@ export default function TeamSellersPage() {
       setTimeout(() => setCopiedShop(null), 2000);
     } catch {
       toast("Kunde inte kopiera länken. Kopiera den manuellt.", "error");
+    }
+  }
+
+  async function handleCreateSeller(e: React.FormEvent) {
+    e.preventDefault();
+    if (!data?.team?.id || !createName || !createEmail || !createPassword) return;
+    setCreating(true);
+
+    try {
+      const res = await fetch(
+        `${API_URL}/v1/dashboard/team/${data.team.id}/sellers`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            displayName: createName,
+            email: createEmail,
+            password: createPassword,
+          }),
+        }
+      );
+
+      const json = await res.json();
+      if (res.ok && json.ok) {
+        toast("Säljare tillagd!", "success");
+        setCreateName("");
+        setCreateEmail("");
+        setCreatePassword("");
+        setShowCreate(false);
+        setData((prev) =>
+          prev
+            ? { ...prev, sellers: [...prev.sellers, json.seller] }
+            : prev
+        );
+      } else {
+        toast(json.error || "Kunde inte skapa säljare.", "error");
+      }
+    } catch {
+      toast("Ett nätverksfel uppstod.", "error");
+    } finally {
+      setCreating(false);
     }
   }
 
@@ -110,23 +167,105 @@ export default function TeamSellersPage() {
 
   const sellers: Seller[] = data.sellers || [];
   const sortedSellers = [...sellers].sort(
-    (a: Seller, b: Seller) => b.totalSalesOre - a.totalSalesOre
+    (a, b) => b.totalSalesOre - a.totalSalesOre
   );
+
+  const topThree = sortedSellers.slice(0, 3);
+  const rest = sortedSellers.slice(3);
 
   return (
     <div className="page-enter space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Säljare</h1>
-        <p className="text-sm text-muted-foreground">
-          {sellers.length} säljare i {data.team?.name}
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Säljare</h1>
+          <p className="text-sm text-muted-foreground">
+            {sellers.length} säljare i {data.team?.name}
+          </p>
+        </div>
+        <Button
+          size="sm"
+          onClick={() => setShowCreate(!showCreate)}
+          className="gap-1.5"
+        >
+          <UserPlus className="h-4 w-4" />
+          Lägg till
+        </Button>
       </div>
 
+      {/* Inline create seller */}
+      {showCreate && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <UserPlus className="h-4 w-4 text-brand-500" />
+              Lägg till säljare
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleCreateSeller} className="space-y-3">
+              <Input
+                placeholder="Namn (t.ex. Kalle Svensson)"
+                value={createName}
+                onChange={(e) => setCreateName(e.target.value)}
+                required
+              />
+              <Input
+                type="email"
+                placeholder="E-post"
+                value={createEmail}
+                onChange={(e) => setCreateEmail(e.target.value)}
+                required
+              />
+              <div className="relative">
+                <Input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Lösenord"
+                  value={createPassword}
+                  onChange={(e) => setCreatePassword(e.target.value)}
+                  required
+                  minLength={6}
+                />
+                <button
+                  type="button"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+              <div className="flex gap-2">
+                <Button type="submit" disabled={creating} size="sm">
+                  {creating ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <UserPlus className="mr-2 h-4 w-4" />
+                  )}
+                  Skapa konto
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowCreate(false)}
+                >
+                  Avbryt
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Invite link */}
       {data?.team?.inviteToken && (
         <Card>
           <CardContent className="p-5">
             <p className="mb-2 text-sm font-medium">
-              Bjud in fler säljare med denna länk
+              Eller dela inbjudningslänken
             </p>
             <div className="flex gap-2">
               <Input
@@ -146,45 +285,127 @@ export default function TeamSellersPage() {
         </Card>
       )}
 
+      {/* Podium for top 3 */}
+      {topThree.length > 0 && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Trophy className="h-4 w-4 text-brand-500" />
+              Topplista
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-end justify-center gap-4 pb-4 pt-2">
+              {topThree.map((seller, i) => {
+                const isFirst = i === 0;
+                return (
+                  <div
+                    key={seller.id}
+                    className={`flex flex-col items-center gap-2 ${
+                      isFirst ? "order-2" : i === 1 ? "order-1" : "order-3"
+                    }`}
+                  >
+                    <div
+                      className={`flex items-center justify-center rounded-full bg-brand-50 ${
+                        isFirst ? "h-16 w-16 text-3xl" : "h-12 w-12 text-2xl"
+                      }`}
+                    >
+                      {PODIUM_ICONS[i]}
+                    </div>
+                    <div className="text-center">
+                      <p
+                        className={`font-semibold ${
+                          isFirst ? "text-sm" : "text-xs"
+                        }`}
+                      >
+                        {seller.displayName}
+                      </p>
+                      <p className="text-xs font-bold text-brand-700">
+                        {(seller.totalSalesOre / 100).toLocaleString("sv-SE")} kr
+                      </p>
+                      <GradeBadge grade={seller.grade} size="sm" />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Full ranking list */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Trophy className="h-4 w-4 text-brand-500" />
-            Säljare-ranking
-          </CardTitle>
+        <CardHeader>
+          <CardTitle className="text-base">Alla säljare</CardTitle>
         </CardHeader>
         <CardContent>
           {sortedSellers.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-6">
-              Inga säljare har anslutit ännu. Dela inbjudningslänken!
+              Inga säljare har anslutit ännu. Lägg till eller dela inbjudningslänken!
             </p>
           ) : (
             <div className="space-y-3">
-              {sortedSellers.map((seller: Seller, i: number) => (
+              {sortedSellers.map((seller, i) => (
                 <div
                   key={seller.id}
                   className="rounded-lg border p-4 space-y-2"
                 >
                   <div className="flex items-center gap-3">
-                    <span className="text-sm font-medium text-brand-500 w-5 text-center shrink-0">
-                      {i + 1}
+                    <span
+                      className={`w-6 text-center shrink-0 text-sm font-bold ${
+                        i < 3 ? "text-brand-700" : "text-muted-foreground"
+                      }`}
+                    >
+                      {i < 3 ? PODIUM_ICONS[i] : i + 1}
                     </span>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">
-                        {seller.displayName}
-                      </p>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium truncate">
+                          {seller.displayName}
+                        </p>
+                        <GradeBadge grade={seller.grade} size="sm" />
+                      </div>
                       <p className="text-xs text-muted-foreground">
-                        {seller.orderCount} ordrar ·{" "}
-                        {(seller.totalSalesOre / 100).toLocaleString("sv-SE")}{" "}
-                        kr
+                        {seller.orderCount} ordrar
                       </p>
                     </div>
-                    <p className="text-sm font-semibold">
+                    <p className="text-sm font-semibold shrink-0">
                       {(seller.totalSalesOre / 100).toLocaleString("sv-SE")} kr
                     </p>
                   </div>
+
+                  <GradeProgress grade={seller.grade} className="ml-9" />
+
+                  {seller.individualGoal != null &&
+                    seller.individualGoal > 0 && (
+                      <div className="ml-9">
+                        <div className="h-1.5 overflow-hidden rounded-full bg-brand-100 mt-1">
+                          <div
+                            className="h-full rounded-full bg-brand-700 transition-all duration-700"
+                            style={{
+                              width: `${Math.min(
+                                100,
+                                Math.round(
+                                  (seller.totalSalesOre /
+                                    (seller.individualGoal * 100)) *
+                                    100
+                                )
+                              )}%`,
+                            }}
+                          />
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Mål:{" "}
+                          {(seller.totalSalesOre / 100).toLocaleString(
+                            "sv-SE"
+                          )}{" "}
+                          / {seller.individualGoal.toLocaleString("sv-SE")} kr
+                        </p>
+                      </div>
+                    )}
+
                   {seller.shopSlug && (
-                    <div className="flex gap-2 ml-10">
+                    <div className="flex gap-2 ml-9">
                       <Button
                         size="sm"
                         variant="ghost"
@@ -213,29 +434,6 @@ export default function TeamSellersPage() {
                           Öppna shop
                         </a>
                       </Button>
-                    </div>
-                  )}
-                  {seller.individualGoal != null && seller.individualGoal > 0 && (
-                    <div className="ml-10">
-                      <div className="h-2 overflow-hidden rounded-full bg-brand-100 mt-1">
-                        <div
-                          className="h-full rounded-full bg-brand-700 transition-all duration-700"
-                          style={{
-                            width: `${Math.min(
-                              100,
-                              Math.round(
-                                (seller.totalSalesOre /
-                                  (seller.individualGoal * 100)) *
-                                  100
-                              )
-                            )}%`,
-                          }}
-                        />
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {(seller.totalSalesOre / 100).toLocaleString("sv-SE")}{" "}
-                        / {seller.individualGoal.toLocaleString("sv-SE")} kr
-                      </p>
                     </div>
                   )}
                 </div>
