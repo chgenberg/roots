@@ -93,6 +93,7 @@ aiChat.post("/chat", async (c) => {
         }
         await stream.writeSSE({ data: "[DONE]" });
       } catch (err) {
+        console.error("[ai-chat] Streaming error:", err instanceof Error ? err.message : err);
         await stream.writeSSE({
           data: JSON.stringify({
             error: "AI temporarily unavailable",
@@ -110,7 +111,8 @@ aiChat.post("/chat", async (c) => {
       disclaimer: "AI-genererat svar -- verifiera viktig information",
       model: response.model,
     });
-  } catch {
+  } catch (err) {
+    console.error("[ai-chat] Completion error:", err instanceof Error ? err.message : err);
     const fallback =
       FALLBACK_RESPONSES[
         Math.floor(Math.random() * FALLBACK_RESPONSES.length)

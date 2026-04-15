@@ -1,0 +1,216 @@
+ROOTS PLATFORM AUDIT
+====================
+Date: 2026-04-15 23:26
+Agents: 8 parallel sub-agents (read-only)
+Scope: Full monorepo (apps/web, apps/api, packages/*)
+
+SUMMARY
+-------
+Total findings: 87 (deduplicated across agents)
+  Priority 1 (Critical):  20
+  Priority 2 (High):      28
+  Priority 3 (Medium):    24
+  Priority 4 (Low):       10
+  Priority 5 (Nice):       5
+
+Note: `.gitignore` may exclude `.github/workflows/` — CI may not appear in local clones; verify on remote and release process.
+
+=====================================================
+PRIORITY 1 — CRITICAL
+=====================================================
+
+[1.1] Klubbportal: ingen “Logga ut” i mobilens horisontella nav (endast desktop-sidopanel)
+Agent: UX, IA & Navigation (Agent 1)
+File: apps/web/src/app/(club)/layout.tsx
+Line: 37–55 vs 59–84
+
+[1.2] Säljportal: samma mönster — utloggning saknas i mobilnav
+Agent: UX (Agent 1)
+File: apps/web/src/app/(sales)/layout.tsx
+Line: 39–57 vs 80–86
+
+[1.3] Token-/fokusdrift: brand-600 vs accent; --color-ring inte signal; låst palett vs kod
+Agent: Visual Design & Motion (Agent 2)
+File: apps/web/src/app/globals.css
+Line: 7–8, 23, 201–204
+
+[1.4] next.config: typescript.ignoreBuildErrors + eslint.ignoreDuringBuilds
+Agent: Frontend (Agent 3); Security (Agent 8)
+File: apps/web/next.config.ts
+Line: 6–13
+
+[1.5] /portal saknas i middleware — auth endast client-side (layout + useEffect)
+Agent: Frontend (Agent 3)
+File: apps/web/src/middleware.ts; apps/web/src/app/(portal)/portal/layout.tsx
+
+[1.6] GET /confirm/:orderId och /order-status/:orderId — obehörig läsning av order (IDOR)
+Agent: Backend (Agent 4)
+File: apps/api/src/routes/checkout.ts
+Line: 342–437
+
+[1.7] CSRF_SECRET fallback till dev-csrf-secret
+Agent: Backend (Agent 4); Auth (Agent 5)
+File: apps/api/src/lib/csrf.ts
+Line: 3–4
+
+[1.8] Redis rate limit fail-open — obegränsat vid Redis-fel (login, AI, m.m.)
+Agent: Backend (Agent 4)
+File: apps/api/src/lib/rate-limit.ts
+
+[1.9] tRPC idempotency: vid duplicat körs next() ändå; in-memory Map
+Agent: Backend (Agent 4)
+File: apps/api/src/trpc/middleware/idempotency.ts
+
+[1.10] Fortnox webhook dedup endast in-process Set
+Agent: Backend (Agent 4)
+File: apps/api/src/routes/fortnox-webhook.ts
+Line: 28–63
+
+[1.11] tRPC-klient skickar inget x-csrf-token — POST /trpc 403 i produktion
+Agent: Auth (Agent 5)
+File: apps/web/src/lib/trpc.ts; apps/api/src/app.ts
+
+[1.12] Rå fetch POST utan CSRF: portal/fundraising logout, kassa checkout, säljregistrering
+Agent: Auth (Agent 5); Commerce (Agent 7)
+Files: portal/layout.tsx; fundraising/layout.tsx; shop/.../kassa/page.tsx; registrera/saljare/[token]/page.tsx
+
+[1.13] Klarna push webhook POST inte CSRF-exempt — 403 i produktion
+Agent: Auth (Agent 5); Commerce (Agent 7)
+File: apps/api/src/app.ts
+Line: 33–49
+
+[1.14] INTERNAL_ADMIN i middleware på /sales men isSalesUser exkluderar — tRPC FORBIDDEN
+Agent: Auth (Agent 5)
+Files: apps/web/src/middleware.ts; packages/contracts/src/roles.ts; apps/api/src/trpc/middleware/auth.ts
+
+[1.15] Direkt OpenAI (openclaw-client) — ingen Open Claw-gateway; MCP oanvänd
+Agent: AI & Open Claw (Agent 6)
+File: apps/api/src/lib/ai/openclaw-client.ts; mcp-tools.ts
+
+[1.16] POST /v1/ai/chat: klient-history utan cap/normalisering — prompt injection
+Agent: AI (Agent 6)
+File: apps/api/src/routes/ai-chat.ts
+Line: 59–86
+
+[1.17] Chat-widget och portal AI anropar endast /v1/ai/public-chat — inte session-/RBAC-/chat
+Agent: AI (Agent 6)
+Files: chat-widget.tsx; portal/ai/page.tsx
+
+[1.18] Klarna: getCheckoutOrder returnerar checkout_complete utan API-credentials
+Agent: Commerce (Agent 7)
+File: apps/api/src/lib/payments/klarna.ts
+Line: 105–115
+
+[1.19] Settlement Fortnox: tom kunddata; CustomerNumber från orgNumber — fel koppling
+Agent: Commerce (Agent 7)
+Files: apps/api/src/routes/settlement.ts; apps/api/src/lib/invoicing/fortnox-provider.ts
+
+[1.20] CSP endast Report-Only med unsafe-inline/eval; ingen versionshanterad CI i git (.github/workflows ignorerad)
+Agent: Security (Agent 8)
+Files: apps/web/next.config.ts; .gitignore
+
+=====================================================
+PRIORITY 2 — HIGH
+=====================================================
+
+[2.1] Footer /om-oss#press #jobb utan ankare; “Boka demo” ikon vs /foreningsliv; splittrade ytor /portal /club /sales
+Agent: UX (Agent 1)
+
+[2.2] social-proof.tsx stora siffror — risk vs “undvik fejk-siffror” (överlapp gamification)
+Agent: UX (Agent 1)
+
+[2.3] Fluid type scale ofullständig; subtle-pulse vs spec; page-enter 250ms; keyframes inte i @theme
+Agent: Visual (Agent 2)
+
+[2.4] @roots/ui och @tanstack/react-query oanvända; CSP report-only vs Plausible vid enforce
+Agent: Frontend (Agent 3)
+
+[2.5] Klarna webhook IP valfri; X-Forwarded-For första hopp
+Agent: Commerce (Agent 7); Backend (Agent 4)
+
+[2.6] Hair-analysis: rate limit swallow; lös bildvalidering
+Agent: Backend (Agent 4)
+File: apps/api/src/routes/hair-analysis.ts
+
+[2.7] REST-registrering utan isPasswordAcceptable; login 401 döljer DB-fel; tRPC auth.login död; MFA stub
+Agent: Backend (Agent 4); Auth (Agent 5)
+
+[2.8] ctx.orgId! i middleware vs demo orgId null
+Agent: Backend (Agent 4)
+File: apps/api/src/trpc/middleware/auth.ts
+
+[2.9] Demo-lösen; /portal utan middleware; club/sales logout utan POST logout (P3 i Agent 5 — höjd till P2 som session-risk)
+Agent: Auth (Agent 5)
+
+[2.10] Ingen RAG; ingen AI kill-switch; SSE fel utan [DONE]; tRPC ai.chat stub
+Agent: AI (Agent 6)
+
+[2.11] Fortnox webhook uppdaterar inte DB; sync-invoice-status stub; OAuth DB oanvänd; B2C customer_orders utan Fortnox-fält
+Agent: Commerce (Agent 7)
+
+[2.12] Docker root; API full node_modules
+Agent: Security (Agent 8)
+
+[2.13–2.28] UX P3–P5: skip link; sök ⌘K; /sales vs /sälj; hero CTA; portal 7 menyval; sheet “Close”; tema mobil; scroll bar aria — m.fl.
+
+=====================================================
+PRIORITY 3 — MEDIUM
+=====================================================
+
+[3.1] .dark brand-ramp omfattande invertering
+Agent: Visual (Agent 2)
+
+[3.2] Middleware HTTP-anrop till API per request — tillgänglighet/latens
+Agent: Auth (Agent 5)
+
+[3.3] createContext tom catch
+Agent: Auth (Agent 5)
+File: apps/api/src/trpc/context.ts
+
+[3.4] Chat-widget: Esc/fokusfälla; disclaimer copy vs spec
+Agent: AI (Agent 6)
+
+[3.5] GET order-status/confirm — P3 sekretess (Agent 7) — delvis överlapp [1.6]
+
+[3.6] Title template vs Agent 08
+Agent: Security (Agent 8)
+
+[3.7–3.24] Övrigt: nav aria-label; portaler backdrop; remotePatterns tom; bred client boundary; sales/club stubs; strukturerad loggning/correlationId
+
+=====================================================
+PRIORITY 4 — LOW
+=====================================================
+
+[4.1] gamification.tsx milstolpar — policy vs minimal social proof
+Agent: UX (Agent 1)
+
+[4.2] Footer cookies-rad; produkter “100% naturliga” copy
+Agent: UX (prior audits)
+
+[4.3] Header scroll progress (dekorativ)
+Agent: UX (Agent 1)
+
+=====================================================
+PRIORITY 5 — NICE TO HAVE
+=====================================================
+
+[5.1] Ingen loading.tsx globalt
+Agent: UX (prior)
+
+[5.2] error.tsx namn GlobalError
+Agent: Frontend (prior)
+
+=====================================================
+CLEAN AREAS (brief)
+=====================================================
+
+- Marketing NAV_ITEMS få punkter; footer trespalts-IA; portal mobil hamburger med aria; fundraising mobil utloggning; breadcrumbs; lang=sv (UX1).
+- Shadows, section-spacing, reduced-motion, semantiska färger delvis (Visual2).
+- api-base same-origin; apiFetch CSRF; hero next/image; json-ld stringify (Frontend3).
+- Argon2; session Redis prod; checkout DB-priser + transaktion; campaigns ownership; Fortnox HMAC (Backend4/7).
+- REST-login rate limit när Redis OK; httpOnly cookies; middleware för /club /sales /forening /lag /min-shop (Auth5).
+- BFF inga browser-nycklar; public-chat begränsningar; CSRF i prod (AI6).
+- Server-side prissättning checkout; settlement admin; schema Fortnox-fält (Commerce7).
+- HSTS, XFO, nosniff, Referrer-Policy; robots/sitemap; root OG; Docker multi-stage web (Security8).
+
+--- END OF REPORT ---

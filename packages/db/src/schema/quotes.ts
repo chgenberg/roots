@@ -4,6 +4,7 @@ import {
   integer,
   timestamp,
   pgEnum,
+  index,
 } from "drizzle-orm/pg-core";
 import { organizations } from "./organizations";
 import { users } from "./users";
@@ -30,7 +31,11 @@ export const quotes = pgTable("quotes", {
   totalOre: integer("total_ore").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => [
+  index("quotes_org_id_idx").on(table.orgId),
+  index("quotes_sales_rep_id_idx").on(table.salesRepId),
+  index("quotes_status_idx").on(table.status),
+]);
 
 export const quoteLines = pgTable("quote_lines", {
   id: uuid("id").primaryKey().defaultRandom(),

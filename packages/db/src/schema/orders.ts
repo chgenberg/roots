@@ -5,6 +5,7 @@ import {
   integer,
   timestamp,
   pgEnum,
+  index,
 } from "drizzle-orm/pg-core";
 import { organizations } from "./organizations";
 import { users } from "./users";
@@ -42,7 +43,11 @@ export const orders = pgTable("orders", {
   invoiceStatus: invoiceStatusEnum("invoice_status").notNull().default("NONE"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => [
+  index("orders_org_id_idx").on(table.orgId),
+  index("orders_user_id_idx").on(table.userId),
+  index("orders_created_at_idx").on(table.createdAt),
+]);
 
 export const orderLines = pgTable("order_lines", {
   id: uuid("id").primaryKey().defaultRandom(),

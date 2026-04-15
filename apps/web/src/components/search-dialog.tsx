@@ -40,8 +40,32 @@ const CATEGORY_META: Record<SearchItem["category"], { label: string; icon: typeo
   quick: { label: "Snabblänkar", icon: ArrowRight },
 };
 
+export function useSearchOpen() {
+  const [open, setOpen] = useState(false);
+  return { open, setOpen };
+}
+
+export function SearchTrigger() {
+  return (
+    <button
+      type="button"
+      onClick={() => window.dispatchEvent(new CustomEvent("roots:open-search"))}
+      className="flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground transition-colors duration-200 hover:bg-brand-50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      aria-label="Sök"
+    >
+      <Search className="h-[18px] w-[18px]" />
+    </button>
+  );
+}
+
 export function SearchDialog() {
   const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    function onOpenSearch() { setOpen(true); }
+    window.addEventListener("roots:open-search", onOpenSearch);
+    return () => window.removeEventListener("roots:open-search", onOpenSearch);
+  }, []);
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -79,7 +103,7 @@ export function SearchDialog() {
     return map;
   }, [filtered]);
 
-  const flatList = useMemo(() => filtered, [filtered]);
+  const flatList = filtered;
 
   const navigate = useCallback(
     (item: SearchItem) => {

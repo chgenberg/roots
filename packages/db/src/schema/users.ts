@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, timestamp, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, uuid, varchar, timestamp, pgEnum, index } from "drizzle-orm/pg-core";
 import { organizations } from "./organizations";
 
 export const roleEnum = pgEnum("user_role", [
@@ -29,4 +29,6 @@ export const users = pgTable("users", {
   mfaSecret: varchar("mfa_secret", { length: 255 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => [
+  index("users_org_id_idx").on(table.orgId),
+]);

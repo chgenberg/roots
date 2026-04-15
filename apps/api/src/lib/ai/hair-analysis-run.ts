@@ -6,7 +6,7 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
 const VISION_MODEL =
   process.env.OPENAI_VISION_MODEL ||
   process.env.OPENAI_DEFAULT_MODEL ||
-  "gpt-4o-mini";
+  "gpt-5.4-mini";
 
 const TIMEOUT_MS = Math.min(
   Number(process.env.OPENAI_HAIR_ANALYSIS_TIMEOUT_MS) || 120000,

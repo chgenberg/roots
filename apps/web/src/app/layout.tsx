@@ -13,7 +13,7 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    template: "Roots | %s",
+    template: "%s | Roots — Föreningsnära hudvård",
     default: "Roots — Föreningsnära hudvård",
   },
   description:
@@ -61,6 +61,12 @@ export default function RootLayout({
         )}
       </head>
       <body className="min-h-screen bg-background font-[family-name:var(--font-inter)] text-foreground antialiased" suppressHydrationWarning>
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-inverse-surface focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-inverse-on-surface focus:shadow-lg"
+        >
+          Hoppa till innehåll
+        </a>
         <Providers>{children}</Providers>
       </body>
     </html>

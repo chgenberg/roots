@@ -22,6 +22,11 @@ FROM base AS runtime
 WORKDIR /app
 COPY --from=build /app/apps/api/dist ./dist
 COPY --from=deps /app/node_modules ./node_modules
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nodejs
+USER nodejs
 EXPOSE 4000
 ENV PORT=4000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD node -e "fetch('http://localhost:4000/health').then(r=>{if(!r.ok)throw 1})" || exit 1
 CMD ["node", "dist/index.js"]

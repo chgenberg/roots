@@ -1,0 +1,338 @@
+ROOTS PLATFORM AUDIT
+====================
+Date: 2026-04-15 23:16
+Agents: 8 parallel sub-agents (read-only)
+Scope: Full monorepo (apps/web, apps/api, packages/*)
+
+SUMMARY
+-------
+Total findings: 94 (deduplicated where multiple agents reported the same issue)
+  Priority 1 (Critical):  12
+  Priority 2 (High):      24
+  Priority 3 (Medium):    32
+  Priority 4 (Low):       20
+  Priority 5 (Nice):       6
+
+Priority scale: 1 = security/data loss/broken core flow, 5 = polish.
+
+=====================================================
+PRIORITY 1 — CRITICAL
+=====================================================
+
+[1.1] Hair analysis links to /integritetspolicy — route does not exist (use /integritet)
+Agent: UX, IA & Navigation (Agent 1)
+File: apps/web/src/components/hair-analysis-lead-dialog.tsx
+Line: 410–412, 851–852
+Detail: 404 from consent/legal context undermines trust.
+
+[1.2] ::selection in dark mode: brand-900 becomes light cream while text stays white — unreadable selection
+Agent: Visual Design & Motion (Agent 2)
+File: apps/web/src/app/globals.css
+Line: 138–141, 144–168
+Detail: Override selection colors under .dark.
+
+[1.3] Portal GET /quotes uses quotes.userId — schema has salesRepId only (runtime/SQL failure risk)
+Agent: Backend, API & Data (Agent 4)
+File: apps/api/src/routes/portal.ts
+Line: ~381
+Detail: Use salesRepId or add column; verify non-admin branch.
+
+[1.4] GET /statistics and GET /income: when session.orgId is null, queries widen to platform-wide (no INTERNAL_ADMIN gate)
+Agent: Backend (Agent 4)
+File: apps/api/src/routes/portal.ts
+Line: 407–414, 437–454
+Detail: Require admin role or org scope before sql`1=1`-style fallbacks.
+
+[1.5] GET /pipeline: groupBy(quotes.status) over all quotes — only requireSession
+Agent: Backend (Agent 4)
+File: apps/api/src/routes/portal.ts
+Line: 469–497
+Detail: Role-gate and org/sales-rep scope.
+
+[1.6] Production CSRF: POST /v1/auth/logout and several flows use raw fetch without x-csrf-token — 403 in production
+Agent: Auth & RBAC (Agent 5)
+File: apps/api/src/app.ts; apps/web portal/layout.tsx (~118); fundraising/layout.tsx (~67); registrera/saljare/[token]/page.tsx (~40–52)
+Detail: Use apiFetch with CSRF or align exemptions narrowly.
+
+[1.7] POST /v1/ai/chat accepts unbounded, unsanitized body.history — role injection and cost/DoS vs public-chat hardening
+Agent: AI & Open Claw (Agent 6)
+File: apps/api/src/routes/ai-chat.ts
+Line: 82–86
+Detail: Cap turns, sanitize roles like public-chat.ts.
+
+[1.8] Klarna POST webhook not CSRF-exempt — push callbacks likely 403 in production
+Agent: Fortnox & Commerce (Agent 7)
+File: apps/api/src/app.ts
+Line: 33–48
+Detail: Exempt /v1/checkout/webhook/* for machine callers.
+
+[1.9] Unconfigured Klarna: getCheckoutOrder returns checkout_complete — PAID without real PSP if keys missing
+Agent: Fortnox & Commerce (Agent 7)
+File: apps/api/src/lib/payments/klarna.ts
+Line: 60–70, 105–115
+Detail: Dev-only mock; fail closed in shared/staging/prod.
+
+[1.10] Settlement → Fortnox: empty orgNumber/email; CustomerNumber mapped from org number not Fortnox customer id
+Agent: Fortnox & Commerce (Agent 7)
+File: apps/api/src/routes/settlement.ts; apps/api/src/lib/invoicing/fortnox-provider.ts
+Line: settlement ~236–243; provider ~71–76
+Detail: createOrUpdateCustomer; use organizations.fortnoxCustomerId.
+
+[1.11] Content-Security-Policy only Report-Only — not enforced (XSS mitigation gap vs strategy)
+Agent: Security, DevOps & SEO (Agent 8)
+File: apps/web/next.config.ts
+Line: 44–46
+Detail: Tune then switch to enforcing CSP.
+
+[1.12] next.config: typescript.ignoreBuildErrors + eslint.ignoreDuringBuilds — production builds can ship without type/lint gates
+Agent: Frontend (Agent 3); Security (Agent 8)
+File: apps/web/next.config.ts
+Line: 6–13
+Detail: Keep CI as hard gate or remove when Docker resolves monorepo graph.
+
+=====================================================
+PRIORITY 2 — HIGH
+=====================================================
+
+[2.1] Footer /om-oss#press #jobb — anchors missing on Om oss page
+Agent: UX (Agent 1)
+File: apps/web/src/components/footer.tsx
+Line: 19–21
+
+[2.2] No skip link to main content
+Agent: UX (Agent 1)
+File: apps/web/src/app/layout.tsx
+Line: 50–66
+
+[2.3] Hero-lead / marketing CTAs hardcode white/neutral — off semantic tokens; hero stacks scale + infinite pulse
+Agent: Visual (Agent 2)
+Files: components/sections/hero-lead.tsx; globals.css keyframes
+
+[2.4] Seller-grade and status UI use amber/slate/emerald/red vs locked palette
+Agent: Visual (Agent 2)
+Files: seller-grade.tsx; portal/page.tsx; portal/system/page.tsx
+
+[2.5] .dark remaps full brand scale — semantic drift for text-brand-900 etc.
+Agent: Visual (Agent 2)
+File: apps/web/src/app/globals.css
+Line: 144–156
+
+[2.6] Broad client layouts and marketing layout always loads Header + Chat + Search — no dynamic import split
+Agent: Frontend (Agent 3)
+File: apps/web/src/app/(marketing)/layout.tsx
+
+[2.7] Portal POST /orders: weak validation; empty lines possible; mismatch vs CreateOrderSchema / idempotency
+Agent: Backend (Agent 4)
+File: apps/api/src/routes/portal.ts
+Line: 203–258
+
+[2.8] Missing btree indexes on orders.org_id, quotes.org_id/sales_rep_id, users.org_id, order_lines.order_id
+Agent: Backend (Agent 4)
+File: packages/db drizzle migration / schema
+
+[2.9] Fortnox webhook: in-memory dedup Set; events not persisted to DB
+Agent: Backend (Agent 4); Commerce (Agent 7)
+Files: fortnox-webhook.ts; sync-invoice-status.ts
+
+[2.10] getInvoiceProvider env-only — integration_fortnox DB OAuth unused
+Agent: Commerce (Agent 7)
+File: apps/api/src/lib/invoicing/index.ts
+
+[2.11] No refund APIs; REFUNDED enum unused; no inventory on products
+Agent: Commerce (Agent 7)
+
+[2.12] CSRF_SECRET defaults to dev-csrf-secret if unset
+Agent: Auth (Agent 5)
+File: apps/api/src/lib/csrf.ts
+Line: 3
+
+[2.13] Hono registration routes skip isPasswordAcceptable
+Agent: Auth (Agent 5)
+File: apps/api/src/routes/auth.ts
+
+[2.14] Redis rate limit fails open
+Agent: Auth (Agent 5); AI (Agent 6)
+File: apps/api/src/lib/rate-limit.ts
+
+[2.15] “Open Claw” doc vs direct OpenAI + MCP tools not wired to chat
+Agent: AI (Agent 6)
+Files: openclaw-client.ts; mcp-tools.ts
+
+[2.16] CSP draft allows unsafe-inline / unsafe-eval — tighten before enforcing
+Agent: Security (Agent 8)
+File: apps/web/next.config.ts
+
+[2.17] CI: no automated test job; no deploy/staging workflow in repo
+Agent: Security (Agent 8)
+File: .github/workflows/ci.yml
+
+[2.18] Docker: API and web images run as root; API copies full node_modules
+Agent: Security (Agent 8)
+Files: apps/web/Dockerfile; apps/api/Dockerfile
+
+=====================================================
+PRIORITY 3 — MEDIUM
+=====================================================
+
+[3.1] Portal CLUB_NAV seven items — strategy ~5; /sales vs /portal parallel; theme toggle desktop-only
+Agent: UX (Agent 1)
+Files: portal/layout.tsx; header.tsx; sales/layout.tsx
+
+[3.2] Hamburger missing aria-expanded; scroll progress bar missing aria-hidden; “Boka samtal” → /foreningsliv
+Agent: UX (Agent 1)
+Files: header.tsx; hair-analysis-lead-dialog.tsx
+
+[3.3] Middleware 403 plain “Forbidden” — no friendly recovery
+Agent: UX (prior audits)
+File: apps/web/src/middleware.ts
+
+[3.4] Focus ring uses --color-ring vs signal token; incomplete fluid type scale in @theme
+Agent: Visual (Agent 2)
+File: globals.css
+
+[3.5] Dialog zoom animation vs fade-only spec; multiple competing global animations
+Agent: Visual (Agent 2)
+Files: dialog.tsx; globals.css; hero-lead.tsx
+
+[3.6] Form errors use red-50/red-700; shop order timeline gray-* 
+Agent: Visual (Agent 2)
+
+[3.7] No loading.tsx; no global-error.tsx; unused lib/trpc.ts; unused react-query deps
+Agent: Frontend (Agent 3)
+
+[3.8] error.tsx component named GlobalError; raw img in hair-analysis / min-shop
+Agent: Frontend (Agent 3)
+
+[3.9] tRPC idempotency middleware logs duplicate but still runs next()
+Agent: Backend (Agent 4)
+File: trpc/middleware/idempotency.ts
+
+[3.10] Campaigns chains multiple selects — join opportunities
+Agent: Backend (Agent 4)
+File: trpc/routers/campaigns.ts
+
+[3.11] Contracts campaign dates as plain z.string()
+Agent: Backend (Agent 4)
+File: packages/contracts/src/campaigns.ts
+
+[3.12] tRPC products router hardcoded vs DB
+Agent: Backend (Agent 4)
+File: trpc/routers/products.ts
+
+[3.13] GET /organizations/search: auth required vs registrera flow calling before login — verify consistency
+Agent: Auth (Agent 5)
+File: apps/api/src/routes/auth.ts; apps/web registrera/page.tsx
+
+[3.14] tRPC auth.login stub; session role stale vs DB; demo passwords
+Agent: Auth (Agent 5)
+
+[3.15] /portal not in Next middleware matcher — client gate only
+Agent: Auth (Agent 5)
+File: apps/web/src/middleware.ts
+
+[3.16] Portal nav fallback may show admin nav for unexpected roles
+Agent: Auth (Agent 5)
+File: portal/layout.tsx
+
+[3.17] No global AI kill-switch flag beyond key presence
+Agent: AI (Agent 6)
+
+[3.18] Portal AI page uses public-chat — copy implies role-specific assistant
+Agent: AI (Agent 6)
+File: portal/ai/page.tsx
+
+[3.19] Hair analysis error text to client; SSE error may omit [DONE]
+Agent: AI (Agent 6)
+
+[3.20] tRPC ai.status logic vs isAiConfigured (sk-stub)
+Agent: AI (Agent 6)
+File: trpc/routers/ai.ts
+
+[3.21] Chat widget: no Escape / focus trap
+Agent: AI (Agent 6)
+File: chat-widget.tsx
+
+[3.22] Klarna IP allowlist empty by default; shipping line type physical vs shipping_fee
+Agent: Commerce (Agent 7)
+Files: checkout.ts; klarna.ts
+
+[3.23] Portal order_lines quantity vs qty column name
+Agent: Commerce (Agent 7)
+File: apps/api/src/routes/portal.ts
+
+[3.24] B2C order enum states beyond PAID not driven; title template / per-page SEO vs Agent 08
+Agent: Commerce (Agent 7); Security (Agent 8)
+Files: checkout.ts; layout.tsx
+
+=====================================================
+PRIORITY 4 — LOW
+=====================================================
+
+[4.1] No loading.tsx; club pages missing metadata; marketing home relies on root default metadata
+Agent: UX (Agent 1)
+
+[4.2] Inter vs premium grotesk; brand hex drift vs doc; header shadow hardcoded
+Agent: Visual (Agent 2)
+
+[4.3] Hero two priority images — verify LCP; kontakt/haranalys full client pages
+Agent: Frontend (Agent 3)
+
+[4.4] Open org search for any authenticated user — enumeration (low sensitivity)
+Agent: Auth (Agent 5)
+
+[4.5] Association self-registration instant admin session — policy vs manual approval
+Agent: Auth (Agent 5)
+
+[4.6] MFA stub; CSRF dev bypass (info)
+Agent: Auth (Agent 5)
+
+[4.7] Operational logging gaps vs Agent 06 §7
+Agent: AI (Agent 6)
+
+[4.8] prefers-reduced-motion !important may flatten spinners
+Agent: Visual (Agent 2)
+File: globals.css
+
+[4.9] No Cache-Control in next.config headers
+Agent: Security (Agent 8)
+
+[4.10–4.20] Minor: sitemap lastModified noise; outline button border-brand-200 vs spec; QR hex exception; fundraising order reds; offerter red icons; portal product button overrides; shop kassa errors — consolidated polish.
+
+=====================================================
+PRIORITY 5 — NICE TO HAVE
+=====================================================
+
+[5.1] Sales URL /sales vs doc /sälj
+Agent: UX (Agent 1)
+
+[5.2] Hero CTA hierarchy vs strategy “Boka demo” primary
+Agent: UX (Agent 1)
+
+[5.3] Public chat 30/hour/IP — document for ops
+Agent: AI (Agent 6)
+
+[5.4] tRPC fetchRequestHandler default error formatting — verify no stack leak in prod
+Agent: Backend (Agent 4)
+
+[5.5] Secondary outline variant softer than spec
+Agent: Visual (Agent 2)
+File: button.tsx
+
+[5.6] Hero black/40 gradient — localized vs gradient-mesh warning in doc
+Agent: Visual (Agent 2)
+File: hero.tsx
+
+=====================================================
+CLEAN AREAS (brief)
+=====================================================
+
+- Public nav ~4 items; root metadata/OG; focus rings on many links; klubb dashboard empty state; portal sidebar aria-expanded; search-dialog uses /integritet consistently (Agent 1).
+- globals @theme browns, shadows, section spacing, page-enter fade, Button/Input primitives (Agent 2).
+- Home marketing RSC; strict tsconfig; not-found; next/image formats (Agent 3).
+- Drizzle parameterized SQL; campaigns Zod/ownership; checkout qty bounds + transaction; Fortnox HMAC when secret set (Agent 4/7).
+- Argon2; httpOnly cookies; login rate limit when Redis OK; Next prefix RBAC for club/sales paths; apiFetch CSRF for main flows (Agent 5).
+- Keys server-side; public-chat role sanitization; hair consent + limits (Agent 6).
+- Öre-first checkout; InvoiceProvider abstraction; settlement admin-gated; CSV export helper (Agent 7).
+- HSTS, XFO, nosniff, Referrer-Policy, Permissions-Policy; robots/sitemap; Plausible optional; CI typecheck/lint/migrations (Agent 8).
+
+--- END OF REPORT ---

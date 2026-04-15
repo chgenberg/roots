@@ -1,0 +1,34 @@
+---
+description: LLM model standards for all AI features in the Roots platform
+globs: ["apps/api/src/lib/ai/**", "apps/api/src/routes/ai-chat.ts", "apps/api/src/routes/public-chat.ts", "apps/api/src/routes/hair-analysis.ts", "apps/api/src/trpc/routers/ai.ts"]
+alwaysApply: false
+---
+
+# LLM Model Standards — Roots
+
+All LLM integrations in the Roots platform MUST use **OpenAI GPT-5.4** family models.
+
+## Models
+
+| Model | Use case | Pricing (per 1M tokens) |
+|-------|----------|------------------------|
+| `gpt-5.4` | Complex/agentic tasks, deep analysis, vision with reasoning | $2.50 input / $15.00 output |
+| `gpt-5.4-mini` | Fast responses, chat widgets, simple completions | $0.75 input / lower output |
+
+## Rules
+
+1. **Default model** for chat (public + authenticated): `gpt-5.4-mini`
+2. **Frontier model** for complex tasks (vision analysis, agentic workflows): `gpt-5.4`
+3. **Never** use deprecated models (`gpt-4o`, `gpt-4o-mini`, `gpt-4.1-mini`, `gpt-3.5-turbo`, etc.)
+4. Model selection is controlled via `OPENAI_DEFAULT_MODEL` and `OPENAI_VISION_MODEL` env vars with correct defaults in code
+
+## Capabilities (both models)
+
+- 1,050,000 token context window
+- 128,000 max output tokens
+- Streaming, function calling, structured outputs, vision (input), MCP, tools
+- `reasoning_effort` parameter: `none` (default), `low`, `medium`, `high`, `xhigh`
+
+## Reference
+
+- [OpenAI GPT-5.4 documentation](https://developers.openai.com/api/docs/models/gpt-5.4)

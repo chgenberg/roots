@@ -52,6 +52,12 @@ export default function ClubLayout({ children }: { children: ReactNode }) {
               {item.label}
             </Link>
           ))}
+          <button
+            onClick={() => { document.cookie = "rootsSessionId=; path=/; max-age=0"; window.location.href = "/login"; }}
+            className="shrink-0 rounded-full bg-brand-50 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-brand-100"
+          >
+            Logga ut
+          </button>
         </nav>
       </header>
 

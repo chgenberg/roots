@@ -56,7 +56,7 @@ const FALLBACK_AI_USAGE = {
   tokensMonth: "2.8M",
   sessions: "342",
   avgResponseTime: "1.8s",
-  model: "gpt-4.1-mini",
+  model: "gpt-5.4-mini",
 };
 
 const FALLBACK_RATE_LIMITS = [
@@ -127,7 +127,7 @@ export default function SystemPage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div
-                    className={`h-2.5 w-2.5 rounded-full ${s.ok ? "bg-emerald-500 animate-pulse" : "bg-red-500"}`}
+                    className={`h-2.5 w-2.5 rounded-full ${s.ok ? "bg-success" : "bg-destructive"}`}
                   />
                   <span className="text-sm font-medium">{s.name}</span>
                 </div>
@@ -211,7 +211,7 @@ export default function SystemPage() {
                     </div>
                     <div className="mt-1.5 h-1.5 w-full rounded-full bg-brand-100">
                       <div
-                        className={`h-1.5 rounded-full transition-all ${pct > 80 ? "bg-red-500" : pct > 50 ? "bg-brand-500" : "bg-emerald-500"}`}
+                        className={`h-1.5 rounded-full transition-all ${pct > 80 ? "bg-destructive" : pct > 50 ? "bg-brand-500" : "bg-success"}`}
                         style={{ width: `${pct}%` }}
                       />
                     </div>

@@ -4,9 +4,11 @@ interface OrganizationLdProps {
   description?: string;
 }
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://roots.se";
+
 export function OrganizationJsonLd({
   name = "Roots",
-  url = "https://roots.se",
+  url = SITE_URL,
   description = "Naturlig hudvård för föreningslivet i Sverige.",
 }: OrganizationLdProps) {
   const jsonLd = {

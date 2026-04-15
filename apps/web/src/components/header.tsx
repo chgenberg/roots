@@ -4,8 +4,9 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { ArrowRight, User, CalendarCheck } from "lucide-react";
+import { ArrowRight, User, CalendarCheck, Search } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { SearchDialog, SearchTrigger } from "@/components/search-dialog";
 
 const NAV_ITEMS = [
   { href: "/produkter", label: "Produkter" },
@@ -80,7 +81,7 @@ export function Header() {
         className={cn(
           "fixed left-0 right-0 top-0 z-50 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
           scrolled
-            ? "h-14 border-b border-border/40 bg-background/90 shadow-[0_1px_3px_rgba(0,0,0,0.04)] backdrop-blur-xl"
+            ? "h-14 border-b border-border/40 bg-background/90 shadow-[var(--shadow-card)] backdrop-blur-xl"
             : "h-20 bg-transparent"
         )}
       >
@@ -134,6 +135,7 @@ export function Header() {
             </nav>
 
             <div className="flex items-center gap-1">
+              <SearchTrigger />
               <ThemeToggle />
               <Link
                 href="/login"
@@ -171,6 +173,9 @@ export function Header() {
 
       {/* Fullscreen mobile overlay */}
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Navigeringsmeny"
         className={cn(
           "fixed inset-0 z-[55] flex flex-col bg-background transition-opacity duration-200 ease-out md:hidden",
           menuOpen
@@ -206,6 +211,14 @@ export function Header() {
           ))}
 
           <div className="mt-12 flex flex-col gap-4">
+            <button
+              type="button"
+              onClick={() => { setMenuOpen(false); window.dispatchEvent(new CustomEvent("roots:open-search")); }}
+              className="flex items-center gap-2 rounded-md text-lg font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <Search className="h-5 w-5" />
+              Sök
+            </button>
             <Link
               href="/foreningsliv"
               onClick={() => setMenuOpen(false)}
@@ -221,6 +234,9 @@ export function Header() {
             >
               Logga in →
             </Link>
+            <div className="mt-2">
+              <ThemeToggle />
+            </div>
           </div>
         </nav>
 

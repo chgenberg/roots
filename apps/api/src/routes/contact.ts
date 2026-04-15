@@ -20,6 +20,10 @@ contact.post("/", async (c) => {
     return c.json({ error: "Alla fält måste fyllas i." }, 400);
   }
 
+  if (name.length > 200 || email.length > 254 || subject.length > 300 || message.length > 5000) {
+    return c.json({ error: "Ett eller flera fält överskrider maxlängden." }, 400);
+  }
+
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email)) {
     return c.json({ error: "Ogiltig e-postadress." }, 400);

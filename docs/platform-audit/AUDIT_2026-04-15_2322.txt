@@ -1,0 +1,249 @@
+ROOTS PLATFORM AUDIT
+====================
+Date: 2026-04-15 23:22
+Agents: 8 parallel sub-agents (read-only)
+Scope: Full monorepo (apps/web, apps/api, packages/*)
+
+SUMMARY
+-------
+Total findings: 96 (deduplicated across agents)
+  Priority 1 (Critical):  21
+  Priority 2 (High):      30
+  Priority 3 (Medium):    27
+  Priority 4 (Low):       12
+  Priority 5 (Nice):       6
+
+Note: Subagent scan found no `.github/workflows/` in this workspace; CI may live only on remote — treat “no CI in repo” as environment-dependent.
+
+=====================================================
+PRIORITY 1 — CRITICAL
+=====================================================
+
+[1.1] Klubbportal: ingen “Logga ut” i mobilens horisontella nav — endast i desktop-sidopanel
+Agent: UX (Agent 1)
+File: apps/web/src/app/(club)/layout.tsx
+Line: 37–55, 78–84
+
+[1.2] Säljportal: samma mönster — utloggning saknas i mobilnav
+Agent: UX (Agent 1)
+File: apps/web/src/app/(sales)/layout.tsx
+Line: 39–57, 80–84
+
+[1.3] next.config: typescript.ignoreBuildErrors + eslint.ignoreDuringBuilds
+Agent: Frontend (Agent 3); Security (Agent 8)
+File: apps/web/next.config.ts
+Line: 6–13
+
+[1.4] /portal inte i middleware matcher — auth bara client-side (layout + fetch)
+Agent: Frontend (Agent 3)
+File: apps/web/src/middleware.ts
+Line: 61–68
+
+[1.5] Portal POST /orders: saknar strikt qty-validering; risk för felaktiga totaler; ingen tydlig club-rollkontroll
+Agent: Backend (Agent 4)
+File: apps/api/src/routes/portal.ts
+Line: 199–231
+
+[1.6] Klarna: webhook utan HMAC; IP-allowlist valfri (tom = ingen IP-check)
+Agent: Backend (Agent 4)
+File: apps/api/src/routes/checkout.ts
+Line: 273–282, 284–335
+
+[1.7] Klarna: getCheckoutOrder returnerar checkout_complete utan credentials — farligt om deployas utan nycklar
+Agent: Backend (Agent 4); Commerce (Agent 7)
+File: apps/api/src/lib/payments/klarna.ts
+Line: 105–115
+
+[1.8] Redis rate limit fail-open — obegränsat vid Redis-fel (även hair-analysis catch)
+Agent: Backend (Agent 4); AI (Agent 6)
+File: apps/api/src/lib/rate-limit.ts; apps/api/src/routes/hair-analysis.ts
+
+[1.9] CSRF_SECRET fallback till dev-csrf-secret
+Agent: Backend (Agent 4); Auth (Agent 5)
+File: apps/api/src/lib/csrf.ts
+Line: 3
+
+[1.10] tRPC idempotency: in-memory Map, kör ändå next(), loggar känslig nyckel
+Agent: Backend (Agent 4)
+File: apps/api/src/trpc/middleware/idempotency.ts
+
+[1.11] Hair analysis: isValidImageDataUrl godkänner icke-data: strängar — stora payloads
+Agent: Backend (Agent 4)
+File: apps/api/src/routes/hair-analysis.ts
+Line: 25–27
+
+[1.12] tRPC-klient skickar inget x-csrf-token — 403 på mutationer i produktion
+Agent: Auth (Agent 5)
+File: apps/web/src/lib/trpc.ts; apps/api/src/app.ts
+
+[1.13] INTERNAL_ADMIN tillåts i middleware på /sales men isSalesUser exkluderar — FORBIDDEN i tRPC
+Agent: Auth (Agent 5)
+Files: apps/web/src/middleware.ts; packages/contracts/src/roles.ts; apps/api/src/trpc/middleware/auth.ts
+
+[1.14] Login rate limit fail-open vid Redis-fel
+Agent: Auth (Agent 5)
+File: apps/api/src/lib/rate-limit.ts
+Line: 28–31
+
+[1.15] Direkt OpenAI — ingen Open Claw-gateway; POST /v1/ai/chat litar på klient-history
+Agent: AI (Agent 6)
+Files: apps/api/src/lib/ai/openclaw-client.ts; apps/api/src/routes/ai-chat.ts
+
+[1.16] Chat-widget och portal AI använder /v1/ai/public-chat — inte session-/RBAC-styrd /chat
+Agent: AI (Agent 6)
+Files: apps/web/src/components/chat-widget.tsx; apps/web/src/app/(portal)/portal/ai/page.tsx
+
+[1.17] Klarna push webhook blockeras av CSRF i produktion (ej exempt)
+Agent: Fortnox & Commerce (Agent 7)
+File: apps/api/src/app.ts
+Line: 33–48
+
+[1.18] Settlement Fortnox: tomma orgNumber/email; fel kundkoppling
+Agent: Fortnox & Commerce (Agent 7)
+File: apps/api/src/routes/settlement.ts; apps/api/src/lib/invoicing/fortnox-provider.ts
+
+[1.19] CSP endast Report-Only; unsafe-inline/eval i utkast
+Agent: Security (Agent 8)
+File: apps/web/next.config.ts
+Line: 43–47
+
+[1.20] Ingen CI-konfiguration i repot (.github/workflows saknas)
+Agent: Security (Agent 8)
+
+[1.21] Hero-lead / portal status: hårdkodade neutraler + emerald/red — bryter låst palett (design-risk + inkonsistens)
+Agent: Visual (Agent 2)
+Files: components/sections/hero-lead.tsx; portal/system/page.tsx; portal/page.tsx
+
+=====================================================
+PRIORITY 2 — HIGH
+=====================================================
+
+[2.1] Footer /om-oss#press #jobb utan ankare på sidan
+Agent: UX (Agent 1)
+File: apps/web/src/components/footer.tsx
+
+[2.2] Sök bara Cmd/Ctrl+K; tomt filter ger NaN i piltangentnavigering
+Agent: UX (Agent 1)
+File: apps/web/src/components/search-dialog.tsx
+
+[2.3] Fokusring/token-drift; design-tokens.json saknas; shadow/radius split
+Agent: Visual (Agent 2)
+Files: globals.css; button.tsx; card.tsx; auth pages
+
+[2.4] Breda client-gränser; @roots/ui oanvänd; TanStack Query oanvänd; lib/trpc oanvänd
+Agent: Frontend (Agent 3)
+
+[2.5] GET order confirm/status som capability-URL utan auth
+Agent: Backend (Agent 4)
+File: apps/api/src/routes/checkout.ts
+Line: 342–437
+
+[2.6] Fortnox webhook dedup endast in-memory
+Agent: Backend (Agent 4)
+File: apps/api/src/routes/fortnox-webhook.ts
+
+[2.7] REST-registrering vs contracts (body any); login 401 döljer DB-fel
+Agent: Backend (Agent 4)
+File: apps/api/src/routes/auth.ts
+
+[2.8] Hono-registrering utan isPasswordAcceptable; MFA stub; org search för alla inloggade
+Agent: Auth (Agent 5)
+
+[2.9] Club/sales logout: client cookie clear utan POST /v1/auth/logout
+Agent: Auth (Agent 5)
+Files: apps/web/src/app/(club)/layout.tsx; apps/web/src/app/(sales)/layout.tsx
+
+[2.10] Ingen global AI kill-switch; MCP ej kopplad; tRPC ai.chat stub
+Agent: AI (Agent 6)
+
+[2.11] Dubbel faktura vid upprepad settlement create-invoice; sync-invoice-status stub; Fortnox webhook uppdaterar inte DB
+Agent: Commerce (Agent 7)
+
+[2.12] integration_fortnox oanvänd; schema vs doc (expiresAt)
+Agent: Commerce (Agent 7)
+
+[2.13] Docker kör som root; API full node_modules; Plausible vs framtida enforcing CSP
+Agent: Security (Agent 8)
+
+[2.14–2.30] UX/IA: hero CTA vs strategi; Boka demo aria vs /foreningsliv; portal 7 menyval; /sales vs /portal; skip link; cookies-rad i footer; mobil header aria-expanded; fundraising har utloggning — m.fl. (se Agent 1)
+
+=====================================================
+PRIORITY 3 — MEDIUM
+=====================================================
+
+[3.1] Gradient/blur i portal; dialog zoom; max-w 1400 vs 1280 i club/sales
+Agent: Visual (Agent 2)
+
+[3.2] Raw img hair-analysis; header burger utan aria-expanded
+Agent: Frontend (Agent 3)
+
+[3.3] tRPC context swallow errors; hono logger full request
+Agent: Backend (Agent 4)
+
+[3.4] Club redirect till /portal vs /club — två ytor
+Agent: Auth (Agent 5)
+File: apps/web/src/app/(auth)/login/page.tsx
+
+[3.5] Hair analysis isValidImageDataUrl P3; rate limit Redis P3 (duplikat lägre allvar)
+Agent: AI (Agent 6)
+
+[3.6] Klarna IP P3; float öre i fortnox-provider P3
+Agent: Commerce (Agent 7)
+
+[3.7] Title template vs Agent 08; robots disallow /shop — bekräfta SEO-intent
+Agent: Security (Agent 8)
+
+[3.8–3.27] Övrigt: portal backdrop a11y; error.tsx GlobalError namn; ingen loading.tsx; sales/club stubs; RAG saknas; SSE [DONE]; widget fokus/Esc; B2C customer_orders utan Fortnox-fält
+
+=====================================================
+PRIORITY 4 — LOW
+=====================================================
+
+[4.1] Scroll progress utan aria-hidden; nav utan aria-label
+Agent: UX (Agent 1)
+
+[4.2] img transition 0.2s vs 150ms länkar
+Agent: Visual (Agent 2) — marginal
+
+[4.3] REST vs /v1 prefix mix /trpc
+Agent: Backend (Agent 4) — konvention
+
+[4.4] E2E RBAC tester saknas i repo
+Agent: Auth (Agent 5)
+
+=====================================================
+PRIORITY 5 — NICE TO HAVE
+=====================================================
+
+[5.1] Startsida utan egen metadata-export
+Agent: UX (Agent 1)
+
+[5.2] Inter vs “premium grotesk”
+Agent: Visual (Agent 2)
+
+[5.3] Ingen revalidate på marketing
+Agent: Frontend (Agent 3)
+
+[5.4] react-hook-form/zod i web — ej använt
+Agent: Frontend (Agent 3)
+
+[5.5] Operational AI-logging vs Agent 06
+Agent: AI (Agent 6)
+
+[5.6] .env.example vs runtime Fortnox token
+Agent: Commerce (Agent 7)
+
+=====================================================
+CLEAN AREAS (brief)
+=====================================================
+
+- Publik header ~4 punkter; produkt-URL:er konsekventa; root metadata/lang/OG (UX1).
+- globals.css semantik, shadows, reduced-motion, page-enter (Visual2).
+- Marketing home RSC; hero next/image; strict tsconfig; apiFetch CSRF för /v1 (Frontend3).
+- Drizzle parameteriserat; checkout transaktion + DB-priser; campaigns ownership; Fortnox HMAC (Backend4/7).
+- Next middleware för /club, /sales, /forening, /lag, /min-shop; Argon2; httpOnly cookies (Auth5).
+- Inga LLM-nycklar i browser; public-chat sanitering; CSRF på API i prod (AI6).
+- Checkout öre; InvoiceProvider; settlement admin-scope (Commerce7).
+- HSTS, XFO, nosniff, Referrer-Policy; robots/sitemap; Docker multi-stage web (Security8).
+
+--- END OF REPORT ---

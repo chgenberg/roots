@@ -55,6 +55,35 @@ export function ChatWidget() {
     }
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setOpen(false);
+        return;
+      }
+      if (e.key === "Tab") {
+        const dialog = document.querySelector<HTMLElement>('[role="dialog"][aria-label="Roots AI-chatt"]');
+        if (!dialog) return;
+        const focusable = dialog.querySelectorAll<HTMLElement>(
+          'button, textarea, input, [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [open]);
+
   async function handleSend() {
     const text = input.trim();
     if (!text || streaming) return;
@@ -181,6 +210,7 @@ export function ChatWidget() {
         )}
         style={{ height: "min(580px, calc(100vh - 4rem))" }}
         role="dialog"
+        aria-modal="true"
         aria-label="Roots AI-chatt"
       >
         {/* Header */}

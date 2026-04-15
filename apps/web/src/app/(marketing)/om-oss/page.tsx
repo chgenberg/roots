@@ -90,6 +90,32 @@ export default function OmOssPage() {
 
       <Separator className="mx-auto max-w-[1200px]" />
 
+      <section id="press" className="py-24 md:py-32">
+        <div className="mx-auto max-w-[1280px] px-6 md:px-10">
+          <div className="mx-auto max-w-2xl text-center">
+            <h2 className="text-3xl font-bold tracking-tight">Press</h2>
+            <p className="mt-4 text-muted-foreground">
+              Kontakta oss på <a href="mailto:press@roots.se" className="underline hover:text-foreground">press@roots.se</a> för pressfrågor, intervjuer och bildmaterial.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <Separator className="mx-auto max-w-[1200px]" />
+
+      <section id="jobb" className="py-24 md:py-32">
+        <div className="mx-auto max-w-[1280px] px-6 md:px-10">
+          <div className="mx-auto max-w-2xl text-center">
+            <h2 className="text-3xl font-bold tracking-tight">Jobba hos oss</h2>
+            <p className="mt-4 text-muted-foreground">
+              Vi letar alltid efter engagerade personer som delar vår passion för föreningslivet. Skicka din ansökan till <a href="mailto:jobb@roots.se" className="underline hover:text-foreground">jobb@roots.se</a>.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <Separator className="mx-auto max-w-[1200px]" />
+
       <section className="py-24 md:py-32">
         <div className="mx-auto max-w-[1280px] px-6 md:px-10">
           <div className="mx-auto max-w-2xl text-center">

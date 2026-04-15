@@ -26,7 +26,7 @@ export function ThemeToggle() {
     localStorage.setItem(STORAGE_KEY, next ? "dark" : "light");
   }
 
-  if (!mounted) return <div className="h-10 w-10" />;
+  if (!mounted) return <div className="h-10 w-10" aria-hidden="true" />;
 
   return (
     <button

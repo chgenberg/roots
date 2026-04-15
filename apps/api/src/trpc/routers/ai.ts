@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { router, publicProcedure } from "../init";
 import { isAuthenticated } from "../middleware/auth";
+import { isAiConfigured } from "../../lib/ai/openclaw-client";
 
 const authedProcedure = publicProcedure.use(isAuthenticated);
 
@@ -13,19 +14,28 @@ export const aiRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      // BFF proxy to Open Claw will be implemented in Phase 7
-      // For now return a stub response
+      if (!isAiConfigured()) {
+        return {
+          reply:
+            "AI-assistenten är inte aktiverad just nu. Kontakta support för hjälp.",
+          conversationId: input.conversationId ?? crypto.randomUUID(),
+          disclaimer: "AI-genererat svar — verifiera viktig information",
+          fallback: true,
+        };
+      }
+
       return {
         reply:
-          "AI-assistenten ar inte aktiverad annu. Kontakta support for hjalp.",
+          "AI-assistenten är inte aktiverad ännu. Kontakta support för hjälp.",
         conversationId: input.conversationId ?? crypto.randomUUID(),
-        disclaimer: "AI-genererat svar -- verifiera viktig information",
+        disclaimer: "AI-genererat svar — verifiera viktig information",
       };
     }),
 
   status: publicProcedure.query(async () => {
-    const key = process.env.OPENAI_API_KEY || "";
-    const enabled = !!key && !key.includes("REPLACE-ME");
-    return { enabled, provider: "OpenAI" };
+    return {
+      enabled: isAiConfigured(),
+      provider: "OpenAI",
+    };
   }),
 });

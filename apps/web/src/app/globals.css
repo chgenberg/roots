@@ -118,9 +118,13 @@
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
-    animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+    transition-duration: 150ms !important;
+  }
+  .animate-float,
+  .animate-subtle-pulse,
+  .animate-spin-slow {
+    animation: none !important;
   }
 }
 
@@ -147,6 +151,7 @@ body {
   --color-muted: #1f1a16;
   --color-muted-foreground: #a89585;
   --color-border: #2d2420;
+  --color-ring: #c4a882;
   --color-brand-50: #1f1a16;
   --color-brand-100: #2d2420;
   --color-brand-200: #3d3028;

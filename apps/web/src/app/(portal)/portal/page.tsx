@@ -156,7 +156,7 @@ function ClubDashboard({ name }: { name: string }) {
               ) : (
                 activity.map((item, i) => (
                   <div
-                    key={i}
+                    key={`${item.time}-${item.text}`}
                     className="flex items-center justify-between py-3 first:pt-0 last:pb-0"
                   >
                     <span className="text-sm">{item.text}</span>
@@ -518,7 +518,7 @@ function AdminDashboard({ name }: { name: string }) {
                   >
                     <div className="flex items-center gap-2">
                       <div
-                        className={`h-2 w-2 rounded-full ${s.ok ? "bg-emerald-500" : "bg-red-500"}`}
+                        className={`h-2 w-2 rounded-full ${s.ok ? "bg-success" : "bg-destructive"}`}
                       />
                       <span className="text-sm">{s.name}</span>
                     </div>

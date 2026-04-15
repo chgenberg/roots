@@ -9,5 +9,10 @@ export async function trpcHandler(c: HonoContext) {
     req: c.req.raw,
     router: appRouter,
     createContext,
+    onError({ error, path }) {
+      if (error.code === "INTERNAL_SERVER_ERROR") {
+        console.error(`[tRPC] ${path ?? "unknown"}:`, error.message);
+      }
+    },
   });
 }
