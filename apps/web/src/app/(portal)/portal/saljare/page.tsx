@@ -14,73 +14,33 @@ import {
 } from "@/components/ui/table";
 import { Users, TrendingUp, Target, Award } from "lucide-react";
 
-const FALLBACK_SELLERS = [
-  {
-    id: 1,
-    name: "Erik Lindström",
-    email: "erik@roots.se",
-    clubs: 8,
-    pipeline: "45 000 kr",
-    closed: "28 000 kr",
-    conversion: "35%",
-    trend: "+12%",
-  },
-  {
-    id: 2,
-    name: "Sara Björk",
-    email: "sara@roots.se",
-    clubs: 6,
-    pipeline: "38 200 kr",
-    closed: "22 400 kr",
-    conversion: "31%",
-    trend: "+8%",
-  },
-  {
-    id: 3,
-    name: "Johan Ek",
-    email: "johan@roots.se",
-    clubs: 5,
-    pipeline: "29 100 kr",
-    closed: "18 700 kr",
-    conversion: "42%",
-    trend: "+15%",
-  },
-  {
-    id: 4,
-    name: "Maria Holm",
-    email: "maria@roots.se",
-    clubs: 4,
-    pipeline: "21 500 kr",
-    closed: "12 300 kr",
-    conversion: "28%",
-    trend: "+3%",
-  },
-  {
-    id: 5,
-    name: "Anders Nyström",
-    email: "anders@roots.se",
-    clubs: 3,
-    pipeline: "16 800 kr",
-    closed: "9 100 kr",
-    conversion: "25%",
-    trend: "-2%",
-  },
-];
+interface SalesRep {
+  id: number | string;
+  name: string;
+  email: string;
+  clubs: number;
+  pipeline: string;
+  closed: string;
+  conversion: string;
+  trend: string | null;
+}
+
+const FALLBACK_SELLERS: SalesRep[] = [];
 
 export default function SaljarePage() {
-  const [sellers, setSellers] = useState(FALLBACK_SELLERS);
+  const [sellers, setSellers] = useState<SalesRep[]>(FALLBACK_SELLERS);
 
   useEffect(() => {
-    portalFetch<{ sellers: any[] }>("/sellers")
+    portalFetch<{ sellers: SalesRep[] }>("/sellers")
       .then((data) => {
         if (data.sellers?.length) setSellers(data.sellers);
       })
       .catch(() => {});
   }, []);
 
-  const totalPipeline = "150 600 kr";
-  const totalClosed = "90 500 kr";
-  const avgConversion = "32%";
+  const totalPipeline = "—";
+  const totalClosed = "—";
+  const avgConversion = "—";
 
   return (
     <div className="page-enter space-y-6">
@@ -141,6 +101,12 @@ export default function SaljarePage() {
       <Card>
         <CardContent className="p-5">
           <h2 className="mb-4 font-semibold">Prestationsöversikt</h2>
+          {sellers.length === 0 && (
+            <p className="mb-4 rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+              Ingen säljdata att visa ännu. Tabellen fylls på när säljare
+              registreras och börjar bygga pipeline.
+            </p>
+          )}
           <Table>
             <TableHeader>
               <TableRow>
@@ -175,11 +141,17 @@ export default function SaljarePage() {
                   <TableCell className="font-medium">{s.closed}</TableCell>
                   <TableCell>{s.conversion}</TableCell>
                   <TableCell className="text-right">
-                    <Badge
-                      variant={s.trend.startsWith("+") ? "success" : "destructive"}
-                    >
-                      {s.trend}
-                    </Badge>
+                    {s.trend ? (
+                      <Badge
+                        variant={
+                          s.trend.startsWith("+") ? "success" : "destructive"
+                        }
+                      >
+                        {s.trend}
+                      </Badge>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}

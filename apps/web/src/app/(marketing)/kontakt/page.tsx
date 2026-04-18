@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Mail, MapPin, Send } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { LEGAL_IDENTITY } from "@/lib/legal-identity";
 
 export default function KontaktPage() {
   const [sent, setSent] = useState(false);
@@ -153,10 +154,17 @@ export default function KontaktPage() {
                   </div>
                   <div>
                     <h3 className="font-semibold">Adress</h3>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Roots Nordic AB
+                    <address className="mt-1 text-sm not-italic text-muted-foreground">
+                      {LEGAL_IDENTITY.legalName}
                       <br />
-                      Stockholm, Sverige
+                      {LEGAL_IDENTITY.address.street}
+                      <br />
+                      {LEGAL_IDENTITY.address.postalCode} {LEGAL_IDENTITY.address.city}, {LEGAL_IDENTITY.address.country}
+                    </address>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Org.nr {LEGAL_IDENTITY.orgNumber}
+                      <br />
+                      Momsreg.nr {LEGAL_IDENTITY.vatId}
                     </p>
                   </div>
                 </div>

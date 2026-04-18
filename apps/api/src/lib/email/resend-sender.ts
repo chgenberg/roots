@@ -7,7 +7,7 @@ export class ResendEmailSender implements EmailSender {
   private apiKey: string;
   private fromAddress: string;
 
-  constructor(apiKey: string, fromAddress = "Roots <noreply@rootshaircare.se>") {
+  constructor(apiKey: string, fromAddress = "Roots <hej@roots.se>") {
     this.apiKey = apiKey;
     this.fromAddress = fromAddress;
   }

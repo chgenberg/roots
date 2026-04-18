@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Loader2, Sparkles, Bot, User, RotateCcw } from "lucide-react";
+import { Send, Loader2, Sparkles, Bot, User, RotateCcw, Square } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,13 +18,24 @@ interface Message {
 const API_URL = `${getBrowserApiBase()}/v1/ai/public-chat`;
 
 function getWelcomeMessage(role: string, name: string): string {
-  if (role === "CLUB_ADMIN" || role === "CLUB_MEMBER") {
-    return `Hej ${name}! Jag är Roots AI-assistent. Jag kan hjälpa dig med allt om er förening — beställningar, medlemshantering, intäktsrapporter och produktinformation. Vad kan jag hjälpa till med?`;
+  switch (role) {
+    case "CLUB_ADMIN":
+    case "CLUB_MEMBER":
+      return `Hej ${name}! Jag kan hjälpa dig med beställningar, leveranser och hur föreningen får del av intäkten. Vad funderar du på?`;
+    case "SALES_REP":
+    case "SALES_ADMIN":
+      return `Hej ${name}! Jag kan hjälpa med pitch, invändningshantering och hur portalens pipeline-flöde fungerar. Vad vill du veta?`;
+    case "ASSOCIATION_ADMIN":
+      return `Hej ${name}! Jag kan hjälpa dig sätta upp kampanjen, bjuda in lagledare och säljare, och förklara hur insamlingen fungerar. Var vill du börja?`;
+    case "TEAM_LEADER":
+      return `Hej ${name}! Jag kan hjälpa dig att motivera laget, bjuda in säljare och förklara vilka sidor som visar resultat. Vad ska vi ta tag i?`;
+    case "SELLER":
+      return `Hej ${name}! Jag kan ge dig tips för att dela din shop och skriva till vänner och familj. Vad behöver du hjälp med?`;
+    case "INTERNAL_ADMIN":
+      return `Hej ${name}! Jag kan guida dig i /portal/* — system, säljare, offerter, pipeline och statistik. Vad vill du titta på?`;
+    default:
+      return `Hej ${name}! Fråga mig om allt kring Roots. Vad funderar du på?`;
   }
-  if (role === "SALES_REP" || role === "SALES_ADMIN") {
-    return `Hej ${name}! Jag är din AI-säljassistent. Jag kan hjälpa dig med pipeline-analys, offertförslag, klubbinsikter och säljstrategier. Vad vill du veta?`;
-  }
-  return `Hej ${name}! Jag är Roots AI-assistent med admin-åtkomst. Jag kan hjälpa med systemstatus, säljrapporter, KPI-analys och mer. Hur kan jag hjälpa?`;
 }
 
 function buildWelcome(role: string, name: string): Message {
@@ -46,6 +57,19 @@ export default function AIPage() {
   const [streaming, setStreaming] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  const stop = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setStreaming(false);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, []);
 
   const scrollToBottom = useCallback(() => {
     requestAnimationFrame(() => {
@@ -92,6 +116,9 @@ export default function AIPage() {
     };
     setMessages((prev) => [...prev, assistantMsg]);
 
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     try {
       const csrf = await getCsrfToken();
       const res = await fetch(API_URL, {
@@ -101,6 +128,7 @@ export default function AIPage() {
           "x-csrf-token": csrf,
         },
         credentials: "include",
+        signal: controller.signal,
         body: JSON.stringify({
           message: text,
           stream: true,
@@ -160,22 +188,35 @@ export default function AIPage() {
         }
       }
     } catch (err) {
-      const errorMessage =
-        err instanceof Error
-          ? err.message
-          : "Något gick fel. Försök igen eller kontakta hej@roots.se.";
+      if (err instanceof DOMException && err.name === "AbortError") {
+        setMessages((prev) => {
+          const updated = [...prev];
+          const idx = updated.findIndex((m) => m.id === assistantId);
+          if (idx === -1) return prev;
+          if (!updated[idx].content) {
+            updated[idx] = { ...updated[idx], content: "Avbrutet." };
+          }
+          return updated;
+        });
+      } else {
+        const errorMessage =
+          err instanceof Error
+            ? err.message
+            : "Något gick fel. Försök igen eller kontakta hej@roots.se.";
 
-      setMessages((prev) => {
-        const updated = [...prev];
-        const idx = updated.findIndex((m) => m.id === assistantId);
-        if (idx === -1) return prev;
-        updated[idx] = {
-          ...updated[idx],
-          content: errorMessage,
-        };
-        return updated;
-      });
+        setMessages((prev) => {
+          const updated = [...prev];
+          const idx = updated.findIndex((m) => m.id === assistantId);
+          if (idx === -1) return prev;
+          updated[idx] = {
+            ...updated[idx],
+            content: errorMessage,
+          };
+          return updated;
+        });
+      }
     } finally {
+      abortRef.current = null;
       setStreaming(false);
     }
   }
@@ -307,19 +348,26 @@ export default function AIPage() {
               className="max-h-32 min-h-[44px] flex-1 resize-none rounded-xl border border-input bg-background px-4 py-3 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               disabled={streaming}
             />
-            <button
-              type="button"
-              onClick={() => handleSend()}
-              disabled={!input.trim() || streaming}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-inverse-surface text-inverse-on-surface transition-all duration-200 hover:bg-inverse-surface-hover disabled:opacity-40"
-              aria-label="Skicka meddelande"
-            >
-              {streaming ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
+            {streaming ? (
+              <button
+                type="button"
+                onClick={stop}
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-inverse-surface text-inverse-on-surface transition-all duration-200 hover:bg-inverse-surface-hover"
+                aria-label="Stoppa generering"
+              >
+                <Square className="h-4 w-4" fill="currentColor" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => handleSend()}
+                disabled={!input.trim()}
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-inverse-surface text-inverse-on-surface transition-all duration-200 hover:bg-inverse-surface-hover disabled:opacity-40"
+                aria-label="Skicka meddelande"
+              >
                 <Send className="h-4 w-4" />
-              )}
-            </button>
+              </button>
+            )}
           </div>
           <p className="mt-2 text-center text-[10px] text-muted-foreground/60">
             AI-genererat svar — verifiera viktig information

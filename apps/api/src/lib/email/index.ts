@@ -15,7 +15,7 @@ export function getEmailSender(): EmailSender {
   const apiKey = process.env.RESEND_API_KEY;
 
   if (apiKey) {
-    const from = process.env.RESEND_FROM_ADDRESS || "Roots <noreply@rootshaircare.se>";
+    const from = process.env.RESEND_FROM_ADDRESS || "Roots <hej@roots.se>";
     _sender = new ResendEmailSender(apiKey, from);
     log.info("Using Resend provider");
   } else {

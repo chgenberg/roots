@@ -18,10 +18,23 @@ import { getBrowserApiBase } from "@/lib/api-base";
 
 const API_URL = getBrowserApiBase();
 
+interface CheckoutProduct {
+  id: string;
+  name: string;
+  priceOre: number;
+}
+
+interface CheckoutShop {
+  products: CheckoutProduct[];
+  campaign: { status: string } | null;
+}
+
 export default function CheckoutPage() {
   const params = useParams();
   const searchParams = useSearchParams();
   const slug = params.slug as string;
+
+  const [shop, setShop] = useState<CheckoutShop | null>(null);
 
   const [customerName, setCustomerName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
@@ -43,7 +56,43 @@ export default function CheckoutPage() {
       productId: key.replace("item_", ""),
       qty: parseInt(val, 10),
     }))
-    .filter((i) => i.qty > 0);
+    .filter((i) => Number.isFinite(i.qty) && i.qty > 0);
+
+  useEffect(() => {
+    async function loadShop() {
+      try {
+        const res = await fetch(`${API_URL}/v1/shop/by-slug/${slug}`);
+        if (!res.ok) return;
+        const data = (await res.json()) as CheckoutShop;
+        setShop(data);
+      } catch {
+        // non-fatal: order summary will degrade to item count only
+      }
+    }
+    loadShop();
+  }, [slug]);
+
+  const resolvedLines = shop
+    ? items
+        .map((line) => {
+          const p = shop.products.find((p) => p.id === line.productId);
+          if (!p) return null;
+          return {
+            productId: p.id,
+            name: p.name,
+            qty: line.qty,
+            unitPriceOre: p.priceOre,
+            totalOre: p.priceOre * line.qty,
+          };
+        })
+        .filter((l): l is NonNullable<typeof l> => l !== null)
+    : [];
+
+  const subtotalOre = resolvedLines.reduce((s, l) => s + l.totalOre, 0);
+  // Prices on Roots are inclusive of 25% VAT (momssats för hygienprodukter).
+  // The VAT portion is therefore subtotal * 25 / 125.
+  const vatOre = Math.round((subtotalOre * 25) / 125);
+  const campaignAcceptsOrders = shop?.campaign?.status === "ACTIVE";
 
   async function handleCheckout(e: React.FormEvent) {
     e.preventDefault();
@@ -136,6 +185,65 @@ export default function CheckoutPage() {
         )}
 
         <form onSubmit={handleCheckout} className="space-y-6">
+          {/* Order summary — the supporter can verify what they are about
+              to pay for before being redirected to Klarna. */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Din beställning</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {resolvedLines.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Din varukorg är tom.{" "}
+                  <Link
+                    href={`/shop/${slug}`}
+                    className="underline underline-offset-2"
+                  >
+                    Gå tillbaka till shoppen
+                  </Link>
+                  .
+                </p>
+              ) : (
+                <>
+                  <ul className="divide-y divide-border text-sm">
+                    {resolvedLines.map((l) => (
+                      <li
+                        key={l.productId}
+                        className="flex items-start justify-between gap-3 py-2"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate font-medium">{l.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {l.qty} st &times;{" "}
+                            {(l.unitPriceOre / 100).toLocaleString("sv-SE")} kr
+                          </p>
+                        </div>
+                        <p className="shrink-0 font-medium tabular-nums">
+                          {(l.totalOre / 100).toLocaleString("sv-SE")} kr
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                  <Separator />
+                  <div className="space-y-1 text-sm">
+                    <div className="flex items-center justify-between text-muted-foreground">
+                      <span>Varav moms (25 %)</span>
+                      <span className="tabular-nums">
+                        {(vatOre / 100).toLocaleString("sv-SE")} kr
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between font-semibold">
+                      <span>Totalt att betala</span>
+                      <span className="tabular-nums">
+                        {(subtotalOre / 100).toLocaleString("sv-SE")} kr
+                      </span>
+                    </div>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Dina uppgifter</CardTitle>
@@ -271,11 +379,49 @@ export default function CheckoutPage() {
 
           <Separator />
 
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Genom att gå vidare godkänner du vår{" "}
+            <Link
+              href="/integritet"
+              className="underline underline-offset-2 hover:text-foreground"
+            >
+              integritetspolicy
+            </Link>{" "}
+            och våra{" "}
+            <Link
+              href="/villkor"
+              className="underline underline-offset-2 hover:text-foreground"
+            >
+              köpvillkor
+            </Link>
+            . Betalningen hanteras säkert av Klarna.
+          </p>
+
+          {shop && !campaignAcceptsOrders && (
+            <p
+              role="alert"
+              className="rounded-lg border border-amber-200 bg-amber-50/70 p-3 text-sm text-amber-900 dark:border-amber-400/40 dark:bg-amber-400/10 dark:text-amber-100"
+            >
+              Kampanjen är inte aktiv just nu. Det går inte att slutföra en
+              beställning.
+            </p>
+          )}
+
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
               {items.reduce((s, i) => s + i.qty, 0)} produkter
             </p>
-            <Button type="submit" size="lg" disabled={loading || !customerName || !customerEmail || items.length === 0}>
+            <Button
+              type="submit"
+              size="lg"
+              disabled={
+                loading ||
+                !customerName ||
+                !customerEmail ||
+                items.length === 0 ||
+                (shop !== null && !campaignAcceptsOrders)
+              }
+            >
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

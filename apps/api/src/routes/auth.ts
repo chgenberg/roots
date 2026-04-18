@@ -22,6 +22,7 @@ import { getEmailSender } from "../lib/email";
 import { welcomeEmail } from "../lib/email/templates";
 import { loginRateLimit } from "../lib/rate-limit";
 import { childLogger } from "../lib/logger";
+import { auditLog, requestContext } from "../lib/audit";
 
 const log = childLogger("auth");
 
@@ -102,6 +103,11 @@ auth.post("/login", async (c) => {
     if (user) {
       const valid = await verify(user.passwordHash, password);
       if (!valid) {
+        void auditLog({
+          userId: user.id,
+          action: "auth.login.failed",
+          meta: { ...requestContext((n) => c.req.header(n)), reason: "bad_password" },
+        });
         return c.json({ error: "Felaktig e-post eller lösenord." }, 401);
       }
 
@@ -125,6 +131,12 @@ auth.post("/login", async (c) => {
       const sessionId = await createSession(sessionData);
       setCookie(c, SESSION_COOKIE_NAME, sessionId, SESSION_COOKIE_OPTIONS);
 
+      void auditLog({
+        userId: user.id,
+        action: "auth.login.success",
+        meta: { ...requestContext((n) => c.req.header(n)), role: user.role },
+      });
+
       return c.json({
         ok: true,
         user: {
@@ -138,6 +150,11 @@ auth.post("/login", async (c) => {
   } catch {
     return c.json({ error: "Felaktig e-post eller lösenord." }, 401);
   }
+
+  void auditLog({
+    action: "auth.login.failed",
+    meta: { ...requestContext((n) => c.req.header(n)), reason: "no_user", email: email.slice(0, 120) },
+  });
 
   // Fallback: in-memory demo (local dev, or ROOTS_ENABLE_DEMO_ACCOUNTS on Railway)
   const demo = DEMO_ACCOUNTS[email];
@@ -171,9 +188,19 @@ auth.post("/logout", async (c) => {
   const match = cookie.match(new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`));
 
   if (match) {
+    let userId: string | null = null;
+    try {
+      const session = await getSession(match[1]);
+      userId = session?.userId ?? null;
+    } catch {}
     try {
       await destroySession(match[1]);
     } catch {}
+    void auditLog({
+      userId,
+      action: "auth.logout",
+      meta: { ...requestContext((n) => c.req.header(n)) },
+    });
   }
 
   deleteCookie(c, SESSION_COOKIE_NAME, { path: "/" });
@@ -320,6 +347,14 @@ auth.post("/register/association", async (c) => {
 
     const sessionId = await createSession(sessionData);
     setCookie(c, SESSION_COOKIE_NAME, sessionId, SESSION_COOKIE_OPTIONS);
+
+    void auditLog({
+      userId: user.id,
+      action: "auth.register.association",
+      entityType: "organization",
+      entityId: org.id,
+      meta: { ...requestContext((n) => c.req.header(n)) },
+    });
 
     getEmailSender()
       .sendEmail({
@@ -477,6 +512,14 @@ auth.post("/register/team-leader", async (c) => {
     const sessionId = await createSession(sessionData);
     setCookie(c, SESSION_COOKIE_NAME, sessionId, SESSION_COOKIE_OPTIONS);
 
+    void auditLog({
+      userId: txResult.user.id,
+      action: "auth.register.team_leader",
+      entityType: "team",
+      entityId: txResult.createdTeamId,
+      meta: { ...requestContext((n) => c.req.header(n)), orgId: txResult.orgId },
+    });
+
     getEmailSender()
       .sendEmail({
         to: txResult.user.email,
@@ -583,6 +626,14 @@ auth.post("/register/seller", async (c) => {
 
     const sessionId = await createSession(sessionData);
     setCookie(c, SESSION_COOKIE_NAME, sessionId, SESSION_COOKIE_OPTIONS);
+
+    void auditLog({
+      userId: user.id,
+      action: "auth.register.seller",
+      entityType: "user",
+      entityId: user.id,
+      meta: { ...requestContext((n) => c.req.header(n)), teamId: team.id, shopSlug },
+    });
 
     getEmailSender()
       .sendEmail({

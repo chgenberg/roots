@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { LegalIdentityBlock } from "@/components/legal-identity-block";
 
 export const metadata: Metadata = {
   title: "Integritetspolicy",
@@ -19,13 +20,12 @@ export default function IntegritetPage() {
         <section>
           <h2>1. Personuppgiftsansvarig</h2>
           <p className="mt-3">
-            Roots Nordic AB, med säte i Stockholm, är
-            personuppgiftsansvarig för behandlingen av dina personuppgifter.
-            Du når oss på{" "}
-            <a href="mailto:hej@roots.se" className="underline hover:text-foreground">
-              hej@roots.se
-            </a>.
+            Roots Nordic AB är personuppgiftsansvarig för behandlingen av dina
+            personuppgifter.
           </p>
+          <div className="mt-3">
+            <LegalIdentityBlock variant="block" showContact className="not-italic leading-relaxed text-muted-foreground" />
+          </div>
         </section>
 
         <section>

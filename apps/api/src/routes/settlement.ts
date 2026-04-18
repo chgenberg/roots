@@ -11,6 +11,7 @@ import { getSession, SESSION_COOKIE_NAME } from "../lib/session";
 import { getInvoiceProvider } from "../lib/invoicing";
 import type { SessionData } from "../lib/session";
 import { childLogger } from "../lib/logger";
+import { auditLog, requestContext } from "../lib/audit";
 
 const log = childLogger("settlement");
 
@@ -141,6 +142,19 @@ settlement.post("/generate/:campaignId", async (c) => {
         .where(eq(campaigns.id, campaignId));
 
       return txResults;
+    });
+
+    void auditLog({
+      userId: session.userId,
+      action: "campaign.status.changed",
+      entityType: "campaign",
+      entityId: campaignId,
+      meta: {
+        ...requestContext((n) => c.req.header(n)),
+        from: "ACTIVE",
+        to: "SETTLED",
+        settlementCount: results.length,
+      },
     });
 
     return c.json({ ok: true, settlements: results });

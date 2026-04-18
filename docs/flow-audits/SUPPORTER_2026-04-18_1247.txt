@@ -1,0 +1,325 @@
+ROOTS SUPPORTER CHECKOUT AUDIT
+===============================
+Date: 2026-04-18 12:47
+Agents: 8 parallel read-only sub-agents
+Scope: Seller link → personal shop → cart → checkout UX → thank-you / order status
+Out of scope: Payment integration (Klarna, Stripe, Fortnox, invoicing rails) — not evaluated
+
+SUMMARY
+-------
+Total findings (deduplicated): 58
+  Priority 1 (Critical):  8
+  Priority 2 (High):     19
+  Priority 3 (Medium):   19
+  Priority 4 (Low):       9
+  Priority 5 (Nice):      3
+
+Consolidation: Duplicate themes merged (e.g. empty cart + missing summary on `kassa`; catalog/bundle issues; campaign-active enforcement).
+
+CART ABANDONMENT TOP RISKS
+---------------------------
+1. **Checkout shows no line items, unit prices, subtotal, moms, or shipping fee** — only implicit `items` in POST; supporter cannot verify the basket on `/shop/[slug]/kassa` before continuing to payment.
+2. **Cart lives in React state only** — reload clears cart; persistence is fragile URL-query serialization to kassa (`item_*`), long/unstable links.
+3. **Inactive/ended campaigns remain browsable** — failure only at checkout create (“Kampanjen är inte aktiv”) with no earlier banner or recovery path.
+4. **Shop vs kassa delivery mismatch** — shop reflects `campaign.deliveryType`; kassa always offers both Samleverans and Hemleverans — trust/confusion at decision time.
+5. **iOS checkout inputs** — shared `Input` uses `text-sm` (~14px); likely viewport zoom on focus + submit CTA may sit below fold on small screens.
+
+SELLER ATTRIBUTION ISSUES
+--------------------------
+- **`kassa` strips context:** Header is generic “Kassa” + back link — **no seller name, team, org, or campaign story** present on shop page (`page.tsx` ~152–185).
+- **Sticky cart bar** shows count + total only — **does not repeat** “Köp av …” / team / cause.
+- **`bekraftelse` share** uses title **“Köp via Roots”** and shop URL — weak **social proof** that the supporter just helped *this* seller (vs branded share-back story).
+- **OG/metadata:** Personal shop is client-heavy — **no per-seller Open Graph** for pasted links (generic site preview); reduces recognizable seller context in messaging apps (conversion/trust adjacent to attribution).
+
+=====================================================
+PRIORITY 1 — CRITICAL
+=====================================================
+
+[1.1] **Checkout page has no order summary** — no product names, quantities, line totals, moms text, or running total before “Gå till betalning”; supporters cannot verify what they pay on the Roots-owned step.
+Agents: Cart UX; Checkout UX; Trust
+File: apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx
+Line: ~138–291, ~40–46, ~274–278
+Detail: Add readonly basket recap from `items` + fetched product metadata.
+
+[1.2] **Public shop catalog ignores campaign assortment** — API returns **all** `products.active` instead of campaign-linked SKUs (`campaign_products`), risking wrong/huge catalog for supporters.
+Agents: Product browsing
+File: apps/api/src/routes/shop.ts
+Line: ~54 (and related `by-slug` assembly)
+Detail: Filter products by seller’s campaign association when model supports it.
+
+[1.3] **Bundles exist in API JSON but UI ignores them** — `ShopData` omits `bundles`; **static “Komplett paket — 399 kr”** card is informational only (**no add-to-cart**); price can drift from DB `priceOre`.
+Agents: Product browsing; Cart UX
+File: apps/web/src/app/(shop)/shop/[slug]/page.tsx
+Line: ~36–61 (types), ~270–283
+File: apps/api/src/routes/shop.ts
+Line: ~108–113
+
+[1.4] **`campaign.status` not honored on shop UI** — supporters can fill cart on non-`ACTIVE` campaigns; failure surfaces late at checkout with **“Kampanjen är inte aktiv.”**
+Agents: Errors & edge cases
+File: apps/web/src/app/(shop)/shop/[slug]/page.tsx
+Line: campaign data unused for gating (~44–55 vs ~171–185)
+File: apps/api/src/routes/checkout.ts
+Line: ~102–104
+
+[1.5] **Shop fetch treats any `!res.ok` like missing shop** — copy **“Denna shop finns inte.”** for 404 and **500 alike**; hides transient/server errors.
+Agents: Errors & edge cases
+File: apps/web/src/app/(shop)/shop/[slug]/page.tsx
+Line: ~82–86
+
+[1.6] **Consumer rights / köpvillkor absent in checkout funnel** — no link to `/villkor`, no short ångerrätt note; `(shop)/layout.tsx` has **no marketing `Footer`** with legal links.
+Agents: Trust signals
+File: apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx
+Line: ~116–289
+File: apps/web/src/app/(shop)/layout.tsx
+Line: ~1–3
+
+[1.7] **Campaign/org legitimacy not reinforced at checkout** — contrast rich shop header/story vs bare “Kassa” screen (**seller attribution loss** at highest-friction step).
+Agents: Trust signals
+File: apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx
+Line: ~116–131, ~138–176
+
+[1.8] **Checkout inputs default to `text-sm`** — shared `Input` component; **iOS Safari zoom-on-focus** risk & readability on supporter phones.
+Agents: Mobile checkout
+File: apps/web/src/components/ui/input.tsx
+Line: ~10
+File: apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx
+
+=====================================================
+PRIORITY 2 — HIGH
+=====================================================
+
+[2.1] **Empty / invalid cart on kassa** — `items` from query params only; **no empty-state** when length 0 beyond disabled CTA (no link back to shop).
+Agents: Cart UX; Checkout UX
+File: apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx
+Line: ~40–46, ~274–278
+
+[2.2] **Cart not persisted** — `useState` only on shop page; **reload loses cart** (no localStorage/session).
+Agents: Cart UX
+File: apps/web/src/app/(shop)/shop/[slug]/page.tsx
+Line: ~76–77, ~98–107
+
+[2.3] **URL cart to kassa** — `window.location.href` with many `item_*` params; fragile when trimmed/shared; **no server-side cart session** in reviewed flow.
+Agents: Cart UX
+File: apps/web/src/app/(shop)/shop/[slug]/page.tsx
+Line: ~318–321
+
+[2.4] **Shipping/moms transparency weak on kassa** — delivery tiles without **fraktbelopp**, fri-frakt threshold echo, or explicit **“priser inkl. moms”** mirroring shop copy.
+Agents: Cart UX; Checkout UX
+File: apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx
+File: apps/web/src/app/(shop)/shop/[slug]/page.tsx
+Line: ~285–299 vs kassa ~178–257
+
+[2.5] **No seller photo / initials** — header is text-only “Köp av {displayName}`”; API has no image; **no avatar fallback**.
+Agents: Seller landing
+File: apps/web/src/app/(shop)/shop/[slug]/page.tsx
+Line: ~152–167
+File: apps/api/src/routes/shop.ts
+Line: ~82–88
+File: packages/db/src/schema/sellers.ts
+
+[2.6] **No seller-authored “why I’m selling”** — only optional **campaign** `story`; schema lacks bio/message.
+Agents: Seller landing
+File: packages/db/src/schema/sellers.ts; shop page ~171–185
+
+[2.7] **Cold landing** when story empty and `individualGoal` falsy — thin bridge to catalog.
+Agents: Seller landing
+File: apps/web/src/app/(shop)/shop/[slug]/page.tsx
+Line: ~118–127, ~171–209
+
+[2.8] **Campaign team goal not shown to buyers** — `goalType`/`goalValue` in payload unused for supporter-facing bar (only individual goal/progress).
+Agents: Seller landing; Post-purchase
+File: apps/web/src/app/(shop)/shop/[slug]/page.tsx
+Line: ~44–55, ~187–206
+
+[2.9] **Product imagery client-mapped** — `PRODUCT_IMAGES` hardcoded by slug; unknown slug falls back to wrong image; **no DB imageUrl**.
+Agents: Product browsing
+File: apps/web/src/app/(shop)/shop/[slug]/page.tsx
+Line: ~64–68, ~213–214
+
+[2.10] **No PDP / shareable product detail URL** — single scroll page only under `shop/[slug]/`.
+Agents: Product browsing
+
+[2.11] **Mixed SV/EN product descriptions** in seed — weak skincare trust (ingredients unstructured).
+Agents: Product browsing
+File: packages/db/src/schema/products.ts; packages/db/src/seed.ts
+
+[2.12] **No inventory / OOS UX** — schema lacks stock; unlimited qty; no sold-out state.
+Agents: Errors & edge cases
+File: packages/db/src/schema/products.ts
+
+[2.13] **Stale/malformed URL cart** — API errors like unknown product UUID with cryptic message; no auto-repair.
+Agents: Errors & edge cases
+File: apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx; apps/api checkout create (~127–130 cited by agent)
+
+[2.14] **Margin/cause transparency** — `marginPercent` not exposed on public shop payload for “X% to laget” copy.
+Agents: Trust signals
+File: apps/api/src/routes/shop.ts
+Line: ~90–104
+
+[2.15] **Org number not selectable in shop API** — only org **name** returned.
+Agents: Trust signals
+File: apps/api/src/routes/shop.ts
+Line: ~46–48, ~106
+
+[2.16] **No support contact on kassa** — no `hej@roots.se` / help link; **bekraftelse** error says contact but gives no channel.
+Agents: Trust signals
+File: apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx
+File: apps/web/src/app/(shop)/shop/[slug]/bekraftelse/page.tsx
+Line: ~75–76
+
+[2.17] **Thank-you lacks goal celebration** — no “you moved the bar” vs shop progress; **`customerName` from API unused** in headline.
+Agents: Post-purchase
+File: apps/web/src/app/(shop)/shop/[slug]/bekraftelse/page.tsx
+Line: ~13–18, ~92–161
+
+[2.18] **No newsletter/follow-up opt-in** on supporter funnel.
+Agents: Post-purchase
+File: apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx
+
+[2.19] **Confirmation page collapses failures** — missing order id, payment issues, network → single **“Något gick fel”**.
+Agents: Errors & edge cases
+File: apps/web/src/app/(shop)/shop/[slug]/bekraftelse/page.tsx
+Line: ~33–77
+
+=====================================================
+PRIORITY 3 — MEDIUM
+=====================================================
+
+[3.1] **Weak add-to-cart feedback** — quantity changes only; no toast/`aria-live`/animation (`toast`/`Sheet` absent under `(shop)`).
+Agents: Cart UX
+File: apps/web/src/app/(shop)/shop/[slug]/page.tsx
+Line: ~98–108, ~253–260
+
+[3.2] **Small +/- touch targets** (`h-8 w-8`) on product rows.
+Agents: Mobile checkout
+File: apps/web/src/app/(shop)/shop/[slug]/page.tsx
+Line: ~239–260
+
+[3.3] **Sticky cart bar** — possible **home-indicator overlap** (`fixed bottom-0` without safe-area padding).
+Agents: Mobile checkout
+File: apps/web/src/app/(shop)/shop/[slug]/page.tsx
+Line: ~306–328
+
+[3.4] **Submit on kassa not sticky** — long form may push primary CTA below fold.
+Agents: Mobile checkout
+File: apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx
+Line: ~274–288
+
+[3.5] **Single static product image** — no swipe/carousel for multiple angles.
+Agents: Mobile checkout
+File: apps/web/src/app/(shop)/shop/[slug]/page.tsx
+Line: ~217–225
+
+[3.6] **Generic catalog feel** — fixed bundle promo card + static product art not driven by API bundles.
+Agents: Seller landing
+File: apps/web/src/app/(shop)/shop/[slug]/page.tsx
+Line: ~64–68, ~213–214, ~271–283
+
+[3.7] **Muted team/org line** vs richer hero storytelling.
+Agents: Seller landing
+File: apps/web/src/app/(shop)/shop/[slug]/page.tsx
+Line: ~155–158
+
+[3.8] **No filter/sort** for large product lists.
+Agents: Product browsing
+File: apps/web/src/app/(shop)/shop/[slug]/page.tsx
+Line: ~208–268
+
+[3.9] **No related-products / bundle upsell** wiring.
+Agents: Product browsing
+
+[3.10] **`autocomplete` missing** on checkout fields — worse mobile autofill.
+Agents: Checkout UX
+File: apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx
+Line: ~144–174, ~220–251
+
+[3.11] **Postal code UX minimal** — placeholder only; no normalize/validate helpers.
+Agents: Checkout UX
+File: apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx
+Line: ~232–251
+
+[3.12] **Single top-level submit error** — no per-field validation messages beyond native HTML5.
+Agents: Checkout UX
+File: apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx
+Line: ~48–84
+
+[3.13] **Optional checkout note** — unclear whether seller, lagledare, or Roots reads it.
+Agents: Trust signals
+File: apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx
+Line: ~259–268
+
+[3.14] **Share-back on thank-you** — acquisition framing (“Dela shoppen”); **clipboard fallback silent** on failure.
+Agents: Post-purchase
+File: apps/web/src/app/(shop)/shop/[slug]/bekraftelse/page.tsx
+Line: ~133–151
+
+[3.15] **Thank-you minimal line items** — detail lives in email/order status page.
+Agents: Post-purchase
+File: apps/web/src/app/(shop)/shop/[slug]/bekraftelse/page.tsx
+Line: ~106–121
+
+[3.16] **No printable receipt** — no `window.print` / `@media print` in app TS/CSS (per repo search).
+Agents: Post-purchase
+
+[3.17] **Order status page maps errors to “Order hittades inte”** — conflates 404 and 500.
+Agents: Errors & edge cases
+File: apps/web/src/app/(shop)/shop/[slug]/order/[orderId]/page.tsx
+Line: ~63–94
+
+[3.18] **Shop missing slug UI less helpful than global 404** — no till startsidan CTA.
+Agents: Errors & edge cases
+File: apps/web/src/app/(shop)/shop/[slug]/page.tsx
+Line: ~137–145
+
+[3.19] **Slow-network / retry copy** mostly absent (spinners only).
+Agents: Errors & edge cases
+
+=====================================================
+PRIORITY 4 — LOW
+=====================================================
+
+[4.1] **Minus-to-zero removes line immediately** — no undo toast (acceptable for low-ticket; noted).
+Agents: Cart UX
+
+[4.2] **No cart drawer** — inline qty + sticky bar only (pattern choice).
+Agents: Cart UX
+
+[4.3] **Price formatting on shop row** — generally consistent `sv-SE` + `kr`; `currency` field not surfaced (OK if always SEK).
+Agents: Product browsing
+
+[4.4] **Payment step shell** (`Slutför din beställning`) lacks legal/trust chrome — still no köpvillkor beside embedded payment UI (scope: framing only).
+Agents: Trust signals
+File: apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx
+Line: ~101–112
+
+[4.5] **Masked email on thank-you** — shoulder-surfing friendly but may reduce confidence.
+Agents: Post-purchase
+
+[4.6] **Email confirmation** relatively stronger than web thank-you (items table) — positive baseline noted in agent report.
+Agents: Post-purchase
+File: apps/api/src/lib/email/templates.ts (~49–90 referenced)
+
+[4.7] **Guest path** — implicit; no login in `(shop)` (positive for friction).
+Agents: Checkout UX
+
+[4.8] **Form retained on checkout failure** — retry-friendly (positive).
+Agents: Errors & edge cases
+File: apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx
+
+[4.9] **`robots.ts` disallows `/shop/`** — may affect link-preview bots indexing (secondary).
+Agents: Product browsing / Share (Seller audit crossover)
+
+=====================================================
+PRIORITY 5 — NICE TO HAVE
+=====================================================
+
+[5.1] **No step indicator** (“1 Uppgifter → 2 Betalning”) on kassa.
+Agents: Checkout UX
+
+[5.2] **Phone field** — could add `inputMode="tel"` / pattern hints.
+Agents: Checkout UX
+
+[5.3] **Contextual “F12-laget” copy** — only if team name stored that way; no extra merchandising lines.
+Agents: Product browsing
+
+--- END OF REPORT ---

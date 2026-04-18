@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DataSourceBadge } from "@/components/data-source-badge";
 import { portalFetch } from "@/lib/portal-api";
 import {
   Users,
@@ -47,12 +48,14 @@ const FALLBACK_CLUB_ACTIVITY = [
 ];
 
 /* ─── Sales Fallback Data ─────────────────────────────────── */
+/* Fallback data is illustrative only; the UI marks values as demo-data when
+ * the API reports no real rows so we never present these numbers as live. */
 
 const FALLBACK_SALES_STATS = [
-  { label: "Aktiva klubbar", value: "8", icon: Building2 },
-  { label: "Offerter ute", value: "4", icon: FileText },
-  { label: "Stängda denna månad", value: "2", icon: CheckCircle2 },
-  { label: "Pipeline-värde", value: "45 000 kr", icon: TrendingUp },
+  { label: "Aktiva klubbar", value: "—", icon: Building2 },
+  { label: "Offerter ute", value: "—", icon: FileText },
+  { label: "Stängda denna månad", value: "—", icon: CheckCircle2 },
+  { label: "Pipeline-värde", value: "—", icon: TrendingUp },
 ];
 
 const FALLBACK_SALES_PIPELINE = [
@@ -71,30 +74,30 @@ const FALLBACK_SALES_TOP_CLUBS = [
 /* ─── Admin Fallback Data ─────────────────────────────────── */
 
 const FALLBACK_ADMIN_STATS = [
-  { label: "Totala ordrar", value: "127", icon: ShoppingCart },
-  { label: "MRR", value: "34 500 kr", icon: TrendingUp },
-  { label: "Aktiva klubbar", value: "23", icon: Building2 },
-  { label: "Konvertering håranalys", value: "12.4%", icon: Zap },
+  { label: "Totala ordrar", value: "—", icon: ShoppingCart },
+  { label: "MRR (betalda ordrar)", value: "—", icon: TrendingUp },
+  { label: "Aktiva klubbar", value: "—", icon: Building2 },
+  { label: "Konvertering håranalys", value: "—", icon: Zap },
 ];
 
-const FALLBACK_ADMIN_LEADERBOARD = [
-  { name: "Erik Lindström", clubs: 8, revenue: "45 000 kr", trend: "+12%" },
-  { name: "Sara Björk", clubs: 6, revenue: "38 200 kr", trend: "+8%" },
-  { name: "Johan Ek", clubs: 5, revenue: "29 100 kr", trend: "+15%" },
-];
+const FALLBACK_ADMIN_LEADERBOARD: Array<{
+  name: string;
+  clubs: number;
+  revenue: string;
+  trend: string;
+}> = [];
 
 const FALLBACK_ADMIN_SYSTEM_HEALTH = [
-  { name: "API", status: "Operativ", ok: true },
-  { name: "Redis", status: "Operativ", ok: true },
-  { name: "AI / Open Claw", status: "Operativ", ok: true },
+  { name: "API", status: "—", ok: true },
+  { name: "Redis", status: "—", ok: true },
+  { name: "AI / Open Claw", status: "—", ok: true },
 ];
 
-const FALLBACK_ADMIN_RECENT_ACTIVITY = [
-  { text: "Hammarby HK — ny beställning (3 200 kr)", time: "12 min sedan", type: "order" },
-  { text: "Sara B. stängde Brynäs IF", time: "1 tim sedan", type: "deal" },
-  { text: "Ny klubb registrerad: IFK Norrköping", time: "3 tim sedan", type: "club" },
-  { text: "AI: 342 chattsessioner idag", time: "Löpande", type: "ai" },
-];
+const FALLBACK_ADMIN_RECENT_ACTIVITY: Array<{
+  text: string;
+  time: string;
+  type: string;
+}> = [];
 
 /* ─── Club Dashboard ───────────────────────────────────────── */
 
@@ -216,14 +219,15 @@ function ClubDashboard({ name }: { name: string }) {
 /* ─── Sales Dashboard ──────────────────────────────────────── */
 
 function SalesDashboard({ name }: { name: string }) {
-  const [reminderSent, setReminderSent] = useState(false);
   const [stats, setStats] = useState(FALLBACK_SALES_STATS);
   const [pipeline, setPipeline] = useState(FALLBACK_SALES_PIPELINE);
   const [topClubs, setTopClubs] = useState(FALLBACK_SALES_TOP_CLUBS);
+  const [isDemo, setIsDemo] = useState(true);
 
   useEffect(() => {
-    portalFetch<{ role: string; stats: any }>("/dashboard")
+    portalFetch<{ role: string; isDemo?: boolean; stats: any }>("/dashboard")
       .then((data) => {
+        setIsDemo(data.isDemo ?? false);
         if (data.stats) {
           const s = data.stats;
           if (s.activeClubs !== undefined) {
@@ -243,13 +247,16 @@ function SalesDashboard({ name }: { name: string }) {
 
   return (
     <div className="page-enter space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">
-          Hej, {name}
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Din försäljningsöversikt.
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">
+            Hej, {name}
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Din försäljningsöversikt.
+          </p>
+        </div>
+        <DataSourceBadge demo={isDemo} />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -344,33 +351,29 @@ function SalesDashboard({ name }: { name: string }) {
             </CardContent>
           </Card>
 
-          <Card className="border-l-2 border-l-brand-300">
-            <CardContent className="p-5">
-              <div className="flex items-start gap-3">
-                <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-brand-400" />
-                <div>
-                  <h3 className="text-sm font-semibold">AI-insikt</h3>
-                  <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                    {name} — 3 offerter har inte fått svar på 7+ dagar.
-                    Vill du skicka en påminnelse?
-                  </p>
-                  {reminderSent ? (
-                    <p className="mt-3 text-sm font-medium text-brand-600">
-                      Påminnelse registrerad (demo).
+          {!isDemo && (
+            <Card className="border-l-2 border-l-brand-300">
+              <CardContent className="p-5">
+                <div className="flex items-start gap-3">
+                  <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-brand-400" />
+                  <div>
+                    <h3 className="text-sm font-semibold">AI-insikt</h3>
+                    <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                      {name} — öppna pipeline-sidan för att se uppföljningar
+                      som väntar på dig.
                     </p>
-                  ) : (
                     <Button
                       size="sm"
                       className="mt-3 h-8"
-                      onClick={() => setReminderSent(true)}
+                      asChild
                     >
-                      Skicka påminnelse
+                      <Link href="/portal/pipeline">Gå till pipeline</Link>
                     </Button>
-                  )}
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     </div>
@@ -398,19 +401,39 @@ function AdminDashboard({ name }: { name: string }) {
   const [stats, setStats] = useState(FALLBACK_ADMIN_STATS);
   const [leaderboard, setLeaderboard] = useState(FALLBACK_ADMIN_LEADERBOARD);
   const [systemHealth, setSystemHealth] = useState(FALLBACK_ADMIN_SYSTEM_HEALTH);
-  const [recentActivity, setRecentActivity] = useState(FALLBACK_ADMIN_RECENT_ACTIVITY);
+  const [recentActivity, setRecentActivity] = useState(
+    FALLBACK_ADMIN_RECENT_ACTIVITY
+  );
+  const [isDemo, setIsDemo] = useState(true);
 
   useEffect(() => {
-    portalFetch<{ role: string; stats: any }>("/dashboard")
+    portalFetch<{ role: string; isDemo?: boolean; stats: any }>("/dashboard")
       .then((data) => {
+        setIsDemo(data.isDemo ?? false);
         if (data.stats) {
           const s = data.stats;
           if (s.totalOrders !== undefined) {
             setStats([
-              { label: "Totala ordrar", value: String(s.totalOrders), icon: ShoppingCart },
-              { label: "MRR", value: s.mrr ?? "0 kr", icon: TrendingUp },
-              { label: "Aktiva klubbar", value: String(s.activeClubs ?? "0"), icon: Building2 },
-              { label: "Konvertering håranalys", value: s.hairConversion ?? "0%", icon: Zap },
+              {
+                label: "Totala ordrar",
+                value: String(s.totalOrders ?? 0),
+                icon: ShoppingCart,
+              },
+              {
+                label: "MRR (betalda ordrar)",
+                value: s.mrr ?? "—",
+                icon: TrendingUp,
+              },
+              {
+                label: "Aktiva klubbar",
+                value: String(s.activeClubs ?? s.totalClubs ?? 0),
+                icon: Building2,
+              },
+              {
+                label: "Konvertering håranalys",
+                value: s.hairConversion ?? "—",
+                icon: Zap,
+              },
             ]);
           }
           if (s.leaderboard?.length) setLeaderboard(s.leaderboard);
@@ -423,13 +446,16 @@ function AdminDashboard({ name }: { name: string }) {
 
   return (
     <div className="page-enter space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">
-          Hej, {name}
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Intern adminöversikt — allt på en blick.
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">
+            Hej, {name}
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Intern adminöversikt — allt på en blick.
+          </p>
+        </div>
+        <DataSourceBadge demo={isDemo} />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -451,6 +477,11 @@ function AdminDashboard({ name }: { name: string }) {
           <Card>
             <CardContent className="p-5">
               <h2 className="font-semibold">Säljare — topplista</h2>
+              {leaderboard.length === 0 && (
+                <p className="mt-3 rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+                  Listan fylls på när säljare börjar registrera ordrar.
+                </p>
+              )}
               <div className="mt-4 divide-y divide-border">
                 {leaderboard.map((s, i) => (
                   <div
@@ -483,6 +514,12 @@ function AdminDashboard({ name }: { name: string }) {
           <Card>
             <CardContent className="p-5">
               <h2 className="font-semibold">Senaste händelser</h2>
+              {recentActivity.length === 0 && (
+                <p className="mt-3 rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+                  Inga registrerade händelser ännu. Aktivitet loggas från
+                  audit-spåret så snart vi aktiverar audit-skrivning.
+                </p>
+              )}
               <div className="mt-3 divide-y divide-border">
                 {recentActivity.map((a) => {
                   const Icon = adminActivityIcon(a.type);
@@ -531,20 +568,22 @@ function AdminDashboard({ name }: { name: string }) {
             </CardContent>
           </Card>
 
-          <Card className="border-l-2 border-l-brand-300">
-            <CardContent className="p-5">
-              <div className="flex items-start gap-3">
-                <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-brand-400" />
-                <div>
-                  <h3 className="text-sm font-semibold">AI-sammanfattning</h3>
-                  <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                    Konverteringen från håranalys till klubbregistrering
-                    ökade 2.1 procentenheter senaste veckan. Topp-kanal: Instagram.
-                  </p>
+          {!isDemo && (
+            <Card className="border-l-2 border-l-brand-300">
+              <CardContent className="p-5">
+                <div className="flex items-start gap-3">
+                  <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-brand-400" />
+                  <div>
+                    <h3 className="text-sm font-semibold">AI-sammanfattning</h3>
+                    <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                      Öppna Statistik för att se veckovis trend och senaste
+                      konverteringsdata.
+                    </p>
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardContent className="p-5">

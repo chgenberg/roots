@@ -407,7 +407,7 @@ export function HairAnalysisLeadDialog({
                 />
                 <span className="text-xs leading-relaxed text-muted-foreground">
                   Jag godkänner{" "}
-                  <a href="/integritetspolicy" target="_blank" className="underline underline-offset-2 hover:text-foreground">
+                  <a href="/integritet" target="_blank" className="underline underline-offset-2 hover:text-foreground">
                     integritetspolicyn
                   </a>
                   {" "}och att mina bilder analyseras av AI. Resultatet är vägledande.
@@ -848,7 +848,7 @@ export function HairAnalysisLeadDialog({
 
                   <p className="text-xs leading-relaxed text-muted-foreground">
                     {parsed.disclaimer || "Indikativ analys — ersätter inte professionell vård."}{" "}
-                    <a href="/integritetspolicy" className="underline underline-offset-2 hover:text-brand-500">
+                    <a href="/integritet" className="underline underline-offset-2 hover:text-brand-500">
                       Läs mer om hur vi hanterar dina uppgifter.
                     </a>
                   </p>

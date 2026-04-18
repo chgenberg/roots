@@ -113,7 +113,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
         sku={`ROOTS-${slug.toUpperCase().replace("-", "")}-001`}
         price={priceOre}
         image={product.image}
-        url={`https://roots.se/produkter/${slug}`}
+        url={`${process.env.NEXT_PUBLIC_SITE_URL || "https://roots.se"}/produkter/${slug}`}
       />
 
       <section className="py-16 md:py-24">

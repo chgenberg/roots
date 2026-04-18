@@ -1,0 +1,316 @@
+ROOTS AI COACH FLOW AUDIT
+==========================
+Date: 2026-04-18 13:12
+Agents: 8 parallel read-only sub-agents
+Scope: AI across public widget, portal assistant, seller coach, sales coach
+Model rule: GPT-5.4 / GPT-5.4-mini only (.cursor/rules/llm-models.mdc)
+
+SUMMARY
+-------
+Total findings (deduplicated): 62
+  Priority 1 (Critical):     15
+  Priority 2 (High):         22
+  Priority 3 (Medium):       15
+  Priority 4 (Low):           8
+  Priority 5 (Nice):          2
+
+Consolidation note: Multiple agents flagged the same root cause — **portal and marketing chat both call `POST /v1/ai/public-chat`** with **`PUBLIC_CHAT_SYSTEM_PROMPT`**, while **`POST /v1/ai/chat`** (session + `SYSTEM_PROMPT` + per-user rate limit) is **not referenced from `apps/web`**. Findings below merge those threads.
+
+DEPRECATED MODEL USAGE (AUTO-P1)
+---------------------------------
+Per repo scan (`apps/`, `packages/`) and Agent 5: **no** runtime references to `gpt-4o`, `gpt-4o-mini`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-3.5-turbo`, or similar in shipped TypeScript.
+
+Policy / audit text only (not executable AI paths):
+  - `.cursor/rules/llm-models.mdc` — lists forbidden deprecated IDs
+  - `.cursor/skills/roots-ai-coach-flow-audit/SKILL.md` — audit criteria
+
+**Result:** No automatic P1 deprecated-model violations in application code.
+
+SAFETY / TONE RED FLAGS
+------------------------
+• **Portal & sales UI copy** promises pipeline, quotes, KPIs, admin/system access while the backend serves the **public visitor prompt** — **false-confidence / invented CRM answers** (P1).
+• **`PUBLIC_CHAT_SYSTEM_PROMPT`** embeds **fixed prices, shipping, and consumer-law style facts** — **policy & pricing drift** vs live `/villkor` and CMS (P1).
+• **No earnings / outcome guardrails** in chat prompts — risky for youth sellers asking “how much can I make?” (P1).
+• **`SYSTEM_PROMPT`** (authenticated `/chat` route) **omits** the explicit **no medical advice** line present in the public prompt — **regression risk** if `/v1/ai/chat` is wired later (P1/P2).
+• **`/v1/ai/chat`** accepts **`history` without stripping `system`** — **prompt injection / instruction override** for authenticated callers (P1).
+• **Cosmetic efficacy language** (microbiome, antibakteriellt, etc.) adjacent to “no medical advice” — **claims-adjacent** blur (P2).
+• **Mixed support emails** (`support@roots.se` vs `hej@roots.se`) across prompts and fallbacks — **trust / ops** inconsistency (P2).
+
+=====================================================
+PRIORITY 1 — CRITICAL
+=====================================================
+
+[1.1] **Architecture mismatch:** `apps/web` portal AI and `ChatWidget` both POST to **`/v1/ai/public-chat`** — server always prepends **`PUBLIC_CHAT_SYSTEM_PROMPT`**. **`POST /v1/ai/chat`** (`SYSTEM_PROMPT`, session, cookie) is **not used** by web clients → logged-in users get **visitor/marketing persona**, not portal/coach behavior.
+Agents: Portal; Seller; Sales; Tone; Streaming; Fallback
+Files: apps/web/src/app/(portal)/portal/ai/page.tsx (~18)
+       apps/web/src/components/chat-widget.tsx (API_URL pattern)
+       apps/api/src/routes/public-chat.ts (~74–78)
+
+[1.2] **Portal request body** sends only **`message`**, **`stream`**, **`history`** — **no `role`, `orgId`, campaign, or account fields** → model cannot truthfully reference the signed-in user’s data.
+Agents: Portal
+File: apps/web/src/app/(portal)/portal/ai/page.tsx (~104–108)
+
+[1.3] **Sales-facing portal copy** advertises pipeline/offert/klubbinsikter and chips (“Sammanfatta min pipeline”, etc.) while **`public-chat`** has **no CRM tools, quotes, or per-rep data** → **high hallucination risk**.
+Agents: Sales; Tone
+File: apps/web/src/app/(portal)/portal/ai/page.tsx (~24–26, ~198–207)
+
+[1.4] **`PUBLIC_CHAT_SYSTEM_PROMPT`** does **not** instruct the model to **refuse or qualify** CRM/deal answers (“I don’t see your pipeline”) — combines with [1.1] for **false CRM confidence**.
+Agents: Sales; Tone
+File: apps/api/src/lib/ai/system-prompt.ts (`PUBLIC_CHAT_SYSTEM_PROMPT` block)
+
+[1.5] **Static legal/pricing/ops facts** baked into **`PUBLIC_CHAT_SYSTEM_PROMPT`** (prices, freight threshold, ångerrätt-style wording) — **no mandatory deferral** to live `/villkor` or order-time truth → **policy/pricing hallucination** when terms or prices change.
+Agents: Tone
+Files: apps/api/src/lib/ai/system-prompt.ts (~14–17, ~25–55)
+       apps/web/src/app/(marketing)/villkor/page.tsx (contrast — agent cited ~70–74)
+
+[1.6] **No seller earnings guardrails** in **`SYSTEM_PROMPT`** or **`PUBLIC_CHAT_SYSTEM_PROMPT`** — nothing blocks **guaranteed income / fundraising outcome** promises for minors/youth sellers.
+Agents: Seller
+File: apps/api/src/lib/ai/system-prompt.ts
+
+[1.7] **`POST /v1/ai/chat`** builds messages as **`SYSTEM_PROMPT` + `...(body.history || [])` + user** — client-supplied **`history` can include `system` role** → **effective system prompt override / injection** (contrast **`public-chat.ts`**, which maps history to **user/assistant only**).
+Agents: Fallback
+File: apps/api/src/routes/ai-chat.ts (~82–86)
+
+[1.8] **Redis rate limiting fails open** — on Redis errors, **`checkRateLimit` returns `allowed: true`** → AI and other limits **effectively disabled** during outages.
+Agents: Fallback
+File: apps/api/src/lib/rate-limit.ts (~29–31)
+
+[1.9] **Per-user AI rate limit unused by product UI** — **`aiRateLimit(session.userId)`** on **`/v1/ai/chat`** is bypassed because web uses **`public-chat`**; portal/widget share **IP-keyed** `pub-chat:${ip}` limit instead.
+Agents: Fallback
+Files: apps/api/src/routes/ai-chat.ts (~48–56)
+       apps/web/src/app/(portal)/portal/ai/page.tsx (~18)
+
+[1.10] **`SELLER` role misrouted to internal admin UX:** `getNavItems` yields **`ADMIN_NAV`** for non-club/non-sales roles → **`SELLER`** sees **`/portal/system`**, **`/portal/statistik`**, etc.; **`PortalDashboard`** renders **`AdminDashboard`** for sellers — **wrong capabilities** + exposure of internal framing to youth sellers.
+Agents: Seller
+Files: apps/web/src/app/(portal)/portal/layout.tsx (~64–67)
+       apps/web/src/app/(portal)/portal/page.tsx (~576–586)
+
+[1.11] **Seller-facing AI welcome & chips are admin-flavored** — no `SELLER` branch in **`getWelcomeMessage`**; suggestion pills reference **KPI/system/hair analysis** instead of **motivation / sharing** → **misaligned coach persona** on top of [1.1].
+Agents: Seller
+File: apps/web/src/app/(portal)/portal/ai/page.tsx (~20–27, ~190–207)
+
+[1.12] **No dedicated seller coach on `min-shop`** — stats/share/orders only; **no** motivational AI entry on primary seller surface.
+Agents: Seller
+File: apps/web/src/app/(fundraising)/min-shop/page.tsx
+
+[1.13] **Parent / guardian visibility** for minors — **no** modeled disclosure path tied to seller AI (repo-wide gap cited by agent).
+Agents: Seller
+
+[1.14] **`SYSTEM_PROMPT`** lacks explicit **no medical / health advice** rule that **`PUBLIC_CHAT_SYSTEM_PROMPT`** includes — if **`/v1/ai/chat`** is enabled later, **weaker health guardrail** than public chat.
+Agents: Tone
+File: apps/api/src/lib/ai/system-prompt.ts (~6–11 vs ~71)
+
+[1.15] **Sales tRPC data layer empty/stub** — `sales` router placeholders (`dashboard`, quotes, orders, customers **empty**) → **nothing to ground** a future sales coach even after routing fixes.
+Agents: Sales
+File: apps/api/src/trpc/routers/sales.ts (patterns cited)
+
+=====================================================
+PRIORITY 2 — HIGH
+=====================================================
+
+[2.1] **Conversation history not persisted** (widget + portal) — **`useState` only**; refresh loses thread unless user manually retained (server accepts `history` per request but client doesn’t persist).
+Agents: Public widget
+Files: apps/web/src/components/chat-widget.tsx (~31–34)
+       apps/api/src/routes/public-chat.ts (~69–77)
+
+[2.2] **Welcome / header overpromise** — widget **`WELCOME_MESSAGE`** narrows scope; header **“Fråga oss vad som helst”** implies unconstrained capability.
+Agents: Public widget
+File: apps/web/src/components/chat-widget.tsx (~25–29 vs ~219–221)
+
+[2.3] **No abort (`AbortController`)** on streaming **`fetch`** — user cannot stop generation; streams not cancelled on navigation/`Ny konversation`.
+Agents: Streaming
+Files: apps/web/src/components/chat-widget.tsx (~103–115, ~124–165)
+       apps/web/src/app/(portal)/portal/ai/page.tsx (~97–109, ~118–161)
+
+[2.4] **Server stream** uses **`AbortController` only for timeout**, not **client disconnect** — upstream may continue after browser closes SSE.
+Agents: Streaming
+File: apps/api/src/lib/ai/openclaw-client.ts (~71–95)
+
+[2.5] **No regenerate / retry-last-answer** — only reset thread (`Ny konversation` / empty state), not **re-run last prompt**.
+Agents: Streaming
+Files: apps/web/src/components/chat-widget.tsx
+       apps/web/src/app/(portal)/portal/ai/page.tsx (~223–233)
+
+[2.6] **Assistant bubbles: plain text** — **no Markdown** rendering; lists/code/**bold** show literally.
+Agents: Streaming
+Files: apps/web/src/components/chat-widget.tsx (~247–262)
+       apps/web/src/app/(portal)/portal/ai/page.tsx (~271–288)
+
+[2.7] **No copy-to-clipboard** on assistant messages (widget + portal).
+Agents: Streaming
+
+[2.8] **Streaming indicator** only until **first token** — no **in-stream cursor** during continued generation.
+Agents: Streaming
+
+[2.9] **`tRPC` `ai.chat`** is a **stub** (“inte aktiverad”) — **no** LLM, no rate limit parity with REST AI routes.
+Agents: Sales; Tone
+File: apps/api/src/trpc/routers/ai.ts (~16–31)
+
+[2.10] **Pipeline UI is static demo** — no live deals, no AI grounding hook.
+Agents: Sales
+File: apps/web/src/app/(portal)/portal/pipeline/page.tsx (~17–53)
+
+[2.11] **`/sales` layout** — **no** integrated AI coach nav item; reps rely on **floating `ChatWidget`** → same **`public-chat`** limitations.
+Agents: Sales
+File: apps/web/src/app/(sales)/layout.tsx (~19–25, ~66–84)
+
+[2.12] **Voice-to-note effectively blocked** — **no** speech APIs in app; **`Permissions-Policy`** sets **`microphone=()`** in Next config → **mic capture disabled** site-wide for standard dictation.
+Agents: Sales
+Files: apps/web/next.config.ts (~32–33) (pattern cited)
+
+[2.13] **`SYSTEM_PROMPT` ASCII Swedish** (“saljare”, “fragor”) vs polished public Swedish — **brand voice** degradation.
+Agents: Tone
+File: apps/api/src/lib/ai/system-prompt.ts (~1–17)
+
+[2.14] **Contact email inconsistency** — **`support@roots.se`** in **`SYSTEM_PROMPT`** / **`ai-chat`** fallbacks vs **`hej@roots.se`** in public paths / villkor.
+Agents: Tone
+Files: apps/api/src/lib/ai/system-prompt.ts (~10–11)
+       apps/api/src/routes/ai-chat.ts (~15–18)
+
+[2.15] **Cosmetic/medical blur** — strong **efficacy/ingredient** wording in prompts while “no medical advice” — regulatory/tone risk.
+Agents: Tone
+File: apps/api/src/lib/ai/system-prompt.ts (~27–30, ~71)
+
+[2.16] **`public-chat` non-stream success** omits **`disclaimer`** field; **`ai-chat`** JSON success includes disclaimer — **inconsistent AI transparency**.
+Agents: Tone
+Files: apps/api/src/routes/public-chat.ts (~99–101)
+       apps/api/src/routes/ai-chat.ts (~107–112)
+
+[2.17] **No `temperature` / `reasoning_effort`** set on OpenAI JSON bodies — **fully default** model behavior (policy mentions `reasoning_effort`).
+Agents: Model config
+File: apps/api/src/lib/ai/openclaw-client.ts
+
+[2.18] **No per-role model override** — single **`OPENAI_DEFAULT_MODEL`** path for all chat; no mini vs full split by surface.
+Agents: Model config
+File: apps/api/src/lib/ai/openclaw-client.ts
+
+[2.19] **Vision default chain** may stay on **mini** unless env overrides — internal rule prefers **`gpt-5.4`** for frontier vision; **verify** `OPENAI_VISION_MODEL` in prod.
+Agents: Model config
+File: apps/api/src/lib/ai/hair-analysis-run.ts (~6–9)
+
+[2.20] **`usage` / token counts** parsed in client lib but **not logged, aggregated, or billed** — **no cost observability** per org/user/month.
+Agents: Fallback
+File: apps/api/src/lib/ai/openclaw-client.ts (~55–64, ~107–113)
+
+[2.21] **No operational kill-switch** beyond omitting **`OPENAI_API_KEY`** — no **`AI_ENABLED=false`**-style flag for incidents.
+Agents: Fallback
+File: apps/api/src/lib/ai/openclaw-client.ts (~18–24)
+
+[2.22] **`audit_logs` schema unused** — AI routes **do not** persist security-relevant events (abuse, injection attempts, rate-limit enforcement).
+Agents: Fallback
+File: packages/db/src/schema/audit.ts (schema only)
+
+=====================================================
+PRIORITY 3 — MEDIUM
+=====================================================
+
+[3.1] **Floating launcher `fixed bottom-6 right-6 z-50`** — can obscure **footer CTAs** / primary actions on marketing pages.
+Agents: Public widget
+File: apps/web/src/components/chat-widget.tsx (~301–307)
+
+[3.2] **Open modal** uses full-screen backdrop + tall panel — **dominates small viewports** while open.
+Agents: Public widget
+File: apps/web/src/components/chat-widget.tsx (~195–211)
+
+[3.3] **No intent chips / quick replies** on widget or portal composer.
+Agents: Public widget; Portal
+Files: apps/web/src/components/chat-widget.tsx (~267–297)
+       apps/web/src/app/(portal)/portal/ai/page.tsx
+
+[3.4] **No prominent human handoff control** — email appears mainly in **API error strings**, not as persistent **“talk to a human”** affordance.
+Agents: Public widget
+File: apps/web/src/components/chat-widget.tsx (~167–170)
+
+[3.5] **FAB lacks `safe-area-inset`** tuning — risk of overlap with **home indicator / notch**.
+Agents: Public widget
+File: apps/web/src/components/chat-widget.tsx (~301–307)
+
+[3.6] **No scope banner** (“public knowledge only”, org name, read-only) on portal AI page title area.
+Agents: Portal
+File: apps/web/src/app/(portal)/portal/ai/page.tsx (~217–220)
+
+[3.7] **“Tänker…” only when assistant bubble empty** — long **pauses between chunks** after first token lack **ongoing generating** cue (send button spinner partial mitigation).
+Agents: Portal
+File: apps/web/src/app/(portal)/portal/ai/page.tsx (~279–287, ~317–318)
+
+[3.8] **Full-page assistant only** — **no** docked/resizable panel in **`portal/layout`**.
+Agents: Portal
+File: apps/web/src/app/(portal)/portal/layout.tsx (~33–61)
+
+[3.9] **No search / export** for portal AI threads.
+Agents: Portal
+File: apps/web/src/app/(portal)/portal/ai/page.tsx (~42–48, ~253–296)
+
+[3.10] **Fundraising layout** — **no** proactive coach nudges (tips, reminders) vs marketing sites that mount **`ChatWidget`**.
+Agents: Seller
+File: apps/web/src/app/(fundraising)/layout.tsx (~110–205)
+
+[3.11] **Share flows** use **native share / clipboard** only — **no** WhatsApp/Instagram-tailored **AI drafts**.
+Agents: Seller
+File: apps/web/src/app/(fundraising)/min-shop/page.tsx (~79–95, ~270–311)
+
+[3.12] **`PUBLIC_CHAT_SYSTEM_PROMPT` “professional” tone** — **no** youth vs adult seller segmentation.
+Agents: Seller
+File: apps/api/src/lib/ai/system-prompt.ts (~66–68)
+
+[3.13] **Portal System page mock** references **`/v1/ai/portal-chat`** — route **not registered** in API (`app.ts` has **`/chat`**, **`/public-chat`**, hair analysis only) → **misleading ops telemetry**.
+Agents: Sales; Streaming; Fallback
+Files: apps/web/src/app/(portal)/portal/system/page.tsx (~63–64)
+       apps/api/src/app.ts (mounts cited)
+
+[3.14] **Fallback telemetry on System page** — **`FALLBACK_*`** AI usage / rate limits / events; **`.catch(() => {})`** can **hide API drift**.
+Agents: Fallback
+File: apps/web/src/app/(portal)/portal/system/page.tsx (~54–88)
+
+[3.15] **System page fallback labels** mismatch **real limits** (e.g. **`60/min`** vs **`public-chat`** **30 per hour per IP** in `checkRateLimit`).
+Agents: Fallback
+Files: apps/web/src/app/(portal)/portal/system/page.tsx (~62–66)
+       apps/api/src/routes/public-chat.ts (~17–18)
+
+=====================================================
+PRIORITY 4 — LOW
+=====================================================
+
+[4.1] **Human handoff as P4** — partial: errors steer to **`hej@roots.se`** but **no dedicated escalation UX** (from widget agent).
+Agents: Public widget
+
+[4.2] **Marketing widget opener “vad som helst”** — invites **out-of-scope** questions vs guardrails.
+Agents: Tone
+File: apps/web/src/components/chat-widget.tsx (~27–28)
+
+[4.3] **Hair analysis user prompt / mapping** — minor **brand typo** (“Pure Roots” vs “Pure Root”) — voice consistency.
+Agents: Tone
+File: apps/api/src/lib/ai/hair-analysis-run.ts (~69)
+
+[4.4] **Hair analysis** positive: **medical-boundary** instructions (no diagnosis, seek doctor) — noted as **partially aligned** with safety checklist.
+Agents: Tone
+File: apps/api/src/lib/ai/hair-analysis-run.ts (~38–40, ~62–64)
+
+[4.5] **SSE error path** may omit **`[DONE]`** after JSON error payload — clients may depend on stream end behavior.
+Agents: Fallback
+Files: apps/api/src/routes/ai-chat.ts (~95–102)
+       apps/api/src/routes/public-chat.ts (~87–94)
+
+[4.6] **Hair analysis `502`** may echo **`e.message`** — potential **upstream leak** of provider errors.
+Agents: Fallback
+File: apps/api/src/routes/hair-analysis.ts (~144–146)
+
+[4.7] **`console.error` vs structured logger** on **`ai-chat`** failures — observability inconsistency vs **`hair-analysis`**.
+Agents: Fallback
+File: apps/api/src/routes/ai-chat.ts (~96, ~115)
+
+[4.8] **Duplicate `OPENAI_API_KEY` handling** — **`hair-analysis-run.ts`** vs **`openclaw-client.ts`** — two places for **config parity**.
+Agents: Fallback
+
+=====================================================
+PRIORITY 5 — NICE TO HAVE
+=====================================================
+
+[5.1] **TTFT / staged latency UX** — only generic spinner until first chunk; no **connect vs generate** breakdown.
+Agents: Streaming
+
+[5.2] **Out-of-scope refusal breadth** — prompts focus on **secrets/internal data**; limited **politics / harmful / unrelated** refusals.
+Agents: Tone
+File: apps/api/src/lib/ai/system-prompt.ts (~8–11, ~65–72)
+
+--- END OF REPORT ---

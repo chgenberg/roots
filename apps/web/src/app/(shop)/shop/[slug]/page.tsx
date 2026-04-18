@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Image from "next/image";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -17,9 +18,11 @@ import {
   Heart,
   Loader2,
   Package,
+  AlertCircle,
 } from "lucide-react";
 
 import { getBrowserApiBase } from "@/lib/api-base";
+import { useCart } from "@/lib/use-cart";
 
 const API_URL = getBrowserApiBase();
 
@@ -74,7 +77,7 @@ export default function SellerShopPage() {
   const [shop, setShop] = useState<ShopData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [cart, setCart] = useState<Record<string, number>>({});
+  const { cart, update: updateCart, totalItems, toQueryString } = useCart(slug);
 
   useEffect(() => {
     async function load() {
@@ -95,25 +98,19 @@ export default function SellerShopPage() {
     load();
   }, [slug]);
 
-  function updateCart(productId: string, delta: number) {
-    setCart((prev) => {
-      const current = prev[productId] || 0;
-      const next = Math.max(0, current + delta);
-      if (next === 0) {
-        const { [productId]: _, ...rest } = prev;
-        return rest;
-      }
-      return { ...prev, [productId]: next };
-    });
-  }
-
-  const totalItems = Object.values(cart).reduce((sum, q) => sum + q, 0);
   const totalOre = shop
     ? Object.entries(cart).reduce((sum, [id, qty]) => {
         const p = shop.products.find((p) => p.id === id);
         return sum + (p ? p.priceOre * qty : 0);
       }, 0)
     : 0;
+
+  // Shop accepts orders only while the campaign is ACTIVE. Showing the
+  // campaign card and products is fine in any status so supporters can
+  // learn about the cause, but the CTA must be gated to prevent a failed
+  // checkout surfacing only at payment time.
+  const campaignStatus = shop?.campaign?.status ?? null;
+  const campaignAcceptsOrders = campaignStatus === "ACTIVE";
 
   const goalProgress =
     shop?.seller.individualGoal && shop.seller.individualGoal > 0
@@ -167,6 +164,29 @@ export default function SellerShopPage() {
       </header>
 
       <main className="mx-auto max-w-3xl px-4 py-8">
+        {/* Campaign status banner — shown when the campaign is not accepting
+            orders so supporters see this up-front rather than at checkout. */}
+        {shop.campaign && !campaignAcceptsOrders && (
+          <div
+            role="status"
+            className="mb-6 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50/70 p-4 text-sm text-amber-900 dark:border-amber-400/40 dark:bg-amber-400/10 dark:text-amber-100"
+          >
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <div>
+              <p className="font-medium">
+                {campaignStatus === "ENDED" || campaignStatus === "SETTLED"
+                  ? "Säljperioden är avslutad"
+                  : "Säljperioden har inte startat ännu"}
+              </p>
+              <p className="mt-1 text-amber-900/80 dark:text-amber-100/80">
+                Du kan läsa om föreningens projekt, men det går inte att lägga
+                en beställning just nu. Kontakta laget eller föreningen för
+                nästa steg.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Campaign story */}
         {shop.campaign?.story && (
           <Card className="mb-6 overflow-hidden">
@@ -241,6 +261,7 @@ export default function SellerShopPage() {
                             variant="outline"
                             className="h-8 w-8"
                             onClick={() => updateCart(product.id, -1)}
+                            disabled={!campaignAcceptsOrders}
                           >
                             <Minus className="h-3.5 w-3.5" />
                           </Button>
@@ -255,6 +276,12 @@ export default function SellerShopPage() {
                           variant={qty > 0 ? "outline" : "default"}
                           className="h-8 w-8"
                           onClick={() => updateCart(product.id, 1)}
+                          disabled={!campaignAcceptsOrders}
+                          aria-label={
+                            campaignAcceptsOrders
+                              ? "Lägg till"
+                              : "Säljperioden är inte aktiv"
+                          }
                         >
                           <Plus className="h-3.5 w-3.5" />
                         </Button>
@@ -302,8 +329,11 @@ export default function SellerShopPage() {
       </main>
 
       {/* Sticky cart bar */}
-      {totalItems > 0 && (
-        <div className="fixed inset-x-0 bottom-0 border-t bg-background/95 backdrop-blur-sm">
+      {totalItems > 0 && campaignAcceptsOrders && (
+        <div
+          className="fixed inset-x-0 bottom-0 border-t bg-background/95 backdrop-blur-sm"
+          style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        >
           <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
             <div>
               <p className="text-sm text-muted-foreground">
@@ -313,16 +343,11 @@ export default function SellerShopPage() {
                 {(totalOre / 100).toLocaleString("sv-SE")} kr
               </p>
             </div>
-            <Button
-              size="lg"
-              onClick={() => {
-                window.location.href = `/shop/${slug}/kassa?${new URLSearchParams(
-                  Object.entries(cart).map(([id, qty]) => [`item_${id}`, String(qty)])
-                ).toString()}`;
-              }}
-            >
-              <ShoppingBag className="mr-2 h-4 w-4" />
-              Till kassan
+            <Button size="lg" asChild>
+              <Link href={`/shop/${slug}/kassa?${toQueryString()}`}>
+                <ShoppingBag className="mr-2 h-4 w-4" />
+                Till kassan
+              </Link>
             </Button>
           </div>
         </div>

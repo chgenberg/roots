@@ -8,14 +8,20 @@ import {
   chatCompletion,
   type ChatMessage,
 } from "../lib/ai/openclaw-client";
-import { SYSTEM_PROMPT } from "../lib/ai/system-prompt";
+import { buildSystemPrompt } from "../lib/ai/system-prompt";
+import { childLogger } from "../lib/logger";
+import { flags } from "../lib/flags";
+
+const log = childLogger("ai-chat");
 
 export const aiChat = new Hono();
 
 const FALLBACK_RESPONSES = [
-  "Just nu ar AI-assistenten inte tillganglig. Kontakta oss pa support@roots.se sa hjalper vi dig.",
-  "Var AI-assistent ar tillfalligt nedstangd. Du hittar vanliga fragor pa var hemsida, eller maila support@roots.se.",
+  "Just nu är AI-assistenten inte tillgänglig. Kontakta oss på hej@roots.se så hjälper vi dig.",
+  "Vår AI-assistent är tillfälligt nedstängd. Du hittar vanliga frågor på vår hemsida, eller maila hej@roots.se.",
 ];
+
+const DISCLAIMER = "AI-genererat svar — verifiera viktig information";
 
 function parseCookies(header: string): Record<string, string> {
   const cookies: Record<string, string> = {};
@@ -26,30 +32,60 @@ function parseCookies(header: string): Record<string, string> {
   return cookies;
 }
 
+/**
+ * Strip any `system` messages from client-supplied history. Clients can
+ * only contribute `user` / `assistant` turns; allowing `system` would let
+ * a prompt-injection attacker override our real system prompt for the
+ * remainder of the conversation.
+ */
+function sanitizeHistory(
+  history: ChatMessage[] | undefined,
+  maxMessages = 10,
+  maxChars = 2000
+): ChatMessage[] {
+  if (!Array.isArray(history)) return [];
+  const clean: ChatMessage[] = [];
+  for (const m of history.slice(-maxMessages)) {
+    if (!m || typeof m !== "object") continue;
+    const role = m.role === "assistant" ? "assistant" : "user";
+    const content = typeof m.content === "string" ? m.content.slice(0, maxChars) : "";
+    if (!content) continue;
+    clean.push({ role, content });
+  }
+  return clean;
+}
+
+function pickFallback(): string {
+  return FALLBACK_RESPONSES[
+    Math.floor(Math.random() * FALLBACK_RESPONSES.length)
+  ];
+}
+
 aiChat.post("/chat", async (c) => {
   const cookieHeader = c.req.header("cookie") || "";
   const cookies = parseCookies(cookieHeader);
   const sessionId = cookies[SESSION_COOKIE_NAME];
 
   if (!sessionId) {
-    return c.json({ error: "Unauthorized" }, 401);
+    return c.json({ error: "Inte inloggad." }, 401);
   }
 
   let session;
   try {
     session = await getSession(sessionId);
-  } catch {
-    return c.json({ error: "Session lookup failed" }, 500);
+  } catch (err) {
+    log.error({ err }, "Session lookup failed");
+    return c.json({ error: "Sessionsfel." }, 500);
   }
   if (!session) {
-    return c.json({ error: "Session expired" }, 401);
+    return c.json({ error: "Sessionen har gått ut." }, 401);
   }
 
   const rateCheck = await aiRateLimit(session.userId);
   if (!rateCheck.allowed) {
     return c.json(
       {
-        error: "Rate limited",
+        error: "Du har skickat för många meddelanden. Försök igen om en stund.",
         retryAfter: rateCheck.resetInSeconds,
       },
       429
@@ -60,28 +96,42 @@ aiChat.post("/chat", async (c) => {
   try {
     body = await c.req.json();
   } catch {
-    return c.json({ error: "Invalid JSON" }, 400);
+    return c.json({ error: "Ogiltigt meddelande." }, 400);
   }
 
-  if (!body.message || body.message.length > 2000) {
-    return c.json({ error: "Invalid message" }, 400);
+  if (
+    !body.message ||
+    typeof body.message !== "string" ||
+    body.message.length > 2000
+  ) {
+    return c.json({ error: "Meddelandet saknas eller är för långt." }, 400);
   }
 
-  if (!isAiConfigured()) {
-    const fallback =
-      FALLBACK_RESPONSES[
-        Math.floor(Math.random() * FALLBACK_RESPONSES.length)
-      ];
-    return c.json({
-      reply: fallback,
-      disclaimer: "AI-genererat svar -- verifiera viktig information",
-      fallback: true,
-    });
+  // Master AI kill switch. Returns a deterministic fallback immediately so
+  // that rolling AI off does not break any UI that assumes the endpoint
+  // responds 200.
+  if (!flags.aiEnabled() || !isAiConfigured()) {
+    const fallback = pickFallback();
+    if (body.stream) {
+      return streamSSE(c, async (stream) => {
+        await stream.writeSSE({
+          data: JSON.stringify({ content: fallback, fallback: true }),
+        });
+        await stream.writeSSE({ data: "[DONE]" });
+      });
+    }
+    return c.json({ reply: fallback, disclaimer: DISCLAIMER, fallback: true });
   }
+
+  const systemPrompt = buildSystemPrompt(
+    session.role,
+    session.demoProfile?.name
+  );
+  const sanitizedHistory = sanitizeHistory(body.history);
 
   const messages: ChatMessage[] = [
-    { role: "system", content: SYSTEM_PROMPT },
-    ...(body.history || []),
+    { role: "system", content: systemPrompt },
+    ...sanitizedHistory,
     { role: "user", content: body.message },
   ];
 
@@ -93,13 +143,14 @@ aiChat.post("/chat", async (c) => {
         }
         await stream.writeSSE({ data: "[DONE]" });
       } catch (err) {
-        console.error("[ai-chat] Streaming error:", err instanceof Error ? err.message : err);
+        log.error({ err }, "Streaming error");
         await stream.writeSSE({
           data: JSON.stringify({
-            error: "AI temporarily unavailable",
+            error: "AI tillfälligt otillgänglig.",
             fallback: true,
           }),
         });
+        await stream.writeSSE({ data: "[DONE]" });
       }
     });
   }
@@ -108,18 +159,14 @@ aiChat.post("/chat", async (c) => {
     const response = await chatCompletion(messages);
     return c.json({
       reply: response.content,
-      disclaimer: "AI-genererat svar -- verifiera viktig information",
+      disclaimer: DISCLAIMER,
       model: response.model,
     });
   } catch (err) {
-    console.error("[ai-chat] Completion error:", err instanceof Error ? err.message : err);
-    const fallback =
-      FALLBACK_RESPONSES[
-        Math.floor(Math.random() * FALLBACK_RESPONSES.length)
-      ];
+    log.error({ err }, "Completion error");
     return c.json({
-      reply: fallback,
-      disclaimer: "AI-genererat svar -- verifiera viktig information",
+      reply: pickFallback(),
+      disclaimer: DISCLAIMER,
       fallback: true,
     });
   }
@@ -127,7 +174,7 @@ aiChat.post("/chat", async (c) => {
 
 aiChat.get("/status", async (c) => {
   return c.json({
-    enabled: isAiConfigured(),
+    enabled: flags.aiEnabled() && isAiConfigured(),
     provider: "OpenAI",
   });
 });

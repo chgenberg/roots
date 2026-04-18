@@ -113,7 +113,7 @@ hairAnalysis.post("/hair-analysis", async (c) => {
       fallback: true,
       analysis: JSON.stringify({
         summary:
-          "AI är inte konfigurerat på servern. Kontakta oss på support@roots.se för personlig rådgivning.",
+          "AI är inte konfigurerat på servern. Kontakta oss på hej@roots.se för personlig rådgivning.",
         observationsFromImages: [],
         hairProfile: { texture: "—", shine: "—", scalpNotes: "—" },
         lifestyleTips: ["Välj milda produkter och undvik överdriven värme."],

@@ -1,0 +1,375 @@
+ROOTS ASSOCIATION ONBOARDING AUDIT
+===================================
+Date: 2026-04-18 12:41
+Agents: 8 parallel read-only sub-agents
+Scope: Association admin signup → first campaign launched (chairperson/treasurer/coach path)
+
+SUMMARY
+-------
+Total findings (deduplicated): 57
+  Priority 1 (Critical): 10
+  Priority 2 (High):     19
+  Priority 3 (Medium):   17
+  Priority 4 (Low):       7
+  Priority 5 (Nice):      4
+
+Consolidation notes:
+- Same root causes merged (e.g. org search requires session appears under Signup + Org profile).
+- Association admin UX lives under `(fundraising)/forening`, not `(portal)/portal` — reflected throughout.
+
+TOP DROPOFF RISKS
+-----------------
+1. **Lag/team registration org search is unusable pre-login:** `GET /organizations/search` returns 401 without a session; `/registrera` calls it anonymously → empty results with no error explanation — users believe the org “does not exist.”
+2. **Campaign creation is not in the web app:** No campaign wizard under `/forening`; TRPC client unused in `apps/web`; association registration does not insert a campaign; team-leader registration only creates a team when an **active campaign** exists — otherwise onboarding stalls unless campaigns are created out-of-band.
+3. **Post-login desert:** `/forening` has no first-run checklist, step progress, or “what first?” guidance; empty states (no campaign, no teams) often lack primary CTAs/deep links to the next action.
+4. **Org profile & payouts gap:** `ASSOCIATION_ADMIN` nav has no org settings; `/club/konto` org save is a stub (TODO, fake success); no bankgiro/plusgiro in schema; orgnr not validated server-side — trust and operational completeness suffer after signup.
+5. **Seller invite links are stable, multi-use, no TTL:** No expiry/single-use in DB or UI copy; security-conscious admins may hesitate; no rotate/resurface in web UI despite server-side token regeneration existing elsewhere.
+
+=====================================================
+PRIORITY 1 — CRITICAL
+=====================================================
+
+[1.1] Organisation search during registration requires an authenticated session; anonymous users get 401 — team path cannot discover/link org before signup.
+Agents: Signup; Org profile
+File: apps/api/src/routes/auth.ts
+Line: ~610–620
+Detail: Open `GET /v1/auth/organizations/search` for pre-registration use, or move search behind post-auth with clear UX.
+
+[1.2] Registration UI does not surface API auth failure — org list stays empty with no explanation.
+Agents: Signup
+File: apps/web/src/app/(auth)/registrera/page.tsx
+Line: ~71–86, ~348–373
+Detail: Handle 401/403 with explicit copy (“log in first” / contact support) instead of silent empty state.
+
+[1.3] No campaign create/edit UI in `apps/web` under association fundraising routes; dashboard is read-only KPIs + links — admins cannot launch a campaign from product.
+Agents: Campaign creation
+File: apps/web/src/app/(fundraising)/forening/ (no campaign routes)
+Detail: Ship campaign wizard or internal tool must be documented; wire `trpc` / REST from web.
+
+[1.4] TRPC client exists in `apps/web` but campaign procedures are not called from the app.
+Agents: Campaign creation
+File: apps/web/src/lib/trpc.ts
+Line: ~1–34
+Detail: Integrate `campaigns.create`, `activate`, etc., or remove dead code and document alternate path.
+
+[1.5] Association registration API does not create a campaign row.
+Agents: Campaign creation
+File: apps/api/src/routes/auth.ts
+Line: ~283–311
+Detail: Optionally auto-create DRAFT campaign or block team onboarding until campaign exists with clear messaging.
+
+[1.6] Team-leader registration only inserts a team when an active campaign exists; otherwise team creation is null — blocks normal flow if no campaign.
+Agents: Campaign creation
+File: apps/api/src/routes/auth.ts
+Line: ~445–465
+Detail: Align product: always create campaign first, or allow team draft without campaign with explicit rules.
+
+[1.7] Seller invite token has no TTL/expiry; unlimited registrations per token until rotated.
+Agents: Invitations
+File: packages/db/src/schema/teams.ts
+Line: ~28
+Detail: Add optional `expiresAt`, invalidate on first use if single-use desired, document behavior.
+
+[1.8] Seller registration via token does not invalidate token — link remains multi-use indefinitely.
+Agents: Invitations
+File: apps/api/src/routes/auth.ts
+Line: ~521–528, ~561–567
+Detail: Match product policy (one-time vs reusable) and implement in API + copy.
+
+[1.9] No UI copy that invite URL is long-lived/reusable — security and parent trust risk.
+Agents: Invitations
+File: apps/web/src/app/(fundraising)/forening/lag/page.tsx; apps/web/src/app/(fundraising)/lag/saljare/page.tsx; apps/web/src/app/(auth)/registrera/saljare/[token]/page.tsx
+Line: ~90–169, ~124–146, ~263–285
+Detail: Explain reuse, rotation, and who should receive the link.
+
+[1.10] No notification to association admin (or team) when first paid order completes — only customer receives order confirmation email.
+Agents: First-success Aha
+File: apps/api/src/routes/checkout.ts
+Line: ~318–331
+Detail: Notify org/team leader on first sale / milestone (email or in-app).
+
+=====================================================
+PRIORITY 2 — HIGH
+=====================================================
+
+[2.1] After login, `/forening` has no onboarding wizard, “steg X av Y,” or checklist — only KPIs and quick links.
+Agents: Wizard / first run
+File: apps/web/src/app/(fundraising)/forening/page.tsx
+Line: ~97–231
+Detail: Add guided checklist (create campaign → add teams → invite sellers → share).
+
+[2.2] `(fundraising)/layout.tsx` provides nav + main only — no setup strip or progress chrome.
+Agents: Wizard / first run
+File: apps/web/src/app/(fundraising)/layout.tsx
+Line: ~110–204
+Detail: Optional global onboarding header for first-time admins.
+
+[2.3] “Ingen aktiv kampanj” state lacks strong next-action CTA toward campaign creation.
+Agents: Wizard / first run
+File: apps/web/src/app/(fundraising)/forening/page.tsx
+Line: ~99–106, ~140–161
+Detail: Primary button to campaign flow (once it exists) or interim instructions.
+
+[2.4] Empty leaderboard / no teams — copy only, no links to `/forening/lag` or invite flow.
+Agents: Wizard / first run
+File: apps/web/src/app/(fundraising)/forening/page.tsx
+Line: ~170–173
+Detail: Deep link and short instruction.
+
+[2.5] `/forening/lag` empty state — no CTA when no teams exist.
+Agents: Wizard / first run
+File: apps/web/src/app/(fundraising)/forening/lag/page.tsx
+Line: ~90–98
+Detail: Button or doc link for “skapa lag” / team-leader signup path.
+
+[2.6] `/forening/mal` hides main content when no active campaign — no empty-state onboarding.
+Agents: Wizard / first run
+File: apps/web/src/app/(fundraising)/forening/mal/page.tsx
+Line: ~57–152
+Detail: Empty state with steps to activate or create campaign.
+
+[2.7] `/forening/avrakning` — empty teams yields blank area with no message.
+Agents: Wizard / first run
+File: apps/web/src/app/(fundraising)/forening/avrakning/page.tsx
+Line: ~113–141
+Detail: Empty state when `teams.length === 0`.
+
+[2.8] Association admins have no org profile/settings route in shell (orgnr, logo, bank, contacts).
+Agents: Org profile
+File: apps/web/src/app/(fundraising)/layout.tsx
+Line: ~86–92
+Detail: Add `/forening/...` settings or document handoff to support/ops.
+
+[2.9] `/club/konto` org settings is stub — fake save, orgnr disabled, TODO API.
+Agents: Org profile
+File: apps/web/src/app/(club)/club/konto/page.tsx
+Line: ~21–27, ~63–72
+Detail: Implement PUT or remove success toast until real persistence.
+
+[2.10] `milestoneEmail` template exists but is never sent — milestones not emailed.
+Agents: First-success Aha
+File: apps/api/src/lib/email/templates.ts
+Line: ~94–113
+Detail: Wire to first seller, first order, percent-of-goal events.
+
+[2.11] No email to association admin when first seller joins — only seller `welcomeEmail`.
+Agents: First-success Aha
+File: apps/api/src/routes/dashboard.ts; apps/api/src/routes/auth.ts
+Line: dashboard ~339–352; auth ~587–590
+Detail: Optional CC to org admin or separate “ny säljare” notification.
+
+[2.12] No email verification — session created immediately on register; welcome email is not a confirmation link.
+Agents: Signup
+File: apps/api/src/routes/auth.ts
+Line: ~314–322, ~329–341
+Detail: Add verify-email flow if required by policy.
+
+[2.13] Campaign `startDate`/`endDate` are arbitrary strings in contract; no ordering, past-date, or span validation; stored as-is; `activate` has no readiness guards.
+Agents: Campaign creation
+File: packages/contracts/src/campaigns.ts; apps/api/src/trpc/routers/campaigns.ts
+Line: contracts ~24–25; router ~94–95, ~160–176
+Detail: Zod refine + activate checks; checkout does not enforce date window (only ACTIVE status) — apps/api/src/routes/checkout.ts ~102–104.
+
+[2.14] No bulk invite for sellers (CSV/multi-email); only per-POST create or shared link.
+Agents: Invitations
+File: apps/web/src/app/(fundraising)/forening/lag/page.tsx; apps/api/src/routes/dashboard.ts
+Line: dashboard ~264–345
+Detail: Bulk endpoint + UI if product needs scale.
+
+[2.15] `regenerateInviteToken` / TRPC teams mutations not exposed in web — cannot rotate/revoke invite from UI.
+Agents: Invitations
+File: apps/api/src/trpc/routers/campaigns.ts (~288–308 per agent); apps/web (no trpc usage)
+Detail: Add “Ny länk” control calling server.
+
+[2.16] Fundraising layout has no ChatWidget — association admins lack in-app AI chat present on marketing/club/sales.
+Agents: Help & self-service
+File: apps/web/src/app/(fundraising)/layout.tsx
+Line: ~86–92, ~112–153
+Detail: Mount widget or embed help entry.
+
+[2.17] No in-portal FAQ/help center route for associations.
+Agents: Help & self-service
+File: apps/web/src/app/(fundraising)/layout.tsx
+Detail: Add `/forening/hjalp` or link to docs.
+
+[2.18] Auth layout vertically centers content; long registration steps may hide bottom “Skapa konto” behind mobile keyboard.
+Agents: Mobile onboarding
+File: apps/web/src/app/(auth)/layout.tsx
+Line: ~12
+Detail: `scroll-padding`, sticky actions, or `min-h` + scroll on small viewports.
+
+[2.19] Long invite URL row on `/forening/lag` may overflow ~375px; clipboard-only share path.
+Agents: Mobile onboarding
+File: apps/web/src/app/(fundraising)/forening/lag/page.tsx
+Line: ~124–145
+Detail: `min-w-0`, truncation, wrap, or share sheet pattern.
+
+=====================================================
+PRIORITY 3 — MEDIUM
+=====================================================
+
+[3.1] Registration is heavier than ideal: multi-step org details, optional fields — not email+password+org only.
+Agents: Signup
+File: apps/web/src/app/(auth)/registrera/page.tsx
+Line: ~56–60, ~284–323, ~414–521
+Detail: Defer non-critical fields to post-signup profile.
+
+[3.2] Password rules only on last step (“minst 8 tecken”); server does not enforce length for association register.
+Agents: Signup
+File: apps/web/src/app/(auth)/registrera/page.tsx ~493–509; apps/api/src/routes/auth.ts ~266–281
+Detail: Mirror validation in API (min length, optional complexity).
+
+[3.3] Success state after register does not mention email verification/inbox.
+Agents: Signup
+File: apps/web/src/app/(auth)/registrera/page.tsx
+Line: ~152–163
+Detail: Set expectations if verification is added.
+
+[3.4] `RegisterAssociationSchema` allows any optional org number string — no Swedish format checksum.
+Agents: Org profile
+File: packages/contracts/src/auth.ts
+Line: ~20–22
+Detail: Optional `refine` for orgnr pattern.
+
+[3.5] API `POST /register/association` stores orgnr without validation.
+Agents: Org profile
+File: apps/api/src/routes/auth.ts
+Line: ~243–288
+Detail: Validate format before insert.
+
+[3.6] No bankgiro/plusgiro (or payout fields) in organizations schema or UI.
+Agents: Org profile
+File: packages/db/src/schema/organizations.ts
+Line: ~9–19
+Detail: Model + secure capture when payouts are in scope.
+
+[3.7] No organization logo upload in org/club onboarding flows (only unrelated uploads e.g. hair analysis).
+Agents: Org profile
+Detail: Add asset pipeline when branding is required.
+
+[3.8] Address fields are free text without autocomplete or `autoComplete` attributes.
+Agents: Org profile; Mobile
+File: apps/web/src/app/(auth)/registrera/page.tsx
+Line: ~437–464
+Detail: Structured address API or HTML autocomplete hints.
+
+[3.9] `goalValue` for AMOUNT goals — unit (SEK vs öre) not documented in contract; dashboard may scale by 100.
+Agents: Campaign creation
+File: packages/contracts/src/campaigns.ts
+Line: ~22–23
+Detail: Document and validate units in API/UI.
+
+[3.10] True partial “save draft” on create not supported — `create` requires full valid payload.
+Agents: Campaign creation
+File: packages/contracts/src/campaigns.ts
+Line: ~18–29
+Detail: Optional partial create or wizard-persisted draft rows.
+
+[3.11] Association dashboard API omits milestones; team dashboard has milestone logic — org home does not surface “first sale” style events.
+Agents: First-success Aha
+File: apps/api/src/routes/dashboard.ts
+Line: ~47–125 vs ~215–256
+Detail: Expose org-level milestones or link to team views.
+
+[3.12] `getInviteTemplate` / sharing route — web does not consume `/v1/sharing`; `leaderName` hardcoded in template.
+Agents: Invitations
+File: apps/api/src/routes/sharing.ts
+Line: ~30–59, ~56
+Detail: Wire templates to web; fix personalization.
+
+[3.13] No QR code for seller registration URL (shop QR exists elsewhere, not invite link).
+Agents: Invitations
+File: apps/web/src/app/(fundraising)/min-shop/page.tsx (shop QR vs invite)
+Detail: Optional QR for `/registrera/saljare/[token]`.
+
+[3.14] No `Tooltip` primitive — complex fields (orgnr, margin, etc.) lack inline help.
+Agents: Help & self-service
+File: apps/web/src/components/ui/ (no tooltip.tsx)
+Detail: Add tooltip + copy for dense fields.
+
+[3.15] Support email inconsistent (`support@roots.se` vs `hej@roots.se`) across AI vs chat widget.
+Agents: Help & self-service
+File: apps/api/src/lib/ai/system-prompt.ts; apps/web chat-widget
+Detail: Single canonical support address.
+
+[3.16] Registration uses `grid-cols-2` for postnummer/ort at all widths — cramped on 375px.
+Agents: Mobile onboarding
+File: apps/web/src/app/(auth)/registrera/page.tsx
+Line: ~446–465
+Detail: `grid-cols-1 sm:grid-cols-2`.
+
+[3.17] Registration wizard uses click handlers instead of `<form>` — Enter/IME submit inconsistent on mobile.
+Agents: Mobile onboarding
+File: apps/web/src/app/(auth)/registrera/page.tsx
+Line: ~277–521
+Detail: Per-step `<form onSubmit>`.
+
+=====================================================
+PRIORITY 4 — LOW
+=====================================================
+
+[4.1] No social login or magic link on login/register.
+Agents: Signup
+File: apps/web/src/app/(auth)/login/page.tsx; registrera/page.tsx
+Detail: OAuth/magic link backlog.
+
+[4.2] Org type in search results exists in API but UI only shows name — type hidden from picker.
+Agents: Signup
+File: apps/web/src/app/(auth)/registrera/page.tsx
+Line: ~358–370
+Detail: Show club vs team in list.
+
+[4.3] Generic registration/login error messages and DB errors surfaced as invalid credentials on login.
+Agents: Signup
+File: apps/api/src/routes/auth.ts
+Line: ~137–140, ~342–345, ~500–503
+Detail: Differentiate failures; safe client messaging.
+
+[4.4] `ASSOCIATION_ADMIN` not in unified `/portal` shell — split mental model vs other roles.
+Agents: Wizard / first run
+File: apps/web/src/app/(portal)/portal/layout.tsx
+Line: ~64–68
+Detail: Document IA; optional future unification.
+
+[4.5] No clone/template campaign API — `campaigns` router has create/update/activate only.
+Agents: Campaign creation
+File: apps/api/src/trpc/routers/campaigns.ts
+Detail: Future `duplicate` procedure.
+
+[4.6] No “book a call” / scheduling for large associations.
+Agents: Help & self-service
+File: apps/web/src/app/(auth)/registrera/page.tsx
+Line: ~166–193
+Detail: Calendly or sales handoff link when needed.
+
+[4.7] Leaderboard row long team names may overflow without `truncate` on small screens.
+Agents: Mobile onboarding
+File: apps/web/src/app/(fundraising)/forening/page.tsx
+Line: ~177–192
+Detail: `min-w-0` + `truncate`.
+
+=====================================================
+PRIORITY 5 — NICE TO HAVE
+=====================================================
+
+[5.1] Large single `CreateCampaignSchema` bundles many fields — future UI may need steps (contract design only today).
+Agents: Campaign creation
+File: packages/contracts/src/campaigns.ts
+Line: ~18–30
+
+[5.2] Remotion `ForeningVideo` / getting-started videos exist in `apps/videos` but not embedded in `/forening` or `/registrera`.
+Agents: Help; First-success Aha
+File: apps/videos/src/compositions/ForeningVideo.tsx
+Detail: Embed or link when content is production-ready.
+
+[5.3] Inline seller password `minLength` mismatch (6 vs 8) between team UI and seller self-register page; API may not enforce.
+Agents: Invitations
+File: apps/web/src/app/(fundraising)/lag/saljare/page.tsx ~226; registrera/saljare/[token]/page.tsx ~157; apps/api/src/routes/dashboard.ts ~277–280
+Detail: Align client + server validation.
+
+[5.4] Welcome email generic for all roles — not “du är inbjuden till Lag X.”
+Agents: Invitations
+File: apps/api/src/lib/email/templates.ts; auth.ts post-register
+Detail: Branded invite-specific templates.
+
+--- END OF REPORT ---

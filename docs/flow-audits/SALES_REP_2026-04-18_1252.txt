@@ -1,0 +1,309 @@
+ROOTS SALES REP FLOW AUDIT
+===========================
+Date: 2026-04-18 12:52
+Agents: 8 parallel read-only sub-agents
+Scope: Sales rep pipeline, quotes, accounts, commission, activity, reports, AI coach, mobile field workflow
+
+SUMMARY
+-------
+Total findings (deduplicated): 54
+  Priority 1 (Critical): 10
+  Priority 2 (High):     21
+  Priority 3 (Medium):   17
+  Priority 4 (Low):       5
+  Priority 5 (Nice):      1
+
+Consolidation: Overlapping themes merged (stub `sales` tRPC; `/sales` vs `/portal` split; `public-chat` for all AI surfaces; pipeline aggregate API vs kanban UI).
+
+TIME-TO-QUOTE TOP ACCELERATORS
+-------------------------------
+1. **Fix quote list API + schema alignment** — `GET /v1/portal/quotes` non-admin branch filters `quotes.userId`, but schema uses **`salesRepId` only** — likely broken for reps; align query + verify types.
+2. **Replace simulated save/send on `/sales/offerter`** — wire `POST`/`PATCH` for drafts and send, persist `quote_lines`, connect product catalog — stop `setTimeout` + ephemeral `useState`.
+3. **Real product picker** — replace read-only single “Roots Complete Kit” line with searchable catalog (`/v1/portal/products` or equivalent), add/remove lines, live pricing.
+4. **Single canonical shell for reps** — reduce confusion between **`/sales/*`** (quotes UI, no pipeline link) and **`/portal/*`** (pipeline, statistik, AI); document or merge nav.
+5. **Default `validUntil` + duplicate-from-quote** — set expiry (e.g. +30 days) in API/UI; add “duplicate offert” from last quote row.
+
+=====================================================
+PRIORITY 1 — CRITICAL
+=====================================================
+
+[1.1] **`GET /v1/portal/pipeline` contract mismatch:** API returns **per-status aggregates** (`stage`, `count`, `totalOre`) **without `deals[]`**; UI maps `s.deals ?? []` — columns stay empty; stage titles may show raw enums vs Swedish labels.
+Agents: Pipeline; Activity
+File: apps/api/src/routes/portal.ts
+Line: ~469–493
+File: apps/web/src/app/(portal)/portal/pipeline/page.tsx
+Line: ~87–108
+
+[1.2] **“Totalt pipeline-värde” hardcoded** (`"45 000 kr"`) — ignores API totals; misleading when data exists or fails.
+Agents: Pipeline
+File: apps/web/src/app/(portal)/portal/pipeline/page.tsx
+Line: ~114–122
+
+[1.3] **`GET /v1/portal/quotes` filters `eq(quotes.userId, session.userId)`** for non-admin — **`quotes` table uses `salesRepId`**, not `userId` — **schema/API bug** risks empty/failed queries for sales reps.
+Agents: Quote creation
+File: apps/api/src/routes/portal.ts
+Line: ~381 (non-admin branch)
+File: packages/db/src/schema/quotes.ts
+Line: ~26–28
+
+[1.4] **Quote save/send on `/sales/offerter` is simulated** — `setTimeout` + TODO for `POST /v1/quotes/draft|send`; **no DB persistence**; navigation/refresh loses work.
+Agents: Quote creation
+File: apps/web/src/app/(sales)/sales/offerter/page.tsx
+Line: ~31–46, ~20–26
+
+[1.5] **`sales.quotes.create` tRPC mutation is stub** — computes `totalOre`, returns synthetic id; **no insert** into `quotes` / `quote_lines`; **`validUntil` optional with no default**.
+Agents: Quote creation
+File: apps/api/src/trpc/routers/sales.ts
+Line: ~23–50
+
+[1.6] **`(sales)` app never calls tRPC `salesRouter`** — offerter page isolated; stubs unused from UI.
+Agents: Quote creation; Reports
+File: apps/web/src/app/(sales)/ (no trpc usage per agent grep)
+
+[1.7] **No account detail / CRM shell** — `/sales/kunder` is static empty table; **no `/sales/kunder/[id]`**; orders + quotes not unified per org.
+Agents: Account management
+File: apps/web/src/app/(sales)/sales/kunder/page.tsx
+Line: ~8–40
+
+[1.8] **`sales.customers.list` returns `[]` always** — no DB backing for customer list.
+Agents: Account management
+File: apps/api/src/trpc/routers/sales.ts
+Line: ~86–89
+
+[1.9] **`sales.dashboard` stub** — empty `recentQuotes` / `recentOrders`; blocks credible “recent commerce” for rep home.
+Agents: Account management; Reports
+File: apps/api/src/trpc/routers/sales.ts
+Line: ~9–15
+
+[1.10] **Commission / incentive UX absent** — no `commission` usage in TS/TSX; no MTD earnings, formula, payout history, or bonus tiers in sales or portal surfaces reviewed.
+Agents: Commission
+Detail: Entire capability gap vs checklist.
+
+=====================================================
+PRIORITY 2 — HIGH
+=====================================================
+
+[2.1] **Dual sales surfaces:** `(sales)/layout` nav **omits Pipeline**; **`SALES_REP` pipeline lives at `/portal/pipeline`** — reps using `/sales/*` may miss kanban.
+Agents: Pipeline; Mobile
+File: apps/web/src/app/(sales)/layout.tsx
+Line: ~19–25
+File: apps/web/src/app/(portal)/portal/layout.tsx
+Line: ~43–50
+
+[2.2] **No drag-and-drop / stage change** — `cursor-grab` cosmetic only; no DnD library or API to move deals.
+Agents: Pipeline
+File: apps/web/src/app/(portal)/portal/pipeline/page.tsx
+Line: ~66–68, ~148–151
+
+[2.3] **Portal `SalesDashboard` KPI keys mismatch API** — UI expects `activeClubs`, `openQuotes`, `pipelineValue`; API returns `clubs`, `quotesOut`, `pipelineValueOre` — **dashboard stays on demo/fallback numbers**.
+Agents: Commission; Quote (portal home)
+File: apps/web/src/app/(portal)/portal/page.tsx
+Line: ~224–241
+File: apps/api/src/routes/portal.ts
+Line: ~110–117
+
+[2.4] **`closedThisMonth` query has no date filter** — counts all-time `ACCEPTED` while label says **“denna månad”**.
+Agents: Commission
+File: apps/api/src/routes/portal.ts
+Line: ~98–102, ~110–116
+
+[2.5] **Statistik page maps wrong fields** — API `orderCount`/`revenueOre` vs client `orders`/`revenue` → **charts stay zero** with live data.
+Agents: Commission; Reports
+File: apps/web/src/app/(portal)/portal/statistik/page.tsx
+Line: ~87–98
+File: apps/api/src/routes/portal.ts
+Line: ~395–414, ~401–404
+
+[2.6] **`(sales)/sales/dashboard` all KPIs `"0"` placeholders** — no fetch; copy admits disconnected data.
+Agents: Commission; Reports
+File: apps/web/src/app/(sales)/sales/dashboard/page.tsx
+Line: ~8–13, ~19–22
+
+[2.7] **Portal “Ny offert” toast only** — `toast("Offertfunktion kommer snart!")` — no builder on portal offerter list.
+Agents: Quote creation
+File: apps/web/src/app/(portal)/portal/offerter/page.tsx
+Line: ~138–140
+
+[2.8] **Portal offerter list mapping** expects `client`, `contact`, `amount`, string status — **DB/API return different shape** (`orgId`, `salesRepId`, enum, `totalOre`).
+Agents: Quote creation
+File: apps/web/src/app/(portal)/portal/offerter/page.tsx
+Line: ~109–118
+
+[2.9] **`/sales/offerter` quote table never loads** — static empty state; no `GET /quotes` / list wiring.
+Agents: Quote creation
+File: apps/web/src/app/(sales)/sales/offerter/page.tsx
+Line: ~120–138
+
+[2.10] **No PDF preview / react-pdf** in `apps/web` for quotes (per search).
+Agents: Quote creation
+
+[2.11] **Discount/margin not on quote lines** — schema `quote_lines`: productId, qty, unitPriceOre only.
+Agents: Quote creation
+File: packages/db/src/schema/quotes.ts
+Line: ~40–50
+
+[2.12] **Orders vs quotes isolated** — separate `/sales/ordrar` and `/sales/offerter`; no account-centric combined view.
+Agents: Account management
+File: apps/web/src/app/(sales)/sales/ordrar/page.tsx
+File: apps/web/src/app/(sales)/sales/offerter/page.tsx
+
+[2.13] **Multi-contact per org not surfaced** — DB allows multiple `users` per `orgId`; kunder page placeholder only.
+Agents: Account management
+File: packages/db/src/schema/users.ts
+File: apps/web/src/app/(sales)/sales/kunder/page.tsx
+
+[2.14] **No tasks / calendar / activity logging routes** in `(sales)` nav — daily follow-up workflow unsupported.
+Agents: Activity tracking
+File: apps/web/src/app/(sales)/layout.tsx
+Line: ~19–25
+
+[2.15] **`salesRouter` has no tasks/activities/reminders procedures.**
+Agents: Activity tracking
+File: apps/api/src/trpc/routers/sales.ts
+Line: ~8–107
+
+[2.16] **Pipeline API only aggregates by quote status** — no deal rows, contacts, or `nextFollowUp` for automation.
+Agents: Activity tracking
+File: apps/api/src/routes/portal.ts
+Line: ~469–497
+
+[2.17] **Portal “Skicka påminnelse” is demo-only** — local state, no backend push/email.
+Agents: Activity tracking
+File: apps/web/src/app/(portal)/portal/page.tsx
+Line: ~357–368
+
+[2.18] **AI sales coach uses `public-chat`** — no session pipeline/deals in context; **hallucination risk** for “my pipeline”.
+Agents: AI coach
+File: apps/web/src/app/(portal)/portal/ai/page.tsx
+Line: ~97–108
+File: apps/api/src/routes/public-chat.ts
+Line: ~69–78
+
+[2.19] **`ChatWidget` on `(sales)` same public endpoint** — generic welcome; not sales-grounded.
+Agents: AI coach
+File: apps/web/src/components/chat-widget.tsx
+File: apps/web/src/app/(sales)/layout.tsx
+Line: ~99
+
+[2.20] **Quote builder row `flex` not stacked on mobile** — product/qty/price one row **overflow risk ~375px**.
+Agents: Mobile field sales
+File: apps/web/src/app/(sales)/sales/offerter/page.tsx
+Line: ~79–96
+
+[2.21] **Offerter header row** title + “Ny offert” single row — may crowd narrow screens (portal offerter uses responsive stack).
+Agents: Mobile field sales
+File: apps/web/src/app/(sales)/sales/offerter/page.tsx
+Line: ~51–62
+
+=====================================================
+PRIORITY 3 — MEDIUM
+=====================================================
+
+[3.1] **Stages fixed enums** (`DRAFT`, `SENT`, …) — not editable CRM stages.
+Agents: Pipeline
+File: apps/api/src/routes/portal.ts
+Line: ~474
+
+[3.2] **No probability / expected close on deal cards** — only `value` + `daysInStage`.
+Agents: Pipeline
+File: apps/web/src/app/(portal)/portal/pipeline/page.tsx
+Line: ~9–15, ~66–81
+
+[3.3] **No “follow-up due today”** filters or highlights.
+Agents: Pipeline
+File: apps/web/src/app/(portal)/portal/pipeline/page.tsx
+
+[3.4] **No bulk select / reassign / tags** on pipeline.
+Agents: Pipeline
+
+[3.5] **No filters or URL-persisted filter state** on pipeline.
+Agents: Pipeline
+
+[3.6] **Hardcoded product line read-only** — no search, add/remove lines on offerter.
+Agents: Quote creation
+File: apps/web/src/app/(sales)/sales/offerter/page.tsx
+Line: ~21–23, ~78–80
+
+[3.7] **Duplicate previous quote** — not implemented.
+Agents: Quote creation
+
+[3.8] **Statistik** — no campaign/product/account filters beyond optional `orgId` in API; UI mostly static fallbacks.
+Agents: Commission
+File: apps/web/src/app/(portal)/portal/statistik/page.tsx
+Line: ~82–101
+
+[3.9] **Leaderboard tone** — admin `saljare` table uses **`destructive`** badge for negative trend; club top lists rank revenue without incentive framing copy.
+Agents: Commission
+File: apps/web/src/app/(portal)/portal/saljare/page.tsx
+Line: ~177–182
+
+[3.10] **No sales rep “Intäkter” / payout nav** — club has `/portal/intakter`; rep payout history missing (demo page not compensation).
+Agents: Commission
+File: apps/web/src/app/(portal)/portal/layout.tsx
+Line: ~43–51 vs ~33–40
+
+[3.11] **No notes / @mentions / attachments** under `(sales)`.
+Agents: Account management
+
+[3.12] **Activity timeline** exists on **club** portal dashboard, not sales account view.
+Agents: Account management
+File: apps/web/src/app/(portal)/portal/page.tsx
+Line: ~101–169
+
+[3.13] **GDPR consent not visible** on sales customer surfaces (consent on `leads` schema elsewhere).
+Agents: Account management
+
+[3.14] **Static suggestion chips on portal AI** — not scored from pipeline.
+Agents: AI coach
+File: apps/web/src/app/(portal)/portal/ai/page.tsx
+Line: ~190–202
+
+[3.15] **`PUBLIC_CHAT_SYSTEM_PROMPT` lacks rep isolation / “cite only supplied records”** explicit rules.
+Agents: AI coach
+File: apps/api/src/lib/ai/system-prompt.ts
+Line: ~65–73
+
+[3.16] **Pipeline mobile:** grid stacks **four full-width columns** — long scroll; no horizontal swipe board.
+Agents: Mobile field sales
+File: apps/web/src/app/(portal)/portal/pipeline/page.tsx
+Line: ~134–159
+
+[3.17] **Sales nav pills `text-xs` / small vertical padding** — touch target concern.
+Agents: Mobile field sales
+File: apps/web/src/app/(sales)/layout.tsx
+Line: ~39–56
+
+=====================================================
+PRIORITY 4 — LOW
+=====================================================
+
+[4.1] **No list view toggle** on pipeline — kanban grid only.
+Agents: Pipeline
+File: apps/web/src/app/(portal)/portal/pipeline/page.tsx
+Line: ~134–161
+
+[4.2] **`daysInStage` badge** — only urgency cue; not tied to scheduled follow-up date.
+Agents: Pipeline
+File: apps/web/src/app/(portal)/portal/pipeline/page.tsx
+Line: ~73–78
+
+[4.3] **Merge duplicates tooling** — not found for orgs/contacts.
+Agents: Account management
+
+[4.4] **No offline / service worker / voice dictation** in `apps/web` (per grep).
+Agents: Mobile field sales
+
+[4.5] **Wide `<Table>` + `overflow-auto`** on ordrar/kunder — horizontal pan on small screens.
+Agents: Mobile field sales
+File: apps/web/src/components/ui/table.tsx
+Line: ~6–8
+
+=====================================================
+PRIORITY 5 — NICE TO HAVE
+=====================================================
+
+[5.1] **`/v1/ai/portal-chat`** referenced in system mock but route not mounted like `public-chat` — misleading ops signal (verify before relying).
+Agents: AI coach
+File: apps/web/src/app/(portal)/portal/system/page.tsx (per agent grep)
+
+--- END OF REPORT ---

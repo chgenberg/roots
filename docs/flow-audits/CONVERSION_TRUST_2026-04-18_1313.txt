@@ -1,0 +1,352 @@
+ROOTS CONVERSION & TRUST AUDIT
+===============================
+Date: 2026-04-18 13:13
+Agents: 8 parallel read-only sub-agents
+Scope: Persuasion, trust, social proof, retention, gamification ethics, brand voice
+Ethic: Dark patterns flagged as P1 per skill (manipulation over honest persuasion)
+
+SUMMARY
+-------
+Total findings (deduplicated): 68
+  Priority 1 (Critical):     18
+  Priority 2 (High):       21
+  Priority 3 (Medium):     17
+  Priority 4 (Low):          9
+  Priority 5 (Nice):         3
+
+Consolidation: Multiple agents flagged the same themes — **hardcoded marketing metrics**, **portal surfaces that resemble live operations**, **inactive campaigns still shoppable**, **fundraising ranking exposure**, and **brand/domain fragmentation**.
+
+DARK PATTERNS / ETHICAL RED FLAGS (AUTO-P1)
+---------------------------------------------
+• **Unsourced “platform” statistics** on marketing (`500+`, `23` föreningar, `100%` ingredienser, milestone “12 / 5 / 3 föreningar”) — static arrays, **no “as of” date or data source** → **false bandwagon / social proof** if literals are not continuously true (`social-proof.tsx`, `gamification.tsx`, `haranalys/page.tsx`).
+• **Portal “operations” UX** mixing **demo fallback** with partial API data — named clubs, amounts, timestamps can read as **real customer activity** (`portal/page.tsx`, `offerter/page.tsx`, `statistik/page.tsx`, `saljare/page.tsx`).
+• **Inactive campaign still browsable/purchasable until checkout** — supporter invests time/cart before **“Kampanjen är inte aktiv”** (`checkout.ts` vs `shop/[slug]/page.tsx`).
+• **Static “Komplett paket — 399 kr” / “Spara…”** block — **deal framing** not proven wired to bundle pricing/API (`shop/[slug]/page.tsx`).
+• **Named seller leaderboards with SEK + medals + full rank** for fundraising teams — **high-pressure comparative ranking** with **no opt-out / age consent** (`lag/page.tsx`, `lag/saljare/page.tsx`).
+• **Milestone labels say “paket”** while progress uses **`COUNT(*)` orders** — **misleading / rigged-feeling** progress (`milestones.ts`, `dashboard.ts`).
+• **Portal AI marketing copy** promises pipeline/admin insights while API is **`public-chat`** — **narrative bait-and-switch** (`portal/ai/page.tsx` + `public-chat.ts`; aligns with AI audit).
+
+TRUST GAPS — TOP 5
+-------------------
+1. **Legal entity footprint thin** — footer / kontakt / villkor / integritet often show **company name + Stockholm** but **no organisationsnummer, VAT, or street address** (`footer.tsx`, `kontakt/page.tsx`, `villkor/page.tsx`, `integritet/page.tsx`).
+2. **`OrganizationJsonLd`** — **no `legalName`, address, `vatID`, rich `sameAs`** → weaker **structured trust** in discovery (`json-ld.tsx`).
+3. **Transactional identity split** — emails/footer link **`rootshaircare.se`** and sender **`noreply@rootshaircare.se`** while web canonical is **`roots.se`** → **“same company?”** friction (`email/templates.ts`, `email/index.ts`, `layout.tsx`).
+4. **Support channel fragmentation** — **`support@roots.se`** vs **`hej@roots.se`** across AI, hair analysis, public chat, legal pages (`system-prompt.ts`, `ai-chat.ts`, `hair-analysis.ts`, `public-chat.ts`, `kontakt`).
+5. **Press / third-party proof thin** — **no awards strip**, press is **email-only**, **no named founders/team** with photos vs lifestyle/product imagery (`om-oss/page.tsx`, `founders.tsx`).
+
+RETENTION LEAKS — TOP 5
+------------------------
+1. **No lifecycle job runner** — `pg-boss` in package.json **unused**; **no cron/worker** path for Day 3/7 winback (`package.json` pattern; Agent 6).
+2. **`/registrera` abandonment** — **client `useState` only**, no partial save or resume email (`registrera/page.tsx`).
+3. **`milestoneEmail`, `getMilestoneTemplate`, `getCampaignStartTemplate`** — **defined but never sent** / not wired to outbound mail (`email/templates.ts`, `communication-templates.ts`, routes grep).
+4. **No dormant segmentation** — org schema lacks **`lastCampaignAt` / engagement flags** for winback queries (`organizations.ts` pattern).
+5. **Password reset path** — **tRPC claims success** without verified send implementation (`trpc/routers/auth.ts`); trust + return gap for stuck users.
+
+=====================================================
+PRIORITY 1 — CRITICAL
+=====================================================
+
+[1.1] **Hardcoded homepage stats** (`500+` analyser, `23` föreningar, `100%` naturliga…) — **no source, date, or live query** → misleading social proof if not audited.
+Agents: Trust signals; Social proof; Urgency
+Files: apps/web/src/components/sections/social-proof.tsx (~1–24)
+
+[1.2] **Hardcoded “milstolpar” / achievements** (“12 föreningar har nått detta”, etc.) — same bandwagon risk.
+Agents: Trust; Social proof; Urgency; Gamification
+Files: apps/web/src/components/sections/gamification.tsx (~7–22, ~41–53)
+
+[1.3] **Repeated `500+` block on håranalys marketing** — duplicate unsourced counter.
+Agents: Social proof; Urgency
+File: apps/web/src/app/(marketing)/haranalys/page.tsx (~168–174)
+
+[1.4] **Portal dashboards & activity feeds** — extensive **fallback names, clubs, amounts** resembling **live ops** — users may treat demo as truth (`AdminDashboard`, `recentActivity`, etc.).
+Agents: Social proof; Trust (portal layouts)
+File: apps/web/src/app/(portal)/portal/page.tsx (~29–103)
+
+[1.5] **Offerter page** — **real club names + amounts** in fallback + **`totalValue` hardcoded** vs table → **credibility collision** when mixed with API rows.
+Agents: Social proof
+Files: apps/web/src/app/(portal)/portal/offerter/page.tsx (~19–74, ~125–176)
+
+[1.6] **`saljare` KPI strip** — hardcoded **`totalPipeline` / `totalClosed` / `avgConversion`** may **contradict** fetched table rows.
+Agents: Social proof
+File: apps/web/src/app/(portal)/portal/saljare/page.tsx (~81–188)
+
+[1.7] **Statistik page** — claims “realtime” tone while **`kpiCards` / `topProducts` stay fallback**; footer **+24%** fixed — **false precision**.
+Agents: Social proof
+File: apps/web/src/app/(portal)/portal/statistik/page.tsx (~27–171)
+
+[1.8] **Shop ignores inactive campaign until checkout** — supporter can browse/add to cart; failure only at **checkout** when `campaign.status !== ACTIVE`.
+Agents: Urgency & scarcity
+Files: apps/api/src/routes/checkout.ts (~96–104)
+       apps/web/src/app/(shop)/shop/[slug]/page.tsx (~36–61, ~170–206 pattern)
+
+[1.9] **Static bundle card “Spara genom att köpa alla tre”** — **not verified** against cart/API bundle economics.
+Agents: Urgency & scarcity
+File: apps/web/src/app/(shop)/shop/[slug]/page.tsx (~270–279)
+
+[1.10] **Team seller leaderboard** — **podium + medals + ordered SEK ranking + display names** — **pressure/shame risk** for youth sellers; **no opt-out**.
+Agents: Gamification ethics
+Files: apps/web/src/app/(fundraising)/lag/page.tsx (~226–269)
+       apps/web/src/app/(fundraising)/lag/saljare/page.tsx (~288–441)
+
+[1.11] **Milestone copy “paket sålda”** vs **`orderCount` = `COUNT(*)`** — semantic mismatch → unfair or “broken” milestones.
+Agents: Gamification ethics
+Files: packages/db / apps/api/src/lib/milestones.ts (~64–73)
+       apps/api/src/routes/dashboard.ts (~396–421 pattern)
+
+[1.12] **Public shop exposes `displayName` + goal progress %** — **performance surface** without documented consent for minors.
+Agents: Gamification ethics
+File: apps/web/src/app/(shop)/shop/[slug]/page.tsx (~118–127, ~159–161)
+
+[1.13] **Invite copy “Skicka … till dina spelare”** — competitive sports framing on fundraising invites (minor-adjacent tone risk).
+Agents: Gamification ethics
+File: apps/web/src/app/(fundraising)/lag/page.tsx (~201–207)
+
+[1.14] **Portal AI welcome** promises coach/admin capabilities; client calls **`/v1/ai/public-chat`** — **trust bait-and-switch** (narrative ≠ model constraints).
+Agents: Brand voice; AI layer
+Files: apps/web/src/app/(portal)/portal/ai/page.tsx (~17–27)
+       apps/api/src/lib/ai/system-prompt.ts (`PUBLIC_CHAT_SYSTEM_PROMPT`)
+
+[1.15] **Email HTML / sender** uses **`rootshaircare.se`** + login CTA to **`rootshaircare.se/logga-in`** while site defaults **`roots.se`** — **cross-domain trust fracture**.
+Agents: Brand voice
+Files: apps/api/src/lib/email/templates.ts (~16–17, ~42–44)
+       apps/web/src/app/layout.tsx (~20–22)
+
+[1.16] **`RESEND_FROM` default `noreply@rootshaircare.se`** — reinforces secondary domain identity.
+Agents: Brand voice
+File: apps/api/src/lib/email/index.ts (~18–19 pattern)
+
+[1.17] **`support@roots.se`** vs **`hej@roots.se`** split across **`SYSTEM_PROMPT`, `ai-chat`, hair-analysis** vs **public prompt / `public-chat` fallback** — users get **contradictory contact guidance**.
+Agents: Brand voice
+Files: apps/api/src/lib/ai/system-prompt.ts (~1–11 vs ~60–69)
+       apps/api/src/routes/ai-chat.ts (~15–17)
+       apps/api/src/routes/hair-analysis.ts (~115–116 pattern)
+       apps/api/src/routes/public-chat.ts (~56–57)
+
+[1.18] **Villkor clause** — prices may change **“utan föregående meddelande”** while checkout uses order-time price — **consumer fairness / predictability** tension (not UI dark pattern but **trust signal**).
+Agents: Trust signals
+File: apps/web/src/app/(marketing)/villkor/page.tsx (~45)
+
+=====================================================
+PRIORITY 2 — HIGH
+=====================================================
+
+[2.1] **Footer** — copyright only; **no org.nr / VAT / postal address**.
+Agents: Trust signals
+File: apps/web/src/components/footer.tsx (~68–70)
+
+[2.2] **Kontakt page** — email + “Stockholm, Sverige”; **no phone, org.nr, street**.
+Agents: Trust signals
+File: apps/web/src/app/(marketing)/kontakt/page.tsx (~136–160)
+
+[2.3] **Integritet / GDPR intro** — narrative without **company registration identifiers** in header blocks.
+Agents: Trust signals
+File: apps/web/src/app/(marketing)/integritet/page.tsx (~20–27)
+
+[2.4] **Kassa (pre-Klarna)** — **limited SEK/shipping breakdown + villkor proximity** vs sticky shop bar (checkout trust at commitment).
+Agents: Trust signals
+Files: apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx (~274–287)
+       apps/web/src/app/(shop)/shop/[slug]/page.tsx (sticky total contrast)
+
+[2.5] **No authentic testimonials / reviews** with identities on marketing — **conversion gap** (inverse of fake reviews).
+Agents: Social proof
+
+[2.6] **Campaign `startDate` / `endDate` returned by API** but **not typed/shown on shop** — **missing honest deadline urgency**.
+Agents: Urgency & scarcity
+Files: apps/api/src/routes/shop.ts (~96–97)
+       apps/web/src/app/(shop)/shop/[slug]/page.tsx (~44–55 interface gap)
+
+[2.7] **Team comparison ranking** (lag vs lag) — org-internal competitive table (`forening/page.tsx`) — secondary pressure vs individual leaderboard.
+Agents: Gamification ethics
+
+[2.8] **Grade label “Starter”** English in tiers vs Swedish elsewhere — voice drift.
+Agents: Gamification ethics
+File: apps/api/src/lib/milestones.ts (~22 pattern)
+
+[2.9] **No Day 1 / 3 / 7 email nurture** — only **`welcomeEmail`** at registration / seller create.
+Agents: Onboarding retention
+Files: apps/api/src/lib/email/templates.ts (~24–46)
+       apps/api/src/routes/auth.ts (~324–329, ~480–485, ~587–592 pattern)
+       apps/api/src/routes/dashboard.ts (~347–352 pattern)
+
+[2.10] **Abandoned `/registrera`** — **no server draft or recovery email**.
+Agents: Onboarding retention
+File: apps/web/src/app/(auth)/registrera/page.tsx (~39–69)
+
+[2.11] **No welcome-back / since-last-visit** after login — plain redirect.
+Agents: Onboarding retention
+File: apps/web/src/app/(auth)/login/page.tsx (~44–52)
+
+[2.12] **Winback infrastructure absent** — **no dormant queries**, **`milestoneEmail` unused**, **`getCampaignStartTemplate` unused for sends**.
+Agents: Re-engagement
+Files: packages/db/src/schema/organizations.ts (~9–20 pattern)
+       apps/api/src/lib/email/templates.ts (~94–112)
+       apps/api/src/lib/communication-templates.ts (~64–85)
+
+[2.13] **No “seller stopped sharing” telemetry** — `share()` client-only (`navigator.share`), **no `lastSharedAt`**.
+Agents: Re-engagement
+Files: apps/web/src/app/(fundraising)/min-shop/page.tsx (~79–95)
+       packages/db/src/schema/sellers.ts (~19–38 pattern)
+
+[2.14] **Quotes expiry** — schema has **`validUntil` / EXPIRED**; **sales router stub** → **no real expiry reminders**.
+Agents: Re-engagement
+Files: packages/db/src/schema/quotes.ts (~13–18)
+       apps/api/src/trpc/routers/sales.ts (~23–49 stub pattern)
+
+[2.15] **Portal “påminnelse” demo** — copy claims overdue quotes; button sets **local demo state only** — **false capability** messaging.
+Agents: Re-engagement
+File: apps/web/src/app/(portal)/portal/page.tsx (~352–368 pattern)
+
+[2.16] **`/shop/[slug]` client-only** — **no `generateMetadata`** → shared links **unfurl generic Roots OG**, not seller/campaign story.
+Agents: Viral & referral
+Files: apps/web/src/app/(shop)/shop/[slug]/page.tsx (`"use client"`)
+       apps/web/src/app/layout.tsx (~14–40 OG defaults)
+
+[2.17] **`getShopShareTemplate` / invite templates** exposed via **`/v1/sharing`** but **web never fetches** — sellers use **hardcoded share strings**.
+Agents: Viral & referral
+Files: apps/api/src/lib/communication-templates.ts (~35–61)
+       apps/api/src/routes/sharing.ts (~30–94 pattern)
+
+[2.18] **Post-purchase share** weaker than min-shop — generic title **`Köp via Roots`**, clipboard **no toast**, errors swallowed.
+Agents: Viral & referral
+File: apps/web/src/app/(shop)/shop/[slug]/bekraftelse/page.tsx (~133–147)
+
+[2.19] **Supporter funnel** — **no “start a campaign / refer your club”** upsell after purchase.
+Agents: Viral & referral
+File: apps/web/src/app/(shop)/shop/[slug]/bekraftelse/page.tsx (~124–156 pattern)
+
+[2.20] **English tRPC / REST errors** (“Not authenticated”, “Invalid email…”) vs Swedish marketing voice — **cold failure tone**.
+Agents: Brand voice
+Files: apps/api/src/trpc/middleware/auth.ts (~11–38)
+       apps/api/src/trpc/routers/auth.ts (~17–112 pattern)
+       apps/api/src/lib/password.ts (~35–39)
+
+[2.21] **ASCII Swedish `SYSTEM_PROMPT`** (`Du ar`, `hjalper`) vs polished public Swedish — **dual-author** feel.
+Agents: Brand voice
+File: apps/api/src/lib/ai/system-prompt.ts (~1–7)
+
+=====================================================
+PRIORITY 3 — MEDIUM
+=====================================================
+
+[3.1] **Press section on Om oss** — **email-only**, no logos/articles/dates.
+Agents: Trust; Social proof
+File: apps/web/src/app/(marketing)/om-oss/page.tsx (~93–101)
+
+[3.2] **Founders section** — product gag / imagery, **no named team bios**.
+Agents: Trust signals
+Files: apps/web/src/components/sections/founders.tsx (~4–43)
+       apps/web/src/app/(marketing)/om-oss/page.tsx (~41–63)
+
+[3.3] **Certifications narrative** dismisses eco-cert obsession — **no trust seals** in UI (honest but thin vs shopper expectations).
+Agents: Trust signals
+File: apps/web/src/app/(marketing)/om-oss/page.tsx (~22–26)
+
+[3.4] **“100% naturliga ingredienser” vs om-oss skepticism on “100% ekologiska certifieringar”** — **semantic tension** for careful readers.
+Agents: Social proof
+Files: apps/web/src/app/(marketing)/produkter/page.tsx (~48–72)
+       apps/web/src/app/(marketing)/om-oss/page.tsx (~22–26)
+
+[3.5] **Logged-in portals** — **no shared legal/footer strip** (club, sales, fundraising, `/portal`).
+Agents: Trust signals
+Files: apps/web/src/app/(club)/layout.tsx (~25–99)
+       apps/web/src/app/(sales)/layout.tsx (~27–101)
+       apps/web/src/app/(fundraising)/layout.tsx (~110–207)
+       apps/web/src/app/(portal)/portal/layout.tsx (~140–237)
+
+[3.6] **Header/footer** — **no LinkedIn/Instagram** trust strip.
+Agents: Trust signals
+File: apps/web/src/components/header.tsx (~11–15 pattern)
+
+[3.7] **Pulse animation on CTAs** — subtle attention capture (`animate-subtle-pulse`) — ethics flag paired with scarcity copy.
+Agents: Trust signals
+File: apps/web/src/components/ui/button.tsx (~45–52)
+
+[3.8] **`ProductJsonLd` always `InStock`** — structured data may **overstate availability** if inventory rules tighten.
+Agents: Urgency & scarcity
+File: apps/web/src/components/json-ld.tsx (~60–64 pattern)
+
+[3.9] **Sales dashboard** — explicit zeros / explanatory copy (**positive transparency**) vs portal demo clutter.
+Agents: Social proof (positive contrast)
+File: apps/web/src/app/(sales)/sales/dashboard/page.tsx (~8–64 pattern)
+
+[3.10] **Fundraising dashboards API-backed** — **authentic numbers** where backend returns data (contrast marketing static stats).
+Agents: Social proof (positive)
+
+[3.11] **Partial in-dashboard nudges** — milestone “Nästa”, grades (**not** scheduled nurture).
+Agents: Onboarding retention
+Files: apps/web/src/app/(fundraising)/lag/page.tsx (~165–182)
+       apps/web/src/app/(fundraising)/min-shop/page.tsx (~234–251)
+
+[3.12] **Hair analysis wizard `sessionStorage`** — rare **resume partial funnel** (public lead magnet only).
+Agents: Onboarding retention
+File: apps/web/src/components/hair-analysis-lead-dialog.tsx (~104–119 pattern)
+
+[3.13] **`robots.txt` disallows `/shop/`** — **intentional no-index** for personal shops; **limits organic viral discovery** (product trade-off).
+Agents: Viral & referral
+File: apps/web/src/app/robots.ts (~5–12)
+
+[3.14] **Team leader flows clipboard-only** — no Web Share on some invite surfaces vs `min-shop`.
+Agents: Viral & referral
+Files: apps/web/src/app/(fundraising)/lag/page.tsx (~64–73 pattern)
+
+[3.15] **No milestone-triggered share CTA** — milestones display-only.
+Agents: Viral & referral
+
+[3.16] **Disclaimer punctuation** `--` vs `—` across AI surfaces — micro brand unevenness.
+Agents: Brand voice
+Files: apps/api/src/routes/ai-chat.ts (~77–78)
+       apps/api/src/routes/hair-analysis.ts (~141–142 pattern)
+
+[3.17] **Portal installningar** — toast **“Kontakta support”** without **`hej@`** — generic vs brand-specific support path.
+Agents: Brand voice
+File: apps/web/src/app/(portal)/portal/installningar/page.tsx (~116–117 pattern)
+
+=====================================================
+PRIORITY 4 — LOW
+=====================================================
+
+[4.1] **Next middleware** returns plain **`"Forbidden"`** body for role mismatch — English.
+Agents: Brand voice
+File: apps/web/src/middleware.ts (~49–50 pattern)
+
+[4.2] **Portal internal-admin demo English tokens** (`MRR`, `Redis`) — acceptable for INTERNAL_ADMIN metaphor; **off-tone** if shown to association roles (role-gating caveat).
+Agents: Brand voice
+File: apps/web/src/app/(portal)/portal/page.tsx (~74–89 pattern)
+
+[4.3] **`foreningsliv` marketing** — benefits story **without independent stats section**.
+Agents: Social proof
+File: apps/web/src/app/(marketing)/foreningsliv/page.tsx
+
+[4.4] **`produkter/[slug]` metadata** — title/description without rich per-SKU OG image (inherits root hero).
+Agents: Viral & referral
+File: apps/web/src/app/(marketing)/produkter/[slug]/page.tsx (~90–95 pattern)
+
+[4.5] **Positive trust anchors** — ARN / EU ODR links in villkor; integritet update date; Klarna checkout; Plausible privacy copy (agents noted as P5 positives — recorded as low-priority reinforcement).
+Agents: Trust signals
+
+[4.6] **Order confirmation** shows amount, email, truncated order id — **good post-purchase clarity**.
+Agents: Trust signals
+File: apps/web/src/app/(shop)/shop/[slug]/bekraftelse/page.tsx (~106–121 pattern)
+
+[4.7] **`min-shop` seller view** — **personal** grade/milestones **without peer leaderboard** — reduces direct comparison (**positive** ethical note).
+Agents: Gamification ethics
+File: apps/web/src/app/(fundraising)/min-shop/page.tsx (~189–267 pattern)
+
+[4.8] **No streak mechanics** in codebase — avoids reset-based loss aversion (**positive** note).
+Agents: Gamification ethics
+
+[4.9] **Contact form → staff** (`contact.ts`) — operational, not nurture.
+Agents: Re-engagement (informational)
+
+=====================================================
+PRIORITY 5 — NICE TO HAVE
+=====================================================
+
+[5.1] **Nordic law copy** strong (ARN, GDPR articles, Swedish consumer framing) — deepen with **verified stats** rather than more legal text.
+Agents: Trust signals
+
+[5.2] **Sales-positive transparency** (`sales/dashboard`) — template for how **portal** could label demo vs live data everywhere.
+
+[5.3] **Ethical urgency templates** — `getCampaignStartTemplate` includes **real dates** in plain text — **good tone if/when wired** to email sends.
+
+--- END OF REPORT ---

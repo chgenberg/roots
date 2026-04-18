@@ -3,6 +3,8 @@ import {
   uuid,
   varchar,
   integer,
+  text,
+  boolean,
   timestamp,
   pgEnum,
   index,
@@ -34,6 +36,13 @@ export const sellers = pgTable(
     individualGoal: integer("individual_goal").default(0),
     status: sellerStatusEnum("status").notNull().default("ACTIVE"),
     inviteToken: varchar("invite_token", { length: 64 }),
+    // Public-profile privacy fields. Sellers (especially minors) can choose
+    // to use an alias on their shop page and opt out of the team
+    // leaderboard. Added nullable + defaulting to safe values so existing
+    // seller rows keep rendering.
+    publicAlias: varchar("public_alias", { length: 80 }),
+    hideFromLeaderboard: boolean("hide_from_leaderboard").notNull().default(false),
+    personalMessage: text("personal_message"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },

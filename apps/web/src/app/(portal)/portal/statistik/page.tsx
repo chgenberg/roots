@@ -9,90 +9,84 @@ import {
   TrendingDown,
   Users,
   ShoppingCart,
-  ArrowUpRight,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { portalFetch } from "@/lib/portal-api";
 import { publicProductHref } from "@/lib/portal-products";
 
-const FALLBACK_MONTHLY_DATA = [
-  { month: "Okt", orders: 8, revenue: 4200 },
-  { month: "Nov", orders: 12, revenue: 6800 },
-  { month: "Dec", orders: 15, revenue: 8900 },
-  { month: "Jan", orders: 18, revenue: 10200 },
-  { month: "Feb", orders: 22, revenue: 13500 },
-  { month: "Mar", orders: 27, revenue: 16800 },
-];
+/* Fallback data is illustrative only. When the API reports no real data we
+ * render the dataset with empty-state copy instead of presenting demo numbers
+ * as live. */
 
-const FALLBACK_KPI_CARDS = [
+const FALLBACK_MONTHLY_DATA: Array<{ month: string; orders: number; revenue: number }> = [];
+
+const FALLBACK_KPI_CARDS: Array<{
+  label: string;
+  value: string;
+  change: string | null;
+  positive: boolean;
+  icon: typeof TrendingUp;
+}> = [
   {
     label: "Total omsättning",
-    value: "60 400 kr",
-    change: "+24%",
+    value: "—",
+    change: null,
     positive: true,
     icon: TrendingUp,
   },
   {
     label: "Genomsnittligt ordervärde",
-    value: "1 280 kr",
-    change: "+8%",
+    value: "—",
+    change: null,
     positive: true,
     icon: ShoppingCart,
   },
   {
     label: "Nya medlemmar",
-    value: "47",
-    change: "+32%",
+    value: "—",
+    change: null,
     positive: true,
     icon: Users,
   },
   {
     label: "Churn rate",
-    value: "2.1%",
-    change: "-0.5%",
+    value: "—",
+    change: null,
     positive: true,
     icon: TrendingDown,
   },
 ];
 
-const FALLBACK_TOP_PRODUCTS = [
-  {
-    name: "First Growth (Schampo)",
-    slug: "shampoo",
-    sold: 156,
-    revenue: "23 244 kr",
-    share: 38,
-  },
-  {
-    name: "Pure Root (Balsam)",
-    slug: "conditioner",
-    sold: 142,
-    revenue: "21 158 kr",
-    share: 35,
-  },
-  {
-    name: "Soft Rinse (Body Wash)",
-    slug: "body-wash",
-    sold: 124,
-    revenue: "15 996 kr",
-    share: 27,
-  },
-];
+const FALLBACK_TOP_PRODUCTS: Array<{
+  name: string;
+  slug: string;
+  sold: number;
+  revenue: string;
+  share: number;
+}> = [];
 
 export default function StatistikPage() {
-  const [monthlyData, setMonthlyData] = useState(FALLBACK_MONTHLY_DATA);
+  const [monthlyData, setMonthlyData] = useState<
+    Array<{ month: string; orders: number; revenue: number }>
+  >(FALLBACK_MONTHLY_DATA);
   const [kpiCards] = useState(FALLBACK_KPI_CARDS);
   const [topProducts] = useState(FALLBACK_TOP_PRODUCTS);
 
   useEffect(() => {
-    portalFetch<{ monthlyData: any[] }>("/statistics")
+    portalFetch<{
+      monthlyData?: Array<{
+        month: string;
+        orders?: number;
+        revenueOre?: number;
+      }>;
+    }>("/statistics")
       .then((data) => {
         if (data.monthlyData?.length) {
           setMonthlyData(
             data.monthlyData.map((d) => ({
               month: d.month ?? "",
-              orders: d.orders ?? 0,
-              revenue: d.revenue ?? 0,
+              orders: Number(d.orders ?? 0),
+              revenue: Math.round(Number(d.revenueOre ?? 0) / 100),
             }))
           );
         }
@@ -100,7 +94,8 @@ export default function StatistikPage() {
       .catch(() => {});
   }, []);
 
-  const maxRevenue = Math.max(...monthlyData.map((d) => d.revenue));
+  const maxRevenue = Math.max(1, ...monthlyData.map((d) => d.revenue));
+  const hasData = monthlyData.length > 0;
 
   return (
     <div className="page-enter space-y-6">
@@ -120,15 +115,19 @@ export default function StatistikPage() {
                 <k.icon className="h-4 w-4 text-brand-400" />
               </div>
               <p className="mt-2 text-2xl font-bold">{k.value}</p>
-              <div className="mt-1 flex items-center gap-1">
-                <Badge
-                  variant={k.positive ? "success" : "destructive"}
-                  className="text-[10px]"
-                >
-                  {k.change}
-                </Badge>
-                <span className="text-xs text-muted-foreground">vs förra månaden</span>
-              </div>
+              {k.change && (
+                <div className="mt-1 flex items-center gap-1">
+                  <Badge
+                    variant={k.positive ? "success" : "destructive"}
+                    className="text-[10px]"
+                  >
+                    {k.change}
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">
+                    vs förra månaden
+                  </span>
+                </div>
+              )}
             </CardContent>
           </Card>
         ))}
@@ -144,31 +143,41 @@ export default function StatistikPage() {
                 Senaste 6 mån
               </Badge>
             </div>
-            <div className="mt-6 flex items-end gap-3" style={{ height: 200 }}>
-              {monthlyData.map((d) => {
-                const h = Math.round((d.revenue / maxRevenue) * 100);
-                return (
-                  <div key={d.month} className="flex flex-1 flex-col items-center gap-2">
-                    <span className="text-xs font-medium">
-                      {(d.revenue / 1000).toFixed(1)}k
-                    </span>
-                    <div
-                      className="w-full rounded-t-lg bg-inverse-surface transition-all hover:bg-inverse-surface-hover"
-                      style={{ height: `${h}%` }}
-                    />
-                    <span className="text-xs text-muted-foreground">{d.month}</span>
-                  </div>
-                );
-              })}
-            </div>
-            <Separator className="my-4" />
-            <div className="flex items-center gap-2 text-sm">
-              <ArrowUpRight className="h-4 w-4 text-brand-400" />
-              <span className="font-medium">+24% tillväxt</span>
-              <span className="text-muted-foreground">
-                jämfört med samma period föregående halvår
-              </span>
-            </div>
+            {hasData ? (
+              <>
+                <div
+                  className="mt-6 flex items-end gap-3"
+                  style={{ height: 200 }}
+                >
+                  {monthlyData.map((d) => {
+                    const h = Math.round((d.revenue / maxRevenue) * 100);
+                    return (
+                      <div
+                        key={d.month}
+                        className="flex flex-1 flex-col items-center gap-2"
+                      >
+                        <span className="text-xs font-medium">
+                          {(d.revenue / 1000).toFixed(1)}k
+                        </span>
+                        <div
+                          className="w-full rounded-t-lg bg-inverse-surface transition-all hover:bg-inverse-surface-hover"
+                          style={{ height: `${h}%` }}
+                        />
+                        <span className="text-xs text-muted-foreground">
+                          {d.month}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <Separator className="my-4" />
+              </>
+            ) : (
+              <p className="mt-6 rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                Ingen omsättningshistorik ännu. Diagrammet fylls i automatiskt
+                när ni får era första betalda ordrar.
+              </p>
+            )}
           </CardContent>
         </Card>
 
@@ -176,6 +185,11 @@ export default function StatistikPage() {
         <Card>
           <CardContent className="p-5">
             <h2 className="font-semibold">Toppprodukter</h2>
+            {topProducts.length === 0 && (
+              <p className="mt-4 rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+                Listan fylls på när ni har fått ordrar.
+              </p>
+            )}
             <div className="mt-4 space-y-4">
               {topProducts.map((p) => (
                 <div key={p.name}>
@@ -213,22 +227,39 @@ export default function StatistikPage() {
       <Card>
         <CardContent className="p-5">
           <h2 className="font-semibold">Beställningar per månad</h2>
-          <div className="mt-6 flex items-end gap-3" style={{ height: 120 }}>
-            {monthlyData.map((d) => {
-              const maxOrders = Math.max(...monthlyData.map((x) => x.orders));
-              const h = Math.round((d.orders / maxOrders) * 100);
-              return (
-                <div key={d.month} className="flex flex-1 flex-col items-center gap-2">
-                  <span className="text-xs font-medium">{d.orders}</span>
+          {hasData ? (
+            <div
+              className="mt-6 flex items-end gap-3"
+              style={{ height: 120 }}
+            >
+              {monthlyData.map((d) => {
+                const maxOrders = Math.max(
+                  1,
+                  ...monthlyData.map((x) => x.orders)
+                );
+                const h = Math.round((d.orders / maxOrders) * 100);
+                return (
                   <div
-                    className="w-full rounded-t-lg bg-brand-400 transition-all hover:bg-brand-300"
-                    style={{ height: `${h}%` }}
-                  />
-                  <span className="text-xs text-muted-foreground">{d.month}</span>
-                </div>
-              );
-            })}
-          </div>
+                    key={d.month}
+                    className="flex flex-1 flex-col items-center gap-2"
+                  >
+                    <span className="text-xs font-medium">{d.orders}</span>
+                    <div
+                      className="w-full rounded-t-lg bg-brand-400 transition-all hover:bg-brand-300"
+                      style={{ height: `${h}%` }}
+                    />
+                    <span className="text-xs text-muted-foreground">
+                      {d.month}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="mt-6 rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+              Inga ordrar registrerade ännu.
+            </p>
+          )}
         </CardContent>
       </Card>
     </div>

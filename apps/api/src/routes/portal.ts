@@ -18,6 +18,10 @@ const log = childLogger("portal");
 
 export const portal = new Hono();
 
+function formatSek(ore: number): string {
+  return `${Math.round(ore / 100).toLocaleString("sv-SE")} kr`;
+}
+
 function getSessionId(c: any): string | null {
   const cookie = c.req.header("cookie") || "";
   const match = cookie.match(new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`));
@@ -75,12 +79,21 @@ portal.get("/dashboard", async (c) => {
             )
         : [{ total: 0 }];
 
+      const membersNum = Number(memberCount[0]?.count || 0);
+      const ordersNum = Number(orderCount[0]?.count || 0);
+      const revenueOre = Number(revenueResult[0]?.total || 0);
+      const isDemo = membersNum === 0 && ordersNum === 0 && revenueOre === 0;
+
       return c.json({
         role,
+        isDemo,
         stats: {
-          members: Number(memberCount[0]?.count || 0),
-          orders: Number(orderCount[0]?.count || 0),
-          revenueOre: Number(revenueResult[0]?.total || 0),
+          members: membersNum,
+          orders: ordersNum,
+          revenueOre,
+          // Additive, UI-facing aliases (formatted strings)
+          revenue: formatSek(revenueOre),
+          nextDelivery: null,
         },
       });
     }
@@ -107,13 +120,25 @@ portal.get("/dashboard", async (c) => {
         .from(quotes)
         .where(eq(quotes.status, "SENT"));
 
+      const clubsNum = Number(clubCount[0]?.count || 0);
+      const quotesNum = Number(quoteCount[0]?.count || 0);
+      const closedNum = Number(closedCount[0]?.count || 0);
+      const pipelineOre = Number(pipelineValue[0]?.total || 0);
+      const isDemo =
+        clubsNum === 0 && quotesNum === 0 && closedNum === 0 && pipelineOre === 0;
+
       return c.json({
         role,
+        isDemo,
         stats: {
-          clubs: Number(clubCount[0]?.count || 0),
-          quotesOut: Number(quoteCount[0]?.count || 0),
-          closedThisMonth: Number(closedCount[0]?.count || 0),
-          pipelineValueOre: Number(pipelineValue[0]?.total || 0),
+          clubs: clubsNum,
+          quotesOut: quotesNum,
+          closedThisMonth: closedNum,
+          pipelineValueOre: pipelineOre,
+          // Additive, UI-facing aliases
+          activeClubs: clubsNum,
+          openQuotes: quotesNum,
+          pipelineValue: formatSek(pipelineOre),
         },
       });
     }
@@ -132,12 +157,25 @@ portal.get("/dashboard", async (c) => {
       .from(orders)
       .where(eq(orders.invoiceStatus, "PAID"));
 
+    const totalOrdersNum = Number(totalOrders[0]?.count || 0);
+    const totalClubsNum = Number(totalClubs[0]?.count || 0);
+    const mrrOre = Number(mrrResult[0]?.total || 0);
+    const isDemo = totalOrdersNum === 0 && totalClubsNum === 0 && mrrOre === 0;
+
     return c.json({
       role,
+      isDemo,
       stats: {
-        totalOrders: Number(totalOrders[0]?.count || 0),
-        totalClubs: Number(totalClubs[0]?.count || 0),
-        mrrOre: Number(mrrResult[0]?.total || 0),
+        totalOrders: totalOrdersNum,
+        totalClubs: totalClubsNum,
+        mrrOre,
+        // Additive, UI-facing aliases so the admin dashboard shows real numbers
+        // instead of the fallback demo ones.
+        mrr: formatSek(mrrOre),
+        activeClubs: totalClubsNum,
+        // Hair-analysis conversion is not yet tracked — return a null-ish string
+        // so UI falls through to its demo value when we truly have no data.
+        hairConversion: null,
       },
     });
   } catch (err) {
@@ -413,7 +451,32 @@ portal.get("/statistics", async (c) => {
       .orderBy(sql`to_char(${orders.createdAt}, 'YYYY-MM')`)
       .limit(12);
 
-    return c.json({ monthlyData });
+    // Additive: provide formatted SEK values and convenient top-level aliases
+    // alongside the original monthlyData payload so UIs can display real values
+    // without bespoke client-side formatting.
+    const enriched = monthlyData.map((m) => ({
+      ...m,
+      revenue: formatSek(Number(m.revenueOre)),
+      orders: Number(m.orderCount),
+    }));
+    const totals = enriched.reduce(
+      (acc, m) => {
+        acc.orders += Number(m.orderCount);
+        acc.revenueOre += Number(m.revenueOre);
+        return acc;
+      },
+      { orders: 0, revenueOre: 0 }
+    );
+
+    return c.json({
+      monthlyData: enriched,
+      isDemo: enriched.length === 0,
+      totals: {
+        orders: totals.orders,
+        revenueOre: totals.revenueOre,
+        revenue: formatSek(totals.revenueOre),
+      },
+    });
   } catch (err) {
     log.error({ err }, "Failed to fetch statistics");
     return c.json({ error: "Kunde inte hämta statistik" }, 500);
@@ -481,15 +544,31 @@ portal.get("/pipeline", async (c) => {
       .from(quotes)
       .groupBy(quotes.status);
 
+    const stageData = stages.map((s) => {
+      const found = byStage.find((b) => b.status === s);
+      return {
+        stage: s,
+        count: Number(found?.count || 0),
+        totalOre: Number(found?.totalOre || 0),
+      };
+    });
+
+    // Recent deals (non-empty list helps the pipeline page render real data).
+    const recentDeals = await db
+      .select({
+        id: quotes.id,
+        status: quotes.status,
+        totalOre: quotes.totalOre,
+        orgId: quotes.orgId,
+        createdAt: quotes.createdAt,
+      })
+      .from(quotes)
+      .orderBy(desc(quotes.createdAt))
+      .limit(25);
+
     return c.json({
-      stages: stages.map((s) => {
-        const found = byStage.find((b) => b.status === s);
-        return {
-          stage: s,
-          count: Number(found?.count || 0),
-          totalOre: Number(found?.totalOre || 0),
-        };
-      }),
+      stages: stageData,
+      deals: recentDeals,
     });
   } catch (err) {
     log.error({ err }, "Failed to fetch pipeline");
@@ -507,53 +586,104 @@ portal.get("/system", async (c) => {
     return c.json({ error: "Behörighet saknas" }, 403);
   }
 
-  const services = [];
+  const services: Array<{
+    name: string;
+    status: string;
+    ok: boolean;
+    latency: string;
+    latencyMs: number;
+    uptime: string;
+  }> = [];
 
-  // Check DB
+  const pushService = (name: string, ok: boolean, latencyMs: number) => {
+    services.push({
+      name,
+      status: ok ? "Operativ" : "Nere",
+      ok,
+      latencyMs,
+      latency: ok ? `${latencyMs} ms` : "—",
+      uptime: "—",
+    });
+  };
+
+  // PostgreSQL
   try {
     const start = Date.now();
     await db.execute(sql`SELECT 1`);
-    services.push({
-      name: "PostgreSQL",
-      status: "Operativ",
-      ok: true,
-      latencyMs: Date.now() - start,
-    });
+    pushService("PostgreSQL", true, Date.now() - start);
   } catch {
-    services.push({
-      name: "PostgreSQL",
-      status: "Nere",
-      ok: false,
-      latencyMs: 0,
-    });
+    pushService("PostgreSQL", false, 0);
   }
 
-  // Check Redis
+  // Redis
   try {
     const { redis } = await import("../lib/redis");
     const start = Date.now();
     await redis.ping();
-    services.push({
-      name: "Redis",
-      status: "Operativ",
-      ok: true,
-      latencyMs: Date.now() - start,
-    });
+    pushService("Redis", true, Date.now() - start);
   } catch {
-    services.push({
-      name: "Redis",
-      status: "Nere",
-      ok: false,
-      latencyMs: 0,
-    });
+    pushService("Redis", false, 0);
   }
 
-  services.push({
-    name: "API",
-    status: "Operativ",
-    ok: true,
-    latencyMs: 0,
-  });
+  // API (always up if we reached here)
+  pushService("API (Express)", true, 0);
 
-  return c.json({ services });
+  // AI / Open Claw — surface from env only; we don't ping OpenAI on
+  // every admin page load.
+  const aiConfigured =
+    !!process.env.OPENAI_API_KEY &&
+    !String(process.env.OPENAI_API_KEY).includes("REPLACE-ME");
+  pushService("AI / Open Claw", aiConfigured, 0);
+
+  // AI usage: best-effort, null-safe. UIs fall back to demo values when null.
+  const aiUsage = {
+    tokensToday: null,
+    tokensMonth: null,
+    sessions: null,
+    avgResponseTime: null,
+    model: process.env.OPENAI_DEFAULT_MODEL || "gpt-5.4-mini",
+  };
+
+  // Rate limits shape matches the admin System page so it can switch to
+  // real numbers as soon as we start emitting gauges to Redis.
+  const rateLimits = [
+    { endpoint: "/v1/ai/public-chat", limit: "30/h", current: null, ok: true },
+    { endpoint: "/v1/ai/chat", limit: "30/min", current: null, ok: true },
+    { endpoint: "/v1/auth/*", limit: "20/min", current: null, ok: true },
+    { endpoint: "/v1/orders", limit: "100/min", current: null, ok: true },
+  ];
+
+  // Recent events: read from audit_logs when present, otherwise null so the
+  // page falls back to demo entries instead of an empty card.
+  let recentEvents: Array<{
+    text: string;
+    time: string;
+    type: string;
+  }> | null = null;
+  try {
+    const { auditLogs } = await import("@roots/db/schema");
+    const rows = await db
+      .select({
+        action: auditLogs.action,
+        entityType: auditLogs.entityType,
+        createdAt: auditLogs.createdAt,
+      })
+      .from(auditLogs)
+      .orderBy(desc(auditLogs.createdAt))
+      .limit(10);
+    if (rows.length > 0) {
+      recentEvents = rows.map((r) => ({
+        text: `${r.action}${r.entityType ? ` · ${r.entityType}` : ""}`,
+        time: new Date(r.createdAt).toLocaleTimeString("sv-SE", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        type: "info",
+      }));
+    }
+  } catch {
+    recentEvents = null;
+  }
+
+  return c.json({ services, aiUsage, rateLimits, recentEvents });
 });

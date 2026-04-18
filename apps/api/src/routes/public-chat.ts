@@ -8,6 +8,7 @@ import {
   type ChatMessage,
 } from "../lib/ai/openclaw-client";
 import { PUBLIC_CHAT_SYSTEM_PROMPT } from "../lib/ai/system-prompt";
+import { flags } from "../lib/flags";
 
 export const publicChat = new Hono();
 
@@ -56,10 +57,12 @@ publicChat.post("/public-chat", async (c) => {
   const fallbackReply =
     "Vår AI-assistent är inte tillgänglig just nu. Kontakta oss på hej@roots.se så hjälper vi dig.";
 
-  if (!isAiConfigured()) {
+  if (!flags.aiEnabled() || !isAiConfigured()) {
     if (body.stream) {
       return streamSSE(c, async (stream) => {
-        await stream.writeSSE({ data: JSON.stringify({ content: fallbackReply }) });
+        await stream.writeSSE({
+          data: JSON.stringify({ content: fallbackReply, fallback: true }),
+        });
         await stream.writeSSE({ data: "[DONE]" });
       });
     }
@@ -92,6 +95,7 @@ publicChat.post("/public-chat", async (c) => {
             fallback: true,
           }),
         });
+        await stream.writeSSE({ data: "[DONE]" });
       }
     });
   }

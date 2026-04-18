@@ -1,0 +1,329 @@
+ROOTS INTERNAL ADMIN FLOW AUDIT
+================================
+Date: 2026-04-18 13:10
+Agents: 8 parallel read-only sub-agents
+Scope: Internal admin operations — health, users, campaigns, finance (UX), moderation, support, analytics, audit/compliance
+
+SUMMARY
+-------
+Total findings (deduplicated): 57
+  Priority 1 (Critical): 13
+  Priority 2 (High):       21
+  Priority 3 (Medium):     15
+  Priority 4 (Low):         6
+  Priority 5 (Nice):        2
+
+Consolidation: Repeated themes merged (API/UI contract mismatches on `portal` dashboard & statistik; `audit_logs` unused across agents; RBAC gaps on `portal.ts` REST).
+
+OPS GUARDRAILS — TOP RISKS
+-----------------------------
+1. **`audit_logs` table is never written or queried in app code** — admin/support actions, role changes, and future impersonation would leave **no structured trail**.
+2. **Portal REST RBAC inconsistencies:** `GET /v1/portal/pipeline` aggregates **all quotes** with only `requireSession`; **`GET /sellers`** returns sales roster (PII) without **`INTERNAL_ADMIN`** guard — **cross-tenant / least-privilege violations**.
+3. **`GET /statistics` and `GET /income`** use `where(session.orgId ? … : 1=1)` — users with **null `orgId`** receive **platform-wide** aggregates/revenue — unintended global BI exposure.
+4. **Ops decisions driven by misleading UI:** Admin dashboard mixes **demo fallbacks** with partial live data; **`mrrOre`** is cumulative paid order sum, **not MRR**; KPI keys (`mrr`, `activeClubs`) **don’t match API** (`mrrOre`, `totalClubs`) → **false zeros and trust collapse**.
+5. **No campaign oversight or support playbooks** in product — pause/extend/flag require **association-only** tRPC; internal admin **cannot intervene** via the same mutations; **no global campaign list/export**.
+
+GDPR / AUDIT GAPS
+-----------------
+- **No GDPR erasure/delete-user API** path found in `apps/api` (grep); **no SAR / registerutdig workflow** in portal — only marketing `integritet` text.
+- **No full subject data export** bundle (profile, orders, consents, chats) — `generateOrdersCsv` exists but is **not** a SAR pack and **unwired** to admin UI.
+- **`audit_logs` DDL** has no append-only enforcement (no triggers/RLS cited) — table exists but **unused**.
+- **Support “act on behalf”** (impersonation, password reset for user) **not implemented** by design (`05_AUTH_RBAC.txt`); `requestPasswordReset` tRPC is **stub** — no operational replacement with audit.
+
+=====================================================
+PRIORITY 1 — CRITICAL
+=====================================================
+
+[1.1] **Admin `AdminDashboard` mixes demo fallback** (`leaderboard`, `systemHealth`, `recentActivity`) — API **`/portal/dashboard` for INTERNAL_ADMIN** returns only `totalOrders`, `totalClubs`, `mrrOre` — rich blocks **never hydrate** from server; risk of **ops acting on fabricated data**.
+Agents: System health; Analytics
+File: apps/web/src/app/(portal)/portal/page.tsx
+Line: ~397–418, ~449–530
+File: apps/api/src/routes/portal.ts
+Line: ~121–141
+
+[1.2] **Dashboard KPI contract mismatch:** UI reads `s.mrr`, `s.activeClubs`, `s.hairConversion`; API returns **`mrrOre`**, **`totalClubs`** — tiles show **0** or wrong units when fetch succeeds.
+Agents: System health; Financial overview; Analytics
+File: apps/web/src/app/(portal)/portal/page.tsx
+Line: ~408–414
+File: apps/api/src/routes/portal.ts
+Line: ~121–141
+
+[1.3] **`mrrOre` semantics wrong for label “MRR”** — sum of **all PAID `orders.totalOre`**, not monthly recurring revenue.
+Agents: Financial overview
+File: apps/api/src/routes/portal.ts
+Line: ~128–141
+
+[1.4] **System page:** `GET /portal/system` returns **`{ services }` only**; UI shows **static** `FALLBACK_*` for AI usage, rate limits, recent events — **not telemetry-backed**.
+Agents: System health
+File: apps/web/src/app/(portal)/portal/system/page.tsx
+Line: ~19–88, ~90–110
+
+[1.5] **Live service cards bind `uptime` / `latency`** but API returns **`latencyMs`** and **no `uptime`** — cells **blank** after fetch.
+Agents: System health
+File: apps/web/src/app/(portal)/portal/system/page.tsx
+Line: ~136–144
+File: apps/api/src/routes/portal.ts
+Line: ~516–556
+
+[1.6] **`audit_logs` schema exists but no app writes/reads** — **no immutable admin audit log** in product.
+Agents: User roles; Moderation; Support; Audit
+File: packages/db/src/schema/audit.ts
+Line: ~3–11
+
+[1.7] **`GET /v1/portal/pipeline`** — aggregates **all `quotes`** with **only `requireSession`** — **no org/role guard**; cross-tenant quote KPI exposure.
+Agents: Audit & compliance
+File: apps/api/src/routes/portal.ts
+Line: ~469–492
+
+[1.8] **`GET /v1/portal/sellers`** — returns id/name/email/role for sales users to **any authenticated user** without `INTERNAL_ADMIN` check.
+Agents: Audit & compliance
+File: apps/api/src/routes/portal.ts
+Line: ~338–356
+
+[1.9] **`GET /statistics` + `GET /income`** — when `session.orgId` falsy, query uses **`1=1`** — **global** order/revenue aggregates for that user — overbroad BI leak if non-internal sessions lack org.
+Agents: Analytics; Audit
+File: apps/api/src/routes/portal.ts
+Line: ~400–411, ~430–455
+
+[1.10] **Statistics for user with `orgId` set (e.g. internal company org)** — scopes to **that org only**, not **platform-wide** internal admin view — misleading for “global” KPI intent.
+Agents: Analytics
+File: apps/api/src/routes/portal.ts
+Line: ~407–411
+
+[1.11] **Statistik UI maps wrong keys** — API `orderCount`/`revenueOre` vs client `orders`/`revenue` → **zeros** with live data.
+Agents: Analytics; Financial (portal statistik)
+File: apps/web/src/app/(portal)/portal/statistik/page.tsx
+Line: ~91–96
+File: apps/api/src/routes/portal.ts
+Line: ~400–405
+
+[1.12] **No GDPR delete / anonymize user workflow** in API layer reviewed.
+Agents: User roles
+Detail: Repo search cited no user deletion path.
+
+[1.13] **No internal-admin campaign oversight surface** — no cross-org campaign list, filters, export, anomaly UI; dashboard omits campaigns.
+Agents: Campaign oversight
+File: apps/web/src/app/(portal)/portal/page.tsx
+File: apps/api/src/routes/portal.ts
+Line: ~121–141
+
+=====================================================
+PRIORITY 2 — HIGH
+=====================================================
+
+[2.1] **No queue/worker lag** health — only Postgres `SELECT 1`, Redis `PING`, static API row (`latencyMs: 0`).
+Agents: System health
+File: apps/api/src/routes/portal.ts
+Line: ~500–558
+
+[2.2] **No alerting feed** for internal admins (in-app alerts, incident integration) — system UI warnings largely static.
+Agents: System health
+File: apps/web/src/app/(portal)/portal/system/page.tsx
+Line: ~69–75, ~226–253
+
+[2.3] **No time-bucketed business rates** (orders/hour, signups/day) on internal dashboard — only coarse totals + mislabeled `mrrOre`.
+Agents: System health
+File: apps/api/src/routes/portal.ts
+Line: ~121–141
+
+[2.4] **Third-party probes** (OpenAI, mail) absent from `/system` real response — only fallback cards mention AI.
+Agents: System health
+File: apps/api/src/routes/portal.ts
+Line: ~510–558
+
+[2.5] **No incident/maintenance banner** in portal layout.
+Agents: System health
+File: apps/web/src/app/(portal)/portal/layout.tsx
+Line: ~85–116
+
+[2.6] **`GET /members` for INTERNAL_ADMIN** — first **100** users by name, **no search `q`**, **no `orgId`/org name** on rows — weak ops UX.
+Agents: User roles
+File: apps/api/src/routes/portal.ts
+Line: ~313–324
+
+[2.7] **No `update(users)` role/org repair API** — mistakes require DB migration path.
+Agents: User roles
+File: apps/api/src/routes/auth.ts (pattern cited)
+
+[2.8] **Single `orgId` per user** — true multi-org membership not modeled.
+Agents: User roles
+File: packages/db/src/schema/users.ts
+Line: ~16–21
+
+[2.9] **`sales.admin.users` returns `[]` stub** — no real admin user list.
+Agents: User roles
+File: apps/api/src/trpc/routers/sales.ts
+Line: ~92–95
+
+[2.10] **`campaigns.update`/`activate` are association-only** — INTERNAL_ADMIN cannot pause/extend via same tRPC without role refactor.
+Agents: Campaign oversight
+File: apps/api/src/trpc/middleware/auth.ts
+File: apps/api/src/trpc/routers/campaigns.ts
+Line: ~137–176
+
+[2.11] **No disputes/chargebacks/refunds dashboard** — `REFUNDED` exists on schema only.
+Agents: Financial overview
+
+[2.12] **`Intäkter` page API/UI mismatch** (`revenue`, `orders`, `payout` vs `revenueOre`, `orderCount`) + hardcoded summary cards.
+Agents: Financial overview
+File: apps/web/src/app/(portal)/portal/intakter/page.tsx
+Line: ~18–28, ~61–77
+File: apps/api/src/routes/portal.ts
+Line: ~430–444
+
+[2.13] **`ADMIN_NAV` omits global settlement/payout overview** — ops rely on drilling fundraising routes or raw API knowledge.
+Agents: Financial overview
+File: apps/web/src/app/(portal)/portal/layout.tsx
+Line: ~52–62
+
+[2.14] **`/portal/clubs` — up to 50 orgs for any authenticated user** (no internal-only guard cited).
+Agents: Audit & compliance
+File: apps/api/src/routes/portal.ts
+Line: ~263–286
+
+[2.15] **Shop API ignores `seller.status`** — no admin takedown workflow; inactive still served publicly.
+Agents: Moderation
+File: apps/api/src/routes/shop.ts
+Line: ~20–32
+
+[2.16] **No moderation queue / flags / audit UI** — `/sales/admin` placeholder cards only.
+Agents: Moderation
+File: apps/web/src/app/(sales)/sales/admin/page.tsx
+Line: ~9–99
+
+[2.17] **Public/portal AI chat — rate limits only; no abuse/profanity filter before LLM.
+Agents: Moderation
+File: apps/api/src/routes/public-chat.ts
+File: apps/api/src/routes/ai-chat.ts
+
+[2.18] **Chat history client-side only** — not stored/searchable for compliance review.
+Agents: Moderation
+File: apps/web/src/components/chat-widget.tsx
+Line: ~31–34, ~87–114
+
+[2.19] **`GET /orders` (portal) wholesale table** — **no `q` search**; supporter `customer_orders` **not** in global admin lookup path.
+Agents: Support tooling
+File: apps/api/src/routes/portal.ts
+Line: ~166–197
+
+[2.20] **No resend confirmation email route** separate from checkout webhook.
+Agents: Support tooling
+File: apps/api/src/routes/checkout.ts
+Line: ~318–330
+
+[2.21] **`REFUNDED` status never set by API** — no internal refund trigger.
+Agents: Support tooling
+File: packages/db/src/schema/customer-orders.ts
+
+=====================================================
+PRIORITY 3 — MEDIUM
+=====================================================
+
+[3.1] **User email lookups are exact `eq(email)`** — no fuzzy user search (contrast org `ilike`).
+Agents: User roles
+File: apps/api/src/routes/auth.ts (pattern)
+
+[3.2] **`(sales)/sales/admin` static** — “Inga användare” with no API wiring.
+Agents: User roles
+File: apps/web/src/app/(sales)/sales/admin/page.tsx
+Line: ~9–54
+
+[3.3] **Campaign schema** lacks risk/flag/ops_notes fields — cannot flag underperformance in data model.
+Agents: Campaign oversight
+File: packages/db/src/schema/campaigns.ts
+Line: ~32–54
+
+[3.4] **Settlement `by-campaign`** exists for drill-in but **no portal discovery page** linking campaigns.
+Agents: Campaign oversight; Financial
+File: apps/api/src/routes/settlement.ts
+Line: ~153–204
+
+[3.5] **`Klubbar` list UI columns** (`members`, `status`, `lastOrder`, `revenue`) **don’t match** bare `organizations` rows without joins.
+Agents: Financial overview
+File: apps/web/src/app/(portal)/portal/klubbar/page.tsx
+Line: ~110–129
+
+[3.6] **Forecast vs actual**, **payout lag alerts** — absent.
+Agents: Financial overview
+
+[3.7] **`/statistics` monthly grain only** — no hourly/daily spike series.
+Agents: Analytics
+File: apps/api/src/routes/portal.ts
+Line: ~402–413
+
+[3.8] **No cohort retention** surfaces in codebase search.
+Agents: Analytics
+
+[3.9] **No org-type segmentation** (`organizations.type`) in statistics query.
+Agents: Analytics
+File: apps/api/src/routes/portal.ts
+Line: ~400–412
+
+[3.10] **Statistik KPI cards remain `FALLBACK_*`** — static “vs förra månaden” badges.
+Agents: Analytics
+File: apps/web/src/app/(portal)/portal/statistik/page.tsx
+Line: ~84–85, ~114–134
+
+[3.11] **Footer comparison text** (“+24% …”) static, not computed.
+Agents: Analytics
+File: apps/web/src/app/(portal)/portal/statistik/page.tsx
+Line: ~165–170
+
+[3.12] **`/statistics` vs `/income` revenue definitions differ** (all orders vs PAID) — **no in-app dictionary**.
+Agents: Analytics; Financial
+
+[3.13] **Portal middleware** does not list `/portal` in `PROTECTED_ROUTES` — defense-in-depth weaker (client + API only).
+Agents: Audit & compliance
+File: apps/web/src/middleware.ts
+Line: ~4–10, ~61–67
+
+[3.14] **`getNavItems` default `ADMIN_NAV`** for non-club/non-sales roles — **System** link visible to roles that **403** on API (`/system` internal-only).
+Agents: Audit & compliance
+File: apps/web/src/app/(portal)/portal/layout.tsx
+Line: ~53–67
+
+[3.15] **`installningar` role copy** claims “Intern administratör med full åtkomst” for broad else-branch — misleading RBAC messaging.
+Agents: Audit & compliance
+File: apps/web/src/app/(portal)/portal/installningar/page.tsx
+Line: ~14–18
+
+=====================================================
+PRIORITY 4 — LOW
+=====================================================
+
+[4.1] **No uptime/response-time trend charts** — point-in-time only.
+Agents: System health
+File: apps/web/src/app/(portal)/portal/system/page.tsx
+
+[4.2] **CSV export utility** (`generateOrdersCsv`) **unused** outside its file — no admin export buttons.
+Agents: Analytics
+File: apps/api/src/lib/invoicing/csv-export.ts
+Line: ~1–19
+
+[4.3] **Bulk role updates** — absent.
+Agents: User roles
+
+[4.4] **`campaigns_status_idx`** exists without admin queries using it.
+Agents: Campaign oversight
+File: packages/db/src/schema/campaigns.ts
+Line: ~55–57
+
+[4.5] **Positive:** `/v1/portal/system` enforces **`INTERNAL_ADMIN` only** (correct for sensitive ops).
+Agents: Audit & compliance
+File: apps/api/src/routes/portal.ts
+Line: ~502–508
+
+[4.6] **Unused `Badge` import** on portal products (adjacent portal note) — noise only if still present.
+Agents: Analytics (tangential)
+
+=====================================================
+PRIORITY 5 — NICE TO HAVE
+=====================================================
+
+[5.1] **`/v1/ai/portal-chat`** referenced in system mock but routing may not match production mounts — verify before relying.
+Agents: System health (agent 7 crossover from sales audit pattern)
+
+[5.2] **Historical metrics API** for trends — absent; `/health` at app root not wired to dashboard charts.
+Agents: System health
+
+--- END OF REPORT ---

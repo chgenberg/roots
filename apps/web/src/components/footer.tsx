@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Separator } from "@/components/ui/separator";
+import { LegalIdentityBlock } from "@/components/legal-identity-block";
 
 const FOOTER_LINKS = [
   {
@@ -65,9 +66,12 @@ export function Footer() {
 
         <Separator className="my-10" />
 
-        <p className="text-xs text-muted-foreground">
-          © {new Date().getFullYear()} Roots Nordic AB. Alla rättigheter förbehållna.
-        </p>
+        <div className="flex flex-col gap-2 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+          <p>
+            © {new Date().getFullYear()} Roots Nordic AB. Alla rättigheter förbehållna.
+          </p>
+          <LegalIdentityBlock variant="compact" showContact />
+        </div>
       </div>
     </footer>
   );

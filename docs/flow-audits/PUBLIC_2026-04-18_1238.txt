@@ -1,0 +1,260 @@
+ROOTS PUBLIC FLOW AUDIT
+=======================
+Date: 2026-04-18 12:38
+Agents: 8 parallel read-only sub-agents
+Scope: Logged-out visitor flow — marketing, landing, lead capture
+
+SUMMARY
+-------
+Total findings (deduplicated): 38
+  Priority 1 (Critical):   3
+  Priority 2 (High):      14
+  Priority 3 (Medium):    15
+  Priority 4 (Low):        4
+  Priority 5 (Nice):       2
+
+Notes on consolidation:
+- Multiple agents flagged the same themes: hero/CTA skew toward D2C hair & lead magnet vs föreningsliv commerce; hår vs hud inconsistency across metadata and sections; social proof limited to hero-adjacent placement and absence of testimonials.
+- Agent priority labels (e.g. P0) were normalized to this report’s 1–5 scale.
+
+TOP 5 QUICK WINS
+----------------
+1. Fix broken privacy link in hair-analysis flow: `/integritetspolicy` → `/integritet` (hair-analysis-lead-dialog.tsx).
+2. Product JSON-LD / canonical URL: use `NEXT_PUBLIC_SITE_URL` / `metadataBase` instead of hardcoded `https://roots.se` on product detail JSON-LD (produkter/[slug]/page.tsx).
+3. Newsletter consent: expose an explicit opt-in checkbox or stop sending `newsletterConsent: true` without visible consent UI (hair-analysis-lead-dialog.tsx + API contract).
+4. Rename or retarget “Boka demo” / “Boka samtal” so the label matches landing at `/foreningsliv` without a real scheduler (header.tsx, hair-analysis-lead-dialog.tsx).
+5. Add organisation number + VAT + one-line postal address to footer and kontakt/villkor contact blocks for B2B trust.
+
+=====================================================
+PRIORITY 1 — CRITICAL
+=====================================================
+
+[1.1] Privacy policy link from hair-analysis lead dialog points to a non-existent route (`/integritetspolicy`); correct public page is `/integritet`.
+Agent: Lead Capture & Forms
+File: apps/web/src/components/hair-analysis-lead-dialog.tsx
+Line: ~410–411, ~851
+Detail: Broken consent/legal link undermines GDPR transparency and user trust; fix href to `/integritet` (and verify any other occurrences).
+
+[1.2] Hair-analysis UI sets newsletter consent always true without a visible opt-in control; consent is sent to the API as if the user opted in.
+Agent: Lead Capture & Forms
+File: apps/web/src/components/hair-analysis-lead-dialog.tsx
+Line: ~164, ~193, ~305–306
+Detail: Separate marketing email consent from lead capture with an explicit checkbox and copy; align payload with UI state.
+
+[1.3] Product structured data uses a fixed production URL (`https://roots.se/...`) instead of environment-based site URL; staging/preview crawlers receive wrong canonical/product URL.
+Agent: SEO & Discoverability
+File: apps/web/src/app/(marketing)/produkter/[slug]/page.tsx
+Line: ~116 (and related JSON-LD props ~110–116)
+Detail: Derive absolute URL and image URLs from `metadataBase` / `NEXT_PUBLIC_SITE_URL` for JSON-LD consistency with sitemap and robots.
+
+=====================================================
+PRIORITY 2 — HIGH
+=====================================================
+
+[2.1] Above-the-fold story prioritises consumer hair-care and hair-analysis lead magnet; primary CTA does not route toward association onboarding or “start kampanj”, while nav partially offsets via `/foreningsliv`.
+Agents: First Impression & Hero; IA & Menu
+File: apps/web/src/components/sections/hero.tsx; apps/web/src/components/sections/hero-lead.tsx
+Line: hero ~37–45; HeroLead opens HairAnalysisLeadDialog
+Detail: Reframe headline/subhead so club/team outcome is obvious in seconds; align primary CTA with föreningsliv strategy or demote hair analysis to secondary.
+
+[2.2] Global metadata vs hero vs sections disagree on category story (“föreningsnära hudvård” vs “Naturlig hårvård” vs body blocks); weakens instant clarity and SEO consistency.
+Agents: First Impression & Hero; Messaging; IA (header tagline)
+File: apps/web/src/app/layout.tsx; apps/web/src/components/sections/hero.tsx; apps/web/src/app/(marketing)/foreningsliv/page.tsx (metadata vs body); kontakt/layout.tsx; om-oss metadata vs body
+Line: layout ~14–20; hero ~37–43; foreningsliv ~12–13 vs ~42–45; etc.
+Detail: Pick one umbrella narrative (e.g. hår & hud or single primary category) and sync root metadata, OG defaults, and hero.
+
+[2.3] Social proof band is fourth on the homepage; no logos, quotes, or “near hero” proof — only numeric stats lower on the page.
+Agent: First Impression & Hero
+File: apps/web/src/app/(marketing)/page.tsx
+Line: ~11–14 (ordering: Hero → Products → ForForeningar → SocialProof)
+Detail: Add a compact proof strip (association count, anonymised logos, or short quote) in or directly under the hero band.
+
+[2.4] No customer/association testimonials; “social proof” is numbers-only. Press section is essentially a contact email, not coverage or logos.
+Agent: Trust & Social Proof
+File: apps/web/src/app/(marketing)/page.tsx; apps/web/src/app/(marketing)/om-oss/page.tsx
+Line: SocialProof usage ~14; om-oss press ~93–101
+Detail: Add real quotes with role/club or replace with honest case snippets; press: logos, outbound links, or “as seen in” when available.
+
+[2.5] Legal/commercial identity thin: organisation number, VAT number, and street address not shown in footer, kontakt company block, köpvillkor contact, or integritet intro (company name + city/email only).
+Agent: Trust & Social Proof
+File: apps/web/src/components/footer.tsx; apps/web/src/app/(marketing)/kontakt/page.tsx; apps/web/src/app/(marketing)/villkor/page.tsx; apps/web/src/app/(marketing)/integritet/page.tsx
+Line: footer ~68–70; kontakt ~155–160; villkor ~165–176; integritet ~19–28
+Detail: Add org.nr, momsnummer, and postal line where buyers expect them.
+
+[2.6] No Instagram/LinkedIn or similar in header/footer — limited way to verify an active brand from the shell.
+Agent: Trust & Social Proof
+File: apps/web/src/components/header.tsx; apps/web/src/components/footer.tsx
+Detail: Add social links if channels exist; otherwise omit rather than dead links.
+
+[2.7] “Boka demo” (header) and “Boka samtal” (hair dialog) imply scheduling but navigate to `/foreningsliv` without a booking widget or time picker.
+Agents: IA & Menu; Lead Capture & Forms
+File: apps/web/src/components/header.tsx; apps/web/src/components/hair-analysis-lead-dialog.tsx
+Line: header ~147–153, ~222–229; dialog ~839–843
+Detail: Rename to match reality (“Läs om föreningslösningen”) or embed a real calendar/booking flow.
+
+[2.8] Contact and hair-analysis APIs do not send confirmation emails to the submitter — only internal notification / DB persistence.
+Agent: Lead Capture & Forms
+File: apps/api/src/routes/contact.ts; apps/api/src/routes/hair-analysis.ts
+Line: contact ~39–56; hair-analysis ~94–147
+Detail: Optional auto-reply with expectations, reference id, and consent copy for audit trail.
+
+[2.9] Root `title.template` plus segment titles that already include “| Roots” likely produces duplicated or awkward `<title>` (e.g. Håranalys layout).
+Agent: SEO & Discoverability
+File: apps/web/src/app/layout.tsx; apps/web/src/app/(marketing)/haranalys/layout.tsx
+Line: layout ~15–17; haranalys/layout ~4
+Detail: Remove redundant suffix from child titles or adjust template.
+
+[2.10] No explicit `metadata.alternates.canonical` (or per-route `openGraph.url`) found — reliance on defaults only.
+Agent: SEO & Discoverability
+File: apps/web (repo-wide pattern)
+Detail: Add canonicals for marketing URLs and UTM-heavy traffic where needed.
+
+[2.11] Product JSON-LD uses relative image paths; validators often expect absolute URLs for Product rich results.
+Agent: SEO & Discoverability
+File: apps/web/src/app/(marketing)/produkter/[slug]/page.tsx
+Line: ~110–116
+Detail: Resolve `product.image` to absolute URL using site base.
+
+[2.12] Mobile: primary chrome (nav, search, theme, login, demo) hidden until hamburger opens; burger control ~under 44×44px tap target.
+Agent: Mobile Public Experience
+File: apps/web/src/components/header.tsx
+Line: ~105–164, ~213–236
+Detail: Surface critical actions or increase menu button hit area to ≥44×44px; consider sticky shortcut row for “Logga in” / key CTA.
+
+=====================================================
+PRIORITY 3 — MEDIUM
+=====================================================
+
+[3.1] Two `next/image` hero branches both use `priority` (desktop + mobile); potential duplicate LCP candidates / bandwidth.
+Agent: First Impression & Hero
+File: apps/web/src/components/sections/hero.tsx
+Line: ~8–29
+Detail: Single responsive image or `picture`, or drop priority on non-LCP branch after verification.
+
+[3.2] “Anslut din förening” on homepage sections links to `/foreningsliv` while Föreningsliv page pushes `/registrera` — extra hop and inconsistent intent.
+Agent: IA & Menu
+File: apps/web/src/components/sections/for-foreningar.tsx; apps/web/src/components/sections/gamification.tsx
+Line: ~61–66; ~58–63
+Detail: Align primary destination with clearest next step (e.g. `/registrera` when ready).
+
+[3.3] No top-level nav or Cmd+K quick link for “Starta kampanj” / `/registrera`; search dialog lists pages but not direct association signup.
+Agent: IA & Menu
+File: apps/web/src/components/header.tsx; apps/web/src/components/search-dialog.tsx
+Line: NAV_ITEMS ~11–15; search quick links ~21–35
+Detail: Add explicit discoverability for association registration.
+
+[3.4] Messaging lacks competitive frame vs kakor, lotter, merch, traditional wholesalers; hero does not state association outcomes (margin, recurring revenue, who does the work).
+Agent: Value Proposition & Messaging
+File: apps/web/src/components/sections/for-foreningar.tsx; apps/web/src/components/sections/hero.tsx; apps/web/src/app/(marketing)/om-oss/page.tsx
+Line: for-foreningar ~36–42; hero ~37–44; om-oss ~71–85
+Detail: Add one plain “ jämfört med …” paragraph and outcome bullets on home or `/foreningsliv`.
+
+[3.5] Swenglish: “Powered by AI” on Håranalys page; English retail labels (“Bestseller”, “Body Wash”) on Swedish product page.
+Agent: Value Proposition & Messaging
+File: apps/web/src/app/(marketing)/haranalys/page.tsx; apps/web/src/app/(marketing)/produkter/page.tsx
+Line: ~36–38; ~23, ~39
+Detail: Swedish equivalents or brand-consistent Swedish product naming.
+
+[3.6] Internal product language (“klubbportalen”, “klubb- och säljarportalen”) in integritet and villkor — heavy for general readers.
+Agent: Value Proposition & Messaging
+File: apps/web/src/app/(marketing)/integritet/page.tsx; apps/web/src/app/(marketing)/villkor/page.tsx
+Line: ~45–47; ~28–30
+Detail: Plain Swedish phrasing (“för förening och säljare”).
+
+[3.7] Homepage has no consolidated “Så fungerar det”; mechanics split across `/foreningsliv` and `/haranalys`.
+Agent: Value Proposition & Messaging
+File: apps/web/src/app/(marketing)/page.tsx
+Line: ~9–17
+Detail: Add short 3-step strip on home or link prominently to one explainer.
+
+[3.8] Homepage stats and gamification copy hardcoded — no “last updated” or methodology; risk of looking like placeholder marketing.
+Agent: Trust & Social Proof
+File: apps/web/src/components/sections/social-proof.tsx; apps/web/src/components/sections/gamification.tsx
+Line: social-proof ~1–22; gamification ~7–22, ~41–53
+Detail: Wire to live data or add disclosure footnote.
+
+[3.9] Founder and “Om oss” imagery is product/scenery-heavy; weak human/club photographic proof (alts generic).
+Agents: Trust & Social Proof; First Impression & Hero
+File: apps/web/src/components/sections/founders.tsx; apps/web/src/app/(marketing)/om-oss/page.tsx
+Line: founders ~8–21; om-oss ~55–63
+Detail: Real portraits or club photos where possible; descriptive alts.
+
+[3.10] Widespread `text-sm` for body/supporting copy and form fields on small viewports — below ~16px guideline; hero subhead `text-sm` until md.
+Agent: Mobile Public Experience
+File: apps/web/src/components/sections/hero.tsx; products-preview, for-foreningar, social-proof, kontakt inputs, ui/label.tsx, ui/input.tsx, footer, etc.
+Line: e.g. hero ~42–44
+Detail: Use `text-base` for primary reading text on small screens where feasible.
+
+[3.11] Hero CTAs sit high in tall `min-h` block — weaker one-handed thumb reach vs lower-third placement.
+Agent: Mobile Public Experience
+File: apps/web/src/components/sections/hero.tsx
+Line: ~7, ~35–46
+Detail: Visual layout pass for thumb zone or shorter hero on mobile.
+
+[3.12] Chat widget: send/close controls and 10px disclaimer — small tap targets and very low-contrast microcopy (WCAG risk).
+Agents: Mobile; Accessibility
+File: apps/web/src/components/chat-widget.tsx
+Line: ~224–231, ~280–296
+Detail: Minimum 44px targets; increase disclaimer size and contrast.
+
+[3.13] FAQ accordion on Håranalys: buttons lack full `aria-controls` / panel `id` pairing; chevron should be `aria-hidden`.
+Agent: Accessibility
+File: apps/web/src/app/(marketing)/haranalys/page.tsx
+Line: ~194–207
+Detail: Follow WAI-ARIA accordion pattern.
+
+[3.14] `prefers-reduced-motion` in globals.css does not stop Tailwind `animate-spin` on loaders; decorative header scroll bar not `aria-hidden`.
+Agent: Accessibility
+File: apps/web/src/app/globals.css; apps/web/src/components/header.tsx
+Line: globals ~119–128; header ~73–77
+Detail: Extend reduced-motion overrides; hide decorative progress from AT.
+
+[3.15] Most marketing pages inherit generic OG/Twitter from root; weak per-URL social previews. Sitemap sets `lastModified: new Date()` on every request.
+Agent: SEO & Discoverability
+File: apps/web/src/app/(marketing)/produkter/page.tsx (example); apps/web/src/app/sitemap.ts
+Line: produkter metadata ~9–13; sitemap ~7–17
+Detail: Per-route `openGraph` where CTR matters; stable lastmod from git or CMS.
+
+=====================================================
+PRIORITY 4 — LOW
+=====================================================
+
+[4.1] Footer column title “Företaget” groups Föreningsliv with corporate links — weaker IA for association buyers.
+Agent: IA & Menu
+File: apps/web/src/components/footer.tsx
+Line: ~14–22
+Detail: Split “Förening” vs “Företag” columns.
+
+[4.2] Breadcrumbs only on product detail, not on other marketing sub-pages.
+Agent: IA & Menu
+File: apps/web/src/app/(marketing)/produkter/[slug]/page.tsx (present); other marketing routes (absent)
+Detail: Optional breadcrumbs on deep marketing pages.
+
+[4.3] Hero paragraph `max-w-xs` tighter than headline `max-w-md` — slightly cramped scanning.
+Agent: First Impression & Hero
+File: apps/web/src/components/sections/hero.tsx
+Line: ~42–43
+Detail: Align max-width with headline column.
+
+[4.4] Social proof stats row: “100% naturliga ingredienser” sits beside numeric stats — blurs metric vs marketing claim.
+Agent: Value Proposition & Messaging
+File: apps/web/src/components/sections/social-proof.tsx
+Line: ~1–22
+Detail: Visually distinguish claims from quantified stats.
+
+=====================================================
+PRIORITY 5 — NICE TO HAVE
+=====================================================
+
+[5.1] Primary hero action is client-only hair-analysis dialog — heavier than a simple link; consider lazy-loading dialog chunk.
+Agent: First Impression & Hero
+File: apps/web/src/components/sections/hero-lead.tsx
+Line: ~1–21
+Detail: Lazy open on interaction or defer non-critical JS.
+
+[5.2] Organization JSON-LD minimal — no `sameAs`, `logo`, `address`, rich `contactPoint`; FAQ JSON-LD only on Håranalys; home stats section has no section heading for outline.
+Agent: SEO & Discoverability
+File: apps/web/src/components/json-ld.tsx; haranalys page; apps/web/src/components/sections/social-proof.tsx
+Detail: Enrich Organization schema; optional FAQ on other pages; optional h2 for stats band.
+
+--- END OF REPORT ---

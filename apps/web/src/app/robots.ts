@@ -7,8 +7,21 @@ export default function robots(): MetadataRoute.Robots {
     rules: [
       {
         userAgent: "*",
-        allow: "/",
-        disallow: ["/api/", "/club/", "/sales/", "/portal/", "/shop/", "/forening/", "/lag/", "/min-shop/", "/login", "/registrera"],
+        allow: ["/", "/shop/"],
+        // Personal shops should be indexable to help viral discovery, but
+        // authenticated portal surfaces, internal tooling and auth pages stay
+        // blocked from crawlers.
+        disallow: [
+          "/api/",
+          "/club/",
+          "/sales/",
+          "/portal/",
+          "/forening/",
+          "/lag/",
+          "/min-shop/",
+          "/login",
+          "/registrera",
+        ],
       },
     ],
     sitemap: `${BASE_URL}/sitemap.xml`,

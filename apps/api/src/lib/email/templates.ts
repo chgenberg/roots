@@ -1,6 +1,24 @@
 const BRAND_COLOR = "#1C1410";
 
+function siteUrl(): string {
+  return (
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.SITE_URL ||
+    "https://roots.se"
+  );
+}
+
+function siteHost(): string {
+  try {
+    return new URL(siteUrl()).host;
+  } catch {
+    return "roots.se";
+  }
+}
+
 function wrap(content: string): string {
+  const url = siteUrl();
+  const host = siteHost();
   return `<!DOCTYPE html>
 <html lang="sv">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -12,8 +30,9 @@ function wrap(content: string): string {
   <span style="color:#fff;font-size:20px;font-weight:700;letter-spacing:0.5px">Roots</span>
 </td></tr>
 <tr><td style="padding:32px">${content}</td></tr>
-<tr><td style="padding:16px 32px 24px;text-align:center;color:#999;font-size:12px">
-  Roots Nordic AB · <a href="https://rootshaircare.se" style="color:#999">rootshaircare.se</a>
+<tr><td style="padding:16px 32px 24px;text-align:center;color:#999;font-size:12px;line-height:1.6">
+  Roots Nordic AB · <a href="${url}" style="color:#999">${host}</a><br>
+  Frågor? <a href="mailto:hej@roots.se" style="color:#999">hej@roots.se</a>
 </td></tr>
 </table>
 </td></tr>
@@ -39,7 +58,7 @@ export function welcomeEmail(name: string, role: string): { subject: string; htm
       <p style="color:#444;line-height:1.6;margin:0 0 24px">
         Logga in på plattformen för att komma igång. Om du har frågor är du alltid välkommen att kontakta oss.
       </p>
-      <a href="https://rootshaircare.se/logga-in" style="display:inline-block;background:${BRAND_COLOR};color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">
+      <a href="${siteUrl()}/logga-in" style="display:inline-block;background:${BRAND_COLOR};color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">
         Logga in
       </a>
     `),
@@ -64,7 +83,7 @@ export function orderConfirmationEmail(params: {
     )
     .join("");
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  const url = siteUrl();
 
   return {
     subject: `Orderbekräftelse — ${params.orderId.slice(0, 8)}`,
@@ -84,7 +103,7 @@ export function orderConfirmationEmail(params: {
       <p style="text-align:right;font-size:18px;font-weight:700;color:${BRAND_COLOR};margin:16px 0">
         Totalt: ${(params.totalOre / 100).toLocaleString("sv-SE")} kr
       </p>
-      <a href="${siteUrl}/shop/${params.shopSlug}/order/${params.orderId}" style="display:inline-block;background:${BRAND_COLOR};color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">
+      <a href="${url}/shop/${params.shopSlug}/order/${params.orderId}" style="display:inline-block;background:${BRAND_COLOR};color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">
         Se orderstatus
       </a>
     `),

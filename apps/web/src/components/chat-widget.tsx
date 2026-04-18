@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { MessageCircle, X, Send, Loader2 } from "lucide-react";
+import { MessageCircle, X, Send, Loader2, Square } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getBrowserApiBase } from "@/lib/api-base";
 
@@ -35,6 +35,19 @@ export function ChatWidget() {
   const [streaming, setStreaming] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  const stop = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setStreaming(false);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, []);
 
   const scrollToBottom = useCallback(() => {
     requestAnimationFrame(() => {
@@ -98,6 +111,9 @@ export function ChatWidget() {
     const assistantMsg: Message = { role: "assistant", content: "" };
     setMessages((prev) => [...prev, assistantMsg]);
 
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     try {
       const csrf = await getCsrf();
       const res = await fetch(API_URL, {
@@ -107,6 +123,7 @@ export function ChatWidget() {
           "x-csrf-token": csrf,
         },
         credentials: "include",
+        signal: controller.signal,
         body: JSON.stringify({
           message: text,
           stream: true,
@@ -164,20 +181,35 @@ export function ChatWidget() {
         }
       }
     } catch (err) {
-      const errorMessage =
-        err instanceof Error
-          ? err.message
-          : "Något gick fel. Försök igen eller kontakta hej@roots.se.";
+      if (err instanceof DOMException && err.name === "AbortError") {
+        setMessages((prev) => {
+          const updated = [...prev];
+          const last = updated[updated.length - 1];
+          if (last?.role === "assistant" && !last.content) {
+            updated[updated.length - 1] = {
+              role: "assistant",
+              content: "Avbrutet.",
+            };
+          }
+          return updated;
+        });
+      } else {
+        const errorMessage =
+          err instanceof Error
+            ? err.message
+            : "Något gick fel. Försök igen eller kontakta hej@roots.se.";
 
-      setMessages((prev) => {
-        const updated = [...prev];
-        updated[updated.length - 1] = {
-          role: "assistant",
-          content: errorMessage,
-        };
-        return updated;
-      });
+        setMessages((prev) => {
+          const updated = [...prev];
+          updated[updated.length - 1] = {
+            role: "assistant",
+            content: errorMessage,
+          };
+          return updated;
+        });
+      }
     } finally {
+      abortRef.current = null;
       setStreaming(false);
     }
   }
@@ -277,19 +309,26 @@ export function ChatWidget() {
               className="max-h-24 min-h-[40px] flex-1 resize-none rounded-xl border border-input bg-background px-4 py-2.5 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               disabled={streaming}
             />
-            <button
-              type="button"
-              onClick={handleSend}
-              disabled={!input.trim() || streaming}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-inverse-surface text-inverse-on-surface transition-all duration-200 hover:bg-inverse-surface-hover disabled:opacity-40"
-              aria-label="Skicka meddelande"
-            >
-              {streaming ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
+            {streaming ? (
+              <button
+                type="button"
+                onClick={stop}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-inverse-surface text-inverse-on-surface transition-all duration-200 hover:bg-inverse-surface-hover"
+                aria-label="Stoppa generering"
+              >
+                <Square className="h-4 w-4" fill="currentColor" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSend}
+                disabled={!input.trim()}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-inverse-surface text-inverse-on-surface transition-all duration-200 hover:bg-inverse-surface-hover disabled:opacity-40"
+                aria-label="Skicka meddelande"
+              >
                 <Send className="h-4 w-4" />
-              )}
-            </button>
+              </button>
+            )}
           </div>
           <p className="mt-2 text-center text-[10px] text-muted-foreground/60">
             AI-genererat svar — verifiera viktig information

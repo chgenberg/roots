@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { LegalIdentityBlock } from "@/components/legal-identity-block";
 
 export const metadata: Metadata = {
   title: "Köpvillkor",
@@ -164,16 +165,9 @@ export default function VillkorPage() {
 
         <section>
           <h2>10. Kontaktuppgifter</h2>
-          <p className="mt-3">
-            Roots Nordic AB
-            <br />
-            E-post:{" "}
-            <a href="mailto:hej@roots.se" className="underline hover:text-foreground">
-              hej@roots.se
-            </a>
-            <br />
-            Stockholm, Sverige
-          </p>
+          <div className="mt-3">
+            <LegalIdentityBlock variant="block" showContact className="not-italic leading-relaxed text-muted-foreground" />
+          </div>
         </section>
       </div>
     </article>

@@ -1,0 +1,300 @@
+ROOTS CLUB MEMBER FLOW AUDIT
+=============================
+Date: 2026-04-18 12:49
+Agents: 8 parallel read-only sub-agents
+Scope: B2B club admin / purchasing contact — reorder, invoices, account management
+Out of scope: Payment integration (Fortnox, Klarna, invoicing rails — not evaluated)
+
+SUMMARY
+-------
+Total findings (deduplicated): 54
+  Priority 1 (Critical): 14
+  Priority 2 (High):     20
+  Priority 3 (Medium):   13
+  Priority 4 (Low):       5
+  Priority 5 (Nice):      2
+
+Consolidation: Repeated themes merged (stub `club` tRPC router; `/club` vs `/portal` split; empty `Historik`; invoice gaps on portal orders).
+
+REORDER FRICTION TOP ISSUES
+----------------------------
+1. **Dedicated `(club)` shell is largely non-functional for real commerce** — `trpc.club.orders` returns `[]`, `createOrder`/`dashboard` stubbed; `/club/bestall` uses `setTimeout`; `/club/historik` uses empty `DEMO_ORDERS` — no durable path for “buy again.”
+2. **Portal catalog disconnect** — `/portal/produkter` keeps local quantities but navigating to `/portal/bestallningar` drops cart state (no shared cart / URL / POST bridge) — kills multi-line B2B ordering flow.
+3. **No true one-click reorder, favorites, subscriptions, or “due reorder” reminders** anywhere in reviewed surfaces.
+4. **`GET /v1/portal/orders` capped at `.limit(100)`** with no pagination/cursor — clubs with long history lack visibility beyond the cap.
+5. **Two parallel club experiences** (`/club/*` demo shell vs `/portal/*` REST-backed flows) — risk wrong expectations, duplicated nav concepts (“Historik” vs “Beställningar”), and fragmented support/AI (`ChatWidget` only on `(club)`, not portal).
+
+=====================================================
+PRIORITY 1 — CRITICAL
+=====================================================
+
+[1.1] **Club dashboard metrics are hardcoded placeholders** (`STATS`: `"0 paket"`, `"—"`) — **no API fetch**, no real last order, budget, or spend.
+Agents: Dashboard
+File: apps/web/src/app/(club)/club/dashboard/page.tsx
+Line: ~7–12, ~24–36
+
+[1.2] **`trpc` `club` router is stubbed:** `orders` always `[]`; `createOrder` returns random UUID without DB write; `dashboard` placeholder `orgName` / empty `recentOrders`.
+Agents: Reorder; Delivery; Invoice
+File: apps/api/src/trpc/routers/club.ts
+Line: ~18–43
+
+[1.3] **`/club/historik` cannot show real orders** — `DEMO_ORDERS` fixed empty array; table never populated; **no reorder actions**.
+Agents: Dashboard; Reorder; Invoice; Account
+File: apps/web/src/app/(club)/club/historik/page.tsx
+Line: ~24, ~34–69
+
+[1.4] **`/club/bestall` submit is mocked** — `setTimeout`; comment references **`POST /v1/orders/club`** that **does not exist** in API (per agent grep); no line items or persistence.
+Agents: Reorder; Delivery
+File: apps/web/src/app/(club)/club/bestall/page.tsx
+Line: ~34–40, ~67–72, ~96–139
+
+[1.5] **Portal catalog → ordering broken for multi-SKU:** sticky bar on `/portal/produkter` uses local `quantities` but checkout is **`window.location.href = "/portal/bestallningar"`** with **no cart payload** — selections discarded.
+Agents: B2B catalog
+File: apps/web/src/app/(portal)/portal/produkter/page.tsx
+Line: ~165–181
+
+[1.6] **No volume / tier pricing model** — `products` schema single `priceOre`; portal order lines use fixed `unitPrice = p.priceOre` × qty — no wholesale breakpoints.
+Agents: B2B catalog
+File: packages/db/src/schema/products.ts
+File: apps/api/src/routes/portal.ts
+Line: ~218–230
+
+[1.7] **No SKU/article search or visible SKU on cards** — grid has no filter; `sku` used as React key only, not displayed — weak for ERP-driven buyers.
+Agents: B2B catalog
+File: apps/web/src/app/(portal)/portal/produkter/page.tsx
+Line: ~80–163, ~116–133
+
+[1.8] **Delivery & logistics not modeled for club orders** — `CreateOrderSchema` lacks address id, PO, notes, windows; `organizations` has no address book; `club.createOrder` stub; `/club/bestall` form **qty-only**.
+Agents: Delivery
+File: packages/contracts/src/orders.ts
+File: packages/db/src/schema/organizations.ts
+File: apps/api/src/trpc/routers/club.ts
+File: apps/web/src/app/(club)/club/bestall/page.tsx
+
+[1.9] **Self-service invoice UX largely missing** — no PDF download buttons, **no CSV export**, **no date filters** on portal orders; **`/club/historik`** non-functional.
+Agents: Invoice
+File: apps/web/src/app/(portal)/portal/bestallningar/page.tsx
+File: apps/web/src/app/(club)/club/historik/page.tsx
+
+[1.10] **No PO / reference / attachment on portal order POST** — body is `{ items }` only; `orders` table lacks PO/attachment fields for buyer UX.
+Agents: Invoice; Delivery
+File: apps/web/src/app/(portal)/portal/bestallningar/page.tsx
+Line: ~149–157
+File: apps/api/src/routes/portal.ts
+Line: ~204–206
+File: packages/db/src/schema/orders.ts
+
+[1.11] **Payment/invoice status misleading in UI** — `PAID` mapped to label **“Levererad”** (fulfillment wording); `invoiceStatus` from DB **not shown** in table mapping.
+Agents: Invoice
+File: apps/web/src/app/(portal)/portal/bestallningar/page.tsx
+Line: ~113–123
+
+[1.12] **RBAC gap:** `GET /members` returns org users for session with `orgId` **without** clear `CLUB_ADMIN`-only enforcement vs design doc intent; **`CLUB_ADMIN` and `CLUB_MEMBER` share same `isClubUser` privileges** in middleware.
+Agents: Account & users
+File: apps/api/src/routes/portal.ts
+Line: ~295–329
+File: apps/api/src/trpc/middleware/auth.ts
+File: packages/contracts/src/roles.ts
+
+[1.13] **Invite colleague / second admin not implemented** — “Bjud in medlem” **toast only** (“kommer snart”); auth routes lack provisioning for additional club staff roles.
+Agents: Account & users
+File: apps/web/src/app/(portal)/portal/medlemmar/page.tsx
+Line: ~75–78
+File: apps/api/src/routes/auth.ts (registration coverage)
+
+[1.14] **Parallel incompatible wholesale paths:** `/club/bestall` hardcoded **Roots Complete Kit** bundle vs `/portal/produkter` + `/v1/portal/products` — two B2B stories not aligned.
+Agents: B2B catalog; Reorder
+File: apps/web/src/app/(club)/club/bestall/page.tsx
+Line: ~11–37, ~67–72
+
+=====================================================
+PRIORITY 2 — HIGH
+=====================================================
+
+[2.1] **No one-click reorder / saved baskets / subscription / due-date reminders** — confirmed absent in `club` router and UIs reviewed.
+Agents: Reorder
+
+[2.2] **Price/stock validation on reorder** — `bestall` uses static `BUNDLE`; portal create order does not revalidate catalog beyond known product IDs (MOQ absent).
+Agents: Reorder; B2B catalog
+File: apps/web/src/app/(club)/club/bestall/page.tsx
+File: apps/api/src/routes/portal.ts
+Line: ~203–231
+
+[2.3] **Pagination:** club tRPC `orders` empty; **`GET /portal/orders` `.limit(100)`** without offset/cursor — >100 orders invisible.
+Agents: Reorder
+File: apps/api/src/routes/portal.ts
+Line: ~166–187
+
+[2.4] **Login routes to `/portal`** — dedicated `(club)` shell may be orphaned for real post-auth traffic (`login/page.tsx` behavior per agent).
+Agents: Reorder; Dashboard
+File: apps/web/src/app/(auth)/login/page.tsx (~52 cited)
+
+[2.5] **Portal “Beställningar”** — fetches orders but **no reorder / favorites / schedule** actions on rows (`items: ""` mapping noted).
+Agents: Reorder
+File: apps/web/src/app/(portal)/portal/bestallningar/page.tsx
+Line: ~113–125, ~312–345
+
+[2.6] **MOQ not enforced** — any positive qty accepted; invalid product IDs skipped silently.
+Agents: B2B catalog
+File: apps/api/src/routes/portal.ts
+
+[2.7] **Order dialog new purchase** — shows name + `kr/st` **no SKU column** for reconciliation.
+Agents: B2B catalog
+File: apps/web/src/app/(portal)/portal/bestallningar/page.tsx
+Line: ~219–232
+
+[2.8] **`orders` DB lacks ship-to snapshot / delivery instructions / split shipment** — limits operational UX.
+Agents: Delivery
+File: packages/db/src/schema/orders.ts
+Line: ~30–50
+
+[2.9] **Users have at most one optional personal address block** — not org-scoped multi-facility address book.
+Agents: Delivery
+File: packages/db/src/schema/users.ts
+Line: ~25–28
+
+[2.10] **Historik table** shows status labels **without tracking number / carrier / “spåra”** — fulfillment visibility thin.
+Agents: Dashboard
+File: apps/web/src/app/(club)/club/historik/page.tsx
+Line: ~8–14, ~43–49
+
+[2.11] **Returns/exchanges** — not in club nav; policy lives on marketing `villkor`, not linked from `(club)`.
+Agents: Delivery
+File: apps/web/src/app/(club)/layout.tsx
+File: apps/web/src/app/(marketing)/villkor/page.tsx (~49–98 referenced)
+
+[2.12] **No consolidated statement / kontoutdrag** view for accounting.
+Agents: Invoice
+
+[2.13] **`orders.userId` exists in schema** but club UIs / stub APIs **don’t expose “ordered by”** audit trail.
+Agents: Account & users
+File: packages/db/src/schema/orders.ts
+File: apps/web/src/app/(club)/club/historik/page.tsx
+
+[2.14] **`/club/konto` org save / password change TODO** — fake delays; not wired to APIs.
+Agents: Account & users
+File: apps/web/src/app/(club)/club/konto/page.tsx
+Line: ~21–41
+
+[2.15] **`medlemmar` UI** expects `status`/`joined` fields API may not provide — broken cells risk when live data loads.
+Agents: Account & users
+File: apps/web/src/app/(portal)/portal/medlemmar/page.tsx
+Line: ~42–58, ~141–149
+
+[2.16] **Portal layout: no floating `ChatWidget`** — support/AI discovery differs from `(club)` + marketing (`ChatWidget` only in club/marketing/sales per agent).
+Agents: Support
+File: apps/web/src/app/(portal)/portal/layout.tsx
+
+[2.17] **No MSDS/datasheet/PDF downloads** in web app for B2B compliance (grep empty); catalog links to public PDPs only.
+Agents: Support
+File: apps/web/src/app/(portal)/portal/produkter/page.tsx (pattern)
+
+[2.18] **No account manager / “book a call”** blocks on `konto` or `installningar`.
+Agents: Support
+File: apps/web/src/app/(club)/club/konto/page.tsx
+File: apps/web/src/app/(portal)/portal/installningar/page.tsx
+
+[2.19] **Order escalation** — no per-row “problem med ordern” / mailto with order ID on portal table or club historik.
+Agents: Support
+
+[2.20] **Portal AI welcome is club-specific but `public-chat` endpoint uses same system prompt** — no wholesale/org context server-side (`public-chat.ts`).
+Agents: Support
+File: apps/api/src/routes/public-chat.ts
+File: apps/web/src/app/(portal)/portal/ai/page.tsx
+
+=====================================================
+PRIORITY 3 — MEDIUM
+=====================================================
+
+[3.1] **Spend visualization / charts** absent on club dashboard — static cards only.
+Agents: Dashboard
+File: apps/web/src/app/(club)/club/dashboard/page.tsx
+
+[3.2] **Quick reorder** — only generic “Beställ nu” to `/club/bestall` in empty state; no repeat-last-basket.
+Agents: Dashboard
+File: apps/web/src/app/(club)/club/dashboard/page.tsx
+Line: ~47–53
+
+[3.3] **`/club` root may 404** — no `page.tsx` under `(club)/club/` (only dashboard, bestall, historik, konto).
+Agents: Dashboard
+
+[3.4] **UOM** — implied “kr / st” only; no cartons/pallets (`portal/bestallningar` dialog).
+Agents: B2B catalog
+
+[3.5] **Category/browse-by-form** — `typeFromSlug` heuristic in `portal-products.ts`; no facets on catalog page.
+Agents: B2B catalog
+File: apps/web/src/lib/portal-products.ts
+Line: ~35–40
+
+[3.6] **Marketing PDP** has ingredients text but **no downloadable SDS/data sheet** for kiosk storage (club-adjacent).
+Agents: B2B catalog
+File: apps/web/src/app/(marketing)/produkter/[slug]/page.tsx
+Line: ~149–180
+
+[3.7] **Success copy on `/club/bestall`** promises email only — **no stated lead time / carrier / window**.
+Agents: Delivery
+File: apps/web/src/app/(club)/club/bestall/page.tsx
+Line: ~51–56
+
+[3.8] **`Intäkter` portal page** is fundraising/payout framing — **not** a B2B buyer invoice ledger (avoid misinterpretation).
+Agents: Invoice
+File: apps/web/src/app/(portal)/portal/intakter/page.tsx
+
+[3.9] **Club layout lacks marketing `Footer`** — fewer obvious legal/support links than marketing shell (chat compensates partially).
+Agents: Support
+File: apps/web/src/app/(club)/layout.tsx vs apps/web/src/app/(marketing)/layout.tsx
+
+[3.10] **Support email inconsistency** — `system-prompt.ts` references `support@roots.se` vs `hej@roots.se` in public chat paths.
+Agents: Support
+File: apps/api/src/lib/ai/system-prompt.ts
+
+[3.11] **Fixed chat FAB** (`bottom-6 right-6`) may overlap primary full-width submit on `/club/bestall` on narrow screens.
+Agents: Mobile
+File: apps/web/src/components/chat-widget.tsx
+File: apps/web/src/app/(club)/club/bestall/page.tsx
+Line: ~135–138
+
+[3.12] **Club mobile nav** — horizontal pill strip under header, small targets (`text-xs`), not bottom thumb rail.
+Agents: Mobile
+File: apps/web/src/app/(club)/layout.tsx
+Line: ~37–54
+
+[3.13] **`Table` wrapper `overflow-auto`** — risk horizontal scroll when order history has data (`historik`).
+Agents: Mobile
+File: apps/web/src/components/ui/table.tsx
+Line: ~4–8
+
+=====================================================
+PRIORITY 4 — LOW
+=====================================================
+
+[4.1] **Unused `Badge` import** on portal produkter page — noise only.
+Agents: B2B catalog
+File: apps/web/src/app/(portal)/portal/produkter/page.tsx
+Line: ~15
+
+[4.2] **Empty states:** dashboard vs historik onboarding inconsistency (dashboard links to order; historik minimal).
+Agents: Dashboard
+File: apps/web/src/app/(club)/club/historik/page.tsx
+Line: ~34–39
+
+[4.3] **MFA / password breadth** — README claims MFA; club `konto` MFA stub; BankID routes exist but not integrated into club login UX (noted as medium in agent 6, downgraded here as platform-wide gap).
+Agents: Account & users
+
+[4.4] **No DELETE user-by-admin** for removing colleague found in API review.
+Agents: Account & users
+
+[4.5] **`ChatWidget` welcome message** — generic, not org/session-aware (`chat-widget.tsx`).
+Agents: Support
+
+=====================================================
+PRIORITY 5 — NICE TO HAVE
+=====================================================
+
+[5.1] **Split experience documentation** — clarify canonical B2B path (`/portal` vs `/club`) for product/CS.
+Agents: Cross-cutting
+
+[5.2] **SearchDialog** present on marketing, absent on club — optional parity for site-wide discoverability.
+Agents: Support / Dashboard
+
+--- END OF REPORT ---
