@@ -94,6 +94,10 @@ auth.post("/login", async (c) => {
   }
 
   // Prefer DB users (seed/registration) so sessions use real userId + orgId.
+  // A DB-side failure (schema drift, connectivity hiccup, etc.) must NOT
+  // block the in-memory demo fallback below — otherwise a missing prod
+  // column locks every operator out of the staging-demo flow. We log the
+  // error and fall through; if neither path matches we still return 401.
   try {
     const [user] = await db
       .select()
@@ -121,12 +125,18 @@ auth.post("/login", async (c) => {
 
       let orgName: string | null = null;
       if (user.orgId) {
-        const [org] = await db
-          .select()
-          .from(organizations)
-          .where(eq(organizations.id, user.orgId))
-          .limit(1);
-        orgName = org?.name ?? null;
+        try {
+          const [org] = await db
+            .select()
+            .from(organizations)
+            .where(eq(organizations.id, user.orgId))
+            .limit(1);
+          orgName = org?.name ?? null;
+        } catch (err) {
+          // Org lookup is best-effort — a stale schema shouldn't kill
+          // an otherwise-valid login. We just present an empty orgName.
+          log.warn({ err, userId: user.id }, "org lookup failed during login");
+        }
       }
 
       const sessionId = await createSession(sessionData);
@@ -148,8 +158,11 @@ auth.post("/login", async (c) => {
         },
       });
     }
-  } catch {
-    return c.json({ error: "Felaktig e-post eller lösenord." }, 401);
+  } catch (err) {
+    // Log loudly so schema drift is visible in production, but DON'T
+    // return 401 here — that swallowed the demo fallback in prod when
+    // migration 0001 hadn't been applied. Fall through instead.
+    log.warn({ err, email: email.slice(0, 120) }, "DB user lookup failed during login — falling back to demo accounts");
   }
 
   void auditLog({
