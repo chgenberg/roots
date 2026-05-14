@@ -1,0 +1,173 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`GET /v1/portal/dashboard — CLUB_ADMIN > returns deterministic club KPIs (snapshot) 1`] = `
+{
+  "isDemo": false,
+  "role": "CLUB_ADMIN",
+  "stats": {
+    "members": 24,
+    "nextDelivery": null,
+    "orders": 12,
+    "revenue": "4 800 kr",
+    "revenueOre": 480000,
+  },
+}
+`;
+
+exports[`GET /v1/portal/dashboard — INTERNAL_ADMIN > returns deterministic platform KPIs (snapshot) 1`] = `
+{
+  "isDemo": false,
+  "role": "INTERNAL_ADMIN",
+  "stats": {
+    "activeClubs": 56,
+    "hairConversion": null,
+    "mrr": "990 000 kr",
+    "mrrOre": 99000000,
+    "totalClubs": 56,
+    "totalOrders": 1234,
+  },
+}
+`;
+
+exports[`GET /v1/portal/dashboard — INTERNAL_ADMIN > returns isDemo=true and 0-kr fallback when no rows 1`] = `
+{
+  "isDemo": true,
+  "role": "INTERNAL_ADMIN",
+  "stats": {
+    "activeClubs": 0,
+    "hairConversion": null,
+    "mrr": "0 kr",
+    "mrrOre": 0,
+    "totalClubs": 0,
+    "totalOrders": 0,
+  },
+}
+`;
+
+exports[`GET /v1/portal/dashboard — SALES_REP > returns deterministic sales KPIs (snapshot) 1`] = `
+{
+  "isDemo": false,
+  "role": "SALES_REP",
+  "stats": {
+    "activeClubs": 7,
+    "closedThisMonth": 3,
+    "clubs": 7,
+    "openQuotes": 5,
+    "pipelineValue": "12 500 kr",
+    "pipelineValueOre": 1250000,
+    "quotesOut": 5,
+  },
+}
+`;
+
+exports[`GET /v1/portal/income > returns last 6 months earned (snapshot) 1`] = `
+{
+  "months": [
+    {
+      "month": "2026-05",
+      "orderCount": 8,
+      "revenueOre": 200000,
+    },
+    {
+      "month": "2026-04",
+      "orderCount": 7,
+      "revenueOre": 175000,
+    },
+    {
+      "month": "2026-03",
+      "orderCount": 4,
+      "revenueOre": 90000,
+    },
+  ],
+  "totalEarnedOre": 465000,
+}
+`;
+
+exports[`GET /v1/portal/pipeline > returns stage rollups and recent deals (snapshot) 1`] = `
+{
+  "deals": [
+    {
+      "createdAt": "2026-05-14T08:00:00.000Z",
+      "id": "00000000-0000-0000-0000-0000000000d1",
+      "orgId": "00000000-0000-0000-0000-0000000000aa",
+      "status": "SENT",
+      "totalOre": 250000,
+    },
+    {
+      "createdAt": "2026-05-13T12:00:00.000Z",
+      "id": "00000000-0000-0000-0000-0000000000d2",
+      "orgId": "00000000-0000-0000-0000-0000000000bb",
+      "status": "DRAFT",
+      "totalOre": 150000,
+    },
+  ],
+  "stages": [
+    {
+      "count": 2,
+      "stage": "DRAFT",
+      "totalOre": 300000,
+    },
+    {
+      "count": 4,
+      "stage": "SENT",
+      "totalOre": 800000,
+    },
+    {
+      "count": 1,
+      "stage": "ACCEPTED",
+      "totalOre": 250000,
+    },
+    {
+      "count": 0,
+      "stage": "REJECTED",
+      "totalOre": 0,
+    },
+  ],
+}
+`;
+
+exports[`GET /v1/portal/statistics > returns isDemo=true for empty buckets (snapshot) 1`] = `
+{
+  "isDemo": true,
+  "monthlyData": [],
+  "totals": {
+    "orders": 0,
+    "revenue": "0 kr",
+    "revenueOre": 0,
+  },
+}
+`;
+
+exports[`GET /v1/portal/statistics > returns monthly buckets with formatted aliases (snapshot) 1`] = `
+{
+  "isDemo": false,
+  "monthlyData": [
+    {
+      "month": "2026-03",
+      "orderCount": 4,
+      "orders": 4,
+      "revenue": "800 kr",
+      "revenueOre": 80000,
+    },
+    {
+      "month": "2026-04",
+      "orderCount": 6,
+      "orders": 6,
+      "revenue": "1 500 kr",
+      "revenueOre": 150000,
+    },
+    {
+      "month": "2026-05",
+      "orderCount": 9,
+      "orders": 9,
+      "revenue": "2 700 kr",
+      "revenueOre": 270000,
+    },
+  ],
+  "totals": {
+    "orders": 19,
+    "revenue": "5 000 kr",
+    "revenueOre": 500000,
+  },
+}
+`;

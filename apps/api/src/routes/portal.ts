@@ -13,6 +13,12 @@ import {
 import { getSession, SESSION_COOKIE_NAME } from "../lib/session";
 import type { SessionData } from "../lib/session";
 import { childLogger } from "../lib/logger";
+import type {
+  DashboardResponse,
+  StatisticsResponse,
+  PipelineResponse,
+  IncomeResponse,
+} from "@roots/contracts";
 
 const log = childLogger("portal");
 
@@ -84,18 +90,18 @@ portal.get("/dashboard", async (c) => {
       const revenueOre = Number(revenueResult[0]?.total || 0);
       const isDemo = membersNum === 0 && ordersNum === 0 && revenueOre === 0;
 
-      return c.json({
+      const payload: DashboardResponse = {
         role,
         isDemo,
         stats: {
           members: membersNum,
           orders: ordersNum,
           revenueOre,
-          // Additive, UI-facing aliases (formatted strings)
           revenue: formatSek(revenueOre),
           nextDelivery: null,
         },
-      });
+      };
+      return c.json(payload);
     }
 
     if (role === "SALES_REP" || role === "SALES_ADMIN") {
@@ -127,7 +133,7 @@ portal.get("/dashboard", async (c) => {
       const isDemo =
         clubsNum === 0 && quotesNum === 0 && closedNum === 0 && pipelineOre === 0;
 
-      return c.json({
+      const payload: DashboardResponse = {
         role,
         isDemo,
         stats: {
@@ -135,12 +141,12 @@ portal.get("/dashboard", async (c) => {
           quotesOut: quotesNum,
           closedThisMonth: closedNum,
           pipelineValueOre: pipelineOre,
-          // Additive, UI-facing aliases
           activeClubs: clubsNum,
           openQuotes: quotesNum,
           pipelineValue: formatSek(pipelineOre),
         },
-      });
+      };
+      return c.json(payload);
     }
 
     // INTERNAL_ADMIN
@@ -162,22 +168,19 @@ portal.get("/dashboard", async (c) => {
     const mrrOre = Number(mrrResult[0]?.total || 0);
     const isDemo = totalOrdersNum === 0 && totalClubsNum === 0 && mrrOre === 0;
 
-    return c.json({
+    const adminPayload: DashboardResponse = {
       role,
       isDemo,
       stats: {
         totalOrders: totalOrdersNum,
         totalClubs: totalClubsNum,
         mrrOre,
-        // Additive, UI-facing aliases so the admin dashboard shows real numbers
-        // instead of the fallback demo ones.
         mrr: formatSek(mrrOre),
         activeClubs: totalClubsNum,
-        // Hair-analysis conversion is not yet tracked — return a null-ish string
-        // so UI falls through to its demo value when we truly have no data.
         hairConversion: null,
       },
-    });
+    };
+    return c.json(adminPayload);
   } catch (err) {
     log.error({ err }, "Failed to fetch dashboard");
     return c.json({ error: "Kunde inte hämta data" }, 500);
@@ -201,12 +204,14 @@ portal.get("/products", async (c) => {
 
 // ── Orders ───────────────────────────────────────────────────
 
+type OrderRow = typeof orders.$inferSelect;
+
 portal.get("/orders", async (c) => {
   const session = await requireSession(c);
   if (!session) return c.json({ error: "Ej inloggad" }, 401);
 
   try {
-    let orderList;
+    let orderList: OrderRow[];
     if (
       session.role === "INTERNAL_ADMIN" ||
       session.role === "SALES_ADMIN"
@@ -237,6 +242,17 @@ portal.get("/orders", async (c) => {
 portal.post("/orders", async (c) => {
   const session = await requireSession(c);
   if (!session) return c.json({ error: "Ej inloggad" }, 401);
+
+  // The `orders` table requires both org_id and user_id (NOT NULL FKs). A
+  // session without an org would create an orphan row that violates the
+  // schema — fail fast with a 400 instead of letting the DB throw 500.
+  // (Guest checkout has its own dedicated route — not this portal endpoint.)
+  if (!session.orgId) {
+    return c.json(
+      { error: "Beställning kräver klubbkontext" },
+      400
+    );
+  }
 
   try {
     const body = await c.req.json<{
@@ -283,7 +299,7 @@ portal.post("/orders", async (c) => {
         lines.map((l) => ({
           orderId: order.id,
           productId: l.productId,
-          quantity: l.qty,
+          qty: l.qty,
           unitPriceOre: l.unitPriceOre,
         }))
       );
@@ -330,12 +346,20 @@ portal.get("/clubs", async (c) => {
 
 // ── Members ──────────────────────────────────────────────────
 
+type MemberRow = {
+  id: string;
+  email: string;
+  name: string | null;
+  role: typeof users.role.enumValues[number];
+  createdAt: Date;
+};
+
 portal.get("/members", async (c) => {
   const session = await requireSession(c);
   if (!session) return c.json({ error: "Ej inloggad" }, 401);
 
   try {
-    let memberList;
+    let memberList: MemberRow[];
     if (session.orgId) {
       memberList = await db
         .select({
@@ -413,10 +437,11 @@ portal.get("/quotes", async (c) => {
         .orderBy(desc(quotes.createdAt))
         .limit(100);
     } else {
+      // quotes.salesRepId is the canonical column — there is no quotes.userId.
       quoteList = await db
         .select()
         .from(quotes)
-        .where(eq(quotes.userId, session.userId))
+        .where(eq(quotes.salesRepId, session.userId))
         .orderBy(desc(quotes.createdAt))
         .limit(100);
     }
@@ -468,15 +493,22 @@ portal.get("/statistics", async (c) => {
       { orders: 0, revenueOre: 0 }
     );
 
-    return c.json({
-      monthlyData: enriched,
+    const payload: StatisticsResponse = {
+      monthlyData: enriched.map((m) => ({
+        month: String(m.month),
+        orderCount: Number(m.orderCount),
+        revenueOre: Number(m.revenueOre),
+        orders: Number(m.orders),
+        revenue: String(m.revenue),
+      })),
       isDemo: enriched.length === 0,
       totals: {
         orders: totals.orders,
         revenueOre: totals.revenueOre,
         revenue: formatSek(totals.revenueOre),
       },
-    });
+    };
+    return c.json(payload);
   } catch (err) {
     log.error({ err }, "Failed to fetch statistics");
     return c.json({ error: "Kunde inte hämta statistik" }, 500);
@@ -517,10 +549,15 @@ portal.get("/income", async (c) => {
           : eq(orders.invoiceStatus, "PAID")
       );
 
-    return c.json({
-      months: monthlyRevenue,
+    const payload: IncomeResponse = {
+      months: monthlyRevenue.map((m) => ({
+        month: String(m.month),
+        revenueOre: Number(m.revenueOre),
+        orderCount: Number(m.orderCount),
+      })),
       totalEarnedOre: Number(totalResult[0]?.total || 0),
-    });
+    };
+    return c.json(payload);
   } catch (err) {
     log.error({ err }, "Failed to fetch income");
     return c.json({ error: "Kunde inte hämta intäkter" }, 500);
@@ -566,10 +603,17 @@ portal.get("/pipeline", async (c) => {
       .orderBy(desc(quotes.createdAt))
       .limit(25);
 
-    return c.json({
+    const payload: PipelineResponse = {
       stages: stageData,
-      deals: recentDeals,
-    });
+      deals: recentDeals.map((d) => ({
+        id: d.id,
+        status: String(d.status),
+        totalOre: Number(d.totalOre),
+        orgId: d.orgId,
+        createdAt: d.createdAt instanceof Date ? d.createdAt.toISOString() : d.createdAt,
+      })),
+    };
+    return c.json(payload);
   } catch (err) {
     log.error({ err }, "Failed to fetch pipeline");
     return c.json({ error: "Kunde inte hämta pipeline" }, 500);

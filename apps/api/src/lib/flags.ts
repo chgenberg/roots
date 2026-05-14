@@ -21,6 +21,41 @@ export function isEnabled(flag: string, fallback = false): boolean {
   return TRUTHY.has(String(raw).trim().toLowerCase());
 }
 
+const ORG_SEP = /[,;\s]+/;
+
+/**
+ * Strategic rollout flags: `FEATURE_<NAME>` (truthy = on).
+ * Optional allowlist: `FEATURE_<NAME>_ORGS` = comma-separated org UUIDs.
+ * When the allowlist is non-empty, only those orgs match; missing orgId → false.
+ */
+export function featureOn(
+  name: string,
+  ctx?: { orgId?: string }
+): boolean {
+  const normalized = name
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "_")
+    .replace(/^_|_$/g, "");
+  if (!normalized) return false;
+  const key = `FEATURE_${normalized}`;
+  if (!isEnabled(key, false)) return false;
+
+  const allow = readEnv(`${key}_ORGS`);
+  if (allow === undefined || allow === null || String(allow).trim() === "") {
+    return true;
+  }
+  const orgId = ctx?.orgId;
+  if (!orgId) return false;
+  const set = new Set(
+    String(allow)
+      .split(ORG_SEP)
+      .map((s) => s.trim())
+      .filter(Boolean)
+  );
+  return set.has(orgId);
+}
+
 /** Centralised, well-named helpers so call sites never typo an env key. */
 export const flags = {
   /** Master switch for AI features. When false, all AI surfaces degrade to
@@ -59,5 +94,15 @@ export const flags = {
   /** Persist checkout cart in sessionStorage across navigations. */
   cartPersistence(): boolean {
     return isEnabled("FEATURE_CART_PERSISTENCE", true);
+  },
+
+  /** Masterdata / CRM hierarchy (riksorg, segment, org 2.0). See docs/feedback-plans/01-master-data/. */
+  newOrgHierarchy(ctx?: { orgId?: string }): boolean {
+    return featureOn("NEW_ORG_HIERARCHY", ctx);
+  },
+
+  /** Payout aggregation keyed by group_unit (parallel to team); see 08-ecommerce-integration. */
+  payoutByGroupUnit(ctx?: { orgId?: string }): boolean {
+    return featureOn("PAYOUT_BY_GROUP_UNIT", ctx);
   },
 };

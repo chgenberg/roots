@@ -1,0 +1,95 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`GET /v1/shop/by-slug/:slug > returns full shop payload for an active seller (snapshot) 1`] = `
+{
+  "bundles": [
+    {
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "description": "Två granola, en kaffe.",
+      "id": "00000000-0000-0000-0000-000000000bb1",
+      "name": "Familjepaket",
+      "priceOre": 24900,
+      "productIds": [
+        "00000000-0000-0000-0000-000000000aa1",
+      ],
+      "slug": "familjepaket",
+      "updatedAt": "2026-01-01T00:00:00.000Z",
+    },
+  ],
+  "campaign": {
+    "deliveryType": "PICKUP",
+    "description": "Köp gott och stöd laget.",
+    "endDate": "2026-06-01T00:00:00.000Z",
+    "goalType": "AMOUNT",
+    "goalValue": 100000,
+    "id": "00000000-0000-0000-0000-000000000444",
+    "name": "Vårkampanj 2026",
+    "shippingFeeOre": 0,
+    "shippingThresholdOre": 0,
+    "startDate": "2026-04-01T00:00:00.000Z",
+    "status": "ACTIVE",
+    "story": "Vi samlar pengar till nytt cuplag.",
+  },
+  "organization": {
+    "name": "IFK Roots",
+  },
+  "products": [
+    {
+      "active": true,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "currency": "SEK",
+      "description": "Hemkrossad havre och nötter.",
+      "id": "00000000-0000-0000-0000-000000000aa1",
+      "name": "Roots Granola 500g",
+      "priceOre": 12900,
+      "sku": "ROOTS-001",
+      "slug": "roots-granola-500g",
+      "updatedAt": "2026-01-01T00:00:00.000Z",
+    },
+  ],
+  "seller": {
+    "displayName": "Anna",
+    "id": "00000000-0000-0000-0000-000000000111",
+    "individualGoal": 5000,
+    "shopSlug": "anna-roots-2026",
+  },
+  "stats": {
+    "orderCount": 3,
+    "totalSoldOre": 38700,
+  },
+  "team": {
+    "id": "00000000-0000-0000-0000-000000000333",
+    "name": "P10 Svart",
+  },
+}
+`;
+
+exports[`GET /v1/shop/products > returns the public catalogue (snapshot) 1`] = `
+{
+  "bundles": [
+    {
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "description": "Två granola, en kaffe.",
+      "id": "00000000-0000-0000-0000-000000000bb1",
+      "name": "Familjepaket",
+      "priceOre": 24900,
+      "slug": "familjepaket",
+      "updatedAt": "2026-01-01T00:00:00.000Z",
+    },
+  ],
+  "products": [
+    {
+      "active": true,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "currency": "SEK",
+      "description": "Hemkrossad havre och nötter.",
+      "id": "00000000-0000-0000-0000-000000000aa1",
+      "name": "Roots Granola 500g",
+      "priceOre": 12900,
+      "sku": "ROOTS-001",
+      "slug": "roots-granola-500g",
+      "updatedAt": "2026-01-01T00:00:00.000Z",
+    },
+  ],
+}
+`;

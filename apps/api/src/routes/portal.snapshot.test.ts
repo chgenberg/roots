@@ -1,0 +1,399 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+/**
+ * API SNAPSHOT TESTS — portal endpoints (synthesis §16 Typ B/C).
+ *
+ * The exact JSON wire format for every dashboard role and for the
+ * statistics/pipeline/income screens is locked into a Vitest snapshot.
+ * If a future PR drifts the response (renames a field, changes a number,
+ * removes a string alias) reviewers will see the diff in CI before it
+ * silently breaks the UI.
+ *
+ * The DB is mocked so tests run in <100ms without Postgres. Each test
+ * enqueues the exact rows it expects the route to fetch — effectively a
+ * checked-in "seed" of deterministic, role-specific data.
+ *
+ * NOTE: this is **complementary** to `portal.contract.test.ts` (which
+ * validates shape via Zod) — the snapshot adds literal-value guard rails.
+ */
+
+const { mockDb, dbHandle } = vi.hoisted(() => {
+  // Inline `makeMockDb` so the mock module factory below can see it
+  // (vi.mock + vi.hoisted runs before any top-level imports).
+  const state: { queue: unknown[]; idx: number } = { queue: [], idx: 0 };
+
+  const dequeue = (): unknown => {
+    const v = state.idx < state.queue.length ? state.queue[state.idx] : [];
+    state.idx += 1;
+    return v;
+  };
+
+  const inserts: { table: unknown; values: unknown }[] = [];
+  let currentInsertTable: unknown = null;
+
+  const chain: any = new Proxy(
+    {},
+    {
+      get(_target, prop) {
+        if (prop === "then") {
+          return (resolve: any, reject?: any) => {
+            try {
+              return Promise.resolve(dequeue()).then(resolve, reject);
+            } catch (err) {
+              return Promise.reject(err).then(resolve, reject);
+            }
+          };
+        }
+        if (prop === "returning") {
+          return () => chain;
+        }
+        if (prop === "values") {
+          return (values: unknown) => {
+            inserts.push({ table: currentInsertTable, values });
+            return chain;
+          };
+        }
+        return (..._args: any[]) => chain;
+      },
+    }
+  );
+
+  const db = {
+    select: (..._args: any[]) => chain,
+    insert: (table: unknown) => {
+      currentInsertTable = table;
+      return chain;
+    },
+    update: (..._args: any[]) => chain,
+    delete: (..._args: any[]) => chain,
+    execute: async () => [{ ok: 1 }],
+    transaction: async (fn: (tx: any) => Promise<unknown>) => fn(db),
+  };
+
+  return {
+    mockDb: db,
+    dbHandle: {
+      reset(next?: unknown[]) {
+        state.queue.length = 0;
+        if (next) state.queue.push(...next);
+        state.idx = 0;
+        inserts.length = 0;
+        currentInsertTable = null;
+      },
+      inserts,
+    },
+  };
+});
+
+vi.mock("@roots/db", () => ({ db: mockDb }));
+
+vi.mock("../lib/session", async () => {
+  const actual = await vi.importActual<any>("../lib/session");
+  return {
+    ...actual,
+    getSession: vi.fn(),
+    SESSION_COOKIE_NAME: actual.SESSION_COOKIE_NAME ?? "roots_session",
+  };
+});
+
+import { portal } from "./portal";
+import * as session from "../lib/session";
+
+const SESSION_COOKIE = `${session.SESSION_COOKIE_NAME}=session-id`;
+const getSessionMock = vi.mocked(session.getSession);
+
+beforeEach(() => {
+  dbHandle.reset();
+  getSessionMock.mockReset();
+});
+
+afterEach(() => {
+  vi.clearAllMocks();
+});
+
+async function callPortal(path: string) {
+  const res = await portal.request(path, {
+    headers: { cookie: SESSION_COOKIE },
+  });
+  return { status: res.status, body: await res.json() };
+}
+
+describe("GET /v1/portal/dashboard — CLUB_ADMIN", () => {
+  it("returns deterministic club KPIs (snapshot)", async () => {
+    getSessionMock.mockResolvedValue({
+      userId: "00000000-0000-0000-0000-000000000010",
+      role: "CLUB_ADMIN",
+      orgId: "00000000-0000-0000-0000-0000000000aa",
+      createdAt: 0,
+    } as any);
+
+    dbHandle.reset([
+      [{ count: 24 }],         // members
+      [{ count: 12 }],         // orders
+      [{ total: 480_000 }],    // revenue (PAID) → 4 800 kr
+    ]);
+
+    const out = await callPortal("/dashboard");
+    expect(out.status).toBe(200);
+    expect(out.body).toMatchSnapshot();
+  });
+});
+
+describe("GET /v1/portal/dashboard — SALES_REP", () => {
+  it("returns deterministic sales KPIs (snapshot)", async () => {
+    getSessionMock.mockResolvedValue({
+      userId: "00000000-0000-0000-0000-000000000011",
+      role: "SALES_REP",
+      orgId: null,
+      createdAt: 0,
+    } as any);
+
+    dbHandle.reset([
+      [{ count: 7 }],            // clubs
+      [{ count: 5 }],            // quotesOut
+      [{ count: 3 }],            // closedThisMonth
+      [{ total: 1_250_000 }],    // pipelineValue (SENT) → 12 500 kr
+    ]);
+
+    const out = await callPortal("/dashboard");
+    expect(out.status).toBe(200);
+    expect(out.body).toMatchSnapshot();
+  });
+});
+
+describe("GET /v1/portal/dashboard — INTERNAL_ADMIN", () => {
+  it("returns deterministic platform KPIs (snapshot)", async () => {
+    getSessionMock.mockResolvedValue({
+      userId: "00000000-0000-0000-0000-000000000012",
+      role: "INTERNAL_ADMIN",
+      orgId: null,
+      createdAt: 0,
+    } as any);
+
+    dbHandle.reset([
+      [{ count: 1234 }],         // totalOrders
+      [{ count: 56 }],           // totalClubs
+      [{ total: 99_000_000 }],   // mrr (PAID sum) → 990 000 kr
+    ]);
+
+    const out = await callPortal("/dashboard");
+    expect(out.status).toBe(200);
+    expect(out.body).toMatchSnapshot();
+  });
+
+  it("returns isDemo=true and 0-kr fallback when no rows", async () => {
+    getSessionMock.mockResolvedValue({
+      userId: "00000000-0000-0000-0000-000000000013",
+      role: "INTERNAL_ADMIN",
+      orgId: null,
+      createdAt: 0,
+    } as any);
+
+    dbHandle.reset([
+      [{ count: 0 }],
+      [{ count: 0 }],
+      [{ total: 0 }],
+    ]);
+
+    const out = await callPortal("/dashboard");
+    expect(out.status).toBe(200);
+    expect(out.body).toMatchSnapshot();
+  });
+});
+
+describe("GET /v1/portal/statistics", () => {
+  it("returns monthly buckets with formatted aliases (snapshot)", async () => {
+    getSessionMock.mockResolvedValue({
+      userId: "00000000-0000-0000-0000-000000000020",
+      role: "CLUB_ADMIN",
+      orgId: "00000000-0000-0000-0000-0000000000bb",
+      createdAt: 0,
+    } as any);
+
+    dbHandle.reset([
+      [
+        { month: "2026-03", orderCount: 4, revenueOre: 80_000 },
+        { month: "2026-04", orderCount: 6, revenueOre: 150_000 },
+        { month: "2026-05", orderCount: 9, revenueOre: 270_000 },
+      ],
+    ]);
+
+    const out = await callPortal("/statistics");
+    expect(out.status).toBe(200);
+    expect(out.body).toMatchSnapshot();
+  });
+
+  it("returns isDemo=true for empty buckets (snapshot)", async () => {
+    getSessionMock.mockResolvedValue({
+      userId: "00000000-0000-0000-0000-000000000021",
+      role: "CLUB_ADMIN",
+      orgId: "00000000-0000-0000-0000-0000000000cc",
+      createdAt: 0,
+    } as any);
+
+    dbHandle.reset([[]]);
+
+    const out = await callPortal("/statistics");
+    expect(out.status).toBe(200);
+    expect(out.body).toMatchSnapshot();
+  });
+});
+
+describe("GET /v1/portal/pipeline", () => {
+  it("returns stage rollups and recent deals (snapshot)", async () => {
+    getSessionMock.mockResolvedValue({
+      userId: "00000000-0000-0000-0000-000000000030",
+      role: "SALES_ADMIN",
+      orgId: null,
+      createdAt: 0,
+    } as any);
+
+    dbHandle.reset([
+      [
+        { status: "DRAFT", count: 2, totalOre: 300_000 },
+        { status: "SENT", count: 4, totalOre: 800_000 },
+        { status: "ACCEPTED", count: 1, totalOre: 250_000 },
+      ],
+      [
+        {
+          id: "00000000-0000-0000-0000-0000000000d1",
+          status: "SENT",
+          totalOre: 250_000,
+          orgId: "00000000-0000-0000-0000-0000000000aa",
+          createdAt: new Date("2026-05-14T08:00:00.000Z"),
+        },
+        {
+          id: "00000000-0000-0000-0000-0000000000d2",
+          status: "DRAFT",
+          totalOre: 150_000,
+          orgId: "00000000-0000-0000-0000-0000000000bb",
+          createdAt: new Date("2026-05-13T12:00:00.000Z"),
+        },
+      ],
+    ]);
+
+    const out = await callPortal("/pipeline");
+    expect(out.status).toBe(200);
+    expect(out.body).toMatchSnapshot();
+  });
+});
+
+describe("GET /v1/portal/income", () => {
+  it("returns last 6 months earned (snapshot)", async () => {
+    getSessionMock.mockResolvedValue({
+      userId: "00000000-0000-0000-0000-000000000040",
+      role: "CLUB_ADMIN",
+      orgId: "00000000-0000-0000-0000-0000000000ee",
+      createdAt: 0,
+    } as any);
+
+    dbHandle.reset([
+      [
+        { month: "2026-05", revenueOre: 200_000, orderCount: 8 },
+        { month: "2026-04", revenueOre: 175_000, orderCount: 7 },
+        { month: "2026-03", revenueOre: 90_000, orderCount: 4 },
+      ],
+      [{ total: 465_000 }],
+    ]);
+
+    const out = await callPortal("/income");
+    expect(out.status).toBe(200);
+    expect(out.body).toMatchSnapshot();
+  });
+});
+
+describe("GET /v1/portal/dashboard — unauthenticated", () => {
+  it("returns 401 without snapshotting the body", async () => {
+    getSessionMock.mockResolvedValue(null);
+    dbHandle.reset();
+    const out = await callPortal("/dashboard");
+    expect(out.status).toBe(401);
+    expect(out.body).toEqual({ error: "Ej inloggad" });
+  });
+});
+
+/**
+ * Regression coverage for two recent portal bug fixes:
+ *
+ *  1. `orders.userId` / `orders.orgId` are both NOT NULL in the schema, but
+ *     the handler used to forward `session.orgId` even when it was `null`,
+ *     producing a DB-level 500. We now fail fast with a 400 if the session
+ *     has no club context.
+ *
+ *  2. `order_lines` has a column named `qty`, not `quantity`. The previous
+ *     insert used `quantity: l.qty`, which silently broke the line-items
+ *     write at runtime. The fix renames to `qty` — this test asserts the
+ *     exact field name reaches the DB layer.
+ */
+describe("POST /v1/portal/orders", () => {
+  async function postOrder(body: unknown) {
+    const res = await portal.request("/orders", {
+      method: "POST",
+      headers: {
+        cookie: SESSION_COOKIE,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+    return { status: res.status, body: await res.json() };
+  }
+
+  it("returns 400 when session has no orgId (no orphan rows)", async () => {
+    getSessionMock.mockResolvedValue({
+      userId: "00000000-0000-0000-0000-000000000050",
+      role: "CLUB_ADMIN",
+      orgId: null,
+      createdAt: 0,
+    } as any);
+    dbHandle.reset();
+
+    const out = await postOrder({
+      items: [{ productId: "00000000-0000-0000-0000-0000000000f1", qty: 2 }],
+    });
+
+    expect(out.status).toBe(400);
+    expect(out.body).toEqual({ error: "Beställning kräver klubbkontext" });
+    expect(dbHandle.inserts).toHaveLength(0);
+  });
+
+  it("inserts order_lines with `qty` (not `quantity`)", async () => {
+    getSessionMock.mockResolvedValue({
+      userId: "00000000-0000-0000-0000-000000000051",
+      role: "CLUB_ADMIN",
+      orgId: "00000000-0000-0000-0000-0000000000ab",
+      createdAt: 0,
+    } as any);
+
+    dbHandle.reset([
+      // products lookup
+      [
+        {
+          id: "00000000-0000-0000-0000-0000000000f1",
+          priceOre: 12_900,
+        },
+      ],
+      // returning() of the new order row
+      [{ id: "00000000-0000-0000-0000-000000000099" }],
+    ]);
+
+    const out = await postOrder({
+      items: [{ productId: "00000000-0000-0000-0000-0000000000f1", qty: 3 }],
+    });
+
+    expect(out.status).toBe(200);
+    expect(out.body).toMatchObject({ ok: true });
+
+    // 1st insert = orders, 2nd = order_lines
+    expect(dbHandle.inserts).toHaveLength(2);
+    const lineValues = dbHandle.inserts[1].values as Array<Record<string, unknown>>;
+    expect(Array.isArray(lineValues)).toBe(true);
+    expect(lineValues[0]).toMatchObject({
+      productId: "00000000-0000-0000-0000-0000000000f1",
+      qty: 3,
+      unitPriceOre: 12_900,
+      orderId: "00000000-0000-0000-0000-000000000099",
+    });
+    // Regression: `quantity` must NOT be present (schema has `qty`).
+    expect(lineValues[0]).not.toHaveProperty("quantity");
+  });
+});

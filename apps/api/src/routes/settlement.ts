@@ -151,7 +151,7 @@ settlement.post("/generate/:campaignId", async (c) => {
       entityId: campaignId,
       meta: {
         ...requestContext((n) => c.req.header(n)),
-        from: "ACTIVE",
+        from: campaign.status,
         to: "SETTLED",
         settlementCount: results.length,
       },
