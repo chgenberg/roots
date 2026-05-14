@@ -1,0 +1,53 @@
+==============================================
+2. Identifiera "Motorn"
+==============================================
+Källa: Säljprocess.pptx — slide 3 (Bokning + Motorn); slide 9 punkt 1 (incitament)
+
+NULÄGE
+
+- `packages/db/src/schema/organizations.ts` — ingen `organization_contacts`-tabell; kontakter lever ad hoc eller i `users` när någon bjuds in.
+- `packages/db/src/schema/users.ts` — roller inkl. `TEAM_LEADER`; ingen explicit `is_motor` eller `social_capital_score`.
+- Säljmötesflöde i portalen är inte modellerat som datamodell med checklista.
+
+VAD FEEDBACKEN SÄGER
+
+- Ny tabell **`organization_contacts`:** `id`, `organization_id`, `name`, `role` (ordförande/kassör/lagledare/ungdomsansvarig/Motor m.fl.), `phone`, `email`, `is_motor` BOOL, `social_capital_score` (1–5), `notes`, `created_at`, `updated_at`, ev. `user_id` nullable FK när synkad till inloggad användare.
+- UI-checklista vid bokning/möte: "Handlingskraftig?", "Respekt i gruppen?", "Gillar att få saker att hända?" — sparas som JSONB eller bool-kolumner (produktval).
+- Coaching-copy: "Du känns som rätt person att driva detta" — statisk text + ev. AI-tone (skill 04 agent 6) med hårda guardrails.
+- Incitament (slide 9): titel/badge i app ("Roots Captain"), bonus-mall (PDF/Notion-länk internt), **INTE** lön utanför system — dokumentera att ekonomi sker enligt avtal utanför plattformen om så.
+- När Motor blir `TEAM_LEADER`: koppla `organization_contacts.user_id` → befintlig `users`-rad; undvik dubbla personer (unik partial index på `organization_id` + `email` där email not null).
+
+GAP
+
+- Saknar hela datalagret och UI för kontaktbok, mötesanteckning, Motor-flagga.
+- Ingen koppling till kalenderbokning (om extern).
+
+IMPLEMENTATION
+
+- **Migration:** `organization_contacts` + index `(organization_id)`, ev. `(organization_id) WHERE is_motor = true` partial unique om max en Motor per org i v1.
+- **API:** CRUD under `/v1/portal/orgs/:orgId/contacts`; PATCH `is_motor` sätter andra till false om policy "en Motor".
+- **UI:** på `/portal/klubbar/[id]` (ny detaljvy önskad — jfr. audit) eller modal från pipeline: flik Kontakter + checklista + "Markera som Motor".
+- **Synk:** när "Bjud in som lagledare" → skapa/fyll `users` + länka `user_id`; roll `TEAM_LEADER` enligt befintlig auth.
+- **Badge "Roots Captain":** `users` eller `organization_contacts`-fält `display_title` — visa i portal-header för den användaren (etik, GDPR).
+
+BAKÅTKOMPATIBILITET
+
+- Befintliga org utan kontakter: tom lista; ingen tvångsmigration av legacy-data.
+
+DEPENDENCIES
+
+- Skill 02 (org som lead/customer). Skill 05 agent 5 (setup-wizard steg 1 väljer Motor). Skill 04 agent 6 (coach-text). Auth/invite-flöden som redan finns för team.
+
+TESTPLAN
+
+- Unik Motor per org. E-postvalidering. RLS/RBAC: säljare ser bara sina org (policy från portal).
+
+RISKER
+
+- PII i `notes` — minimera; audit på export. Konflikt två Motors — UX för omval.
+
+UPPSKATTAD INSATS
+
+- Schema + API + grund-UI: **4–6 dagar**. Klubbdetalj + invites: **+3–5 dagar** om detaljsidan saknas.
+
+--- SLUT ---

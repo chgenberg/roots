@@ -1,0 +1,74 @@
+==============================================
+1. Organisationsnormalisering
+==============================================
+
+NULÄGE
+
+- `organizations` (`packages/db/src/schema/organizations.ts`): `id`, `name`, `orgNumber`, `type`, `nationalFederation`, `sportType`, `verified`, `fortnoxCustomerId`, timestamps — ingen `normalized_name`, masterdata-FK eller fuzzy-metadata.
+- Org skapas med rå sträng i `apps/api/src/routes/auth.ts` (`insert(organizations).values({ name: orgName, ... })`) utan dedup/AI.
+- AI: `apps/api/src/lib/ai/openclaw-client.ts` — `chatCompletion` / `chatCompletionStream` mot `${OPENAI_BASE_URL}/v1/chat/completions`, modell `OPENAI_DEFAULT_MODEL || "gpt-5.4-mini"`, `max_completion_tokens: 1024`, timeout `OPENAI_MCP_TIMEOUT_MS` (default 10000 ms). `isAiConfigured()` kollar API-nyckel (ej `AI_ENABLED` här).
+- Flaggor: `apps/api/src/lib/flags.ts` — `flags.aiEnabled()` (`AI_ENABLED`, default true), `flags.auditLogging()`. Ingen `FEATURE_AI_ORG_NORM`.
+- Audit: `apps/api/src/lib/audit.ts` — `auditLog()` bakom `FEATURE_AUDIT_LOGGING`.
+- Redis: `apps/api/src/lib/redis.ts` — används bl.a. `session.ts`, `rate-limit.ts` (`ai:*`, `hair:*`), portal hälsa — ingen `org:norm:*`-cache.
+- Under `apps/api/src/lib/ai/` finns ej katalogen `agents/` — ingen `org-normalizer.ts`.
+- Ingen `pg_trgm` / `similarity()` i repo ännu — kräver migration + extension.
+
+VAD FEEDBACKEN SÄGER
+
+- Modell_register kap 12 / skill 04: agent för organisationsnormalisering — fri text + kommun/postnummer → kanoniskt namn, fuzzy mot befintliga org, merge-förslag vid hög confidence, Redis-cache `org:norm:<sha>` TTL 7 dagar, tokenbudget ~500, JSON-svar med `normalized_name`, `confidence`, `alternatives[]`.
+
+GAP
+
+- Saknad modul `apps/api/src/lib/ai/agents/org-normalizer.ts`.
+- Ingen pipeline: lokal normalize → pg_trgm → `chatCompletion`.
+- Ingen dedikerad feature-flag för gradvis rollout (utöver `AI_ENABLED`).
+- Ingen UI-banner "Menade du …?" kopplad till API-svar.
+- Ingen lead-import-hook dokumenterad i kod (utöver auth-insert).
+
+IMPLEMENTATION
+
+- **Ny fil:** `apps/api/src/lib/ai/agents/org-normalizer.ts` — importera `chatCompletion` från `../openclaw-client`.
+- **Input:** `rawName`, valfritt `municipality`, `postalCode` (lokal normalisering först: NFKC, trim, postnummerformat).
+- **Steg 1 — Cache:** `sha256` av kanonisk payload → `redis.get("org:norm:" + hash)`; vid miss `SET` + `EX` 604800 (7 d). Vid Redis-fel: fortsätt utan cache (mönster från `rate-limit.ts`).
+- **Steg 2 — Lokal normalize:** lowercase, whitespace, valfri suffix-lista (IF/BK/FK — produktbeslut).
+- **Steg 3 — pg_trgm:** `CREATE EXTENSION IF NOT EXISTS pg_trgm`; GIN-index på kolumn som blir söknyckel (helst framtida `normalized_name`; tills dess `name`). `similarity()` eller `%` — top N kandidater.
+- **Steg 4 — AI:** endast om fuzzy tvetydig / under tröskel. `ChatMessage[]`: kort system + user med raw + geo + kandidater. Strikt JSON: `normalizedName`, `bestMatchOrgId`, `confidence`, `mergeSuggested`, `reason`. Håll total prompt ~≤500 tokens där möjligt.
+- **Steg 5 — Beslut:** `confidence > 0.85` + `bestMatchOrgId` → `mergeSuggested` för UI; annars returnera normaliserat namn för create/review-kö.
+- **Triggers:** före `insert(organizations)` i `auth.ts` och framtida import-endpoints; returnera struktur till klient för banner.
+- **Guardrails:** om `!flags.aiEnabled()` eller `!isAiConfigured()` → hoppa över LLM, kör lokal + trgm.
+- **Audit:** `auditLog({ action: "org.normalize", entityType: "organization", meta: { confidence, source: "cache"|"local"|"trgm"|"ai", hash } })`.
+
+BAKÅTKOMPATIBILITET
+
+- Befintliga org-rader oförändrade tills merge eller användare accepterar förslag.
+- Ny flagga `FEATURE_ORG_NORMALIZER_AI` default false per `flags.ts`-konventionen om explicit rollout önskas.
+- `openclaw-client.ts` oförändrad i v1 — endast ny konsument.
+
+DEPENDENCIES
+
+- `openclaw-client.ts`, `flags.ts`, `audit.ts`, `redis.ts`, `rate-limit.ts` (valfritt per IP/org).
+- DB-migration pg_trgm + index; Drizzle `organizations.ts` utökas i skill 01-plan.
+
+TESTPLAN
+
+- Enhet: lokal normalize edge cases.
+- Redis hit/miss, TTL 7d.
+- DB: trgm-ordning på kända nästan-dubbletter.
+- Mock `chatCompletion`: JSON-parse; cache skippar LLM.
+- Regression: registrering utan flagga = nuvarande beteende.
+
+RISKER
+
+- Fel merge vid överdriven AI-confidence — kräv manuell bekräftelse i UI.
+- Prestanda utan index på stor tabell.
+- Timeout 10s — håll prompt kort.
+- PII i prompt — minimera `meta` i audit.
+
+UPPSKATTAD INSATS
+
+- Migration + index + Drizzle: **0,5–1 d**.
+- `org-normalizer.ts` + Redis + tester: **1–1,5 d**.
+- Hook i org-create/import + UI-banner: **1–2 d**.  
+**Totalt MVP:** **ca 3–5 dagar**.
+
+--- SLUT ---

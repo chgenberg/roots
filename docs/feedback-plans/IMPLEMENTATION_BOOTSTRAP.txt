@@ -1,0 +1,351 @@
+================================================================================
+IMPLEMENTATION_BOOTSTRAP — vad som började byggas (strategisk plan → kod)
+================================================================================
+Datum: 2026-05-14
+Bakgrund: Full utbyggnad av alla 64 feedback-planer är månaders arbete. Denna
+bootstrap implementerar **Fas 0–1-ingångar** från MASTER_IMPLEMENTATION_SYNTHESIS
+§13–§16: flagg-ramverk, regressionstester för flaggor, audit-korrekthet i
+settlement — utan att ändra affärslogik för avräkning.
+
+GENOMFÖRT I KOD
+---------------
+1. **apps/api/src/lib/flags.ts**
+   - `featureOn(name, ctx?)` — läser `FEATURE_<NAME>` och valfritt
+     `FEATURE_<NAME>_ORGS` (kommaseparerade org-UUID) för kanarie/rullad utrullning.
+   - `flags.newOrgHierarchy(ctx?)` → `FEATURE_NEW_ORG_HIERARCHY` (+ `_ORGS`).
+   - `flags.payoutByGroupUnit(ctx?)` → `FEATURE_PAYOUT_BY_GROUP_UNIT` (+ `_ORGS`).
+   Default: av (false) tills env sätts — **ingen beteendeförändring**.
+
+2. **apps/api/src/routes/settlement.ts**
+   - `auditLog` meta `from` satt till **faktisk** `campaign.status` (vid generate
+     är detta `ENDED` enligt valideringen), inte hårdkodat `"ACTIVE"`.
+   - `to` fortsatt `"SETTLED"`. Ren **förbättring** av spårbarhet.
+
+3. **Test & CI-ingång**
+   - `apps/api/vitest.config.ts`, `apps/api/src/lib/flags.test.ts`
+   - `apps/api/package.json` scripts `test` / `test:watch`
+   - `turbo.json` + root `package.json` script `test` → `turbo test`
+   - `pnpm-lock.yaml` uppdaterad (vitest).
+
+4. **MASTER Fas 1 — delad Zod i `@roots/contracts/src/portal.ts`** (synthesis §14.1)
+   - Nya exports: `dashboardResponseSchema`, `statisticsResponseSchema`,
+     `pipelineResponseSchema`, `incomeResponseSchema`, `portalRoleSchema` och
+     härledda TS-typer `DashboardResponse | StatisticsResponse | PipelineResponse
+     | IncomeResponse`. **Endast additivt** — index re-exporterar.
+   - `apps/api/src/routes/portal.ts` annoterar svaren med dessa typer
+     (`const payload: DashboardResponse = …`), så drift fångas redan vid
+     `pnpm typecheck`.
+   - `apps/api/src/routes/portal.contract.test.ts` (8 tester) låser shape mot
+     Zod-schemana och fångar drift redan i `pnpm test` (förebygger T1 från
+     audits — UI/API-mismatch).
+
+5. **Bugfix portal-quotes** (audit 1.3 P1) — `quotes.userId` finns inte i
+   schemat. Bytt till `quotes.salesRepId` så reps' lista över egna offerter
+   returnerar rätt data istället för att kasta `column "user_id" does not exist`.
+
+6. **API snapshot-tester (synthesis §16 Typ B/C, Fas 0)**
+   - `apps/api/src/test-utils/mock-db.ts` — chainable Drizzle-mock som
+     dequeue:ar rad-listor i tur och ordning. Inga riktiga Postgres-anrop.
+   - `apps/api/src/routes/portal.snapshot.test.ts` (9 tester, 8 snapshots) —
+     dashboard CLUB_ADMIN / SALES_REP / INTERNAL_ADMIN (med och utan data),
+     /statistics (data + tomt), /pipeline, /income, samt 401-flödet.
+   - `apps/api/src/routes/shop.snapshot.test.ts` (3 tester, 2 snapshots) —
+     publik `/by-slug/:slug` med fullständigt seller/team/campaign/org/products
+     /bundles/stats payload, 404-fallback och `/products`-katalogen.
+   - Snapshots ligger checkade i `apps/api/src/routes/__snapshots__/*.snap`.
+     Vid framtida drift visas diffen i CI **innan** UI-regression når prod.
+
+7. **Masterdata v1 — `organizations`-schema (Fas 1, plan 01/03)**
+   - `packages/db/src/schema/organizations.ts` utökat med 13 nya kolumner —
+     samtliga **NULLABLE**, plus fem index för normalized_name, segment_id,
+     riksorganisation_id, crm_status, assigned_asm_user_id.
+     Befintliga inserts/selects fortsätter fungera oförändrat.
+   - `packages/db/drizzle/0002_organizations_masterdata_v1.sql` (ny) —
+     `ADD COLUMN IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`, samt
+     `DO $$ … $$` för idempotent FK på `assigned_asm_user_id → users(id)`
+     med `ON DELETE SET NULL`. Säker att köra på prod, säker att köra om.
+   - `packages/db/drizzle/meta/_journal.json` uppdaterad med 0002-entry.
+   - Inga kod-paths läser de nya kolumnerna ännu — de aktiveras först när
+     `flags.newOrgHierarchy(orgId)` slås på per pilotorg
+     (synthesis §13.4 expand/contract).
+
+8. **Masterdata v1 — `master_riksorganisation` + `master_segment` (Fas 1, plan 01/01–02)**
+   - `packages/db/src/schema/master-riksorganisation.ts` (ny) — topp av
+     hierarkin (Riksorganisation → Segment → Org → Grupp). Kolumner enligt
+     plan 01/01: `id`, `name UNIQUE`, `code UNIQUE`, `type`, `active`,
+     `sort_order`, `created_at`. Aktiv/sort-index.
+   - `packages/db/src/schema/master-segment.ts` (ny) — andra nivån. FK till
+     `master_riksorganisation` med `ON DELETE RESTRICT`. Unika index på
+     `(riksorganisation_id, name)` och `(riksorganisation_id, code)` enligt
+     plan 01/02 v1-regeln (ett segment tillhör exakt en riksorg).
+   - `packages/db/src/schema/index.ts` re-exporterar båda.
+   - `packages/db/src/schema/organizations.ts` — `riksorganisationId` /
+     `segmentId` har nu `.references()` med `ON DELETE SET NULL` (mål-
+     tabellerna finns nu).
+   - `packages/db/drizzle/0003_master_riksorganisation_and_segment.sql` (ny)
+     — `CREATE TABLE IF NOT EXISTS`, unika index, samt idempotent `DO $$`
+     som lägger till FK-constraint `organizations_riksorganisation_id_fk` och
+     `organizations_segment_id_fk` när de saknas.
+   - `packages/db/drizzle/meta/_journal.json` uppdaterad med 0003-entry.
+
+9. **Masterdata v1 — CSV-extract + idempotent seed (Fas 1, plan 01/04)**
+   - `packages/db/scripts/extract-master-csv.ts` (ny) — engångs-/repeterbar
+     extraktor som läser de två Excel-mastrarna i `public/Feedback_14:5/`
+     och skriver versionerade CSV-filer.
+   - `packages/db/data/master/riksorganisationer.csv` (114 rader) +
+     `packages/db/data/master/segment_master.csv` (110 rader) — checkade in
+     som CSV (diffbara i PR, deterministiska i CI). README beskriver flödet.
+   - `packages/db/src/seed-masters/util.ts` (ny) — rena helpers:
+     CSV-parser (RFC 4180-ish), Zod-scheman per CSV, sv-SE-aware
+     `slugify`/`uniqueSlug`, `buildRiksCodeMap`, `buildSegmentCodeIndex`.
+     Inga DB-imports → testbart utan Postgres.
+   - `packages/db/src/seed-masters/index.ts` (ny) — kör seed:n. Genererar
+     stabila `code`-värden från namn, upsert mot natural keys
+     (`code` resp `(riksorganisation_id, code)`) via Drizzles
+     `.onConflictDoUpdate()`. Additivt — inga deletes i v1.
+   - `packages/db/vitest.config.ts` (ny) + 17 enhetstester för parser,
+     slugify, kollisionsuffix, segment-indexering, okänd-riks-flaggning.
+   - `package.json` scripts:
+     - `db:masters:extract` → xlsx → csv (devDep `xlsx` i `@roots/db`).
+     - `db:seed:masters` → kör `tsx src/seed-masters/index.ts`.
+     - `test` → kör vitest.
+   - **Inget körschema ändrat** i CI ännu — script:en finns men ingen
+     pipeline triggar dem automatiskt. Aktiveras manuellt eller via senare
+     CI-steg (synthesis §13.4 expand/contract).
+
+10. **Worker-runtime — pg-boss-skelett (Fas 4, plan 04/07)**
+    - `apps/api/src/lib/jobs/types.ts` (ny) — typad job-katalog med Zod-
+      payloads för `agent.organization-normalize`, `agent.segment-normalize`,
+      `agent.lead-score-refresh`, `agent.duplicate-sweep`,
+      `agent.member-estimate-refresh`, `agent.playbook-embed-reindex` och
+      `system.audit-log-archive`. `singletonKey(name, parts)` ger stabila
+      idempotensnycklar.
+    - `apps/api/src/lib/jobs/queue.ts` (ny) — `Queue`-interface + en
+      `InMemoryQueue`-implementation (FIFO, drain on start, singleton-dedup).
+      Används av tester och dev utan Postgres.
+    - `apps/api/src/lib/jobs/pg-boss-queue.ts` (ny) — pg-boss-driver med
+      lazy-import (`pg-boss` triggas först vid `start()`). Validerar payloads
+      mot Zod-katalogen innan handler körs.
+    - `apps/api/src/lib/jobs/index.ts` (ny) — modul-singleton som väljer
+      backend:
+        a) `flags.workersEnabled()` (`WORKERS_ENABLED`) false  → `DisabledQueue`
+           kastar tydligt på `enqueue` så ingen kod kan slå på workers av
+           misstag i prod.
+        b) `WORKERS_INMEMORY=true`                            → `InMemoryQueue`.
+        c) annars                                              → `PgBossQueue`.
+      Public API: `enqueueJob`, `registerJobHandler`, `startWorkers`,
+      `stopWorkers`, `getQueue`.
+    - `apps/api/src/workers/index.ts` (ny) — separat process-entry. Kör inte
+      när `WORKERS_ENABLED` är av. Alla jobb registreras tills vidare med en
+      `noopHandler` som loggar payload — riktiga implementationer landar i
+      följande PR per agent (plan 04/01–06).
+    - `apps/api/package.json` — nya scripts: `dev:workers`, `start:workers`.
+      `build` paketerar nu både `index.ts` och `workers/index.ts`.
+    - **8 enhetstester** i `queue.test.ts`: payload-validation, handler-
+      körning, singletonKey-dedup, `DisabledQueue`-fallback, in-memory
+      route via modul-singleton, stabila singletonKey-strings.
+    - **Inga workers körs i produktion ännu** — flaggan är fortfarande false.
+      När ops vill starta: `WORKERS_ENABLED=true node dist/workers/index.js`.
+
+11. **Första riktiga agent-handler — `agent.organization-normalize`**
+    (Fas 1 + Fas 4, plan 04/01)
+    - `apps/api/src/lib/ai/agents/org-normalizer/normalize.ts` (ny) — rena,
+      DB-fria hjälpfunktioner:
+        * `normalizeName(raw)` — sv-SE-locale lowercase, NFKC, diakritik-
+          strippning, whitespace-collapse, punktuation → space. **Idempotent**.
+        * `normalizeWithoutClubSuffix(raw)` — för framtida fuzzy-matchning,
+          tar bort vanliga svenska klubbsuffix (IF/IFK/BK/FK/FF/SK/IK/...).
+        * `matchRiksorganisation(input, candidates)` — deterministisk exakt-
+          matchning mot `master_riksorganisation` rader, primärt på
+          `national_federation`, sekundärt på `name`. LLM-fallback kommer i
+          uppföljande PR (plan 04/01 steg 4).
+    - `apps/api/src/lib/ai/agents/org-normalizer/handler.ts` (ny) — DB-handler
+      som körs av worker:
+        1. Bailar tidigt på `flags.newOrgHierarchy({ orgId })` av (→
+           `source: "skip-flag"`).
+        2. Läser org-raden + alla `master_riksorganisation` rader.
+        3. Beräknar `normalized_name`, härleder `display_name` (default = org.name),
+           kör `matchRiksorganisation`.
+        4. **Skriver bara där kolumnen är NULL** — agentens regel är aldrig
+           överskriva manuellt kuraterad data (synthesis §13.2 expand-without-
+           contract).
+        5. Loggar `auditLog({ action: "org.normalize", meta: { source, confidence,
+           matchedOn, wrote } })` när minst en kolumn uppdateras.
+        6. Idempotent: rerunning på redan-normaliserad rad → `source: "skip-
+           nochange"`, inga writes, ingen audit-rad.
+    - `apps/api/src/workers/index.ts` — `agent.organization-normalize`
+      registrerar nu **riktig handler** (`runOrganizationNormalize`). Övriga
+      jobb i katalogen kvar som `noopHandler` tills respektive PR landar.
+    - **11 tester** i `normalize.test.ts` (sv-SE, NFKC, idempotens, punktuation,
+      NBSP, klubbsuffix-strip, riksorg-match på federation/name, tomma
+      kandidat-set).
+    - **5 tester** i `handler.test.ts` (vi.hoisted chainable Drizzle-mock):
+      flag-off skip, full normalisering + riksorg-match, "skriv aldrig över
+      curated values", "skip-missing" på saknat row, no-match fyller ändå
+      normalized_name + display_name men inte FK.
+    - **0 nya typecheck-fel** (pre-existerande `any[]` i portal.ts kvar i kön
+      som steg 2 nedan).
+    - Hela API:n: **50 tester gröna** (7 filer).
+    - **Trafiken är fortfarande av i prod** — handlern triggas först när
+      `WORKERS_ENABLED=true` och ett jobb enqueueas via `enqueueJob("agent.
+      organization-normalize", { organizationId })`.
+
+12. **Portal.ts strikt typning + orders-bugfix** (audit P2 + P0)
+    - `apps/api/src/routes/portal.ts` rensad från implicit `any[]`:
+        * `type OrderRow = typeof orders.$inferSelect` används för
+          `orderList: OrderRow[]`.
+        * `type MemberRow = { id; email; name; role; createdAt }` för
+          `memberList: MemberRow[]`.
+    - **P0-bugfix order-lines**: `db.insert(orderLines).values(...)` skickade
+      tidigare `quantity: l.qty`, men schemat har kolumnen **`qty`**. Detta
+      ledde till runtime-fel vid varje beställning från portalen. Bytt till
+      `qty: l.qty`.
+    - **P1-bugfix orphan-orders**: `orders.orgId` och `orders.userId` är båda
+      NOT NULL FK. Tidigare skickades `session.orgId` även när det var `null`
+      (admin-sessions, gäst-checkout-pipelines), vilket producerade en
+      DB-level 500. Lägger till tidig 400-guard: `"Beställning kräver
+      klubbkontext"`. Riktig gäst-checkout har separat route → den här
+      portal-endpointen är inte tänkt för det.
+    - **2 nya regressionstester** i `portal.snapshot.test.ts`:
+        * POST /v1/portal/orders utan `orgId` → 400, **inga** DB-inserts.
+        * POST /v1/portal/orders med produkt → exakt fältsignatur
+          `{ productId, qty, unitPriceOre, orderId }` på order_lines
+          (asserterar att `quantity` **inte** finns).
+      Mock-DB uppgraderad till att fånga `insert(..).values(..)`-payloaden
+      för fältnamnskontroll.
+    - **0 typecheck-fel i portal.ts** efter städningen.
+      (Återstår kvar 1 pre-existerande fel: `bankid`-modulen — orelaterat,
+      optional peer dep.)
+    - API: **52 tester gröna** (7 filer).
+
+13. **Enqueuing-hook i auth.ts — `scheduleOrgNormalize(orgId)`**
+    (Fas 1 + Fas 4, plan 04/01 steg 6 "Triggers")
+    - Helper utbruten till egen modul
+      `apps/api/src/lib/jobs/schedule-org-normalize.ts`. `auth.ts` importerar
+      bara — testen tränar nu **riktiga** koden, inte en kopia.
+    - Köar `agent.organization-normalize` via `enqueueJob` med
+      `singletonKey("agent.organization-normalize", { orgId })` så att
+      återförsök deduplikeras.
+    - Helpern är **fire-and-forget** (`void` + `.catch`-logg) och
+      **kortsluts** när `flags.workersEnabled()` är false så att produktion
+      med `WORKERS_ENABLED=off` är 100% no-op.
+    - Anropas **efter** transaktionen commitar för alla tre insert-punkter
+      (pg-boss kör på separat connection och deltar **inte** i Drizzle-
+      transaktionen; enqueue inuti tx + tx rollback skulle annars schemalägga
+      arbete för en org-rad som aldrig persisterade):
+        * `/auth/register/association` — anrop direkt efter
+          `db.transaction(...)` returnerar.
+        * `/auth/register/team-leader` — `let newlyCreatedOrgId` deklarerad
+          före tx, fångar nyskapade org:n inifrån och anropas efteråt
+          (existing-orgId-flödet anropar inte, eftersom org redan finns
+          och redan har normaliserats vid sitt eget skapande).
+    - **Registreringsflödet kan aldrig falla på grund av jobs-modulen** —
+      ett enqueue-fel loggas som warn och sväljs.
+    - **5 tester** i `apps/api/src/lib/jobs/schedule-org-normalize.test.ts`:
+        * Korrekt name/payload/singletonKey skickas till `enqueueJob`.
+        * Workers av → `enqueueJob` ej kallad.
+        * `enqueueJob` rejection → ingen throw, warn loggas.
+        * `scheduleOrgNormalize` returnerar synkront (typecheck:
+          `Promise` läcker inte ut).
+        * Re-trigger med samma orgId → identisk singletonKey
+          (idempotent dedup).
+    - API: **57 tester gröna** (8 filer). Inga nya typecheck-fel.
+
+14. **Bug-sweep efter steg 11-13** (intern audit)
+    - **B1 (transaction safety):** `scheduleOrgNormalize` flyttad ut ur
+      `db.transaction(...)` i `auth.ts`. Tidigare anrop inuti tx innebar att
+      en rollback (t.ex. unique-violation på e-post efter org-insert) lämnade
+      ett schemalagt agent-jobb för en icke-existerande org-rad — handlern
+      hanterar det med `skip-missing`, men spammen i `WARN`-loggen är
+      onödig.
+    - **B2 (strikt Drizzle-typ för patch):** `Partial<typeof organizations.
+      $inferInsert>` istället för `Record<string, unknown>` + `.set(patch as
+      any)`. Drizzle-namn (`normalizedName`, `displayName`,
+      `riksorganisationId`, `updatedAt`) kompileras nu strikt. Typo i en
+      kolumn upptäcks vid `tsc --noEmit`.
+    - **B3 (tester av riktig kod):** Hooken testas via egen import istället
+      för en kopia. Om `auth.ts` ändras till felaktig signatur fångas det.
+    - **B4 (returvärde i handler):** Bytt `Object.keys(patch).length - 1`
+      mot explicit `businessWrites`-variabel före `updatedAt` läggs på.
+      Tydligare semantik och immun mot framtida ändringar (om `updatedAt`
+      tas bort eller kolumnnamn ändras).
+    - Inga nya buggar introducerade. 57 tester gröna.
+
+15. **Bug-sweep pass 2 — master data + jobs contract**
+    - **B5 (seed importer — dolt state via `any`-cast):**
+      `buildSegmentCodeIndex` lagrade en collision-tracker som
+      `(perName as any).__taken` på den interna Map:en. Bytt mot en ren
+      side-table `takenByRiks: Map<string, Set<string>>`. Ingen `any`-cast,
+      ingen läckande state-egenskap på publika maps.
+    - **B6 (seed importer — duplicerade rader fick "-2"-suffix istället
+      för identisk kod):** Om CSV:n råkade ha två rader med samma
+      `(riksName, segmentName)` (t.ex. vid re-export från Excel) skulle
+      den första raden få kod `"fotboll"`, den andra `"fotboll-2"`, och
+      `perName.set` skrev över den första mappningens kod. Result vid
+      iteration: båda raderna pekade på `"fotboll-2"` med samma namn → en
+      enda rad i DB med fel kod. Fix: `if (perName.has(segName)) continue;`
+      återanvänder befintlig kod för dubbletter. Riktiga slug-kollisioner
+      (olika namn → samma slug, t.ex. `"Foo Bar"` vs `"Foo-Bar"`) får
+      fortfarande `-2`-suffix.
+    - **B7 (queue contract mismatch — `InMemoryQueue` vs `PgBossQueue`):**
+      `InMemoryQueue` returnerade tidigare det **befintliga** jobb-id:t
+      vid singleton-dedup. `PgBossQueue` (via pg-boss `send`) returnerar
+      `null` när singleton-slot:en redan är upptagen. Två olika
+      kontrakt → kod som litar på returvärdet skulle bytt beteende vid
+      backend-byte. Fix: `InMemoryQueue` returnerar nu `null` vid aktiv
+      singleton-slot och **frigör slot:en när jobbet drainats** (try/finally
+      runt handler). Helt symmetriskt med pg-boss.
+    - **Nya tester:**
+        * 3 nya tester i `seed-masters/util.test.ts`:
+          – återanvänder samma kod för duplicerade (riks, segment)-rader.
+          – `-2`-suffix på riktiga slug-kollisioner.
+          – kod-namespaces är isolerade per riks (samma segmentnamn under
+            två riks → samma kod, ingen kollision).
+        * Befintliga `queue.test.ts` "deduplicates by singletonKey"-testet
+          uppgraderat: kör med blockerad handler (Promise.gate) för att
+          bevisa att andra enqueue inom aktiv slot returnerar `null`, och
+          att tredje enqueue **efter** drain får en fräsch id.
+    - **Granskade men inga buggar:**
+        * Migrations 0002/0003 — idempotent, FK-namnen matchar Drizzle:s
+          auto-naming, indexes täcker schemat.
+        * `organizations.assignedAsmUserId` saknar Drizzle `.references()`
+          men FK skapas i SQL — medveten trade-off för att undvika cyklisk
+          import med `users.ts`. Dokumenterad i schema-header.
+        * `dashboardResponseSchema.stats` använder `z.union` istället för
+          `z.discriminatedUnion` — fungerar via disjoint nycklar, men
+          långsammare. Ej buggfix idag (additivt API-brott krävs).
+        * `parseCsv` hanterar inte newlines i citerade celler — dokumenterat
+          i kodkommentar, OK för våra master-CSV:er.
+        * `MockDb.chain` är en delad Proxy — parallella `Promise.all` på
+          DB-queries skulle race:a på `dequeue`. Tester använder sekventiella
+          await:er, OK för nuvarande snapshot-tester.
+    - **Resultat:** 77 tester gröna över hela monorepot (20 db + 57 api).
+      0 nya typecheck-fel. Pre-existerande `seed.ts` produkt-seed-fel och
+      `bankid` peer-dep kvarstår orelaterat.
+
+NÄSTA BYGGSTEG (rekommenderat i ordning)
+---------------------------------------
+1. CI-jobb som kör `db:migrate && db:seed:masters` mot staging-DB efter merge.
+2. Lägg snapshots även för `/v1/portal/quotes`, `/v1/portal/orders` (GET),
+   `/v1/portal/system` (admin) — använd samma `vi.hoisted`-mönster.
+3. LLM-fallback i org-normalizer steg 4 — när exakt match saknas och
+   `flags.aiEnabled()` är på, ring `chatCompletion` med top-N kandidater
+   (`pg_trgm`-index landar i samma PR).
+4. Frontend-konsumtion av `@roots/contracts` → byt `any`-cast i
+   `apps/web/src/lib/portal-api.ts` mot `DashboardResponse | …`.
+5. Lägg `scheduleOrgNormalize` även i framtida import-endpoints (skill 01-
+   plan 04 — seed_import) när dessa landar, så nya organisationer som
+   skapas via batch-import normaliseras på samma sätt.
+
+Miljövariabler (dokumentera i deployment)
+-----------------------------------------
+FEATURE_NEW_ORG_HIERARCHY=on|off
+FEATURE_NEW_ORG_HIERARCHY_ORGS=<uuid,...>   # valfritt, tom = alla om flag on
+
+FEATURE_PAYOUT_BY_GROUP_UNIT=on|off
+FEATURE_PAYOUT_BY_GROUP_UNIT_ORGS=...
+
+WORKERS_ENABLED=on|off                       # av i prod tills handler-PR är klar
+WORKERS_INMEMORY=on|off                      # endast dev/test — kör utan Postgres
+
+--- SLUT ---

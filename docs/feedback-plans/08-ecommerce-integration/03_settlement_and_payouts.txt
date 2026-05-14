@@ -1,0 +1,51 @@
+==============================================
+3. Settlement & payouts till föreningen
+==============================================
+Källa: `apps/api/src/routes/settlement.ts`, `payouts.ts`
+
+NULÄGE
+
+- `settlement.post("/generate/:campaignId")` — kräver `campaign.status === "ENDED"` innan avräkning; loopar **`teams`** för kampanjen; aggregerar `customer_orders` per `teamId` där `status === PAID"`; upsertar `payouts` på **unique `(campaignId, teamId)`**; sätter sedan `campaigns.status = SETTLED`.
+- `payouts` — `totalSalesOre`, `rootsShareOre`, `teamShareOre`, `fortnoxInvoiceId`, status PENDING/INVOICED/PAID.
+- **Dubbleringsskydd:** befintlig `existing` payout uppdateras — idempotent om generate körs om (dokumentera risk om order tillkommer efter SETTLED — policy: blockera ny generate eller tillåt omstatus ENDED för korrigering — **ADR**).
+- **Ingen** explicit `group_unit` i payout-rad — allt per **team**.
+
+VAD FEEDBACKEN SÄGER
+
+- Uppdatera aggregering till **group_unit** när `customer_orders.group_unit_id` finns — antingen **ersätt** `payouts.team_id` med `group_unit_id` (breaking) **eller** lägg `group_unit_id` nullable på `payouts` och depreciera `team_id` gradvis (**rekommendation:** ny kolumn + unik `(campaign_id, group_unit_id)` med fallback team för legacy).
+- **Marknadsstöd-trappa** (skill 05 agent 4): applicera **bonus** på `teamShareOre` / separat `marketing_support_ore` fält — måste synas i Fortnox-underlag och rapport.
+- **0 sålda paket:** hoppa insert/uppdatera payout med 0 men **logga** `auditLog` + rad i `settlement_run_lines` (förslag) för spårbarhet.
+- **Payout-PDF** till superuser: per lag/group_unit + säljare — data från nya attribution-kolumner.
+- **Audit:** varje settlement kör loggar redan `campaign.status.changed` — utöka med lista `payoutIds` + summa hash i `meta`.
+
+GAP
+
+- Nuvarande audit säger `from: "ACTIVE", to: SETTLED` medan kod kräver ENDED — **harmonisera** statusmachine i kod + dokumentation (P0 regression-risk).
+
+IMPLEMENTATION
+
+- Fas 1: dokumentera och fixa statusövergång ENDED→SETTLED i audit-meta.
+- Fas 2: payout per group_unit med backfill-mapping från team.
+- Integrera `marketing_support_tiers` query efter ordersum per team/group.
+
+BAKÅTKOMPATIBILITET
+
+- Legacy kampanjer: endast team-baserade payouts tills backfill klar.
+
+DEPENDENCIES
+
+- Agent 2 (order group_unit). Skill 05 (tiers). `organizations.fortnox_customer_id`.
+
+TESTPLAN
+
+- 100 ordrar över flera lag → payouts stämmer mot manuell summa. Om-generate → idempotent.
+
+RISKER
+
+- Dubbel marginal om både kampanjmargin och bonus appliceras fel — enhetlig kalkylmodul (`lib/settlement/calc.ts`).
+
+UPPSKATTAD INSATS
+
+- Status-fix + dokumentation: **1–2 dagar**. Group_unit payout: **5–8 dagar**. PDF: **+3–4 dagar**.
+
+--- SLUT ---

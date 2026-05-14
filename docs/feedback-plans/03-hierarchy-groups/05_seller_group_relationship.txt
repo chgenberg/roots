@@ -1,0 +1,80 @@
+==============================================
+5. Säljarens koppling till grupp
+==============================================
+
+NULÄGE
+
+- **`sellers`:** obligatorisk `teamId` → `teams.id`, `campaignId`; ingen `group_unit_id`. Index `sellers_team_id_idx` — `packages/db/src/schema/sellers.ts` rader 21–33, 49–52.  
+- **`teams`:** ingen `group_unit_id` — `packages/db/src/schema/teams.ts` rader 14–37.  
+- **Global roll:** `users.role` inkl. `SELLER` — `packages/db/src/schema/users.ts` rader 4–14. Tabellen `sellers` har **ingen** egen roll-kolumn för lagroll.  
+- **`POST /v1/auth/register/seller`:** lookup via `teams.inviteToken`, insert seller, bump `teams.member_count` — `apps/api/src/routes/auth.ts` ~549–617.  
+- **Kontrakt:** `RegisterSellerSchema` — `inviteToken`, `email`, `password`, `displayName` — `packages/contracts/src/auth.ts` ~56–62.  
+- **UI:** `registrera/saljare/[token]/page.tsx` — ingen grupp/lagnamn i copy; `lag/saljare/page.tsx` — invite-länk med token.  
+- **Dashboard:** `POST /v1/dashboard/team/:teamId/sellers` — samma insert-mönster — `apps/api/src/routes/dashboard.ts` ~264–337.
+
+VAD FEEDBACKEN SÄGER
+
+- Additiv **`sellers.group_unit_id`** (nullable → `group_unit.id`).  
+- **Kardinalitet:** många säljare per grupp; säljare tillhör ett `team` (kampanj) och noll/en `group_unit` om valfritt inom laget.  
+- Backfill: `sellers.team_id` → `teams.group_unit_id`.  
+- UI: invite visar grupp/lag; shop-copy t.ex. "P10 Svart, Onsala BK".  
+- **`seller`-roll i laget:** ENUM additiv (Player, Parent, Student, Coach, Teacher, Administrator, Other) — **på `sellers`**, inte `users.role`.  
+- **Cross-ref skill 06:** leaderboards per grupp.
+
+GAP
+
+- Ingen `group_unit` i schema ännu.  
+- Säljare kan inte adresseras per undergrupp inom samma `team`.  
+- Invite-UX bekräftar inte målgrupp utöver implicit token.
+
+IMPLEMENTATION
+
+**A. Kolumn `sellers.group_unit_id`**  
+uuid NULL REFERENCES `group_unit(id)`; index `sellers_group_unit_id_idx`.
+
+**B. Integritet**  
+Om `group_unit_id` IS NOT NULL: validera att `group_unit.organization_id` kedjar till samma org som `teams`/`campaign` (applikationsregel eller trigger efter datamognad).
+
+**C. Backfill**  
+`UPDATE sellers s SET group_unit_id = t.group_unit_id FROM teams t WHERE s.team_id = t.id AND t.group_unit_id IS NOT NULL`.
+
+**D. Invite / preview**  
+- `GET /v1/invites/seller/:token` eller utökning: `{ teamName, groupDisplayName?, campaignName? }` utan PII-läckage.  
+- Uppdatera `registrera/saljare/[token]/page.tsx` med `CardDescription`.
+
+**E. Roll på sellers**  
+Ny pgEnum t.ex. `seller_participant_role` + kolumn `sellers.participant_role` DEFAULT `PLAYER` (exakta värden = produkt). Undvik kolumnnamnet `role` om det kolliderar mentalt med `users.role` — använd `participantRole` i Drizzle.
+
+BAKÅTKOMPATIBILITET
+
+- Nullable FK: befintliga inserts utan kolumn fungerar.  
+- `users.role` oförändrad.  
+- Token-URL oförändrad.
+
+DEPENDENCIES
+
+- `group_unit` + `teams.group_unit_id` (agent 1–3).  
+- **Skill 06** för gruppvisa leaderboards.  
+- **Skill 01** org-kedja i rapporter.
+
+TESTPLAN
+
+- Migration + nullable.  
+- Registrera säljare utan `group_unit_id` → 200.  
+- När team har `group_unit_id`: auto-ärva policy om beslutat.  
+- Ogiltig `group_unit_id` för annat team → 400.  
+- Leaderboard: respektera `hide_from_leaderboard`.
+
+RISKER
+
+- Dubbel sanning `team_id` vs `group_unit_id` utan validering.  
+- Namnkollision `role` vs `users.role` i kodbas — använd tydligt fältnamn.
+
+UPPSKATTAD INSATS
+
+- Schema + migration + index: **0,5–1 d**.  
+- Invite preview API + registrera-sida: **~1 d**.  
+- Dashboard create-path + validering: **~0,5 d**.  
+- Participant-role enum + UI: **+0,5–1 d**.
+
+--- SLUT ---

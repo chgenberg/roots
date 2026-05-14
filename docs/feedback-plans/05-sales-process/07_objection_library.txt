@@ -1,0 +1,50 @@
+==============================================
+7. Invändningsbibliotek
+==============================================
+Källa: Säljprocess.pptx (stödjer slide 4 möte + slide 9); koppling Modell_register via säljsamtal
+
+NULÄGE
+
+- Ingen tabell `objections`; ingen `/portal/playbook/invandningar`.
+- Skill **04 agent 6** (sales coach) planerar RAG + verktyg — invändningar ska kunna citeras därifrån när tabell + API finns.
+
+VAD FEEDBACKEN SÄGER
+
+- Tabell **`objections`:** `id`, `category` enum (Tid, Pengar, Konkurrent, Risk, Övrigt), `objection_text`, `recommended_response`, `examples_jsonb` (array av korta dialogexempel), `score` (aggregat av röster), `tags` text[] eller junction, `status` (`draft`|`published`), `created_by`, `published_at`.
+- Sida **`/portal/playbook/invandningar`** — filter per kategori, sök, sortering på `score` / senast uppdaterad.
+- **Röstning:** `objection_votes` (`user_id`, `objection_id`, `value` +1/-1) med unik constraint per användare per rad — eller enklare thumbs som uppdaterar `score` transaktionellt.
+- **AI-coach (skill 04):** tool `search_objections(query)` returnerar top 3 `recommended_response` med käll-id — chatten citerar biblioteket, hallucinerar inte nya "sanningar".
+- **Insändning:** säljare skickar "ny invändning" → `objection_suggestions` kö eller status `pending_review` för INTERNAL_ADMIN publicering.
+
+GAP
+
+- Saknar all DB + moderation UI + dashboard widget "5 vanligaste denna vecka" (kräver `objection_events` log eller röst-tidsstämplar).
+
+IMPLEMENTATION
+
+- Migration + seed med ~15 vanliga invändningar från Säljprocess/workshops.
+- **API:** public read för SALES_*; write votes authenticated; admin CRUD under `/v1/internal/objections` eller portal system-roll.
+- **Dashboard:** `GET /v1/portal/objections/trending?days=7` — baserat på visningar i app om `objection_views` loggas, annars proxy via röster senaste 7 dagar.
+- **Playbook-länk:** från `06_seller_playbook` nav "Invändningar".
+
+BAKÅTKOMPATIBILITET
+
+- AI utan tool fortsätter fungera; inga hårda krav på tabell förrän coach uppgraderas.
+
+DEPENDENCIES
+
+- Skill 04 agent 6 (tools + RAG). Playbook (06). INTERNAL_ADMIN nav (`/portal/system` eller ny Admin UI).
+
+TESTPLAN
+
+- Moderation: publicera döljer pending. XSS-säkerhet i `examples_jsonb` rendering.
+
+RISKER
+
+- Olämpliga "rekommenderade svar" — juridisk review av seed + ändringsflöde.
+
+UPPSKATTAD INSATS
+
+- DB + läs-UI + röster: **4–6 dagar**. Insändning + admin + AI-tool: **+4–5 dagar**. Dashboard trending: **+2 dagar**.
+
+--- SLUT ---

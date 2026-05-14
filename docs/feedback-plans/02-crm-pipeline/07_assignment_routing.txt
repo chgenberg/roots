@@ -1,0 +1,97 @@
+==============================================
+7. Tilldelning och routing av leads
+==============================================
+
+NULÄGE
+
+- **Ingen** `/v1/leads/*` eller `leads/assign` i `apps/api` (grep). Routers monterade bl.a. `/v1/portal` — `apps/api/src/app.ts`.
+- **`GET /v1/portal/pipeline`** (`apps/api/src/routes/portal.ts` ~532–576): aggregerar **quotes** per status; returnerar `stages` + `deals` (flat). Ingen org-status, ingen ASM, ingen territory-routing.
+- **`organizations`:** inga CRM-kolumner (`packages/db/src/schema/organizations.ts`).
+- **`quotes`:** `sales_rep_id` FK — närmaste "tilldelning" idag är offertägare, inte lead-routing per territory.
+- **`leads.ts`:** endast `hair_analysis_leads` (B2C), inte B2B-org-leads.
+- **Portal UI:** `portal/pipeline/page.tsx` — Kanban utan Mine/All/Unassigned; data semantiskt ur synk med CRM-mål (agent 5).
+- **Nav:** Pipeline bara i `SALES_NAV`; `INTERNAL_ADMIN` saknar Pipeline-länk i `layout.tsx`.
+- **`auditLog`:** redo för `org.lead.assigned` — inga sådana actions än.
+
+VAD FEEDBACKEN SÄGER
+
+- Round-robin / load-balance per territory; re-tilldelning vid frånvaro; manuell INTERNAL_ADMIN; Mine/All/Unassigned; eskalering Lead > N dagar; e-post + portal-toast; audit per tilldelning.  
+- Säljprocess slide 2 (Lead → Prioritering): rätt ägare och uppföljning.
+
+GAP
+
+- Ingen API för auto/manuell tilldelning till ASM (roll ASM saknas — agent 2).  
+- Ingen territory-modell eller match org → ASM-pool.  
+- Ingen round-robin-state (Redis/DB).  
+- Ingen frånvaro/backup-modell.  
+- Ingen eskalering utan `org_status` + aktivitet (agent 1, 4).  
+- Ingen dedikerad notis-kanal för "nytt lead" (MVP: e-post + ev. polling).
+
+IMPLEMENTATION
+
+**A) `POST /v1/leads/assign`** (ny router `app.route("/v1/leads", leads)` eller under portal)  
+- Body: `{ organizationId, mode?: "auto"|"manual", assigneeUserId? }`  
+- **auto:** matcha org mot territory (region/kommun + segment från skill 01 + agent 2 `asm_territories` / JSONB); round-robin bland ASM i pool; sätt `organizations.assigned_asm`, `assignment_source`, `assigned_at`.  
+- **manual:** `INTERNAL_ADMIN` (ev. `SALES_ADMIN`); `assigneeUserId` måste vara ASM när roll finns.  
+- **`PATCH /v1/leads/:organizationId/reassign`** med `reason`.  
+- **`GET /v1/leads/unassigned`:** `assigned_asm IS NULL` AND `org_status = LEAD` (när fält finns).  
+- Idempotens: header eller partial unique på org.  
+- CSRF för muterande anrop.
+
+**B) Round-robin**  
+- Eligibility: `users.role = ASM` ∧ territory täcker org.  
+- State: Redis `INCR rr:{territory_key}` modulo |ASM| **eller** DB-rad `territory_assignment_counters` med `FOR UPDATE`.  
+- Exkludera ASM med `out_of_office_until > now()`; tom pool → unassigned + larm admin.
+
+**C) Frånvaro**  
+Fält på user/ASM-profil: `out_of_office_from`/`until`, `backup_asm_user_id`. Nattjobb eller on-read: OOO → backup eller unassigned + notis.
+
+**D) Mine / All / Unassigned**  
+`GET /v1/leads` eller utökad pipeline: `scope=mine|all|unassigned`; ASM `all` = inom territory; INTERNAL = globalt.  
+Lägg Pipeline i `ADMIN_NAV` för INTERNAL när vyn finns.
+
+**E) Eskalering**  
+Daglig cron: `org_status = LEAD` AND `now() - status_changed_at > N days` AND låg aktivitet → aktivitet `escalated` + e-post ASM + chef; valfritt auto-reassign.
+
+**F) Notiser**  
+E-postmall (Resend); MVP-toast: `user_notifications` + polling 60s eller SSE senare.
+
+**G) Audit**  
+`auditLog({ action: "org.lead.assigned"|"org.lead.reassigned", entityType: "organization", entityId, meta: { fromAsmId, toAsmId, territory_key, source } })`.
+
+BAKÅTKOMPATIBILITET
+
+- `quotes.sales_rep_id` kan förbli offertägare medan `assigned_asm` = pipeline-ägare — dokumentera synk-policy.  
+- Behåll `GET /v1/portal/pipeline` under flagga; ny `GET /v1/leads` eller `/pipeline/v2` för org-läge.  
+- Undvik namnkollision med `hair_analysis_leads` — ev. `/v1/crm/leads`.
+
+DEPENDENCIES
+
+- Agent 1, 2, 4, 5. Skill 01 (geografi/segment). Skill 04 (valfritt AI-förslag på ASM).
+
+TESTPLAN
+
+- Territory-match: org utanför alla territorier → unassigned.  
+- Round-robin: jämn fördelning.  
+- POST assign: RBAC-matris 401/403.  
+- Reassign + audit-rad.  
+- Filter mine/all/unassigned.  
+- Eskalationsjobb med fixture.  
+- E2E notis (mock e-post).
+
+RISKER
+
+- Race vid dubbel tilldelning — transaktion + radlås.  
+- Förvirring quote-pipeline vs CRM utan tydlig etikett.  
+- Redis RR utan persistens — föredra DB-counter om determinism krävs.
+
+UPPSKATTAD INSATS
+
+- API + DB (`assigned_asm`, territory, OOO, counter): **3–5 d**  
+- Round-robin + match: **2–3 d**  
+- Notiser (e-post + MVP): **2–3 d**  
+- Portal-filter + admin pipeline-länk + eskalering: **3–4 d**  
+- Tester: **2 d**  
+**Summa grovt:** **12–17 d**
+
+--- SLUT ---

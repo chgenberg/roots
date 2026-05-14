@@ -1,0 +1,54 @@
+==============================================
+7. Leverans & logistik (packlistor, avprickning)
+==============================================
+Källa: Säljprocess.pptx — slide 8 (Leverans & logistik, "moment of truth")
+
+NULÄGE
+
+- `customer_orders.status`: `CONFIRMED`, `SHIPPED`, `DELIVERED` m.fl. — **ingen** explicit `PACKED`; skill nämner Confirmed → Packed → Delivered — antingen inför ny status **PACKED** eller mappa Packed → `SHIPPED` med tydlig etikett i UI (ADR krävs).
+- `customer_order_lines` för paket/rader per order.
+- Webhook Klarna/Fortnox: verifiera `settlement.ts` + integrations — plan refererar till befintliga flöden utan att duplicera implementation här.
+
+VAD FEEDBACKEN SÄGER
+
+- **Packlista** export **PDF/Excel** per kampanj:
+  - **Lagvis (default):** grupperat per `teamId` / framtida `group_unit`, en sida per lag.
+  - **Individvis:** en rad per kundorder med säljare + lag-tagg.
+- **Avprickningslista** utskriftsvänlig: kund, leveransadress, paket/rad, signaturfält.
+- **Instruktionskort** PDF som följer logistiken (3–5 bullets).
+- **Kommunikation:** auto-mejl **3–5 dagar före** leveransdatum (kräver `delivery_date` på kampanj eller per order — fältkartläggning i skill 05 wizard).
+- **Audit-trail:** `fulfillment_events` (`order_id`, `action` packed|shipped|delivered, `actor_user_id`, `at`, `note`).
+- **PWA/mobil** för avprickning leveransdag — offline-first valfritt senare; MVP = webbform med stor touch-yta.
+
+GAP
+
+- Saknar exportbibliotek-val (ExcelJS, pdfkit), saknar `delivery_date` om inte redan modellerat.
+
+IMPLEMENTATION
+
+- **API:** `GET /v1/portal/campaigns/:id/packing-list?mode=by_team|by_order&format=pdf|xlsx`.
+- **UI:** `/portal/kampanj/logistik` eller under befintlig `bestallningar` för CLUB_ADMIN.
+- **Status:** om ny enum `PACKED` läggs — migration + bakåtfyllning `SHIPPED` = packed+shipped i legacy data (eller två fält: `packed_at`, `shipped_at` timestamps).
+- Koppling **webhooks** — vid levererad från speditör uppdatera `DELIVERED` + audit.
+
+BAKÅTKOMPATIBILITET
+
+- Befintliga ordrar utan `packed_at`: tillåt hopp direkt till SHIPPED tills process införs.
+
+DEPENDENCIES
+
+- Skill 05 (leveransdatum/plats). Skill 07 (datakvalitet adress). Agent 3 (mejl 3–5 dagar före).
+
+TESTPLAN
+
+- Stora listor (500 rader) PDF-prestanda. Personuppgifter i export — RBAC + loggning.
+
+RISKER
+
+- Fel adress i BULK vs DIRECT — respektera `customerDeliveryTypeEnum`.
+
+UPPSKATTAD INSATS
+
+- PDF/Excel lagvis: **5–7 dagar**. Audit + PWA-avprickning: **+5–8 dagar**. Auto-mejl: **+2–3 dagar**.
+
+--- SLUT ---

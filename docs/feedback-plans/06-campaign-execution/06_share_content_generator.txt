@@ -1,0 +1,51 @@
+==============================================
+6. Share-content-generator (social kit)
+==============================================
+Källa: Säljprocess.pptx — slide 7 ("Vi drog in 87 000 kr")
+
+NULÄGE
+
+- **`apps/videos/`** — Remotion-projekt med bl.a. `ForeningVideo`, `SaljareVideo`, `CompanyVideo` (`package.json` scripts `build:forening` etc.) — kan återanvändas som **render-pipeline** för video, men tung för on-demand i API.
+- Ingen `/portal/share-kit/[campaignId]` i portalen.
+- `apps/api/src/routes/sharing.ts` — finns för delningslänkar; utöka med asset-generering eller separat route.
+
+VAD FEEDBACKEN SÄGER
+
+- Mallar: **A** klubb-total ("Onsala BK drog in 87 000 kr — tack …"), **B** vinnar-lag ("P10 Svart, 12 700 kr"), **C** topp 3 (anonymisering utan samtycke).
+- Format: **Instagram 1:1**, **Stories 9:16**, **Facebook 1.91:1**.
+- Implementationsspår: **(1)** Remotion still frame / kort video via worker + S3; **(2)** HTML → screenshot (Puppeteer/Playwright) — välj (1) om `apps/videos` kompositioner kan parametriseras; (2) för snabb MVP-bild.
+- **One-click:** "Kopiera bildtext" + föreslagna hashtags (statisk lista + kampanjtagg).
+- **Branding:** Roots-logga + föreningslogga (`organizations` logo URL när fält finns).
+- **GDPR:** aldrig enskilt **säljar**namn i genererad asset utan dokumenterat samtycke; använd `publicAlias` eller "Topp säljare 1".
+
+GAP
+
+- GPU/tid för Remotion i API — kör som **async job** med progress URL (samma mönster som hair/video om det finns).
+
+IMPLEMENTATION
+
+- **Route:** `/portal/share-kit/[campaignId]` — lista mallar + "Generera" knapp → `POST /v1/portal/campaigns/:id/share-assets` → jobb-id → poll `GET .../share-assets/:jobId`.
+- **S3** presigned download; CDN cache.
+- **Skill 04:** valfritt LLM för **förslag på copy** — mänsklig granskning första versioner; hårda templates utan LLM i v1 rekommenderas.
+
+BAKÅTKOMPATIBILITET
+
+- Utan genererade filer: visa manuella malltexter endast.
+
+DEPENDENCIES
+
+- Agent 1 (summor). Skill 03 (lag-namn). `apps/videos` underhållare. Storage (befintlig S3-setup om någon).
+
+TESTPLAN
+
+- Pixel-dimensioner per plattform. Svenska tecken i typsnitt. Långt föreningsnamn — ellipsis.
+
+RISKER
+
+- Varumärkesmissbruk om vem som helst kan generera med annans logo — RBAC strikt.
+
+UPPSKATTAD INSATS
+
+- MVP statisk PNG via Canvas/HTML: **4–6 dagar**. Remotion pipeline + tre format: **+6–10 dagar**.
+
+--- SLUT ---

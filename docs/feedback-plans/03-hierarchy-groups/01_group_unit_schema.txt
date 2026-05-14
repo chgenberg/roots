@@ -1,0 +1,102 @@
+==============================================
+1. group_unit-schemat
+==============================================
+
+NULÄGE
+
+- `teams` är kampanjkopplad gruppering: `id`, `orgId` → `organizations.id`, `campaignId`, `leaderId` → `users.id`, `name`, `inviteToken` (unik), `memberCount`, tidsstämplar. Index på `campaignId`, `orgId`, `leaderId`. Ingen separat analysdimension (kön, födelseår, åldersband) — endast fritext `name`.  
+  Ref: `packages/db/src/schema/teams.ts` rader 14–37.
+
+- `sellers`: obligatorisk `teamId` → `teams.id`, `campaignId`, butiksfält, `seller_status`. Ingen `group_unit_id`.  
+  Ref: `packages/db/src/schema/sellers.ts` rader 16–53.
+
+- `users`: `orgId`, `roleEnum`, `birthYear` (nullable) — **individnivå**, inte gruppkohort.  
+  Ref: `packages/db/src/schema/users.ts` rader 4–41.
+
+- `organizations`: platt post utan Riksorganisation/Segment i nuvarande schema.  
+  Ref: `packages/db/src/schema/organizations.ts` rader 9–20.
+
+- `schema/index.ts` exporterar ingen `group_unit`.  
+  Ref: `packages/db/src/schema/index.ts` rader 1–17.
+
+- Baseline SQL speglar `teams`/`sellers`/FK-kedjor.  
+  Ref: `packages/db/drizzle/0000_premium_photon.sql` (organizations, teams, sellers, index).
+
+VAD FEEDBACKEN SÄGER
+
+- Modell_register kap 7 (via skill 03): tabell **`group_unit`** under organisation med separation **visningsdata** (`display_name`, t.ex. "P10 Svart") och **analysdata** (`gender`, `birth_year`, `age_band`, `group_type`, `competition_level`, m.m.).
+- **Kritisk princip:** `birth_year` stabil kohort; visningsetiketter varierar — detalj i `02_birth_year_age_band_principle.txt`.
+- Befintlig `teams` ska migreras/integreras, inte rivas (`03_team_to_group_migration.txt`).
+
+GAP
+
+- Ingen `group_unit`-tabell eller enums i kodbasen.
+- `teams.name` blandar visning och underförstådd kohort utan `normalized_name` eller strukturerade dimensioner.
+- `sellers` saknar FK till `group_unit`.
+- Ingen indexering för kohort-/dimensionsanalys på gruppnivå.
+
+IMPLEMENTATION
+
+- Ny fil t.ex. `packages/db/src/schema/group-units.ts` + export i `schema/index.ts` + migration.
+
+**Kolumner (förslag)**
+
+| Kolumn | Typ | Notering |
+|--------|-----|----------|
+| `id` | uuid PK default random | |
+| `organization_id` | uuid NOT NULL → organizations.id | ON DELETE RESTRICT/NO ACTION enligt befintlig stil |
+| `display_name` | varchar(255) NOT NULL | UI |
+| `normalized_name` | varchar(255) NOT NULL | sök/dedup; ev. partiellt UNIQUE (org_id, normalized_name) WHERE status ≠ ARCHIVED |
+| `group_type` | pgEnum | Team, Class, ScoutGroup, AssociationGroup, Other (DB-namn UPPER_SNAKE om konvention kräver) |
+| `gender` | pgEnum | Male, Female, Mixed, Unknown |
+| `birth_year` | int NULL | kärnfält; NULL om endast `school_grade` (klass) |
+| `age_band` | pgEnum | Child, Youth, Junior, Senior, Veteran — policy i agent 2 |
+| `school_grade` | int NULL | 1–12 för Class; CHECK i migration |
+| `competition_level` | pgEnum | Recreational, Competitive, Elite, Unknown |
+| `active_season` | int NOT NULL | kalenderår eller säsongsår — **dokumentera semantik** |
+| `estimated_members` | int NOT NULL DEFAULT 0 | CHECK ≥ 0 |
+| `verified_members` | int NOT NULL DEFAULT 0 | CHECK ≥ 0 |
+| `status` | pgEnum | t.ex. DRAFT, ACTIVE, ARCHIVED — produktbeslut |
+| `created_at`, `updated_at` | timestamp NOT NULL default now() | |
+
+**Index (enligt skill)**  
+- `(organization_id, status)`  
+- `(birth_year)`  
+- `(group_type)`  
+- `(organization_id, gender, birth_year)`  
+
+**`current_age` / ålder**  
+- **Inte** lagrad som evig sanning utan referensår: beräkna `reference_year - birth_year` i app eller vy; eller batch 1/1 (agent 2). Undvik generated column om `birth_year` kan vara NULL.
+
+BAKÅTKOMPATIBILITET
+
+- Behåll `teams`; lägg senare nullable `teams.group_unit_id` (plan A i agent 3).  
+- `sellers.team_id` kvar tills `sellers.group_unit_id` införs (agent 5).  
+- Nya ENUM-typer: unika typnamn (t.ex. `group_unit_type`) för att undvika kollisioner.
+
+DEPENDENCIES
+
+- **Skill 01:** `organization_id` stabil; segment/region för framtida BI.  
+- **Skill 04:** AI-parsing av `display_name` → förslag på fält.  
+- **Skill 06:** gamification per grupp.
+
+TESTPLAN
+
+- Migration up/down; ENUM + FK + CHECK `school_grade`.  
+- Insert per `group_type`; validering minst en av (`birth_year`, `school_grade`).  
+- `EXPLAIN` på typiska filter- och GROUP BY-frågor.  
+- DELETE organisation med aktiva `group_unit` — förväntat beteende enligt ON DELETE.
+
+RISKER
+
+- Semantikdrift `active_season` vs kalenderår.  
+- NULL `birth_year` för klass — index/ålder måste hanteras.  
+- ENUM-ändringar tunga i efterhand.  
+- Namnkollisioner på `normalized_name` utan partiell unikhet.
+
+UPPSKATTAD INSATS
+
+- Schema + migration + barrel + grundtester: **ca 1–2 dagar**.  
+- Partiell unikhet, vyer, full domänvalidering: **+0,5–1 dag**.
+
+--- SLUT ---

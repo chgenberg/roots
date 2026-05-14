@@ -1,0 +1,48 @@
+==============================================
+4. Fortnox & Klarna-kompatibilitet
+==============================================
+Källa: `apps/api/src/lib/invoicing/`, `lib/payments/`; regression-säkerhet
+
+NULÄGE
+
+- Invoicing abstraheras via `getInvoiceProvider()` (`settlement.ts`); Fortnox kopplas till org/payout-flöden.
+- Klarna: `customer_orders.klarna_order_id`, statusuppdateringar via webhook/callback (detaljer i `checkout.ts` / payments-modul — **inga ändringar** i yttre Fortnox API-kontrakt enligt skill).
+
+VAD FEEDBACKEN SÄGER
+
+- **Fortnox:** fortsatt konsumera `organizations` + `payouts`; nya CRM-fält (`data_source`, `data_quality`, `assigned_asm_user_id`, …) får **aldrig** serialiseras till Fortnox-payload — explicit allowlist i mapper.
+- **Klarna:** callbacks uppdaterar `customer_orders.status` oberoende av org-hierarki — säkerställ att webhook-handler **inte** JOIN:ar group_unit på kritisk path (max prestanda + färre felytor); ev. async berikning.
+- **Fakturanummer:** oförändrad sekvenspolicy — inga nya inserts i nummer-serier från CRM-fält.
+- **Webhook-signatur:** verifiera befintlig implementation; om saknas — lägg HMAC-verifiering **utan** att ändra order av befintliga events.
+- **CI:** stub providers (`mock-sender`-mönster) för integrationstester utan riktiga API-nycklar.
+
+GAP
+
+- Inventera alla Fortnox-anrop — en checklista per fil i `lib/invoicing/`.
+
+IMPLEMENTATION
+
+- `mapOrganizationToFortnoxCustomer(org: OrgRow): FortnoxDTO` med explicit fältlista.
+- Regressionstest: snapshot av DTO före/efter CRM-migration (agent 8).
+
+BAKÅTKOMPATIBILITET
+
+- Fortnox-kunder utan nya fält oförändrade.
+
+DEPENDENCIES
+
+- Skill 07 (PII i audit — ej i Fortnox). Skill 03 (ingen påverkan på Klarna).
+
+TESTPLAN
+
+- Webhook: fel signatur → 401, ingen statusändring. Lyckad → PAID som idag.
+
+RISKER
+
+- Dold dependency på `organizations.name` om org merge — se duplicate-merge plan (skill 04).
+
+UPPSKATTAD INSATS
+
+- Allowlist-refactor + tester: **2–4 dagar**.
+
+--- SLUT ---

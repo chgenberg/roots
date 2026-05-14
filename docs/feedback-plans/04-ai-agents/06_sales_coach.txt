@@ -1,0 +1,64 @@
+==============================================
+6. Intent / playbook-coach (säljcoach)
+==============================================
+
+NULÄGE
+
+- **Säljportal:** `apps/web/src/app/sales/` — `dashboard`, `pipeline`, `quotes`, `customers`, `commissions`, `settings`, `login` (layout `SalesLayout.tsx`).
+- **AI i portal:** `apps/web/src/app/sales/dashboard/page.tsx` — hårdkodad `NEXT_PUBLIC_APP_URL` + `"/api/public/chat"` (publik OpenAI-proxy), **ingen** session till `apps/api` `/v1/ai/chat`.
+- **API AI:** `apps/api/src/routes/ai-chat.ts` — `POST /v1/ai/chat` (session `requireAuth`, `flags.aiEnabled()`, `chatCompletionStream`); `public-chat.ts` — publik variant.
+- **OpenAI:** `openclaw-client.ts` — streaming + non-stream; `isAiConfigured()`.
+- **Portal (förening):** `apps/web/src/app/portal/ai/page.tsx` — samma mönster: `"/api/public/chat"` (publik).
+- **Säljprocess (skill 05):** 7-stegs flöde — ingen inbyggd "playbook"-motor i kodbasen ännu.
+
+VAD FEEDBACKEN SÄGER
+
+- Säljcoach som tolkar **intent** (boka möte, följa upp, stäng affär, leveransrisk) och föreslår **nästa steg** + **talking points** kopplat till Säljprocess.pptx.
+- **RAG:** embeddings på intern playbook + Modell_register-utdrag (chunkad, versionerad).
+- **Tool-use (v2):** läs CRM-status, nästa aktivitet, quote — **aldrig** rå Fortnox-PII i prompt utan maskering.
+- Synlighet: **SALES_REP / SALES_ADMIN**; audit på känsliga förslag.
+
+GAP
+
+- Ingen dedikerad coach-endpoint, ingen playbook-vectorstore, ingen intent-klassificering.
+- Frontend använder fel chat-backend för autentiserad säljare.
+
+IMPLEMENTATION
+
+- **Backend:** `POST /v1/ai/sales-coach` (eller utöka `ai-chat.ts` med `role: sales_coach` + strikt system prompt) — `requireAuth` med SALES_* roller, `flags.aiEnabled()`.
+- **RAG:** tabell `playbook_chunks` (text, `embedding vector`, `source_ref`, `version`); retrieval top-k före LLM.
+- **Intent:** första LLM-anrop litet JSON `{ intent, confidence }` eller single-call med strukturerat svar `{ intent, next_steps[], talking_points[], risks[] }`.
+- **Frontend:** byt `sales/dashboard` (och ev. fler säljvyer) från `public/chat` till **session** `/v1/ai/...` med `credentials: include` + CSRF om applicable.
+- **Prompt:** koppla explicit till säljsteg (skill 05); ingen hallucinerad rabatt — disclaimer i UI.
+- **Audit:** `auditLog` för coach-anrop med org/campaign-id metadata (maskerat).
+
+BAKÅTKOMPATIBILITET
+
+- Publik widget kan kvarstå separat; sälj får isolerad endpoint.
+- Feature-flag `FEATURE_SALES_COACH` för gradvis rollout.
+
+DEPENDENCIES
+
+- **Skill 05** (säljprocess innehåll).  
+- **Skill 02** (CRM-fält för kontext).  
+- **Agent 8** (kostnad, feedback).  
+- Embedding-pipeline (befintlig eller ny — avgör vs hair-analys mönster).
+
+TESTPLAN
+
+- RBAC: org_admin får 403 på sales-coach.  
+- RAG: citerade källor visas i UI.  
+- Regression: portal AI kan fortsätta använda public tills migrerad.
+
+RISKER
+
+- Fel juridisk/rabatt-rådgivning — hårda guardrails + "ej juridisk rådgivning".  
+- Läckage mellan org — strikt `org_id`-filter i retrieval.
+
+UPPSKATTAD INSATS
+
+- Endpoint + prompt + RBAC: **2–3 dagar**.  
+- RAG + chunks + migration: **3–5 dagar**.  
+- Frontend byte + polish: **1–2 dagar**.
+
+--- SLUT ---

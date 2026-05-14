@@ -1,0 +1,49 @@
+==============================================
+7. B2B-klubborders (portal wholesale)
+==============================================
+Källa: `orders` vs `customer_orders`; `apps/web` portal; Modell_register
+
+NULÄGE
+
+- **`orders` + `order_lines`** (`packages/db/src/schema/orders.ts`): B2B — `orgId`, `userId` (köpare), `quoteId?`, `status`, `fortnoxInvoiceId`, `invoiceStatus`, **ingen** `campaignId`/`sellerId` (wholesale till förening).
+- **`customer_orders`:** B2C supporterflöde via säljshop.
+- Portal: `apps/web/src/app/(portal)/portal/bestallningar` — klubbvy; skill: tydliggör **B2B** vs **B2C** i nav/copy.
+
+VAD FEEDBACKEN SÄGER
+
+- **Tabellseparation behålls** — ingen merge av B2B och B2C i en tabell.
+- **Återkommande klubborders:** länka till `subscriptions` **endast** om affären är abonnemang på produkt till förening; annars återkommande `orders` + cron (förslag) eller manuell återbeställning.
+- **Fakturering:** `organizations.fortnox_customer_id` — samma Fortnox allowlist som agent 4.
+- **Portal:** flik "Klubbordrar" (`orders`) vs "Supportrar" (`customer_orders` aggregerat) — olika API routes.
+- **Lead-pipeline:** klubborders ska **inte** trigga org tillbaka till "Lead" (skill 02) — org förblir operativ kund.
+
+GAP
+
+- Om `ASSOCIATION_ADMIN` vs `CLUB_ADMIN` rollskillnad i UI — följ befintlig RBAC.
+
+IMPLEMENTATION
+
+- `GET /v1/portal/orders` (B2B) och `GET /v1/portal/customer-orders` (B2C aggregate) — namngivning för att undvika förvirring.
+- Dokumentera i README för nya devs: två spår.
+
+BAKÅTKOMPATIBILITET
+
+- Befintliga `orders`-rader oförändrade.
+
+DEPENDENCIES
+
+- Skill 02 (status). Fortnox (agent 4). `docs/flow-audits/CLUB_MEMBER_2026-04-18_1249.txt`.
+
+TESTPLAN
+
+- CLUB_ADMIN ser endast egen orgs B2B-orders. INTERNAL_ADMIN ser cross-org.
+
+RISKER
+
+- Dubbelräkning intäkt om rapport slår ihop `orders` och `customer_orders` utan filter — BI måste ha `channel` dimension.
+
+UPPSKATTAD INSATS
+
+- API-tydliggörande + portal-flikar: **3–5 dagar**. Recurring B2B: **separat epik**.
+
+--- SLUT ---

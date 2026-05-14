@@ -1,0 +1,49 @@
+==============================================
+6. Kund-poster & GDPR
+==============================================
+Källa: Modell_register kap 10; `customer_orders` inline PII
+
+NULÄGE
+
+- Slutkundsdata ligger **inline** på `customer_orders`: namn, e-post, telefon, adressfält — ingen separat `customers`-tabell.
+- Marketing consent: utöver order — ev. fält saknas explicit (kartlägg i checkout-UI).
+
+VAD FEEDBACKEN SÄGER
+
+- **Option A (v1):** behåll inline PII på order — lägst migrationsrisk; inför `customer_fingerprint` (hash av normaliserad e-post + org_id) för **returkund** utan att lagra extra plaintext-tabell.
+- **Option B:** ny tabell `customers` (PII) + `customer_id` FK på `customer_orders` — bättre "glöm mig" och LTV-query; **högre** migrationskostnad.
+- **Rekommendation:** A första release efter skills; planera B när LTV-dashboard kräver det.
+- **Consent:** `marketing_opt_in` bool + `consent_version` på order eller customer; visa i confirmation email.
+- **Glöm mig:** anonymisera PII-fält på `customer_orders` (`customer_email` → null hash, namn → "Raderad kund") men **behåll** `total_ore`, `seller_id`, status för bokföring; logga `auditLog`.
+- **Bokföring:** 7 år retention för ekonomiska uppgifter — juridisk text i privacy policy; skill 07 pseudonymisering före BI-export.
+- **LTV/repeat:** queries på fingerprint eller hash-join (samma person köper igen).
+
+GAP
+
+- Rättslig granskning av anonymiserad order vs gallringskrav.
+
+IMPLEMENTATION
+
+- Migration: add `marketing_opt_in`, `consent_version`, `customer_email_hash` (generated column eller app) om DB-stöd.
+
+BAKÅTKOMPATIBILITET
+
+- Null consent = antas nej för nya utskick; legacy = "unknown" bucket i rapport.
+
+DEPENDENCIES
+
+- Skill 07 (export mask). Checkout UI (`shop/.../kassa`).
+
+TESTPLAN
+
+- GDPR-export: lista ordrar för e-post. Glöm mig: verifiera aggregates oförändrade.
+
+RISKER
+
+- Hash-kollisioner — använd stark salt per env.
+
+UPPSKATTAD INSATS
+
+- Fält + policy + anonymize endpoint: **4–6 dagar**. Full `customers`-tabell: **+1–2 veckor**.
+
+--- SLUT ---

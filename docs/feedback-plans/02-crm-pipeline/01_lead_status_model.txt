@@ -1,0 +1,120 @@
+==============================================
+1. Lead/status-modellen
+==============================================
+
+NULÄGE
+
+Tabellen `organizations` har ingen CRM-status och inga tidsstämplar för statusbyte. Kolumner som finns idag: `id`, `name`, `org_number`, `type` (default `club`), `national_federation`, `sport_type`, `verified`, `fortnox_customer_id`, `created_at`, `updated_at` — ingen `status`, `status_changed_at`, `assigned_asm`, `lead_source` eller liknande.
+
+Referens: `packages/db/src/schema/organizations.ts` rader 9–20.
+
+`campaigns.status` är ett separat pgEnum `campaign_status` med värdena `DRAFT`, `ACTIVE`, `ENDED`, `SETTLED` (kampanjens operativa livscykel), med index på status.
+
+Referens: `packages/db/src/schema/campaigns.ts` rader 14–18, 43, 55–57.
+
+`GET /v1/portal/pipeline` aggregerar **offerter** (`quotes.status`: `DRAFT`, `SENT`, `ACCEPTED`, `REJECTED`) — inte organisationer. Det är en deal-pipeline per offert, inte en lead-pipeline per klubb/organisation.
+
+Referens: `apps/api/src/routes/portal.ts` rader 532–576.
+
+`campaign.status.changed` i audit skrivs i settlement-flödet när kampanj sätts till `SETTLED` efter avräkning.
+
+Referens: `apps/api/src/routes/settlement.ts` rader 67–69, 139–142, 147–158 (`auditLog` med `action: "campaign.status.changed"`). Notera att `meta.from` kan vara hårdkodad — verifiera mot faktisk status före uppdatering.
+
+TRPC `campaigns.update` / `campaigns.activate` kan ändra `campaigns.status` utan `auditLog`-anrop.
+
+Referens: `apps/api/src/trpc/routers/campaigns.ts` rader 137–176.
+
+`audit_logs`-tabellen (`action`, `entity_type`, `entity_id`, `meta` jsonb) finns; `auditLog()` i API är bakom flagga `flags.auditLogging()`.
+
+Referens: `packages/db/src/schema/audit.ts` rader 3–11; `apps/api/src/lib/audit.ts` rader 7–13, 24–36.
+
+System-sidan läser `audit_logs` för recent events.
+
+Referens: `apps/api/src/routes/portal.ts` rader 656–673.
+
+`hair_analysis_leads` och `quotes` är andra domäner (B2C-lead resp. offert); de ersätter inte en organisations-CRM-status.
+
+Referens: `packages/db/src/schema/leads.ts` rader 3–12; `packages/db/src/schema/quotes.ts` rader 13–38.
+
+VAD FEEDBACKEN SÄGER
+
+Enligt skill 02 / Modell_register: CRM med e-handel ovanpå — tydlig **lead-pipeline** med statusarna `Lead → Contacted → Meeting → Active → Customer → Inactive → Lost`, samt fält som `lead_source`, `potential_score`, `assigned_asm` och aktivitetslogg (andra agentplaner). Kampanjstatus och org-CRM-status ska inte blandas.
+
+Masterplanen betonar additiva schemaändringar, bakåtkompatibla kontrakt och feature-flaggar.
+
+Referens: `docs/flow-audits/MASTER_PLAN_2026-04-18.md` (principer).
+
+GAP
+
+- Ingen `org_status` (pgEnum) eller kolumner `status_changed_at`, `status_changed_by`, `next_action_at` på `organizations`.
+- Inga API-regler som modellerar tillåtna övergångar eller rollstyrda statusbyten för organisationer.
+- Ingen `org.status.changed` i `audit_logs`; befintlig `campaign.status.changed` täcker bara kampanj (settlement), inte TRPC-statusändringar.
+- `GET /v1/portal/pipeline` speglar offerter, inte CRM-status — UI som bygger pipeline på detta får fel semantik om målet är org-Kanban.
+- Ingen koppling mellan quote-won och automatisk org-status (se `06_quote_to_customer_journey.txt`).
+
+IMPLEMENTATION
+
+**Schema (Drizzle / migration)**  
+- Ny pgEnum `org_status` med värden t.ex. `LEAD`, `CONTACTED`, `MEETING`, `ACTIVE`, `CUSTOMER`, `INACTIVE`, `LOST` (UI-copy på svenska).  
+- På `organizations`: `status org_status not null default 'LEAD'`, `status_changed_at timestamptz`, `status_changed_by uuid` FK → `users.id` (nullable om system/batch), `next_action_at timestamptz` nullable.  
+- Index: `(status)`, `(next_action_at)`; ev. `(assigned_asm, status)` när ASM-kolumn tillkommer (agent 2/3).
+
+**Övergångsregler (förslag — lås med produkt)**  
+- **ASM / SALES_REP:** manuella steg `LEAD`…`LOST` utom ev. `CUSTOMER` om den endast sätts av system vid settled kampanj.  
+- **INTERNAL_ADMIN / SALES_ADMIN:** fullt manuellt inkl. `LOST`/`INACTIVE`.  
+- **ASSOCIATION_ADMIN / TEAM_LEADER / SELLER:** ingen skrivrätt till `org_status`.  
+- **System/jobb:** `INACTIVE` efter X dagar utan aktivitet; `CUSTOMER` vid affärsregel (kampanj settled) enligt agent 6.  
+- **Enda skrivväg:** t.ex. `PATCH /v1/organizations/:id/status` eller domänservice som validerar `(from, to, role)` atomärt.
+
+**Relation till `campaigns.status`**  
+- `campaigns.status` fortsätter styra kampanj (utkast/live/avslutad/avräknad). Org `ACTIVE`/`CUSTOMER` är CRM-fas — en org kan vara `CUSTOMER` medan ny kampanj är `DRAFT`. Dokumentera i API att fälten inte är utbytbara.
+
+**Audit**  
+- Vid org-statusbyte: `auditLog({ action: "org.status.changed", entityType: "organization", entityId: orgId, userId, meta: { from, to, ... } })`.  
+- Utöka gärna TRPC-kampanjstatusändringar med audit med korrekt `from`/`to`.
+
+**Kanban vs lista per roll**  
+- **ASM / SALES_REP:** Kanban per `org_status`; lista/mobil som fallback; filter mine/territory (agent 7).  
+- **INTERNAL_ADMIN:** Kanban + tät tabell, bulkfilter, export.  
+- **SALES_ADMIN:** lista sorterad på `next_action_at` + potential kan passa bättre än DnD.  
+- **Övriga roller:** ingen pipeline-redigering; ev. read-only KPI.
+
+BAKÅTKOMPATIBILITET
+
+- Migration: default `LEAD` eller backfill från quotes/kampanjhistorik (agent 8); dokumentera default så inte alla klubbar felklassas.  
+- API: behåll befintliga fält; lägg till `status`, `statusChangedAt`, `nextActionAt` additivt.  
+- `GET /v1/portal/pipeline` kan lämnas för offert-vyn; ny endpoint t.ex. `GET /v1/portal/org-pipeline` eller `?type=quotes|orgs`.  
+- Feature-flag `FEATURE_CRM_PIPELINE_V2` (agent 8) för UI som byter till org-Kanban.
+
+DEPENDENCIES
+
+- Agent 2 (ASM + vem får se vilka org).  
+- Agent 4 (`organization_activities`) vid statusbyte.  
+- Agent 5/7 (pipeline-vy, tilldelning).  
+- Agent 6 (quote → kund).  
+- Skill 01 (masterdata) för filter i pipeline.
+
+TESTPLAN
+
+- Enhet: transition-matris per roll; idempotent PATCH.  
+- Integration: migration + defaultvärden; `status_changed_at` uppdateras vid byte; FK `status_changed_by`.  
+- Audit: `org.status.changed` med korrekt `meta`.  
+- Regression: `GET /v1/portal/pipeline` oförändrad responsform; kampanj-flöden oförändrade.  
+- E2E: Kanban → API → DB + audit.
+
+RISKER
+
+- Felaktig backfill sätter alla org i `LEAD`.  
+- Dubbel sanning `quotes.status` vs `org_status` — tydlig source of truth (agent 6/8).  
+- Saknad audit på TRPC-kampanjstatus.  
+- `next_action_at` utan notifieringsjobb ger inget operativt värde.
+
+UPPSKATTAD INSATS
+
+- Schema + migration + Drizzle: ~0,5–1 d.  
+- Domänvalidering, service, endpoint, tester: ~2–3 d.  
+- Audit `org.status.changed` + utökad kampanj-audit: ~0,5–1 d.  
+- Grundläggande lista/Kanban-häck: +2–4 d.  
+**Totalt grovt:** ~4–8 utvecklingsdagar för kärnan (exkl. full pipeline-sida och notifieringar).
+
+--- SLUT ---

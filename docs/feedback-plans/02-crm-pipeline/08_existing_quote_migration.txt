@@ -1,0 +1,103 @@
+==============================================
+8. Migration från befintlig quote/pipeline
+==============================================
+
+NULÄGE
+
+**`GET /v1/portal/dashboard`** (`apps/api/src/routes/portal.ts` ~43–185)  
+- Klubb: stats utan quote/pipeline.  
+- Sälj (`SALES_REP`/`SALES_ADMIN`): `clubs`, `quotesOut`, `closedThisMonth`, `pipelineValueOre`, `activeClubs`, `openQuotes`, `pipelineValue`. `closedThisMonth` = count `quotes.status = ACCEPTED` — **query filtrerar inte på månad** (namn vs beteende — risk).  
+- INTERNAL_ADMIN: `totalOrders`, `totalClubs`, `mrrOre`, `mrr`, `activeClubs`, `hairConversion` — **ingen** `pipeline`/`topClubs` array medan `portal/page.tsx` kan förvänta `s.pipeline`, `s.topClubs` → fallback-demo.
+
+**`GET /v1/portal/quotes`** (~403–428)  
+- Admin: alla quotes limit 100.  
+- Övriga: `.where(eq(quotes.userId, session.userId))` — jämför med schema `sales_rep_id` (`packages/db/src/schema/quotes.ts`, `0000_premium_photon.sql`) — **risk för trasig query** för icke-admin.  
+- Svar: rå quote-rader utan joinad klubb/kontakt för UI som förväntar `client`/`contact`.
+
+**`GET /v1/portal/pipeline`** (~532–576)  
+- `stages`: fast `["DRAFT","SENT","ACCEPTED","REJECTED"]` — **EXPIRED** i enum men ej i listan.  
+- `deals`: flat lista (25 st), **inte** inbäddad per stage — mismatch mot `pipeline/page.tsx` som förväntar `s.deals[]` per stage.
+
+**UI-konsumenter**  
+- `portal/page.tsx` (~228–242): `pipeline`/`topClubs` från dashboard — API skickar dem inte → fallback.  
+- `portal/pipeline/page.tsx` (~87–112): förväntar nested deals; får quote-status-strängar som kolumnrubriker vs svenska demo-steg.  
+- `portal/offerter/page.tsx`: mappar client/contact/status — API saknar fält → tomma strängar.  
+- `portal/saljare/page.tsx`: förväntar `pipeline`, `clubs`, `conversion` på sellers — `/v1/portal/sellers` returnerar `{ id, name, email, role }` (~376–394) → kolumner tomma.  
+- `portal/layout.tsx`: länk `/portal/pipeline`.  
+- `trpc/routers/sales.ts`: `pipelineValue: 0` statiskt.  
+- `lib/ai/system-prompt.ts`: nämner pipeline konceptuellt.
+
+**`FEATURE_CRM_PIPELINE_V2`:** nämns i skill-filen — **finns inte** i applikationskod ännu.
+
+VAD FEEDBACKEN SÄGER
+
+- Inventera befintlig pipeline; backfill `org.status` från quotes; coexistence `quotes.status` + `org.status`; flagga `FEATURE_CRM_PIPELINE_V2`; API bakåtkompatibelt; DoD-mätvärden (% leads med status, % orgs med ASM).
+
+GAP
+
+- `organizations` saknar CRM-fält — migration + ev. skill 01 före meningsfull backfill.  
+- UI/API-kontraktsglapp (stages vs deals, dashboard pipeline, offerter/säljare fält).  
+- `quotes.userId` vs `sales_rep_id`.  
+- EXPIRED osynlig i pipeline stages.  
+- Ingen flagga i kod.
+
+IMPLEMENTATION
+
+1) **Inventering** (denna plan + kod): dokumentera JSON-kontrakt; lista alla `portalFetch` mot `/dashboard`, `/pipeline`, `/quotes`, `/sellers`.
+
+2) **`FEATURE_CRM_PIPELINE_V2`**  
+Inför i env + `apps/api/src/lib/flags.ts` (eller befintlig config). När false: minimal förändring; när true: additiva fält / parallell route `GET /v1/portal/pipeline/v2` eller `meta.crmVersion`.
+
+3) **Backfill `org.status` från quotes**  
+- Senaste quote per `orgId` (ORDER BY `updated_at`). Regler (förslag): någon ACCEPTED ⇒ minst Customer/Active enligt agent 6; senaste SENT ⇒ Meeting/Contacted; REJECTED/EXPIRED ⇒ Lost/Inactive; DRAFT ⇒ Lead om inget annat.  
+- Idempotent batch + rapport (konflikter).  
+- Cross-ref skill 01 för org-identitet.
+
+4) **Coexistence**  
+UI-badge: offertstatus + CRM-status. Skriv: vid offert-event uppdateras **både** `quotes.status` och `org.status` i samma transaktion när flagga på. Läs: pipeline primärt på `org_status`, quotes som drill-down.
+
+5) **Kontraktsfix (rekommenderas före eller med V2)**  
+- `/pipeline`: bädda in `deals` per stage **eller** ändra frontend till root `deals` + join `organizations` för namn.  
+- `/dashboard` sälj: lägg till `pipeline[]` och `topClubs[]` additivt **eller** förenkla UI.  
+- `/quotes`: join org/users för visningsfält; eller fixa frontend till ENUM + separat org-fetch.  
+- **Fix:** `quotes.userId` → `quotes.salesRepId` i `portal.ts` om kolumnen heter så i DB.
+
+BAKÅTKOMPATIBILITET
+
+- Behåll alla befintliga toppnivå-nycklar; nya fält additiva.  
+- Flag av: identiskt legacy-beteende.  
+- Behåll alla `quote_status`-värden; utöka stages med EXPIRED om aggregering ska vara komplett.
+
+DEPENDENCIES
+
+- Agent 1 (org_status), 2 (ASM), 6 (quote→customer).  
+- DB-migrationer + index på `quotes(org_id, status)`.
+
+TESTPLAN
+
+- Snapshot JSON för `/dashboard`, `/pipeline`, `/quotes` med seed.  
+- UI: pipeline icke-tom; offerter visar namn/status.  
+- Flag av/på.  
+- Backfill dry-run + körning på DB-kopia.
+
+RISKER
+
+- Felaktig `org.status` vid flera motstridiga quotes — prioriteringsregel + manuell kö.  
+- `closedThisMonth` utan datumfilter — fel KPI/backfill-antagande om inte fixat.  
+- EXPIRED osynlig i stages — underrapportering.
+
+UPPSKATTAD INSATS
+
+- Kontraktslimning + userId-bugg: **0,5–1 d**.  
+- Flag + additiva API-fält: **1–2 d**.  
+- Schema `org.status` + ASM + backfill + coexistence-UI: **3–5 d**.
+
+**Definition of Done (exempel-mätvärden)**  
+- % org med CRM-status satt (ej bara default) efter backfill ≥ tröskel (t.ex. 95 % i pilot).  
+- % "säljbara" org med `assigned_asm` ≥ mål (t.ex. 80 % i pilotregion).  
+- % org där senaste quote-status är konsistent med `org.status` (recon-rapport).  
+- Tid från flag ON tills pipeline-sida utan demo-fallback (för icke-demo).
+
+**Kodreferenser:** `apps/api/src/routes/portal.ts` (dashboard, quotes, pipeline, sellers); `apps/web/.../portal/page.tsx`, `pipeline/page.tsx`, `offerter/page.tsx`, `saljare/page.tsx`; `packages/db/src/schema/quotes.ts`; `organizations.ts`; `.cursor/skills/roots-feedback-02-crm-pipeline/SKILL.md`.
+
+--- SLUT ---

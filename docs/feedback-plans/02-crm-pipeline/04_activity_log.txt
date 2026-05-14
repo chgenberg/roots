@@ -1,0 +1,111 @@
+==============================================
+4. Aktivitetslogg per organisation
+==============================================
+
+NULÄGE
+
+- **`audit_logs`** — generell händelsetabell: `id`, `user_id`, `action`, `entity_type`, `entity_id`, `meta` (JSONB), `created_at`. Ingen dedikerad `organization_id`. Se `packages/db/src/schema/audit.ts` rader 3–11.
+- **Skrivning:** `auditLog()` i `apps/api/src/lib/audit.ts` (bakom `FEATURE_AUDIT_LOGGING`). Anrop från `apps/api/src/routes/auth.ts`, `settlement.ts` (`campaign.status.changed`).
+- **Läsning UI:** `GET /v1/portal/system` — senaste `audit_logs` som `recentEvents` (`apps/api/src/routes/portal.ts` rader 656–683).
+- **`organizations`:** ingen CRM-aktivitetskoppling (`packages/db/src/schema/organizations.ts` rader 9–20).
+- **`leads.ts`:** tabell **`hair_analysis_leads`** (lead magnet), **inte** B2B-org-leads (`packages/db/src/schema/leads.ts` rader 3–12).
+- **Anteckningar:** ingen org-notes-tabell; `customer_orders.note` (`packages/db/src/schema/customer-orders.ts`).
+- **Portal "aktivitet":** klubb-dashboard fallback — `apps/web/src/app/(portal)/portal/page.tsx`; inte kopplat till `audit_logs` eller org-timeline.
+- **`quotes`:** `quote_status` inkl. `SENT` — hook för auto-aktivitet "offert skickad" (`packages/db/src/schema/quotes.ts`).
+- **`campaigns`:** status `DRAFT` → `ACTIVE` → `ENDED` → `SETTLED`; settlement + audit (`campaigns.ts`, `settlement.ts`).
+
+**`GET/POST /v1/organizations/:id/activities`** — **finns inte** i `apps/api/src/routes/` idag.
+
+VAD FEEDBACKEN SÄGER
+
+- CRM ska ha **aktivitetslogg per organisation** (samtal, möten, mejl, anteckningar) separat från teknisk revision.  
+- API: `GET` / `POST` `/v1/organizations/:id/activities`.  
+- UI: **timeline** på org-detalj.  
+- **Auto-aktiviteter** vid statusbyte, offert skickad, kampanjstart.  
+- **`next_action_at` + e-post** för påminnelser (org-nivå; agent 1).
+
+GAP
+
+- Ingen tabell **`organization_activities`**.  
+- Ingen REST/tRPC för sälj-aktiviteter per org.  
+- `audit_logs` olämplig som primär sälj-tidslinje (blandar auth, settlement, m.m.).  
+- Risk för begreppsförvirring med `hair_analysis_leads` — separera domännamn.
+
+IMPLEMENTATION
+
+**A) Tabell `organization_activities`**  
+Ny modul `packages/db/src/schema/organization-activities.ts` + export i `schema/index.ts`.
+
+| Kolumn | Typ | Syfte |
+|--------|-----|--------|
+| `id` | uuid PK | |
+| `organization_id` | uuid NOT NULL → organizations | Scope |
+| `user_id` | uuid NULL → users | Vem loggade (NULL för system) |
+| `type` | varchar eller pgEnum | call, meeting, email, note, quote_sent, status_change, campaign_started, follow_up, won, lost, … |
+| `happened_at` | timestamp NOT NULL | Affärstid |
+| `summary` | text | Timeline-rad |
+| `payload` | jsonb | quote_id, campaign_id, from/to status, länk, … |
+| `created_at` | timestamp | Persisttid |
+
+**Index:** `(organization_id, happened_at DESC)` (eller composite btree; DESC i SQL-migration).
+
+**B) API**  
+- `GET /v1/organizations/:id/activities` — paginering, `happened_at DESC`, RBAC (ASM territory, INTERNAL bredare) — agent 2/7.  
+- `POST` — `type`, `summary`, valfritt `happened_at`, `payload`; `user_id` från session.  
+- Idempotens för auto-events: t.ex. dedup på (`organization_id`, `type`, `payload.quote_id`).
+
+**C) UI**  
+Org-detalj i portal: vertikal timeline; återanvänd Card/list-mönster från `portal/page.tsx` men data från nytt API.
+
+**D) Auto-aktiviteter**  
+| Trigger | Var | Typ |
+|---------|-----|-----|
+| Org status ändras | Ny status-service | status_change + ev. parallell `auditLog org.status.changed` |
+| Offert SENT | Där quote uppdateras | quote_sent |
+| Kampanj ACTIVE | tRPC campaigns | campaign_started |
+| SETTLED | settlement.ts | campaign_ended / status_change |
+
+Samma DB-transaktion som affärshändelse där möjligt.
+
+**E) `audit_logs` vs `organization_activities` — slå inte ihop**
+
+| | audit_logs | organization_activities |
+|--|------------|-------------------------|
+| Målgrupp | Drift, compliance | Sälj, kundhistorik |
+| Org-scope | Lös entitet | Alltid org |
+
+**F) Påminnelser**  
+- `next_action_at` på `organizations` (agent 1).  
+- Cron/pg-boss: `next_action_at <= now()` + relevant status → e-post till `assigned_asm`; ev. aktivitet `follow_up`; `next_action_reminder_sent_at` eller separat tabell mot dubbel utskick.
+
+BAKÅTKOMPATIBILITET
+
+- Nya tabellen additiv; befintliga flöden oförändrade.  
+- Fortsätt `auditLog` för systemhändelser; lägg **till** aktivitetsrad där sälj ska se händelsen.
+
+DEPENDENCIES
+
+- Agent 1 (`org_status`, `next_action_at`).  
+- Agent 2 (RBAC innan exponering).  
+- Agent 5 (org-detalj-länk från pipeline).  
+- `FEATURE_AUDIT_LOGGING` / e-postinfra.
+
+TESTPLAN
+
+- Migration + index.  
+- GET/POST + 403 fel org.  
+- UI tom/icke-tom timeline.  
+- E2E: statusbyte / offert SENT → exakt en aktivitet (retry-säker).
+
+RISKER
+
+- RBAC-läckage utan territory-filter.  
+- GDPR i `summary`/`payload` — retention vid org-radering (skill 07).  
+- Namnkollision: `hair_analysis_leads` vs CRM — överväg `crm_leads` eller separat namespace.
+
+UPPSKATTAD INSATS
+
+- Schema + API + minimal UI: **3–5 d**.  
+- Auto-hooks + påminnelsejobb: **+2–4 d**.
+
+--- SLUT ---

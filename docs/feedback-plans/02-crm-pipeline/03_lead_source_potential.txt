@@ -1,0 +1,100 @@
+==============================================
+3. lead_source och potential_score
+==============================================
+
+NULÄGE
+
+**Schema (`packages/db/src/schema/organizations.ts`)**  
+Tabellen har: `id`, `name`, `org_number`, `type`, `national_federation`, `sport_type`, `verified`, `fortnox_customer_id`, `created_at`, `updated_at`. **Ingen** `lead_source`, `potential_score`, `assigned_asm` eller `tags`.
+
+Organisation skapas via `POST /v1/auth/register/association` och team-läge i `apps/api/src/routes/auth.ts` med insert på `organizations` — inga CRM-fält.
+
+Portal `GET /clubs` (`apps/api/src/routes/portal.ts`) returnerar org-rader; `apps/web/.../portal/klubbar/page.tsx` kan visa mock-kolumner som inte kommer från DB.
+
+`users.roleEnum` har ingen ASM ännu (`packages/db/src/schema/users.ts`).
+
+AI i repo (Open Claw, hår/chat) — **ingen** `potential_score`-beräkning i applikationskod.
+
+Grep: `lead_source`, `potential_score`, `assigned_asm` finns i planer/skills (`docs/feedback-plans/01-master-data/`) men inte i körbar TS-schema utöver ovan.
+
+VAD FEEDBACKEN SÄGER
+
+- CRM på organisationsnivå: `lead_source`, `potential_score`, `assigned_asm`.  
+- `lead_source` för kanal/rapportering.  
+- `potential_score` för prioritering (gärna AI-stött, begränsad synlighet).  
+- `tags text[]` för fri etikettering ("varm", kampanjspår).
+
+GAP
+
+- Saknade DB-fält och ENUM för `lead_source`.  
+- Ingen beräknad `potential_score` / breakdown.  
+- Ingen `tags`.  
+- Ingen logik som sätter `lead_source` vid skapande eller API för manuell ändring.  
+- UI saknar org-create/edit och listfilter för CRM.
+
+IMPLEMENTATION
+
+**A) ENUM `lead_source`**  
+Cold Outreach, Referral, Digital, Event, Partner, ASM Network, Existing Customer (pgEnum + TS-konstanter).
+
+**B) När sätts `lead_source`?**  
+- **Vid create:** kanal-härledning (självregistrering → Digital; import → Partner; manuellt ASM → ASM Network / valfritt; återkommande → Existing Customer). Explicit fält i intern lead-create + utökade register-flöden.  
+- **Manuellt senare:** ASM / INTERNAL_ADMIN; logga i aktivitetslogg (agent 4) + ev. audit.  
+- **Nullable-policy:** NULL under migration; backfill; sedan NOT NULL om policy tillåter.
+
+**C) `potential_score` — formelskiss + skill 04 (AI)**  
+1. Regelbaserad bas (0–100 INT): `f(estimated_members × segment.avg_per_member_revenue, region_weight, lead_source_weight)` — `estimated_members` från manuellt fält eller skill 04 estimat; segment från **skill 01** (`segment_id`).  
+2. AI-justering (skill 04 — lead-scorer): JSON `{ score_adjustment, top_reasons[] }`; spara **`potential_score_breakdown` JSONB** + `potential_score_updated_at`.  
+3. Persistens: `potential_score INT`; förklaring i ASM/INTERNAL-vy.  
+4. Recompute: nattjobb + vid segmentbyte / verifierat medlemsantal / status → Customer.  
+5. Fairness (skill 04): minimera PII i prompt.
+
+**D) `tags text[]`**  
+Default `{}`; GIN-index om filter ofta; validering (max antal, längd, normalisering lowercase).
+
+**E) `assigned_asm`**  
+`uuid NULL REFERENCES users(id)` `ON DELETE SET NULL` — kräver ASM-roll (agent 2) + RBAC.
+
+**F) UI**  
+Intern org-create: segment/riks (skill 01), geografi, `lead_source`, tags, ev. `estimated_members`; score read-only + tooltip för behöriga.  
+Org-edit: samma; policy om re-score vid ändring.  
+Pipeline/lista (agent 5): filter lead_source, score-bucketar, tags, ASM, segment, riksorg.
+
+BAKÅTKOMPATIBILITET
+
+- Nya kolumner additiva och nullable tills backfill.  
+- Self-service `auth.ts` kan sätta server-side default utan obligatoriskt UI i v1.  
+- Dölj `potential_score` för roller utan behörighet.
+
+DEPENDENCIES
+
+- **Skill 01:** `segment_id`, riksorg, geografi på org.  
+- **Skill 02 agent 2:** ASM + territory.  
+- **Skill 04:** `lead-scorer`-agent, breakdown, kö/nattjobb (`.cursor/skills/roots-feedback-04-ai-agents/SKILL.md`).  
+- **Agent 4:** aktivitet vid ändring lead_source/tags.  
+- **Agent 5:** pipeline-filter.
+
+TESTPLAN
+
+- Migration: befintliga org-rader; inga brutna FK.  
+- API: ogiltigt ENUM → 400.  
+- Manuell patch → aktivitet + audit.  
+- Scoring: enhet + integration med mockad LLM; Zod på breakdown.  
+- UI: filter; score dold för otillåten roll.  
+- Performance: GIN på `tags`.
+
+RISKER
+
+- Fel default `lead_source` → fel BI.  
+- AI-score utan `breakdown` → mistrust.  
+- Osäkert `estimated_members` → volatil score; behöver data_quality (skill 07).  
+- Taggar utan governance → stavvarianter.
+
+UPPSKATTAD INSATS
+
+- DB + migration + Drizzle: liten/medel.  
+- API (defaults, validering, PATCH): medel.  
+- AI lead-scorer + worker: medel/stor.  
+- UI (filter, edit, chips): medel; pipeline-integration i agent 5.
+
+--- SLUT ---

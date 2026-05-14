@@ -1,0 +1,56 @@
+==============================================
+1. Lead-prioritering & potentialmatris
+==============================================
+Källa: Säljprocess.pptx — slide 2 (Lead → Prioritering)
+
+NULÄGE
+
+- Säljportal: `apps/web/src/app/(portal)/portal/layout.tsx` — `SALES_NAV` har Översikt, Pipeline, Klubbar, Offerter, Statistik, AI, Inställningar. Ingen vy för lead-prioritering eller ABC-matris.
+- `apps/web/src/app/(portal)/portal/pipeline/page.tsx` — pipeline finns men flow-audit (`docs/flow-audits/SALES_REP_2026-04-18_1252.txt`) rapporterar kontraktsmismatch: API returnerar aggregerade `stage/count/totalOre` utan `deals[]`; kolumner riskerar vara tomma; "Totalt pipeline-värde" kan vara hårdkodat.
+- `apps/api/src/routes/portal.ts` — pipeline-aggregat; CRM-fält som `potential_score`, `estimated_members`, `lead_source`, ASM-tilldelning finns planerade i `docs/feedback-plans/02-crm-pipeline/` men är inte fullt implementerade i nuvarande `organizations`-schema (jfr. skill 02).
+- `apps/web/src/app/(portal)/portal/klubbar/page.tsx` — klubblista utan explicit ABC-bucketing eller hypotes-rad om paketvolym.
+
+VAD FEEDBACKEN SÄGER
+
+- Dedikerad vy `/portal/leads/prioritera` (alt. under `/portal/klubbar/prioritera` om man vill undvika ny top-level).
+- ABC-bucketing: A = potential >0.8, B = 0.5–0.8, C = <0.5 (trösklar konfigurerbara per segment).
+- Per lead visa: storlek (`estimated_members`), historik (Folkspel/Newbody-tagg när data finns), struktur (förening vs "lös" konstellation), kännedom/relation (ASM-anteckning / senaste aktivitet).
+- Output: hypotes "Den här klubben borde kunna sälja X–Y paket" där intervall härleds från `potential_score` × segmentnorm (skill 02 agent om potential_score + skill 05/04 member estimate).
+- Sortering, filter, snabbåtgärd "Boka möte" (koppling till kalender/aktivitet eller deep-link till kontakt/Motor-flöde — skill 05 agent 2).
+
+GAP
+
+- Ingen route, ingen API som kombinerar score + segmentbenchmark + UI-hypotes.
+- Pipeline och lead-prio överlappar semantiskt — måste tydliggöras (pipeline = deal-stadium; prioritering = A/B/C-kö före möte).
+
+IMPLEMENTATION
+
+- **Route:** `apps/web/src/app/(portal)/portal/leads/prioritera/page.tsx` (SALES_REP, SALES_ADMIN, ev. ASM om roll införs).
+- **API:** `GET /v1/portal/leads/priority` — returnerar org-rader med `abcBucket`, `potentialScore`, `estimatedMembers`, `hypothesisPackagesMin/Max`, `lastActivityAt`, `leadSource`, `assignedAsm` (nullable tills migration).
+- **Beräkning:** server-side: `bucket = f(potential_score)`; paket-intervall = `round(segment_p50 * score_adj)` … (dokumentera formel i kodkommentar; ingen garanti i copy — jfr. räknesnurra-guardrail).
+- **UI:** tabell + färgchips A/B/C; kolumn hypotes; radåtgärder: Öppna klubb, Boka möte, Flytta till pipeline-stadium (om skill 02 drag-and-drop senare kopplas).
+- **Nav:** utöka `SALES_NAV` i `layout.tsx` med "Leads" eller "Prioritering" mellan Pipeline och Klubbar.
+- Koppling **skill 02** — `05_pipeline_view.txt`, lead_status, `potential_score`. Koppling **skill 04** — lead scoring-agent uppdaterar underlag.
+
+BAKÅTKOMPATIBILITET
+
+- Om `potential_score` saknas: visa C + "Saknar data" och CTA att komplettera i klubbvy.
+- Befintlig `/portal/klubbar` oförändrad tills man väljer att slå ihop eller länka.
+
+DEPENDENCIES
+
+- Skill 02 (CRM, pipeline, score-kolumner). Skill 01 (segment för norm). Skill 04 agent 3 (lead scoring). Eventuellt skill 07 (datakvalitet på estimates).
+
+TESTPLAN
+
+- Roll: CLUB_ADMIN ska inte se vy. API med null scores. ABC-gränser via env/feature flag.
+
+RISKER
+
+- Felaktiga paket-hypoteser skadar förtroende — tydlig disclaimer + källa (estimate vs verified).
+
+UPPSKATTAD INSATS
+
+- API + sida + nav: **3–5 dagar** efter att score/segment finns; annars **+2 dagar** för temporära heuristik-fallbacks.
+
+--- SLUT ---

@@ -1,0 +1,73 @@
+==============================================
+2. Gruppnormalisering
+==============================================
+
+NULÄGE
+
+- `teams` (`packages/db/src/schema/teams.ts`): fritext `name`, `orgId`, `campaignId`, `leaderId`, `inviteToken`, `memberCount` — inga strukturerade kohortfält.
+- `sellers`: `teamId`, `displayName` — ingen `group_unit_id`.
+- Ingen `group-parser.ts` / `agents/`-katalog i `lib/ai/`.
+- AI-bas: `chatCompletion` i `openclaw-client.ts`.
+
+VAD FEEDBACKEN SÄGER
+
+- Modell_register kap 8 / skill 04: mappa `display_name` (t.ex. "P10 Svart") → JSON med `gender`, `birth_year`, `age_band`, `group_type`, `competition_level`, `confidence`.
+- Regex-fallback före AI; few-shot med minst 10 exempel (P10 Svart, F14 Vit, Herrjunior, Klass 9B, U17 Damer, Damjuniorer, …); användaren justerar alltid manuellt före save.
+- Trigger: skapande av `group_unit`; bulk CSV-läge.
+- Trösklar: `<0.7` förslag; `0.7–0.9` förifyll + bekräfta; `>0.9` auto-fill men användaren kan ändra.
+- Cache: `group:norm:<sha256(org_id + normalized display)>` TTL 7 dagar (speglar agent 1).
+
+GAP
+
+- Saknar `group_unit`-tabell och persistenspipeline (skill 03).
+- Ingen `group-parser.ts` eller validerad JSON-schema-kedja.
+
+IMPLEMENTATION
+
+- **Ny fil:** `apps/api/src/lib/ai/agents/group-parser.ts`.
+
+**Input:** `display_name` (obligatorisk), `organization_id` + ev. orgnamn/segment/sport för kontext, valfritt `reference_year` / `active_season`.
+
+**Output JSON (Zod):**  
+`{ gender, birth_year|null, age_band, group_type, competition_level, confidence }`  
+(`birth_year` null när klass använder `school_grade` — hanteras vid `group_unit`-insert enligt skill 03.)
+
+**Pipeline:**  
+1) Normalisering (NFKC, trim, lowercase för match).  
+2) **Regex/heuristik:** P|F|H|D + siffror, Uxx, Klass, Herr/Dam-junior, m.m. — vid hög intern regel-confidence → returnera direkt `source=rules` utan AI.  
+3) **AI:** few-shot (10 exempel från skill) + org-kontext → `chatCompletion`; en retry vid parsefel.  
+4) UI: alltid redigerbara fält före submit; logga `ai_suggestion` vs `user_final` (audit / `ai_agent_runs`).
+
+**Bulk CSV:** kolumn `display_name`; batch med dedup av identiska namn inom fil; async kö (agent 7) vid stor volym.
+
+BAKÅTKOMPATIBILITET
+
+- `teams` kvar; `teams.group_unit_id` nullable enligt skill 03 plan A.
+- Befintliga `teams.name` kan batch-förslås utan automatisk ändring.
+
+DEPENDENCIES
+
+- **Skill 03:** `01_group_unit_schema.txt`, `02_birth_year_age_band_principle.txt`, `03_team_to_group_migration.txt`, `05_seller_group_relationship.txt`.
+- **Skill 01:** stabil `organization_id` / segment för prompt-kontext.
+- **Agent 7:** kö/async, idempotens.
+- **Agent 8:** `ai_agent_runs`, kostnad, feedbackknapp.
+
+TESTPLAN
+
+- Enhet: regex-golden cases + gränsfall (emoji, tom sträng).
+- AI-mock: trasig JSON, timeout.
+- UI-trösklar och manuell override.
+- Bulk: 1k rader — cache-träffar, ingen dubbel AI för identiska namn.
+
+RISKER
+
+- Fel kön/år vid ovanliga idrotter — låg auto-confidence + manuell grind.
+- ENUM-drift parser vs DB — strikt mappningstabell.
+- GDPR: undvik långtidslagring av rå grupptext i loggar — hash i `ai_agent_runs`.
+
+UPPSKATTAD INSATS
+
+- Parser + Zod + integration: **2–3 dagar**.
+- UI förslag/bekräftelse + bulk + audit: **+2–4 dagar**.
+
+--- SLUT ---

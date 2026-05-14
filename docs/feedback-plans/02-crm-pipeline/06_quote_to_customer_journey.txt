@@ -1,0 +1,102 @@
+==============================================
+6. Kundresan: offert → aktiv kund
+==============================================
+
+NULÄGE
+
+**`quotes`** (`packages/db/src/schema/quotes.ts`):  
+`quote_status`: DRAFT, SENT, ACCEPTED, REJECTED, EXPIRED. Kolumner: `orgId`, `salesRepId`, `status`, `validUntil`, `totalOre`, timestamps. **Saknas:** `won_at`, `lost_reason`, direkt FK quote→kampanj.
+
+**`campaigns`** (`packages/db/src/schema/campaigns.ts`):  
+`campaign_status`: DRAFT, ACTIVE, ENDED, SETTLED. Ingen automatisk koppling från `quotes` i granskad kod.
+
+**`organizations`:** ingen CRM-pipeline.
+
+**`portal.ts`:**  
+- `GET /dashboard` (sälj): räknar offerter; ACCEPTED som "closed"; SENT i pipeline-summa — ingen `org_status`, ingen kampanj-automatik, ingen ASM-uppdelning.  
+- `GET /quotes`: lista; för icke-admin `eq(quotes.userId, session.userId)` — **verifiera** mot faktisk kolumn (`salesRepId` i schema) — risk för bugg.  
+- `GET /pipeline`: aggregering per `quotes.status`; stages-lista utan EXPIRED trots enum.
+
+**`checkout.ts`:** B2C Klarna — ingen quote-accept.
+
+**`trpc/routers/sales.ts`:** mock/stub — ingen riktig DB för send/accept.
+
+VAD FEEDBACKEN SÄGER
+
+- Offert skickad/accepterad ska driva **org-status** och aktiviteter.  
+- Vid accept: org **Active**, kampanj skapas, inbjudningar/setup (skill 05 — "Stängning & Setup").  
+- Efter settled kampanj: **Customer** (återkommande).  
+- 12 mån utan aktivitet → **Inactive**.  
+- Dashboard: MRR, conversion per ASM — kräver tydlig definition (inte bara `sum(orders)` om det inte är återkommande MRR).
+
+GAP
+
+1) Ingen serverkoppling quote SENT/ACCEPTED → org CRM-fält.  
+2) Ingen auto-kampanj vid ACCEPTED.  
+3) Ingen SETTLED → Customer / inaktivitets-cron.  
+4) Saknas `won_at` / `lost_reason` struktur.  
+5) Dashboard "MRR" kan vara order-summa — inte per definition MRR/ASM.  
+6) Pipeline-data saknar org-namn, ASM, lead_source.  
+7) Dubbla ytor: portal REST vs tRPC sales stub.
+
+IMPLEMENTATION
+
+**A) Transaktioner (org + quote)**  
+- DRAFT→SENT: `sent_at`; org minst Meeting/Contacted enligt regel (agent 1); aktivitet `quote_sent`.  
+- SENT→ACCEPTED: `accepted_at` / `won_at`; org → **Active**; `insert campaigns` (DRAFT eller ACTIVE); koppling `campaigns.quoteId` eller liknande.  
+- SENT→REJECTED/EXPIRED: `lost_at` + `lost_reason` enum + valfri `lost_note`; org-policy (stanna eller Lost).  
+- Idempotens: dubbel accept ska inte skapa två kampanjer.
+
+**B) Auto-kampanj**  
+Vid ACCEPTED: default mål/datum från offert eller setup-wizard (skill 05); inbjud team_leader/association enligt säljprocess.
+
+**C) SETTLED → Customer**  
+Job eller explicit steg i settlement: när `campaigns.status` = SETTLED → org `CUSTOMER` (om inte Lost), sätt `last_campaign_settled_at`.
+
+**D) 12 mån inaktivitet → Inactive**  
+Definiera aktivitet (order, login, aktivitet, quote, kampanj); daglig batch: max(`last_activity`) < now()−12m och status Customer/Active → Inactive (undantag whitelist).
+
+**E) Utökning `quotes`**  
+`won_at`, `lost_reason` (ENUM: PRICE, TIMING, COMPETITOR, NO_RESPONSE, OTHER), `lost_note`, `sent_at`, `accepted_at`, ev. `campaignId` FK.
+
+**F) Dashboard**  
+MRR-definition i produkt; per ASM: join på `assigned_asm` / `salesRepId`; KPI: touch, quotes sent, accept rate, pipeline SEK, attribuerad intäkt.
+
+BAKÅTKOMPATIBILITET
+
+- Behåll `quote_status`; nya kolumner nullable.  
+- Utöka `/pipeline` och `/dashboard` additivt.  
+- `FEATURE_CRM_PIPELINE_V2`: nya transitions endast när flagga på.  
+- Inkludera EXPIRED i stage-lista om aggregering ska vara komplett.
+
+DEPENDENCIES
+
+- Agent 1 (org_status).  
+- Agent 4 (`organization_activities`).  
+- Skill 05 (Close & Setup wizard).  
+- Agent 2 (ASM för attribution).  
+- Skill 01 (segment/rapportering).
+
+TESTPLAN
+
+- Enhet: quote-status transitions; accept + en kampanj + org Active.  
+- Integration: `/pipeline`-payload efter migration.  
+- E2E: skicka → acceptera → kampanj; settled → Customer; simulerad 12m → Inactive.  
+- Regression: fixa `userId` vs `salesRepId` om fel.
+
+RISKER
+
+- Dubbel implementation (portal vs tRPC) divergerar.  
+- "MRR" = ordersumma missvisande.  
+- Auto-kampanj utan wizard → dåliga defaults.  
+- Inaktivitetsjobb felklassar om aktivitet inte loggas.
+
+UPPSKATTAD INSATS
+
+- Schema + hooks: **2–4 d**.  
+- Accept + kampanj + org-status: **1–2 v**.  
+- Inaktivitet + settled→Customer: **2–4 d**.  
+- Dashboard per ASM + MRR-definition: **~1 v**.  
+- Konsolidera sales API: **2–5 d**.
+
+--- SLUT ---

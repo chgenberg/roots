@@ -1,0 +1,51 @@
+==============================================
+5. Closing celebration & "Månadens lirare"
+==============================================
+Källa: Säljprocess.pptx — slide 7 (Avslut & förstärkning)
+
+NULÄGE
+
+- `campaigns.status`: `ACTIVE` → `ENDED` → `SETTLED` (`packages/db/src/schema/campaigns.ts`).
+- `apps/api/src/routes/settlement.ts` — settlement-flöde finns; **ingen** dedikerad celebration-sida eller `celebration_snapshots`-tabell i denna genomgång.
+- Top-säljare kräver **samtycke** om namn visas (GDPR) — antingen befintlig flagga utökas eller `seller_share_consent` läggs till.
+
+VAD FEEDBACKEN SÄGER
+
+- Auto-**celebration** när kampanj går **ACTIVE → ENDED** (eller vid manuell "Avsluta" om sådan knapp finns): vy `/portal/celebration/[campaignId]`.
+- Visa: total intäkt klubb/lag/individ; **Top 3** säljare **endast med tillstånd** (checkbox vid onboarding eller per kampanj); **"Månadens lirare"** — per kampanj **eller** kalendermånad (välj en semantik; unika constraints).
+- **Diplom PDF** (download) — servergenererad (t.ex. `@react-pdf/renderer` eller enkel PDF-lib) med klubbmärke + summor.
+- **Confetti** — lättviktig CSS/canvas; `prefers-reduced-motion` avstängning.
+- **E-post** till deltagare med länk till celebration — mall i `notification_templates` (agent 3).
+- **Permanent lagring:** tabell `celebration_snapshots` (`campaign_id`, `payload_json`, `created_at`) så länk fungerar efter ny kampanj startat.
+
+GAP
+
+- Trigger-krok i status-uppdatering; consent-modell; PDF-pipeline.
+
+IMPLEMENTATION
+
+- På `PATCH` campaign status → `ENDED`: transaktion + async jobb som bygger snapshot (aggregat-SQL) + köar mail.
+- **Månadens lirare:** beräkna primary metric (intäkt eller paket) inom **fönster**; spara `player_of_month_seller_id` + `display_name` snapshot (alias om satt).
+- RBAC: endast org-medlemmar + INTERNAL_ADMIN; delbar **publik** länk endast med token om önskat (`celebration_share_token`).
+
+BAKÅTKOMPATIBILITET
+
+- Gamla avslutade kampanjer: bakfyll snapshot on-demand första gång någon öppnar celebration-URL.
+
+DEPENDENCIES
+
+- Agent 1–2 (siffror). Agent 3 (mail). Skill 05 (korrekt avsluts-process). Settlement för "slutgiltiga" belopp om ENDED före sista order (policy).
+
+TESTPLAN
+
+- Ingen consent: top 3 anonymiserad. PDF-storlek och SV-tecken. E-post bounce.
+
+RISKER
+
+- Fel totalsumma om refunds efter ENDED — lås snapshot vid SETTLED eller visa "preliminär" etikett tills SETTLED.
+
+UPPSKATTAD INSATS
+
+- Sida + snapshot + mail: **5–8 dagar**. PDF + confetti + consent UI: **+3–5 dagar**.
+
+--- SLUT ---

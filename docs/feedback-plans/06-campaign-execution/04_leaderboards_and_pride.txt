@@ -1,0 +1,52 @@
+==============================================
+4. Leaderboards & FOMO mellan föreningar
+==============================================
+Källa: Säljprocess.pptx — slide 6 + slide 10 punkt 3 (regional ranking, FOMO)
+
+NULÄGE
+
+- Ingen `/portal/leaderboard`-route i `apps/web/src/app/(portal)/portal/layout.tsx` nav (SALES_NAV / CLUB_NAV).
+- `sellers.hideFromLeaderboard` + `publicAlias` finns — ska tillämpas på **alla** publika topplistor.
+- `campaigns` saknar `is_pilot` i nuvarande schema — skill 05/08 planerar; pilot ska kunna **dölja** cross-club ranking (återanvänd samma gate här).
+
+VAD FEEDBACKEN SÄGER
+
+- **Inom klubb:** säljar-leaderboard + lag-leaderboard (aggregat från `customer_orders` + `teams`).
+- **Mellan klubbar:** **opt-in** per kampanj/org (`org_leaderboard_opt_in`); regional etikett t.ex. "Andra föreningar i ert område" — **endast klubbnamn + aggregerad total**, inga individnamn.
+- Filter: **senaste 7d** | **hela kampanjen** | **all-time** (all-time kräver index på `created_at` + scope).
+- UI-copy: "Ni är 72 % till mål, lag X leder" — data från agent 1/2.
+- **Animation:** `motion` (framer-motion) eller `motion.dev` om redan i deps — subtil positionändring, respektera `prefers-reduced-motion`.
+- **Etik:** inga personliga topplistor för minderåriga på **delade** ytor; anonymisera med alias; föräldrainfo.
+
+GAP
+
+- Opt-in datalager, regionklassificering (postnummer-prefix från `organizations` när fält finns — skill 01), ingen server-side filter idag.
+
+IMPLEMENTATION
+
+- **Route:** `/portal/leaderboard` (CLUB_ADMIN + ev. TEAM_LEADER read-only för sitt lag); säljportal kan se **regional** vy om roll/policy tillåter.
+- **API:** `GET /v1/portal/leaderboard?scope=in_club|regional&window=7d|campaign|all&campaignId=`
+- **Regional:** returnera endast orgs där `opt_in = true` + samma `region_bucket`; maskera individer alltid.
+- **Kombinera** med skill 08 `is_pilot` — returnera 404 eller tom regional lista om pilot.
+
+BAKÅTKOMPATIBILITET
+
+- Default opt-in **false** — ingen FOMO förrän aktivt valt (GDPR + trygghet).
+
+DEPENDENCIES
+
+- Skill 03 (group display names). Skill 05/08 (pilot). Agent 1 (aggregat). `docs/flow-audits/CONVERSION_TRUST_2026-04-18_1313.txt` för trust-kopiering.
+
+TESTPLAN
+
+- Seller med `hideFromLeaderboard=true` syns inte i inom-klubb top. Regional lista: verifiera inga seller-namn i JSON.
+
+RISKER
+
+- "Skam" som growth-hack — håll tonen positiv i copy; A/B-testa.
+
+UPPSKATTAD INSATS
+
+- Inom-klubb MVP: **3–5 dagar**. Regional opt-in + polish: **+4–6 dagar**.
+
+--- SLUT ---

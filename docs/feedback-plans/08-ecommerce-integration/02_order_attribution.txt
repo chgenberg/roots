@@ -1,0 +1,50 @@
+==============================================
+2. Order-attribution (org → group → seller)
+==============================================
+Källa: Modell_register; `customer_orders`, checkout-flöden
+
+NULÄGE
+
+- `customer_orders` (`packages/db/src/schema/customer-orders.ts`): `orgId`, `campaignId`, `teamId`, `sellerId` — **ingen** `group_unit_id`.
+- Index: `org_id`, `team_id`, `campaign_id`, `seller_id`, `status`, `klarna_order_id` — **saknar** sammansatt `(org_id, created_at)` / `(campaign_id, status, created_at)` för tunga BI-frågor (skill 07).
+- Checkout: `apps/api/src/routes/checkout.ts` (ingen separat `customer-checkout.ts` i routes — använd `checkout.ts` som kanonisk path; om route splittras senare, peka hit).
+
+VAD FEEDBACKEN SÄGER
+
+- Lägg **`group_unit_id` FK** (nullable) på `customer_orders`; när satt måste den vara **konsistent** med `seller` (samma seller → samma group_unit som vid köptillfället) och med `teamId` (policy: `teamId` förblir transport-lag tills team→group_unit migration klar; validera att seller.teamId.team tillhör samma org).
+- **Backfill:** för historiska ordrar: `group_unit_id = sellers.group_unit_id` vid tidpunkt för migrering **eller** härled via `team` → skapad `group_unit` mapping-tabell (skill 03) — dokumentera enkel riktning.
+- **Nya index:** `(org_id, created_at DESC)`, `(group_unit_id, created_at DESC)` partial där `group_unit_id IS NOT NULL`, ev. `(campaign_id, status, created_at)`.
+- **Insert-validering:** Zod + DB CHECK (valfritt): `org_id = campaigns.org_id` joinat vid insert; `seller.campaign_id = campaignId`.
+- **Anonyma supportrar:** fortsatt inline `customer_name/email` på ordern; inget kundkonto — samma modell.
+- **Refund:** `status = REFUNDED` ändrar inte `org_id`/`group_unit_id`/`seller_id` — attribution **immutable** efter `PAID`.
+
+GAP
+
+- Dubbel sanning om både `teamId` och `group_unit_id` divergerar — lås vid checkout-snapshot.
+
+IMPLEMENTATION
+
+- Migration additiv kolumn + backfill jobb (pg-boss, skill 07/08).
+- Uppdatera checkout insert att sätta `group_unit_id` från seller.
+
+BAKÅTKOMPATIBILITET
+
+- Nullable FK; alla befintliga queries utan kolumn fortsätter tills ORM uppdateras (Drizzle explicit kolumnlista eller default null).
+
+DEPENDENCIES
+
+- Skill 03. Skill 02 (org_id sanning). Skill 07 (index/BI).
+
+TESTPLAN
+
+- Integrationstest: skapa order — assert group_unit_id. Refund — assert attribution oförändrad.
+
+RISKER
+
+- Fel group_unit vid team-byte mitt i kampanj — "snapshot vid order" princip.
+
+UPPSKATTAD INSATS
+
+- Schema + checkout + backfill: **4–6 dagar**.
+
+--- SLUT ---

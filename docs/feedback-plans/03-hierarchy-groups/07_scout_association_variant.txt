@@ -1,0 +1,79 @@
+==============================================
+7. Variant: scoutkår / föreningsgrupp
+==============================================
+
+NULÄGE
+
+- `teams` har ingen scout-/patrullsemantik i schema eller produktcopy (repo i övrigt generiskt "lag").  
+- `group_unit` är plan — scoutvarianten definieras här.
+
+VAD FEEDBACKEN SÄGER
+
+- `group_type`: **ScoutGroup** eller **AssociationGroup**.  
+- **Multi-åldersgrupper** (t.ex. patrull 8–14 år).  
+- Roller: **Patrulledare**, **Avdelningschef**.  
+- UI/copy anpassad till scout/förening.  
+- Segmentmaster (skill 01) anger orgens riksforbund/segment (Scouterna, 4H, KFUM m.fl.) — styr copy, inte patrullens inre struktur.
+
+GAP
+
+- Enkel skalär `birth_year` räcker inte för blandad ålder.  
+- `teams.leader_id` mappar inte två ledarskikt (patrull vs avdelning).  
+- Generiska "lag"/"lagledare"-strängar.
+
+IMPLEMENTATION
+
+**A) ScoutGroup vs AssociationGroup**
+
+| Värde | Syfte |
+|-------|--------|
+| `ScoutGroup` | Patrull/avdelningsliknande enhet; **åldersmix** norm. |
+| `AssociationGroup` | Övrig föreningsintern grupp (kör, projektgrupp) som inte är `Team` eller `Class`. |
+
+Finare underkategorier = segment på **organisation**, inte fler ENUM-värden om det kan undvikas.
+
+**B) Multi-ålder**  
+1. **Rekommenderat:** `birth_year_min`, `birth_year_max` (INT, nullable) när `group_type IN ('ScoutGroup','AssociationGroup')`; default `gender = Mixed`.  
+2. Behåll valfri enkel **`birth_year`** som *representativ* kohort med flagga `cohort_mode` (`majority` | `median` | `none`) i metadata/kolumn — BI får inte tolka som homogen grupp utan flagga.  
+3. **`age_band`:** sätt till **bredaste band** som täcker min–max **eller** `Mixed`; **detaljerad kohort** på **säljare** via `users.birth_year` där tillåtet (GDPR — agent 8).
+
+**C) Roller**  
+- **Patrulledare** ≈ nuvarande `teams.leader_id` / bjud-in-context när segment = scout. UI: "Patrulledare".  
+- **Avdelningschef:** v1 — org-scoped roll (junction `organization_members` eller liknande) med rätt att se flera patruller **utan** att vara `leader_id` på varje `teams`-rad; v2 — ev. parent `group_unit` för avdelning.
+
+**D) UI / copy**  
+Dynamiska etiketter från `group_type` + `master_segment`/`organizations.segment_id`: "Patrull", "Patrulledare"; dölj eller förenkla `competition_level`.  
+Formulär: åldersintervall min/max när ScoutGroup; kort förklaring om blandad ålder och statistik.
+
+BAKÅTKOMPATIBILITET
+
+- Befintliga `teams` utan `group_unit` oförändrade.  
+- Nullable min/max: rena idrottslag fortsätter med enbart `birth_year`.
+
+DEPENDENCIES
+
+- **Skill 01:** segment för scout-copy och standardvärden.  
+- **Skill 03 agent 1–2:** schema + birth_year-princip (utökad med intervall).  
+- **Agent 4–5:** UI och sellers.  
+- **Skill 04:** parsning av texter med "8–12" till min/max.
+
+TESTPLAN
+
+- Skapa ScoutGroup med min/max; validering.  
+- Byte av `segment_id` till icke-scout → UI åter till "Lag".  
+- Behörighet: avdelningschef ser alla patruller under org utan dubbla `leader_id`.  
+- Seed: `teams.name` utan siffror → AI/manuell ifyllnad; inget tyst fel `birth_year`.
+
+RISKER
+
+- BI feltolkar majoritetsår utan `cohort_mode`.  
+- Rollkonflikt patrulledare vs avdelningschef — dokumentera RBAC.  
+- Org utan `segment_id` → generisk copy.
+
+UPPSKATTAD INSATS
+
+- Schema-delta (min/max, ev. cohort_mode): **1 d**.  
+- Copy + UI-grenar + RBAC-skiss: **2–3 dagar**.  
+- Avdelningschef-datamodell full ut: **+3–5 dagar** om junction + admin UI.
+
+--- SLUT ---

@@ -1,0 +1,97 @@
+==============================================
+2. birth_year- och age_band-principen
+==============================================
+
+NULÄGE
+
+- **`teams`** (`packages/db/src/schema/teams.ts`): endast **`name`** (varchar 255, NOT NULL) — inget `birth_year`, `age_band`, `normalized_name`. Kampanjflöden via `orgId`, `campaignId`, `leaderId`, `inviteToken`, `memberCount`.
+- **`sellers`**: `displayName`, `publicAlias` — ingen strukturerad koppling till födelseår/åldersband på **grupp**; koppling via `teamId` → `teams`.
+- **Konsekvens:** analys kan inte stabilt skilja **kohort (födelseår)** från **årligt föränderliga etiketter** ("P10", "U16").
+
+VAD FEEDBACKEN SÄGER
+
+- Modell_register kap 7–8 (konceptuellt; .docx ej parsad här): nivå 4 (**grupp/lag/klass**) med **visningsdata** (`display_name`) och **analysdata** (`gender`, `birth_year`, `age_band`, `group_type`, `competition_level`).
+- **Kritisk princip:** **`birth_year` är konstant** för kohorten; **visningsetiketter** ("P10"/"U16") **varierar** — BI ska anknyta till **födelseår (kohort)**, inte till fri text i `display_name` / `teams.name`.
+- **`age_band`** är **deriverat** och kan **rullas** när referensår eller policy ändras — till skillnad från `birth_year`.
+
+GAP
+
+- Saknas `group_unit` med `birth_year`, `age_band`, `normalized_name`.
+- `teams.name` / `sellers.displayName` olämpliga som dimensionsnycklar för långsiktig BI.
+- Ingen server-side sanning `birth_year → age_band` vid skapande; ingen schemalagd omklassning av `age_band`.
+- Risk att UI/API fortsätter exponera endast `teams.name` utan materialiserad kohort.
+
+IMPLEMENTATION
+
+**A. Varför `birth_year` konstant vs `display_name` variabel**  
+- `birth_year`: faktisk kohorthörighet; oförändrad när klubben byter etikett. Stabil **GROUP BY**-nyckel.  
+- `display_name`: mänsklig etikett får ändras utan att kohorten ändras — för UI och copy, **inte** primär BI-granularitet.
+
+**B. Mapping `birth_year` → `age_band` vid create**  
+- Beräkna ålder = `as_of_year - birth_year` där `as_of_year` = aktiv säsong / kalenderår (produktdokumentation krävs).  
+- Central policy-funktion (DB eller delad TS-modul) mappar till enum **Child | Youth | Junior | Senior | Veteran** med versionsstyrd tröskeltabell.  
+- UI: auto-fyll `age_band`; tillåt override vid edge cases (scoutintervall — agent 7).  
+- Validering (agent 4): minst en av (`birth_year`, `school_grade`); för idrottslag primärt `birth_year`.
+
+**C. Jobb 1 januari (eller säsongstart)**  
+- Uppdatera **`age_band`** för alla rader där ålder passerat tröskel — **utan** att ändra `birth_year` eller automatiskt `display_name`.  
+- Idempotent körning; logga antal uppdaterade rader.  
+- Om verksamheten är **säsongsankt**, använd `active_season` som referensår istället för kalenderår.
+
+**D. BI**  
+- Aggregat: **GROUP BY `birth_year`**, `gender`, `group_type`, `organization_id` (via skill 01), **inte** `display_name`.  
+- `age_band` = snapshot — inkludera **`as_of_date`** i rapportmetadata om historik skiljer sig.
+
+**E. App-hjälpare**  
+- `getAgeBand(birthYear, asOfYear): AgeBand` — samma implementation backend + frontend (delad modul).  
+- `getCurrentDisplayLabel(unit)` — returnerar `display_name` för UI; valfritt suffix för **interna** vyer, inte publik butik utan behov.
+
+**F. ASCII-diagram (kohort F2010)**
+
+```
+Kohort: birth_year = 2010
+
+        display_name (kan vara oförändlig eller manuellt ändrad)
+        "P10 Svart" ...................... "P10 Svart" eller "U16 ..."
+              |
+  2026  ------+---- age_band = f(2026-2010)  t.ex. Youth
+              |
+  2027  ------+---- age_band kan rulla t.ex. till Junior
+              |
+  birth_year: 2010 ======================== 2010  (oförändrad)
+
+BI GROUP BY:  birth_year  -->  samma kohortnyckel
+UI LABEL:      display_name -->  valfritt oförändrad text
+```
+
+BAKÅTKOMPATIBILITET
+
+- Befintliga `teams.name` kan backfillas till `display_name` på nya `group_unit`-rader utan att kräva omedelbar ändring av alla API-svar.  
+- Nullable `birth_year` för klass-flöden (agent 6).
+
+DEPENDENCIES
+
+- **Skill 01:** org-kedja för upprullning i BI.  
+- **Skill 04:** AI-parsing av `teams.name` / `display_name` → förslag; människa godkänner; `birth_year` blir system-of-record efter godkännande.  
+- **Skill 03 agent 1:** kolumner och index.  
+- **Agent 5, 8:** sellers och materialiserade vyer ska följa samma princip.
+
+TESTPLAN
+
+- Enhet: `getAgeBand` för kända trösklar; unicode/edge birth years.  
+- Integration: skapa grupp → `age_band` auto; manuell override sparas.  
+- Cron: torrkörning 1/1 — idempotens; inga ändringar av `birth_year`.  
+- BI-query: GROUP BY `birth_year` ger stabil radcount över år trots ändrat `display_name`.
+
+RISKER
+
+- Fel valt `as_of_year` → fel `age_band` (januarifel vs säsong).  
+- För aggressiv auto-override gömmer scout-/klass-edge cases.  
+- Rapport som blandar `age_band` utan `as_of_date` missförstås historiskt.
+
+UPPSKATTAD INSATS
+
+- Policy-tabell + hjälpfunktioner + tester: **1–2 dagar**.  
+- Schemalagd rullning + monitoring: **+1 dag**.
+
+--- SLUT ---

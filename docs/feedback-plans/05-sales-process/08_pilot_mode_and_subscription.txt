@@ -1,0 +1,54 @@
+==============================================
+8. Pilot-mode + återköp/prenumeration
+==============================================
+Källa: Säljprocess.pptx — slide 10 (pilot, återköp, prenumeration, FOMO); slide 9 (pilot-mode kontext)
+
+NULÄGE
+
+- **`campaigns`** (`packages/db/src/schema/campaigns.ts`) — saknar `is_pilot`, sänkta mål-trösklar som separat koncept, leaderboard-styrning.
+- **`subscriptions`** (`packages/db/src/schema/subscriptions.ts`) — B2C-orienterad modell: `customerEmail`, `sellerId`, `teamId`, `campaignId`, `interval` (MONTHLY/BIMONTHLY/QUARTERLY), `unitPriceOre`, leveransdatum — **inte** samma som "förening prenumererar på årlig kampanjmotor"; semantisk gap-analys krävs innan återanvändning.
+- **Settlement:** se `apps/api` settlement-rutter (audit nämner SETTLED) — koppla uppföljningsuppgift till `campaign.status = SETTLED`.
+- **FOMO / ranking:** ingen opt-in cross-org leaderboard i kodbasen enligt snabb audit.
+
+VAD FEEDBACKEN SÄGER
+
+- **`campaign.is_pilot`:** boolean; effekter: (1) sänkt mål-tröskel för "grön" status i UI, (2) dölj jämförande leaderboard **mellan** klubbar (intern per-klubb får finnas), (3) extra instruktionstext för marknadsstöd i kampanjportal, (4) auto-uppgift "Boka fysiskt kickoff" till ASM.
+- **30 dagar efter SETTLED:** auto-uppgift/CRM-task till ASM: "Vill ni köra igen?" — koppla till skill 02 aktiviteter när de finns; tills dess enkel `campaign_followups`-tabell eller notis.
+- **Prenumerationsspår:** antingen utöka `subscriptions` med `organization_id` + B2B-typer (stor migration) **eller** ny tabell `org_campaign_subscriptions` med länk org + produktpaket "Roots-säsong" — plan kräver produktbeslut.
+- **FOMO:** opt-in ranking — endast **klubbnamn + aggregerad total**, inga personnamn; etisk gräns: aldrig ranking av **minderåriga säljare**; om seller leaderboard: endast åldersgrupp 18+ eller helt bort från ungdomslag (policy).
+- **Upsell-copy:** mallar "Andra föreningar i ert distrikt …" — datadrivet med anonymiserat bucket (distrikt = postnummerprefix / segment — GDPR).
+
+GAP
+
+- Ingen pilot-flagga, ingen follow-up motor, ingen etisk granskning av befintlig gamification (skill 06).
+
+IMPLEMENTATION
+
+- Migration: `campaigns.is_pilot` default false; ev. `pilot_goal_multiplier` decimal eller separat `pilot_goal_value`.
+- **UI:** checkbox i setup-wizard (agent 5) + INTERNAL_ADMIN override.
+- **Leaderboard-gate:** central funktion `canShowCrossClubLeaderboard(campaign)` — returnerar false om `is_pilot` eller global policy.
+- **Follow-up:** cron `SELECT id FROM campaigns WHERE status='SETTLED' AND settled_followup_sent_at IS NULL AND updated_at < now()-interval '30 days'` — sätt flagga + skapa task/email.
+- **Subscriptions:** dokumentera två spår i ADR: (A) återanvänd + utöka nuvarande tabell, (B) ny B2B-tabell — välj efter affärsjuridik.
+- Koppling **skill 06** — gamification, content; **skill 02** — ASM-uppgifter; **skill 07** — datakvalitet på jämförelsetal.
+
+BAKÅTKOMPATIBILITET
+
+- Alla befintliga kampanjer `is_pilot = false`; beteende oförändrat.
+
+DEPENDENCIES
+
+- Settlement-tidsstämpel (`SETTLED` + när). E-post/notification infra. Juridik för distriktsjämförelser.
+
+TESTPLAN
+
+- Pilot kampanj: verifiera dold cross-club ranking. SETTLED + mock datum → exakt en follow-up. Underåriga säljare: inga personliga topplistar (policy-test).
+
+RISKER
+
+- Felaktig återanvändning av `subscriptions` skapar felaktiga fakturaflöden — isolera B2B-spår tills klart.
+
+UPPSKATTAD INSATS
+
+- `is_pilot` + UI + leaderboard gate: **2–3 dagar**. SETTLED follow-up: **2–4 dagar**. Prenumeration/B2B-modell: **spike 2 dagar** + implementation **1–2 veckor** beroende på val.
+
+--- SLUT ---

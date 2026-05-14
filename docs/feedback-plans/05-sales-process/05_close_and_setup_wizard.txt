@@ -1,0 +1,57 @@
+==============================================
+5. Stängning & Setup-wizard
+==============================================
+Källa: Säljprocess.pptx — slide 5 (Stängning & Setup)
+
+NULÄGE
+
+- Onboarding splittrad: `docs/flow-audits/ASSOCIATION_ONBOARDING_2026-04-18_1241.txt` + portal för förening; ingen enhetlig `/portal/setup-campaign` för ASM med kund i möte.
+- `campaigns.status` — `DRAFT` | `ACTIVE` | `ENDED` | `SETTLED` (`packages/db/src/schema/campaigns.ts`).
+- `teams` — fritext `name`; `group_unit` enligt skill 03 planeras separat.
+- `registration_drafts` nämns i MASTER_PLAN — verifiera om tabell finns; planen förutsätter draft mellan steg.
+
+VAD FEEDBACKEN SÄGER
+
+- Route **`/portal/setup-campaign`** (query `?orgId=&campaignId=` för återuppta utkast).
+- **7-stegs-wizard** (ASM guidar kunden):
+  1. Superuser/ansvarig — sök bland `organization_contacts`, välj Motor, "konvertera till TEAM_LEADER" om inte redan.
+  2. Säljperiod — `startDate` / `endDate` (datepickers → `campaigns`).
+  3. Leveransdatum + plats — nya fält eller återanvänd befintlig leveransmodell (kampanj + org adress — kartlägg i implementation).
+  4. Riksorganisation, sport, lag/ålder, skola — auto ifyllt från `organization` + skill 01 masterdata när det finns.
+  5. Struktur — bulk-create grupper (skill 03 agent 4 bulk wizard).
+  6. Mål — per medlem / per lag / total klubb → mappa till `goalType` + `goalValue` + ev. kompletterande JSON för visning.
+  7. Granska & aktivera — `organizations` status Active (om CRM inför det), `campaigns.status = ACTIVE`; auto-inbjudningar till Motor + lagledare.
+- **Draft:** spara mellan steg — `registration_drafts` eller `campaign_setup_drafts` med `step`, `payload_json`, `updated_at`.
+
+GAP
+
+- Saknar route, multi-steg state machine, server actions/API för atomära steg, e-post/inbjudnings-hook.
+
+IMPLEMENTATION
+
+- **Frontend:** steg-indicator, "Spara utkast", "Tillbaka/Nästa"; mobilvänlig.
+- **Backend:** `PATCH /v1/portal/campaign-setup-draft` + `POST .../activate` som transaktion: uppdatera campaign, teams/group_units, users invites (befintliga endpoints återanvänds där möjligt).
+- **RBAC:** SALES_REP kan endast org inom sin portfölj när policy införs; tills vidare SALES_ADMIN.
+- Koppling **skill 03** — `04_bulk_group_creation.txt`, `group_unit`. **Skill 02** — status transition Lead → Customer vid aktivering (definiera exakt trigger-steg).
+
+BAKÅTKOMPATIBILITET
+
+- Manuellt skapade kampanjer i DRAFT ska kunna öppnas i wizard utan att nollställa befintliga fält.
+
+DEPENDENCIES
+
+- Agent 2 (`organization_contacts`). Skill 01. Skill 02. Skill 03. Invite/e-post (`apps/api` befintliga mailvägar).
+
+TESTPLAN
+
+- Avbryt mitt i wizard — återuppta. Dubbelklick på Aktivera — idempotent. Rolltester.
+
+RISKER
+
+- Långa transaktioner — dela i: spara draft (snabb) vs activate (kritisk sektion med retry).
+
+UPPSKATTAD INSATS
+
+- MVP wizard (steg 1–2–7 utan bulk groups): **5–8 dagar**. Full inkl. bulk groups + leveransfält: **+8–12 dagar**.
+
+--- SLUT ---

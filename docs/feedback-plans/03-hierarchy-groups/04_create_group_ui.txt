@@ -1,0 +1,85 @@
+==============================================
+4. UI: skapa och redigera grupp/lag
+==============================================
+
+NULÄGE
+
+- **Fundraising:** `(fundraising)/layout.tsx` — nav för förening (`/forening`, `/forening/lag`, …) och lagledare (`/lag`, `/lag/saljare`, …).  
+- **`/forening/lag/page.tsx`:** listar lag från `/v1/dashboard/association` — `name`, `memberCount`, `inviteToken` (copy UX). **Ingen** create/edit av gruppanalysfält.  
+- **`/lag/page.tsx`, `/lag/saljare/page.tsx`:** översikt + säljare; inline skapa **säljare**, inte gruppmetadata.  
+- **Registrering:** `(auth)/registrera/page.tsx` — steg 1 lag: `teamName` + org-sök via `GET /v1/auth/organizations/search` (egen scroll-lista, **ingen** Combobox). POST `/v1/auth/register/team-leader`.  
+- **`registrera/saljare/[token]/page.tsx`:** person `displayName` — ingen gruppmetadata.  
+- **Portal `(portal)/portal/`:** t.ex. `medlemmar/page.tsx` — Table/Card/Toast; **ingen** group CRUD.  
+- **UI-kit:** `button`, `input`, `label`, `card`, `badge`, `dialog`, `sheet`, `table`, `toast` under `apps/web/src/components/ui/` — **saknas** `select`, `combobox`, `slider` i repo (greenfield för dessa).  
+- **Backend:** `auth.post("/register/team-leader")` skapar `teams` vid ACTIVE campaign; mönster `auditLog` `auth.register.*` — spegla för `group_unit.create` / `update`.
+
+VAD FEEDBACKEN SÄGER
+
+- Wizard enligt skill 03 agent 4:  
+  1) `display_name`  
+  2) AI-förslag i realtid (gender, birth_year, age_band, …)  
+  3) manuella dropdowns  
+  4) validering: minst en av (`birth_year`, `school_grade`)  
+  5) `estimated_members` slider  
+  6) spara + audit  
+- Bulk-create i kampanjsetup — **cross-ref skill 05** (`roots-feedback-05-sales-process`).  
+- Återanvänd shadcn-mönster; lägg till **Select / Combobox (Command+Popover) / Slider** där saknas.
+
+GAP
+
+- Ingen UI-yta för `group_unit`.  
+- Org-sök/registrera använder primitiv lista — förbättras vid samma tillfälle som Combobox.  
+- Kampanj krävs idag för team-insert i `auth.ts` — bulk-wizard måste skapa/säkerställa campaign (skill 05).
+
+IMPLEMENTATION
+
+**Enkelgrupp-flöde**  
+1. **`display_name`:** `Input` + teckenhint.  
+2. **AI:** debounced endpoint (300–500 ms, skill 04); preview "Vi tolkar …"; **Acceptera alla** / manuell justering.  
+3. **Dropdowns:** `Select` för enums (`group_type`, `gender`, `age_band`, `competition_level`) — dölj `competition_level` när `group_type = Class` (agent 6).  
+4. **Validering:** Zod client + server `.refine` — minst en av `birth_year` | `school_grade`.  
+5. **`estimated_members`:** `Slider` eller synkat nummerfält; hjälptext uppskattat antal säljare.  
+6. **Spara:** `POST/PATCH /v1/.../group-units` (exakt mount under `dashboard` eller `campaigns` — beslut); `auditLog` + `useToast`.
+
+**Redigera:** `Sheet` eller `Dialog` från radåtgärd på `/forening/lag` (eller dedikerad route `/forening/lag/[id]/redigera`).
+
+**Bulk (skill 05)**  
+- Kampanjwizard-steg "Lägg till lag/klasser": repeater-tabell; **"Applicera AI på alla"**; valfritt CSV senare.  
+- Varje rad: skapa `group_unit` + `teams` med `teams.group_unit_id` (plan A) så inviteToken-flöden behålls.
+
+**Var UI bör ligga**  
+- Primärt: utöka **`/forening/lag`** med "Skapa lag/grupp".  
+- Paritet: ev. begränsad redigering under **`/lag`** för lagledare.  
+- Registrera steg 1: utöka **efter** backend stödjer `group_unit` (eller flytta till post-login wizard).
+
+BAKÅTKOMPATIBILITET
+
+- Befintliga länkar `/registrera/saljare/:token` oförändrade.  
+- Nya komponenter additiva; gamla sidor fungerar utan DnD tills feature klar.
+
+DEPENDENCIES
+
+- Agent 1–2 (schema + age_band-logik).  
+- Skill 04 (parse-API).  
+- Skill 05 (wizard-sekvens).  
+- Skill 01 (org måste finnas).
+
+TESTPLAN
+
+- a11y: tangentbord i Combobox/Select.  
+- Validering: klass utan `birth_year` men med `school_grade` OK.  
+- AI-timeout/fel — graceful fallback.  
+- Audit-rad vid create/update.
+
+RISKER
+
+- Portal vs fundraising: idag ligger lag-UX under **fundraising** — produktbeslut om portal någonsin behöver samma CRUD.  
+- Dubbel wizard (registrera + kampanj) om inte samordnat.
+
+UPPSKATTAD INSATS
+
+- UI-komponenter (Select/Combobox/Slider): **1–2 dagar**.  
+- Enkelgrupp-form + API: **2–4 dagar**.  
+- Bulk-steg + skill 05-integration: **+3–5 dagar**.
+
+--- SLUT ---

@@ -1,0 +1,49 @@
+==============================================
+2. Soft delete-strategi
+==============================================
+Källa: Modell_register kap 14; GDPR
+
+NULÄGE
+
+- Inga `deleted_at`-kolumner i Drizzle-schema — alla queries antar implicit att rader finns kvar tills hard delete.
+- Rader som försvinner via `ON DELETE CASCADE` (FK) måste kartläggas innan soft delete på förälder införs.
+
+VAD FEEDBACKEN SÄGER
+
+- **`deleted_at`** på huvudtabeller: `organizations`, `group_unit` (framtida), `users` (var försiktig — auth), `sellers`, `teams`, `campaigns`, `customer_orders` (oftast status-baserad livscykel i stället — **policy:** order använder status + `cancelled_at` snarare än soft delete om juridiskt krav på spårbarhet), `quotes`, `products` (intern katalog).
+- **Default-filter:** wrapper `notDeleted(table)` → `isNull(table.deletedAt)`; exportera från `@roots/db` query helpers.
+- **INTERNAL_ADMIN:** vy "Papperskorg" + **Återställ** (`deleted_at = null`) + **Radera permanent** (hard delete) endast efter kylning + audit.
+- **Cron:** hard delete efter **90 dagar** i papperskorgen + audit-post `entity.permanently_deleted`.
+- **FK:** soft delete på `organizations` ska **inte** CASCADE till barn automatiskt — barn får `deleted_at` satt i samma transaktion (explicit lista) eller `org_id` behålls men org dold (välj modell A: cascade-soft, B: orphan block — **rekommendation A** för enhetlig UX).
+- **Sök/index:** partial index `WHERE deleted_at IS NULL` på tunga listor.
+
+GAP
+
+- `users`: soft delete påverkar inloggning — använd `deleted_at` + blockera auth **eller** separat `account_status` (enum `ACTIVE|SUSPENDED|DELETED`).
+
+IMPLEMENTATION
+
+- ADR per entitet: order vs soft delete.
+- `db.query.organizations.findMany({ where: isNull(organizations.deletedAt) })` — lint-regel eller eslint-plugin som varnar för direkt `.select()` utan helper (gradvis).
+
+BAKÅTKOMPATIBILITET
+
+- Alla befintliga rader: `deleted_at IS NULL` via migration default.
+
+DEPENDENCIES
+
+- Agent 4 (audit på restore/purge). Agent 1 (kolumner).
+
+TESTPLAN
+
+- FK: försök läsa soft-deleted org via gammal deep link → 404. Restore → synlig igen.
+
+RISKER
+
+- **GDPR rätt till radering** — soft delete ≠ radering; separat **hard anonymize**-flöde för PII medan affärsaggregat behålls (kryptisk org_key).
+
+UPPSKATTAD INSATS
+
+- Design-ADR + org/campaign: **3–4 dagar**. Full rollout + papperskorg-UI: **2–3 veckor**.
+
+--- SLUT ---

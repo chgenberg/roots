@@ -1,0 +1,49 @@
+==============================================
+7. Data warehouse / BI-export
+==============================================
+Källa: Modell_register kap 15 (enterprise BI); future-tooling
+
+NULÄGE
+
+- Primär databas antas vara Postgres (Drizzle); **ingen** `analytics`-schema eller ETL i repo enligt denna genomgång.
+- Manuell export: sannolikt ad hoc från admin — formaliseras i v1.
+
+VAD FEEDBACKEN SÄGER
+
+- **v1 — Manuell CSV:** säkra endpoints `GET /v1/internal/analytics/export?entity=orders&from=&to=` med PII-maskning, rate limit, audit (`auditLog`).
+- **v2 — Read replica:** Railway/Supabase read-only URL för BI-verktyg; inga skrivningar; row security om möjligt.
+- **v3 — Warehouse:** Parquet till S3 + Athena/BigQuery; eller Fivetran/Airbyte från Postgres **CDC** (`pgoutput` / Debezium) — dokumentera kostnad/ops.
+- **`analytics`-schema:** stabila tabeller `fct_orders_daily`, `dim_org`, `dim_campaign` — PII pseudonymiserad (`org_sk`, hashat seller_id valfritt).
+- **Roller:** BI-konsumenter **endast** warehouse — aldrig direkt mot prod OLTP.
+- **GDPR:** pseudonymisering + kolumnblocklista (`email`, `phone`, `personal_number`); samtycke för aggregerad benchmarking.
+
+GAP
+
+- Legal DPA med cloud warehouse leverantör.
+
+IMPLEMENTATION
+
+- ADR: välj v1 scope (CSV + nightly dump till krypterad S3 bucket med livscykelpolicy).
+- **Schema-först:** definiera `dim_org` kolumner som speglar skill 01 (segment_id, riks_id) när de finns.
+
+BAKÅTKOMPATIBILITET
+
+- CSV-export avstängd default; INTERNAL_ADMIN aktiverar per session.
+
+DEPENDENCIES
+
+- Agent 1–3 (korrekta kolumner i källa). Infra (S3, KMS).
+
+TESTPLAN
+
+- Exportera 1M rader — minne/streaming. Verifiera inga plaintext PII i Parquet.
+
+RISKER
+
+- Data leak via felkonfigurerad replica — IP allowlist + cert.
+
+UPPSKATTAD INSATS
+
+- v1 CSV + S3 dump: **4–6 dagar**. Replica: **infra-beroende**. CDC: **2–4 veckor** spike + prod.
+
+--- SLUT ---

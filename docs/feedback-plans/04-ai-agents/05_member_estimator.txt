@@ -1,0 +1,61 @@
+==============================================
+5. Medlemsuppskattning (member-estimator.ts)
+==============================================
+
+NULÄGE
+
+- `organizations` saknar `estimated_members`, `estimated_members_confidence`, `estimated_members_source`, `estimated_members_updated_at` (CRM-planer föreslår dessa).
+- `teams.memberCount` finns men är **inte** backad av `member_count` i Drizzle-schema (`teams.ts` har ej den kolumnen) — ingen källa för verifierad medlemsvolym per org.
+- `campaigns` har `participantCount` (schema) — proxy för aktiv kampanj, ej masterdata.
+- `openclaw-client.ts` + `flags.aiEnabled()` — ingen estimator-modul.
+
+VAD FEEDBACKEN SÄGER
+
+- Hybrid: **segment-snitt** + **AI-justering** (clampad, t.ex. ±20 %) med **confidence** och **source** (`segment_average`|`verified_count`|`ai_estimate`|`manual`).
+- Indata: segment, sport, region, åldersspann (från `group_unit` när det finns), historik från liknande org, ev. `teams`-antal som proxy.
+- Output: heltal + confidence + förklaring; **INTE** använd som hård sanning i fakturering utan `data_quality` (skill 07).
+- Synlighet: **INTERNAL_ADMIN / ASM** — inte publikt för säljare/klubb i v1.
+
+GAP
+
+- Ingen modul, ingen persistens, ingen segmentstatistik-tabell.
+- Saknar verifierad källa — plan för när klubb rapporterar faktiskt antal.
+
+IMPLEMENTATION
+
+- **Ny fil:** `apps/api/src/lib/ai/agents/member-estimator.ts` — `estimateMembers(input): Promise<Estimate>`.
+- **Bas:** segment_medel × sport/region/vikt; om `verified_count` finns → override bas + hög confidence.
+- **AI:** JSON `{ adjustment_pct, rationale, confidence }`; clamp; om `!flags.aiEnabled()` → endast bas.
+- **Migration:** additiva kolumner på `organizations` + ev. `segment_benchmarks` (segment, sport, p50/p90, sample_size, `updated_at`).
+- **Worker:** nattlig refresh när segmentändring eller nya `group_unit` (agent 7).
+- **Audit + ai_agent_runs** (agent 8).
+
+BAKÅTKOMPATIBILITET
+
+- Alla nya fält nullable; befintliga org får `null` tills beräknat.
+- `potential_score` (agent 3) ska tolerera null `estimated_members` med neutral default.
+
+DEPENDENCIES
+
+- **Skill 01** (segment, sport).  
+- **Skill 03** (grupp/ålder för finare modell).  
+- **Agent 3** (lead score använder estimate).  
+- **Skill 07** (datakvalitet, `verified` vs `estimated`).
+
+TESTPLAN
+
+- Enhet: clamp, segment_medel edge cases.  
+- Zod på AI-svar.  
+- RBAC: org-ägare ser inte estimate i portal om policy så kräver.
+
+RISKER
+
+- Fel skattning → fel ASM-prioritet — visa alltid confidence + källa.  
+- Små sample sizes i segment_benchmarks — flagga låg confidence.
+
+UPPSKATTAD INSATS
+
+- Modul + migration + benchmark-seed: **2–4 dagar**.  
+- Worker + UI (ASM): **+2–3 dagar**.
+
+--- SLUT ---

@@ -1,0 +1,102 @@
+==============================================
+6. Sök & autocomplete för organisationer
+==============================================
+
+NULÄGE
+------
+
+- **Backend:** `GET /v1/auth/organizations/search?q=...` i `apps/api/src/routes/auth.ts` (~661–694). Kräver session-cookie; utan session → **401** `{ error: "Ej inloggad" }`.
+- `q` tom eller `< 2` tecken → `{ organizations: [] }` (200). `%` och `_` strippas; ILIKE på `organizations.name`; `limit(10)`.
+- **Frontend:** `apps/web/src/app/(auth)/registrera/page.tsx` — fetch mot samma URL med `credentials: "include"`; ingen debounce; egen dropdown (ingen Combobox/listbox-a11y).
+- **Svar:** `{ id, name, type }` — saknar display_name, riksorg/segment, status, municipality.
+- **Infra:** `apps/api/src/lib/redis.ts`, `lib/rate-limit.ts` (`checkRateLimit`) — **används inte** för org-sök idag.
+- **Gap (dokumenterat):** pre-login org-sök vs 401 i `docs/flow-audits/ASSOCIATION_ONBOARDING_*` (org-sök på publik registreringssida).
+
+VAD FEEDBACKEN SÄGER
+--------------------
+
+- CRM-lik sök: filter på riksorganisation och segment; svar med display_name, status, kommun; fuzzy/kvalitet; "skapa ny om saknas"; throttling och cache.
+
+GAP
+---
+
+1. Endpoint bör ligga under **`/v1/organizations/search`** (domän-CRM), inte enbart under auth.  
+2. Saknar queryparametrar `riksorg`, `segment`, ev. `municipality`.  
+3. Endast substring-ILIKE — ingen ranking, trigram eller FTS.  
+4. Ingen rate limit / Redis-cache för sök.  
+5. Klient: ingen debounce; svag a11y.  
+6. **401** vs förväntat beteende för registreringsflöde.
+
+IMPLEMENTATION
+--------------
+
+**Mål-signatur:** `GET /v1/organizations/search?q=&riksorg=&segment=&municipality=&limit=`  
+- `limit` default 10, max 25.  
+- **Svar:** `items[]` med `id`, `display_name`, `riksorganisation`, `segment`, `status`, `municipality`, ev. `match_score`, `meta.took_ms`, `meta.cached`.  
+- Under migrering: alias `{ organizations: items }` för gamla klienter.
+
+**Teknik: ILIKE + pg_trgm**  
+- GIN trigram på `normalized_name` (eller `name` tills normalisering finns); `similarity` / `word_similarity` + ordning; ev. prefix-ILIKE för snabb prefix.  
+- FTS (`tsvector`) reserveras för längre fritextfält — inte krav för org-namn v1.  
+- `CREATE EXTENSION pg_trgm` i migrering (RDS).
+
+**Combobox (web)**  
+- Radix/shadcn Popover + Command eller Headless UI Combobox: `role="combobox"`, listbox, piltangenter, Enter, Escape.  
+- **Debounce** 250–400 ms; **AbortController**; min 2 tecken; tom träff + "Skapa ny förening".
+
+**Throttle**  
+- `checkRateLimit` t.ex. **60 req/min/IP** (justera); valfritt högre tak per inloggad user.  
+- **429** med `retry_after_seconds` — undvik tyst tom lista vid abuse.
+
+**Redis-cache 60 s**  
+- Nyckel: `orgsearch:v1:{hash(normaliserade params)}` — `EX 60`.  
+- Miss: DB; Redis nere → fallback (blockera inte sök).  
+- Invalidation: version-prefix vid bulk-import eller pub/sub.
+
+**Migrera `auth.get('/organizations/search')`**  
+1. Ny router `apps/api/src/routes/organizations.ts` monterad på `/v1/organizations`.  
+2. Produktbeslut: **publik** rate-limited sök utan session **eller** session/token före sök på registrera.  
+3. Deprecated proxy på `/v1/auth/organizations/search` 1–2 releaser.  
+4. Uppdatera `registrera/page.tsx` när kontrakt klart.
+
+**RBAC**  
+- INTERNAL_ADMIN/SALES: full data.  
+- Publik: endast active, begränsade fält; rate limit; undvik timing-enumeration.
+
+BAKÅTKOMPATIBILITET
+-------------------
+
+- Behåll gammal path som tunn wrapper.  
+- JOIN riksorg/segment när FK ifyllda; fallback till nuvarande beteende vid NULL.
+
+DEPENDENCIES
+------------
+
+- Agent 1–2 (tabeller + FK på organizations).  
+- Agent 5 (`normalized_name`, index).  
+- Agent 8 (backfill) innan strikta filter blir obligatoriska.
+
+TESTPLAN
+--------
+
+1. Cache-nyckel stabil; TTL 60s (mock Redis).  
+2. `q` < 2 → tom lista 200; `%` saneras.  
+3. 61:a anropet → 429.  
+4. E2E registrera: dokumenterat förväntat 200 vs auth-krav.  
+5. Combobox a11y (axe/Playwright).  
+6. `EXPLAIN ANALYZE` med GIN vid >10k rader.
+
+RISKER
+------
+
+- Extension `pg_trgm` i alla miljöer.  
+- Fuzzy rankar fel — boost `verified` eller manuell kuratering.  
+- Stale cache 60s efter adminändring.  
+- CORS/cookies vid ny path.
+
+UPPSKATTAD INSATS
+-----------------
+
+- **3–5 dagar** senior dev: endpoint + trigram-migration + Redis + rate limit + Combobox + registrera-fix + tester.
+
+--- SLUT ---

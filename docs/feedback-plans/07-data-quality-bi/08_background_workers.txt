@@ -1,0 +1,58 @@
+==============================================
+8. Background workers (pg-boss / cron)
+==============================================
+Källa: MASTER_PLAN; Modell_register nattliga processer; skill 04 agent 7
+
+NULÄGE
+
+- `pg-boss` finns i `apps/api/package.json` men **ej** wired i `apps/api/src` (jfr. tidigare feedback-skills).
+- `flags.workersEnabled()` (`WORKERS_ENABLED`, default false) — inga call sites.
+- BI-relaterade uppgifter (MV refresh, score recompute, duplicate sweep) körs **inte** schemalagt i kodbasen idag.
+
+VAD FEEDBACKEN SÄGER
+
+**Jobb-lista (exempel)**
+
+| Jobb | Syfte | Frekvens |
+|------|--------|----------|
+| `org_status_stale` | Auto-transition Active→Inactive efter 12 mån utan aktiv kampanj | Daglig |
+| `lead_score_recompute` | Uppdatera `potential_score` | Nattlig |
+| `duplicate_sweep` | Skill 04 — trgm + AI-kö | Nattlig |
+| `mv_refresh` | `REFRESH MATERIALIZED VIEW CONCURRENTLY` för BI | Nattlig |
+| `age_band_roll` | 1 jan — uppdatera åldersband på group_unit (skill 03) | Årlig + manuell |
+| `asm_leads_digest` | E-post till ASM "leads som väntar" | Veckovis / daglig |
+| `webhook_retry` | Klarna/Fortnox misslyckade webhooks | Var 5:e min |
+| `audit_archive` | Flytta audit >365d | Veckovis |
+
+**Val:** **pg-boss** — samma Postgres som app, enklare drift än separat Redis-queue för MVP; **Inngest**/**BullMQ** kan övervägas om multi-region eller komplex DAG krävs senare.
+
+**Observability:** strukturerad log per jobb (`job_name`, `duration_ms`, `rows_affected`), metric counter `job_failures_total`, alarm om >3 fel i rad.
+
+**Idempotens:** `singletonKey` per org+jobb+dag; säkra retries (UPDATE … WHERE already_done).
+
+BAKÅTKOMPATIBILITET
+
+- `WORKERS_ENABLED=false` i alla miljöer tills runbook klar; manuella SQL-körningar möjliga under övergång.
+
+IMPLEMENTATION
+
+- `apps/api/src/workers/index.ts` — start från server bootstrap när flag sann **eller** separat `node dist/workers.js` process (rekommenderat i prod för isolering).
+- Dela DB pool med försiktighet — separat liten pool för workers om nödvändigt.
+
+DEPENDENCIES
+
+- Agent 5 (vilka MV som ska refreshas). Skill 04 (duplicate, scoring). Agent 4 (audit archive).
+
+TESTPLAN
+
+- Chaos: dubbla worker-processer — singleton ska hindra dubbel körning. Kill mid-job — retry utan korruption.
+
+RISKER
+
+- Långa transaktioner blockerar OLTP — kör tunga refresh i lågtrafik-fönster.
+
+UPPSKATTAD INSATS
+
+- Boss bootstrap + 2 jobb (webhook_retry + mv_refresh): **4–6 dagar**. Full lista: **+1–2 veckor**.
+
+--- SLUT ---

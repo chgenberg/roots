@@ -1,0 +1,51 @@
+==============================================
+1. Säljarens shop-koppling till group_unit
+==============================================
+Källa: Modell_register — eCommerce ovanpå CRM; skill 03 (group_unit)
+
+NULÄGE
+
+- `apps/api/src/routes/shop.ts` — `GET /by-slug/:slug`: hämtar `sellers` → `teams` → `organizations.name`; ingen `group_unit`.
+- `packages/db/src/schema/sellers.ts` — **`group_unit_id` saknas**; finns `teamId`, `publicAlias`, `hideFromLeaderboard`, `displayName`.
+- `apps/web/src/app/(shop)/shop/[slug]/page.tsx` + `layout.tsx` — visar shop utan grupp-lager i API-kontraktet ovan.
+
+VAD FEEDBACKEN SÄGER
+
+- När `sellers.group_unit_id` är satt: visa **"P10 Svart, Onsala BK"** (display_name från group_unit + org) på shop och i OG-metadata.
+- **`group_unit_id` NULL:** oförändrad copy — i praktiken org/team som idag ("Onsala BK" via `teams` + `organizations`).
+- **Org.status-gating:** om CRM inför `organizations.status` (skill 02): visa **varning** om org inte Active, men **blockera inte** köp om `campaigns.status === ACTIVE` (separata regler — kassa följer kampanj).
+- **OG/Twitter cards:** title/description inkluderar grupp + förening när data finns.
+- **Inga query-regressioner:** alla JOINs måste vara **LEFT** till `group_units` så befintliga rader utan FK fungerar.
+
+GAP
+
+- Tabell `group_units` + migration `sellers.group_unit_id` (skill 03) måste ske före UI.
+
+IMPLEMENTATION
+
+- Utöka `shop.ts` select med optional join: `leftJoin(groupUnits, eq(sellers.groupUnitId, groupUnits.id))` + `leftJoin(organizations, ...)`.
+- Response-DTO: `groupDisplay: string | null` beräknad server-side för stabil copy.
+- Frontend: en rad under säljarens namn om `groupDisplay` finns.
+- **410 Gone** hanteras i agent 8 / org soft-delete — shop-route returnerar JSON-fel som webben mappar till Gone-sida.
+
+BAKÅTKOMPATIBILITET
+
+- API-fält nya = optional; gamla appar ignorerar.
+
+DEPENDENCIES
+
+- Skill 03 (`group_unit`, display_name). Skill 01 (org-namn). Skill 07 (`data_quality` på grupp — **inte** exponera i shop-JSON).
+
+TESTPLAN
+
+- Slug med seller utan group_unit: identisk respons som baseline (snapshot-test). Med group_unit: ny golden JSON.
+
+RISKER
+
+- Längre shop-queries — index på `sellers.group_unit_id`.
+
+UPPSKATTAD INSATS
+
+- API + OG + web: **2–4 dagar** efter group_unit-schema.
+
+--- SLUT ---

@@ -1,0 +1,53 @@
+==============================================
+4. Marknadsstöd-trigger (bonus-trappa)
+==============================================
+Källa: Säljprocess.pptx — slide 4 (sista delen: bonus/marknadsstöd)
+
+NULÄGE
+
+- `campaigns` har inte `marketing_support`-fält eller tröskel-tabell.
+- Notifieringar till förening/säljare: verifiera befintliga kanaler (e-post, in-app) i `apps/api` — ingen kopplad "trappa" idag.
+- Skill 06 planerar gamification och content — tröskel-passering kan trigga content (synk).
+
+VAD FEEDBACKEN SÄGER
+
+- Tabell **`marketing_support_tiers`:** `id`, `campaign_id` nullable (NULL = global default), `name`, `threshold_packages` (int), `bonus_amount_ore` (int), `description`, `sort_order`.
+- Standardnivåer: t.ex. "Bas — X kr vid Y sålda paket", "Bonus — högre nivå".
+- UI i räknesnurran / kampanjvy: progress "Ni är 73% till nästa nivå" baserat på `orders`/`customer_orders` aggregerat per kampanj (definiera exakt vad "paket" räknar — produkt-SKU eller enhetsblock).
+- **Trigger:** när aggregerad försäljning passerar tröskel → notis till org (`CLUB_ADMIN`) + ASM; ev. auto-genererat socialt utkast (skill 06 — kö/job, inte synkron LLM i request-path).
+- **INTERNAL_ADMIN** UI: CRUD tiers; per-kampanj override eller fallback till globala defaults.
+
+GAP
+
+- Saknar schema, räknar-pipeline (cron eller on-order webhook), progress-UI.
+
+IMPLEMENTATION
+
+- Migration tiers + ev. `marketing_support_grants` log-tabell (vilken tier passerades, `triggered_at`) för idempotens vid notifiering.
+- **Beräkning:** materialiserad vy eller query `sum(qty)` för kampanjprodukter — prestanda för stora kampanjer.
+- **Jobb:** efter order insert (eller nattlig) — jämför mot tiers; `singletonKey` (skill 04 agent 7) för "tier-{campaignId}-{tierId}".
+- **API:** `GET /v1/portal/campaigns/:id/marketing-support-progress` för calculator + klubbportal.
+- Koppling **skill 06** — notifiering + content mall.
+
+BAKÅTKOMPATIBILITET
+
+- Kampanjer utan tiers: ingen UI-rad; ingen trigger.
+- Global default: seed migration med Roots-standard (justera innan prod).
+
+DEPENDENCIES
+
+- Orders-schema, kampanj-produkt (`campaign-products`). Skill 06. Eventuellt pg-boss (skill 04 agent 7).
+
+TESTPLAN
+
+- Simulera order som korsar tröskel — exakt en notis. Override vs global. Admin CRUD validering.
+
+RISKER
+
+- Dubbelräkning returer — policy om `REFUNDED` (om sådant finns) ska sänka progress.
+
+UPPSKATTAD INSATS
+
+- Schema + progress API: **3–4 dagar**. Triggers + notiser + admin UI: **+4–6 dagar**.
+
+--- SLUT ---

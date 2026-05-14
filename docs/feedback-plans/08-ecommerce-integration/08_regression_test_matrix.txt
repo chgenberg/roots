@@ -1,0 +1,73 @@
+==============================================
+8. Regressionstest-matris
+==============================================
+Källa: Hela commerce-lagret; skills 01–07 efter implementation
+
+NULÄGE
+
+- Playwright/e2e täckning varierar — matrisen ska bli **körbar** checklista + mål för CI smoke.
+
+VAD FEEDBACKEN SÄGER
+
+**E2E / integration (mock betalning)**
+
+| # | Scenario | Förväntat |
+|---|-----------|-----------|
+| E1 | Säljshop: 5 produkter i varukorg (`use-cart.ts`), checkout, mock betalning | `customer_orders` PAID, rader `customer_order_lines`, attribution org+seller(+group_unit när finns) |
+| E2 | B2B: ASSOCIATION_ADMIN beställer 50 paket | `orders` CONFIRMED+, Fortnox stub anropas, ingen `customer_order` |
+| E3 | Refund | Status REFUNDED/CANCELLED enligt policy; `group_unit_id` oförändrad |
+| E4 | Settlement: kampanj, 100 ordrar, flera lag/team | `payouts` stämmer med manuell summa; unik constraint respekterad; campaign SETTLED |
+| E5 | Subscription renewal | Efter 3 cykler: **inte** 3 identiska aktiva orderrader om design säger ledger — dokumentera förväntat |
+| E6 | Klarna webhook | Misslyckad signatur → ingen statusändring; retry success → PAID (skill 07 worker) |
+| E7 | Org soft-delete (skill 07) | Shop API 410/404, **inte** 500; kassa blockerad eller tydligt fel |
+| E8 | Minderårig säljare | `publicAlias` visas externt; riktigt namn aldrig i shop HTML/OG |
+| E9 | Seller utan `group_unit_id` | Shop identisk med baseline (golden file) |
+
+**Smoke (varje PR)**
+
+- S1: `GET /shop/by-slug/:knownSlug` 200 + schema keys.
+- S2: `POST /checkout` happy path mock.
+- S3: Settlement generate på fixture-kampanj ENDED — transaktion commit.
+
+**Non-functional**
+
+- N1: p95 shop endpoint < mål (t.ex. 300 ms) med JOIN group_unit.
+- N2: Fortnox DTO allowlist — unit test att inga nya CRM-fält läcker.
+
+**Cross-ref skills**
+
+- 01–03: masterdata/group påverkar E1,E4,E9.
+- 02 CRM: org.status varning (E1 UI).
+- 05: marketing tier påverkar E4 belopp.
+- 06: share assets — ej del av core commerce men sidospår.
+- 07: workers E6; BI export PII N2.
+
+GAP
+
+- Testdata-seed för multi-team kampanj i CI.
+
+IMPLEMENTATION
+
+- Lägg `docs/qa/COMMERCE_REGRESSION.md` **endast om team äger det** — annars håll matrisen i denna fil och länka från CI yaml kommentar (användaren bad inte om ny MD — **prioritera** Issue/Notion + Playwright `test.describe` blocks som speglar tabellen).
+
+BAKÅTKOMPATIBILITET
+
+- Matris uppdateras när payout nyckel går från team→group_unit.
+
+DEPENDENCIES
+
+- Mock Klarna/Fortnox i `apps/api` test harness.
+
+TESTPLAN
+
+- Kör matris i staging före varje release train.
+
+RISKER
+
+- Flaky e2e — använd deterministiska klockor och seed IDs.
+
+UPPSKATTAD INSATS
+
+- Playwright suite för E1–E4: **1 vecka**. Full matris: **+1 vecka**.
+
+--- SLUT ---

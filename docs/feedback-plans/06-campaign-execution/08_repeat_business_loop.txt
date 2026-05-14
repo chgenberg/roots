@@ -1,0 +1,54 @@
+==============================================
+8. Repeat business loop & prenumeration
+==============================================
+Källa: Säljprocess.pptx — slide 7 + slide 10 punkt 4; återkoppling till settlement
+
+NULÄGE
+
+- `subscriptions` (`packages/db/src/schema/subscriptions.ts`): B2C-lik modell (`customerEmail`, `sellerId`, `teamId`, `campaignId`, `interval` MONTHLY/BIMONTHLY/QUARTERLY, `nextDeliveryDate`, …) — stödjer **enskilda kunders** återleverans var N månad; **inte** samma som förenings "vi kör igen nästa säsong".
+- `campaigns.status` `SETTLED` — hook för ASM-uppföljning saknas (jfr. skill 05/08 i sales-process planer).
+- `marketing_support_tiers` / rabatt retur-kampanj — skill 05 agent 4.
+
+VAD FEEDBACKEN SÄGER
+
+- **30 dagar efter SETTLED:** auto-uppgift till ASM "Boka nästa säljperiod med {org}" — CRM-task (`skill 02`) eller enkel `follow_up_tasks` tabell.
+- **Superuser CTA:** "Vill ni köra igen i höst?" i portal efter celebration/settled.
+- **Snabbreplikat-kampanj:** duplicera kampanj + teams + produktval med nya datum; behåll `orgId`; ny `slug`.
+- **Två prenumerationsspår:**
+  1. **Kund** — befintlig `subscriptions` för produkt X var tredje månad (validera checkout-flöde i `docs/flow-audits/SUPPORTER_*`).
+  2. **Förening** — ny modell eller utökning (`org_id`, `plan`, `next_campaign_window`) — ADR innan implementation.
+- **LTV/retention-rapport** per klubb: antal kampanjer, snitt intäkt, återköpsrate — INTERNAL_ADMIN / ASM.
+- **Rabatt:** 5 % bonus på marknadsstöd vid retur-kampanj inom 12 månader — koppla `marketing_support_tiers` override eller separat `loyalty_bonus_ore`.
+
+GAP
+
+- Dubbel sanning om `subscriptions` missbrukas för B2B — följ skill 05/08 ADR.
+
+IMPLEMENTATION
+
+- Cron: `SETTLED` + `settled_at` + 30d → insert task + mail ASM.
+- **Duplicate campaign** endpoint: `POST /v1/portal/campaigns/:id/clone` med payload `{ startDate, endDate, copyTeams: true }` — idempotent slug suffix.
+- **Rapport:** `GET /v1/portal/orgs/:id/retention` — aggregerat från `campaigns` + `customer_orders`.
+- Koppling **skill 05** wizard för snabb omstart.
+
+BAKÅTKOMPATIBILITET
+
+- Befintliga prenumerationer oförändrade; nya fält nullable.
+
+DEPENDENCIES
+
+- Skill 02 (ASM, tasks). Skill 05 (clone defaults). Skill 08 (pilot overlap). `payouts` för netto i LTV.
+
+TESTPLAN
+
+- Clone skapar inga dubblett-orders. Task skapas exakt en gång per kampanj.
+
+RISKER
+
+- Rabatt-race to bottom — cap och tydliga villkor i avtal.
+
+UPPSKATTAD INSATS
+
+- ASM-task + CTA + clone API: **4–6 dagar**. LTV-rapport: **+3–4 dagar**. Föreningsprenumeration (om ny tabell): **1–2 veckor**.
+
+--- SLUT ---

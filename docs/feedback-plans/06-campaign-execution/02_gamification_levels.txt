@@ -1,0 +1,52 @@
+==============================================
+2. Gamification-nivåer & milstolpar
+==============================================
+Källa: Säljprocess.pptx — slide 6 (motivation); språk: "den som vill sälja"
+
+NULÄGE
+
+- `apps/api/src/lib/milestones.ts` — **statisk** `MILESTONES[]` med id:n `first_sale`, `5_packages`, `10_packages`, `5000_sek`, `halfway`, `25_packages`, `10000_sek`, `50_packages`, `goal_reached`; trösklar i **öre** eller **paket**; `getAchievedMilestones`, `getNextMilestone`, `getSellerGrade` med fasta **GRADE_TIERS** (starter→diamant, trösklar i öre: 0, 100000, 300000, 700000, 1500000 öre).
+- **Ingen** tabell `milestone_definitions` / `milestone_achievements` — allt hårdkodat; kampanjoverride per förening saknas.
+- `packages/db/src/schema/sellers.ts` — `hideFromLeaderboard` (boolean, default false), `publicAlias` — redan för etik kring synlighet.
+- MASTER-plan-feedback: byt ut "spelare" → **"den som vill sälja"** / neutral copy i UI och push-mallar.
+
+VAD FEEDBACKEN SÄGER
+
+- Standardmilstolpar (exempel från skill): **säljare** 10/25/50/100/250 paket; **lag** 100/500/1000/2500; **klubb** 500/2000/5000/10000 — ska kunna **overridas** per kampanj eller org.
+- Tabeller: `milestone_definitions` (scope: `SELLER`|`TEAM`|`CLUB`, `campaign_id` nullable = default, `threshold_packages`, `label`, `sort_order`) + `milestone_achievements` (`id`, `milestone_definition_id`, `entity_type`, `entity_id`, `achieved_at`, `campaign_id`) för idempotens och historik.
+- Visuellt: badges, progress bars; koppla till befintlig `getSellerGrade` eller migrera grades till DB-driven.
+- **Etik:** minderåriga — respektera `hideFromLeaderboard`; överväg `sellers.hide_from_team_leaderboard` separat om teamledare ska se annat än publik (produktval); föräldrainfo i copy där relevant.
+
+GAP
+
+- Nuvarande `MILESTONES` matchar inte exakt skillens paket-stegar för lag/klubb — behöver harmonisering eller parallella definition-set.
+- Ingen persistens av "vi firade milstolpe X vid tidpunkt Y" för celebration (koppling agent 5).
+
+IMPLEMENTATION
+
+- Seed `milestone_definitions` från nuvarande `MILESTONES` + nya nivåer; behåll `milestones.ts` som **läsare** av DB med fallback till legacy array under rollout.
+- Beräkningsjobb eller on-demand: jämför aggregerat mot definitions → insert `milestone_achievements` (ON CONFLICT DO NOTHING).
+- **API:** `GET /v1/portal/campaigns/:id/milestones` — nästa + uppnådda + progress %.
+- UI: dela modul med live-dashboard (agent 1).
+
+BAKÅTKOMPATIBILITET
+
+- Om DB tom: fallback till `getAchievedMilestones` som idag.
+
+DEPENDENCIES
+
+- Skill 03 (group_unit för lag-scope). Agent 3 (push vid milstolpe). Agent 5 (celebration).
+
+TESTPLAN
+
+- Override per kampanj slår global default. Dubbel achievement vid dubbel beräkning ska inte ske.
+
+RISKER
+
+- För många pushar om varje paket-tröskel firas — koppla till agent 3 frekvenscap.
+
+UPPSKATTAD INSATS
+
+- Schema + seed + migrering från statisk lista: **4–6 dagar**. UI badges: **+3–4 dagar**.
+
+--- SLUT ---

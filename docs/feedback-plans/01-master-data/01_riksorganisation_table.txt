@@ -1,0 +1,126 @@
+==============================================
+1. Riksorganisationstabellen
+==============================================
+
+NULÄGE
+------
+
+- **`organizations`** är en platt tabell utan hierarki mot riksorganisation: `id`, `name`, `org_number`, `type` (varchar, default `'club'`), `national_federation` (fritext), `sport_type`, `verified`, `fortnox_customer_id`, tidsstämplar. Ingen `riksorganisation_id`. Se `packages/db/src/schema/organizations.ts` rader 9–20.
+- **Initial SQL** speglar samma kolumner; inget `master_*`-tabellnamn. Se `packages/db/drizzle/0000_premium_photon.sql` rader 15–26 (`CREATE TABLE "organizations"`).
+- **`users.orgId`** refererar `organizations.id` (nullable FK). Se `packages/db/src/schema/users.ts` rader 16–21, 38–39 (index `users_org_id_idx`).
+- **`teams.orgId`** NOT NULL → `organizations.id`. Se `packages/db/src/schema/teams.ts` rader 18–20, 33–35.
+- **`sellers`** kopplar till org endast via `teamId` → `teams` → `orgId`. Se `packages/db/src/schema/sellers.ts` rader 28–30, 49–52.
+- **Seed** skapar org-rader med `type: "club"` respektive `type: "internal"` i `packages/db/src/seed.ts` rader 76–86; ingen masterdata.
+- **App-lager** använder `organizations.type` (t.ex. `eq(organizations.type, "club")` i `apps/api/src/routes/portal.ts`; registrering sätter `type: "association"` / skapar klubb med `type: "club"` i `apps/api/src/routes/auth.ts`). Detta är **organisationsroll/tenant-typ**, inte samma sak som tabellen **riksorganisation** (nationellt idrotts-/förbunds-paraply) i feedback-hierarkin.
+- **`docs/flow-audits/MASTER_PLAN_2026-04-18.md`**: arbeta additivt, bakåtkompatibla kontrakt, feature-flaggar; inget som motsäger en ny master-tabell + nullable FK i v1.
+
+VAD FEEDBACKEN SÄGER
+--------------------
+
+- Skill `roots-feedback-01-master-data`: masterdata-hierarki **Riksorganisation → Segment/Förbund → Organisation → Grupp/Lag/Klass**; `roots_master_riksorganisationer.xlsx` (~100 rader) är avsedd **färdig seed-data** (`public/Feedback_14:5/`). `Modell_register.docx` (kap 4–6, 13) definierar referensmodellen (binär källa — bekräfta kolumner vid implementation).
+- Agent 1-mallen: ny tabell med fält **id (UUID), name (unique), code (unique), type, active, sort_order, created_at**; index/constraints; seed från Excel; förhållande till befintlig `organizations.type`; beslut **NOT NULL vs NULL** för `organizations.riksorganisation_id` i v1.
+
+GAP
+---
+
+- Ingen tabell `master_riksorganisation` (eller liknande) i schema eller `packages/db/drizzle/*.sql`.
+- Ingen FK från `organizations` till riksorganisation; `national_federation` är fri varchar utan referensintegritet.
+- Ingen idempotent seed-pipeline för Excel-mastern (jmf. agent 4: `packages/db/data/master/`, `xlsx`/CSV).
+- `organizations.type` täcker idag bl.a. `club`, `association`, `internal` (seed) — ska **inte** ersättas av riksorganisationstabellen; den nya tabellen tillför **CRM-/masterdata-lager** ovanpå befintlig modell tills agent 3 inför `organization_type` m.m.
+
+IMPLEMENTATION
+--------------
+
+- **Drizzle schema (ny fil)**  
+  Förslag: `packages/db/src/schema/master-riksorganisation.ts` (snake_case tabellnamn `master_riksorganisation`).
+
+  Kolumner:
+  - `id`: `uuid().primaryKey().defaultRandom()`
+  - `name`: `varchar(255).notNull().unique()` — officiellt visningsnamn
+  - `code`: `varchar(64).notNull().unique()` — stabilt nyckelvärde för seed/joins
+  - `type`: `varchar(50)` eller `pgEnum` om Excel har begränsad uppsättning
+  - `active`: `boolean().notNull().default(true)`
+  - `sort_order`: `integer().notNull().default(0)`
+  - `created_at`: `timestamp().defaultNow().notNull()`
+
+- **Export**  
+  Lägg till export i `packages/db/src/schema/index.ts`.
+
+- **Indexes/constraints (SQL-skiss)**
+
+```sql
+CREATE TABLE "master_riksorganisation" (
+  "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  "name" varchar(255) NOT NULL,
+  "code" varchar(64) NOT NULL,
+  "type" varchar(50),
+  "active" boolean DEFAULT true NOT NULL,
+  "sort_order" integer DEFAULT 0 NOT NULL,
+  "created_at" timestamp DEFAULT now() NOT NULL,
+  CONSTRAINT "master_riksorganisation_name_unique" UNIQUE("name"),
+  CONSTRAINT "master_riksorganisation_code_unique" UNIQUE("code")
+);
+CREATE INDEX "master_riksorganisation_active_sort_idx"
+  ON "master_riksorganisation" USING btree ("active", "sort_order");
+```
+
+- **Relation till `organizations.type` (`club` / `team` / `association`)**  
+  - `organizations.type` = **vilken slags tenant/organisation** i appen.  
+  - `master_riksorganisation` = **vilket riksförbund** en förening/klubb tillhör.  
+  - **internal**-org (t.ex. Roots i seed) ska typiskt ha `NULL` FK eller dedikerad N/A-rad — beslut i backfill (agent 8).  
+  - `national_federation` kan på sikt deprekeras eller synkas från master efter migration (agent 3).
+
+- **FK `organizations.riksorganisation_id` — NOT NULL vs NULL i v1**  
+  **Rekommendation v1: `NULL` tillåten.** Motivering: befintliga rader saknar mapping; additiv rollout och backfill innan hårda constraints.
+
+```sql
+ALTER TABLE "organizations"
+  ADD COLUMN "riksorganisation_id" uuid
+    REFERENCES "master_riksorganisation"("id")
+    ON DELETE NO ACTION ON UPDATE NO ACTION;
+CREATE INDEX "organizations_riksorganisation_id_idx"
+  ON "organizations" USING btree ("riksorganisation_id");
+```
+
+- **Seed från Excel**  
+  - Källfil: `public/Feedback_14:5/roots_master_riksorganisationer.xlsx` — bekräfta rubriker vid import.  
+  - Infererad mapping (justera mot verkliga kolumnnamn): Namn → `name`; Kod → `code`; Typ → `type`; Aktiv → `active`; Sortering → `sort_order`.  
+  - Skript: `packages/db/scripts/import-master-riksorganisation.ts` eller del av seed; idempotent upsert (agent 4).
+
+BAKÅTKOMPATIBILITET
+-------------------
+
+- Nya tabellen + nullable `riksorganisation_id` ändrar inget API om kolumnen inte exponeras förrän klienter uppdateras.
+- Befintliga inserts fortsätter med `NULL` FK tills utökade.
+- Följ `MASTER_PLAN_2026-04-18.md`: snapshot/E2E före NOT NULL i senare fas.
+
+DEPENDENCIES
+------------
+
+- **Blockerar:** Agent 2 (`master_segment.riksorganisation_id`).  
+- **Kopplad:** Agent 3, 4, 8.
+
+TESTPLAN
+--------
+
+1. Migration up/down på tom DB.  
+2. Unika constraints på `code`/`name`.  
+3. Seed idempotens (dubbel körning).  
+4. FK giltigt/ogiltigt UUID.  
+5. Registrering utan ny kolumn i insert → fortfarande OK (NULL FK).
+
+RISKER
+------
+
+- Excel-rubriker avviker från infererad mapping.  
+- Kodkollisioner mellan manuella rader och seed.  
+- `national_federation` vs FK — dubbel sanning tills agent 3 rensar.  
+- Semantik: förväxling mellan `organizations.type` och `master_riksorganisation.type` — överväg tydligare kolumnnamn för federation-typ.
+
+UPPSKATTAD INSATS
+-----------------
+
+- ~1–2 dagar senior utvecklare: schema + migration + enkel seed-import + smoke-tester.  
+- +0,5–1 dag om `pgEnum` för `type` kräver datareview.
+
+--- SLUT ---

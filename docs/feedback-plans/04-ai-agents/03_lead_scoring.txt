@@ -1,0 +1,71 @@
+==============================================
+3. Lead scoring (lead-scorer.ts)
+==============================================
+
+NULÄGE
+
+- **`lead-scorer.ts` saknas** — ingen träff i repo; målplacering enligt skill: `apps/api/src/lib/ai/agents/lead-scorer.ts`.
+- **`organizations`** (`packages/db/src/schema/organizations.ts`): inga kolumner `potential_score`, `potential_score_breakdown`, `potential_score_updated_at`, `segment_id`, `estimated_members`, `lead_source`, `assigned_asm`.
+- Grep `potential_score`: förekommer i planer (`docs/feedback-plans/02-crm-pipeline/03_lead_source_potential.txt`) — inte i körbar appkod.
+- **AI:** `openclaw-client.ts` — `chatCompletion`; `flags.aiEnabled()` (`AI_ENABLED`, default true).
+- **Workers:** `flags.workersEnabled()` → `WORKERS_ENABLED` (default false) i `flags.ts` — **inga call sites** i `apps/api/src`; pg-boss finns i `package.json` men ej wired (jmf. `MASTER_PLAN_2026-04-18.md` ~boss.ts).
+- **`users.roleEnum`:** ingen `ASM` ännu (CRM-planer).
+
+VAD FEEDBACKEN SÄGER
+
+- Hybrid: **regelbaserad bas** + **AI-justering** (clampad, t.ex. ±15 poäng).
+- Faktorer: segment-snitt × `estimated_members`, ASM-historik för liknande org, region, säsong, ev. konkurrentnärvaro / `competition_level` (skill 03).
+- Output: int **0–100** + **Top 3 reasons** (strukturerat).
+- Schema: `potential_score INT`, `potential_score_breakdown JSONB`, `potential_score_updated_at`.
+- Nattlig re-scoring via worker (skill 07 / pg-boss).
+- Synlighet: **INTERNAL_ADMIN / ASM** — **inte** säljare/klubbroller.
+- Fairness: **inte** score från personnamn/fritext-PII.
+- A/B: jämför modell vs ASM magkänsla efter ~3 månader.
+
+GAP
+
+- Ingen modul, ingen DB-persistens, ingen kö för nattjobb.
+- Saknar indata (`segment_id`, geo, `estimated_members`) tills skill 01/05 landar.
+
+IMPLEMENTATION
+
+- **Modul:** `lead-scorer.ts` med `scoreLeadOrg(input): Promise<LeadScoreResult>` — input **strukturerad** (UUID, segment, buckets, `estimated_members`, `lead_source`, säsongsindex, aggregerad ASM-historik) — **undvik** orgnamn i prompt om möjligt.
+- **Bas:** viktad kombination av intäktsproxy, segment_fit, region, asm_history_similar, season, lead_source — normalisera till 0–100 före AI.
+- **AI:** JSON `{ adjustment, top_reasons[3], confidence }`; clamp adjustment; clamp final 0–100; om `!flags.aiEnabled()` eller `!isAiConfigured()` → endast bas + regelgenererade skäl.
+- **JSONB-exempel:** `version`, `final`, `base_score`, `ai_adjustment`, `components{...}`, `top_reasons`, `model`, `computed_at` (Zod-validera före persist).
+- **Migration:** additiva nullable kolumner på `organizations`.
+- **Worker:** jobb `lead-score-refresh` bakom `flags.workersEnabled()`; batch + idempotens `org_id + date` (agent 7); triggas även vid segmentbyte, verifierat medlemsantal, status → Customer (CRM-doc).
+
+BAKÅTKOMPATIBILITET
+
+- Nullable kolumner; befintliga inserts oförändrade.
+- Saknad indata → neutrala defaults + lägre confidence i breakdown.
+
+DEPENDENCIES
+
+- **Skill 01** (segment, geo).  
+- **Skill 02** (ASM, `assigned_asm`, pipeline).  
+- **Agent 5** (`estimated_members`, data_quality).  
+- **Agent 7** (pg-boss).  
+- **Agent 8** (token/logg).  
+- **Skill 07** (datakvalitet, nattjobb).
+
+TESTPLAN
+
+- Enhet: baskomponent-matris.  
+- Zod: ogiltig AI-JSON → säker fallback.  
+- RBAC: säljare får aldrig score i API-svar.  
+- Worker: körs ej när `WORKERS_ENABLED` falsy.
+
+RISKER
+
+- Osäkert `estimated_members` → volatil score — visa `data_quality` i breakdown.  
+- Hallucinationer i `top_reasons` — maxlängd + validering.  
+- Utan worker: `potential_score_updated_at` blir stale.
+
+UPPSKATTAD INSATS
+
+- DB + scorer + tester: **medel**.  
+- pg-boss wiring + nattbatch: **medel** (beroende agent 7).
+
+--- SLUT ---

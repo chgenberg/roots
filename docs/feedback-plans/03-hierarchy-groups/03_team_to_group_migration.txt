@@ -1,0 +1,91 @@
+==============================================
+3. Migration från befintlig teams
+==============================================
+
+NULÄGE
+
+**Schema**  
+- `teams`: `id`, `org_id`, `campaign_id`, `leader_id`, `name`, `invite_token` (UNIQUE), `member_count`, timestamps — `packages/db/src/schema/teams.ts` rader 14–37.  
+- `team_goals`: `team_id` → `teams.id`, unique `(team_id, campaign_id)` — samma fil.  
+- **Referenser till `teams.id`:** `sellers.team_id`, `customer_orders.team_id`, `payouts.team_id`, `subscriptions.team_id` — respektive schemafiler under `packages/db/src/schema/`.  
+- **`group_unit` finns inte** i applikationsschema (endast plan/skills).
+
+**API / tRPC**  
+- `apps/api/src/routes/auth.ts`: `POST /register/team-leader` (~383–547) — insert `teams` vid `ACTIVE` campaign med `inviteToken`; `POST /register/seller` (~549+) — resolve team via `inviteToken`, bump `member_count` (~613–615).  
+- `apps/api/src/trpc/routers/campaigns.ts`: `verifyTeamOwnership`; `teamsRouter` (create, list, getByInviteToken, regenerateInviteToken); `teamGoals`; `sellersRouter` med join `teams` (~342–377).  
+- `apps/api/src/routes/dashboard.ts`: association/team dashboards, `memberCount` increment (~340–342).  
+- `apps/api/src/routes/settlement.ts`, `checkout.ts`, `shop.ts`, `sharing.ts`: team via seller eller iteration per kampanj.
+
+**Webb**  
+- `apps/web/.../registrera/page.tsx` — `POST /v1/auth/register/team-leader`.  
+- Seller flows: `registrera/saljare/[token]/page.tsx`, `(fundraising)/lag/saljare/page.tsx`, `lag/page.tsx`, `forening/lag/page.tsx`.  
+- Typer: `apps/web/src/types/fundraising.ts`, `packages/contracts/src/auth.ts`, `campaigns.ts`.  
+- Mallar: `apps/api/src/lib/communication-templates.ts` (`inviteUrl`).
+
+VAD FEEDBACKEN SÄGER
+
+- Behåll **`teams`** som operativ kampanjgruppering (invite, räkningar); inför **`group_unit`** för display vs analys (skill 03).  
+- **Plan A rekommenderas:** `teams.group_unit_id` FK nullable → `group_unit.id`.  
+- AI-parsing av `teams.name` — **skill 04** (gruppnormalisering).  
+- Bakåtkompatibilitet för `POST /v1/auth/register/team-leader`; stegvis **feature-flag**.
+
+GAP
+
+- Ingen `group_unit` eller `teams.group_unit_id` i kod.  
+- All BI/kohort måste idag proxyas via fritext `teams.name`.  
+- Risk: `portal`/`quotes` använder ibland `quotes.userId` vs schema `salesRepId` — separat bugg att verifiera parallellt.
+
+IMPLEMENTATION
+
+**Plan A (rekommenderad)**  
+1. Skapa `group_unit` + migrationer.  
+2. Lägg `teams.group_unit_id` uuid NULL REFERENCES `group_unit(id)`; backfill (AI + manuell kö).  
+3. Lägg `sellers.group_unit_id` nullable; backfill `UPDATE sellers SET group_unit_id = teams.group_unit_id FROM teams WHERE sellers.team_id = teams.id AND teams.group_unit_id IS NOT NULL`.  
+4. Utöka selects/joins i `shop`, `checkout`, `sharing`, `dashboard`, tRPC när flagga på.
+
+**Plan B (alternativ)**  
+Migrera bort `teams` till enbart `group_unit` — stor blast radius (FK:er, inviteToken, `team_goals`); **ej rekommenderad** i v1.
+
+**AI-parse**  
+Batch eller on-write vid insert i `auth.ts` / `teamsRouter.create` — ägs av skill 04; output granskas innan `group_unit` commit.
+
+**`POST /register/team-leader`**  
+- Behåll svar `{ ok, user, teamName, teamId }`; additivt `groupUnitId` när skapat.  
+- **Ingen ACTIVE campaign:** idag skapas **ingen** team-rad (`createdTeamId` null) — dokumentera; `group_unit` får inte anta team alltid finns.
+
+**Feature-flag**  
+- Mönster: `apps/api/src/lib/flags.ts`, `apps/web/src/lib/flags.ts`.  
+- Förslag: `FEATURE_GROUP_UNIT_V1` — av: ingen read/write av `group_unit_id`; på: skapa/länka vid team-skapande.
+
+BAKÅTKOMPATIBILITET
+
+- Invite-URL:er oförändrade (`inviteToken`).  
+- `sellers`, `customer_orders`, `payouts`, `subscriptions` behåller `team_id` tills ev. senare fas.  
+- TRPC `teams.*` oförändrat API-kontrakt utöver valfria nya fält.
+
+DEPENDENCIES
+
+- Agent 1 (schema).  
+- Agent 2 (birth_year/age_band-regler för backfill-defaults).  
+- Skill 04 (parsning).  
+- Skill 05 (bulk-create i kampanjwizard — agent 4).
+
+TESTPLAN
+
+- Migration: FK `teams.group_unit_id`; rollback.  
+- Team-leader-registrering med/utan ACTIVE campaign.  
+- Seller-registrering med token oförändrad.  
+- Dubbel körning backfill idempotent.  
+- Flag av/på: regression smoke.
+
+RISKER
+
+- Ofullständig backfill → `NULL group_unit_id` i lång tid → splittrad BI.  
+- Dubbel sanning om `group_unit.display_name` och `teams.name` divergerar utan synkpolicy.
+
+UPPSKATTAD INSATS
+
+- Schema + `teams.group_unit_id` + flag + smoke: **2–4 dagar**.  
+- Backfill + AI-review-kö + utökade reads: **+3–7 dagar** beroende på datavolym.
+
+--- SLUT ---

@@ -1,0 +1,132 @@
+==============================================
+3. Uppgradering av organizations
+==============================================
+
+NULÄGE
+------
+
+Källfil: `packages/db/src/schema/organizations.ts`
+
+Tabellen `organizations` har idag:
+- id (uuid, PK), name (varchar 255, NOT NULL)
+- org_number (varchar 20, nullable)
+- type (varchar 50, NOT NULL, default "club") — fri sträng, ingen DB-ENUM
+- national_federation, sport_type (varchar, nullable)
+- verified, fortnox_customer_id, created_at, updated_at
+
+Observerade `type`-värden i kod/seed: `association`, `club`, `team`, `internal`.
+
+Organisationens kommun/postnummer finns inte på `organizations`; vid registrering kan adress ligga på `users` (auth) — gap mot Modell_register kap 6.
+
+**apps/api** — Drizzle mot `organizations`: `routes/auth.ts` (login, register association/team-leader, `GET /organizations/search` med ILIKE på `name`), `routes/portal.ts` (dashboard counts, `GET /clubs`), `routes/shop.ts`, `trpc/routers/campaigns.ts`.  
+**Seed:** `packages/db/src/seed.ts` — `ensureOrg` på `name`.
+
+VAD FEEDBACKEN SÄGER
+--------------------
+
+(Modell_register kap  6 — sammanfattning enligt skill 01; .docx ej maskinläst här.)
+
+- Hierarki: Riksorganisation → Segment → Organisation 2.0 med FK istället för enbart `national_federation`.
+- **display_name** (UI, t.ex. "P10 Svart") vs **normalized_name** (dold, matchning/dedupe).
+- **organization_type** som väldefinierad domän (ENUM), inte godtycklig varchar.
+- Geografi: municipality, region, postal_code, website på organisationsnivå.
+- CRM: **status**, **assigned_asm** (FK users), **lead_source**, **potential_score**.
+
+GAP
+---
+
+- Saknar display_name / normalized_name (endast `name`).
+- Saknar riksorganisation_id, segment_id (fritext `national_federation` ersätts av FK efter migrering).
+- Ingen ENUM för organisationstyp; ingen explicit mappning mot Modell_register-typer.
+- Saknar municipality, region, postal_code, website på org-rad.
+- Saknar status, assigned_asm, lead_source, potential_score.
+- Sök: endast ILIKE på `name` — måste utökas när normalized_name införs.
+
+IMPLEMENTATION
+--------------
+
+**A) Namn**  
+- `display_name` varchar NOT NULL — backfill `display_name = name`.  
+- `normalized_name` varchar nullable + index — backfill via delad normaliseringsfunktion (agent 5); NOT NULL efter validering.  
+- Under övergång: `name` som alias/synkad med `display_name` eller deprecierad efter query-byte.
+
+**B) Hierarki**  
+- `riksorganisation_id` uuid NULL REFERENCES master_riksorganisation(id).  
+- `segment_id` uuid NULL REFERENCES master_segment(id).
+
+**C) organization_type (ny) vs legacy `type` (varchar)**  
+Inför `organization_type` ENUM (eller varchar + CHECK). **Mappingstabell (legacy → ny):**
+
+| Befintlig type | organization_type (exempel) | Kommentar |
+|----------------|-------------------------------|-----------|
+| association    | ASSOCIATION                   | Föreningsregistrering |
+| club           | CLUB                          | Portal KPI "klubb" |
+| team           | TEAM_ORG / PLACEHOLDER        | Team utan riktig klubb — produktbeslut |
+| internal       | INTERNAL                      | Roots/demo |
+
+**D) Geografi & webb**  
+`municipality`, `region`, `postal_code`, `website` — nullable; ev. heuristisk backfill från users.
+
+**E) CRM**  
+- `status` ENUM: Lead, Contacted, Meeting, Active, Customer, Inactive, Lost (justera mot skill 02).  
+- `assigned_asm` uuid NULL REFERENCES users(id).  
+- `lead_source` ENUM: Cold Outreach, Referral, Digital, Event, Partner, ASM Network, Existing Customer.  
+- `potential_score` int nullable (AI-räknad, dold i UI).
+
+**F) Kolumner — behåll / depreciera**  
+- BEHÅLL: id, created_at, updated_at, org_number, fortnox_customer_id, verified (eller slås ihop med status).  
+- UTÖKA: national_federation → ersätts semantiskt av segment/riks efter backfill.  
+- sport_type: behåll kortsiktigt eller flytta till segmentmetadata.  
+- `name`: depreciera efter display_name-rollout.
+
+**G) ALTER TABLE — additiv skiss**
+
+- ADD kolumner nullable först; backfill; NOT NULL i v2 där policy tillåter.  
+- Exempel: `display_name` backfill + NOT NULL; `normalized_name` + index; FK-kolumner; nya ENUM-kolumner; CRM-fält.  
+- `status` DEFAULT `ACTIVE` för befintliga rader om inget annat beslutas.
+
+BAKÅTKOMPATIBILITET
+-------------------
+
+- Alla FK till `organizations.id` oförändrade om PK behålls.  
+- API som returnerar `name`: alias `name` = `display_name` under övergång.  
+- Portal dashboard `type = 'club'`: byt till `organization_type` + vydefinition när klart.  
+- `/organizations/search`: utöka select; behåll id + visningsnamn.
+
+DEPENDENCIES
+------------
+
+- Tabeller master_riksorganisation, master_segment (agent 1–2) före NOT NULL på FK.  
+- ASM-roll i RBAC om `assigned_asm` ska vara meningsfull.  
+- Frontend `registrera` använder org-sök — fältlista kan växa.
+
+TESTPLAN
+--------
+
+- Enhet: normalisering; mapping legacy → organization_type.  
+- Migration: tom DB + befintlig seed.  
+- API: login orgName; association/team-leader insert sätter nya fält.  
+- Portal: KPI-räkning efter omdefinition av "club".  
+- GET /clubs sök på display_name.  
+- FK assigned_asm: ON DELETE SET NULL om ASM lämnar.
+
+RISKER
+------
+
+- Semantik association vs club — fel KPI och behörighet.  
+- Dubbel sanning name vs display_name under migration.  
+- ILIKE-skala utan trigram — agent 6.  
+- NOT NULL för tidigt blockerar deploy.  
+- `type = team` som egen organisation — kan strida mot framtida modell (produktbeslut).
+
+UPPSKATTAD INSATS
+-----------------
+
+- Schema + migration + Drizzle: 0,5–1 d.  
+- Riks/segment om parallellt: 2–5 d.  
+- Backfill + normalisering: 1–2 d.  
+- API/portal/auth: 1–2 d.  
+- Tester: 1 d.  
+- Totalt ofta **1 vecka** för org-raden utan full masterdata-UI; **2–3 veckor** med masterdata-ytor parallellt.
+
+--- SLUT ---

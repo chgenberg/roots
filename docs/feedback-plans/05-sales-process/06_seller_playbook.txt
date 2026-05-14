@@ -1,0 +1,52 @@
+==============================================
+6. Säljarens playbook (intern)
+==============================================
+Källa: Säljprocess.pptx — slide 9 punkt 2 (säljarens playbook)
+
+NULÄGE
+
+- Ingen `/portal/playbook`-route i `portal/layout.tsx` nav.
+- Ingen `apps/web/src/content/playbook/`-katalog i denna plan (förväntat att skapas).
+- AI-sida `/portal/ai` finns men enligt audit använder den ofta `public/chat` — playbook ska vara **statiskt MDX** + sök; AI valfritt sidospår.
+
+VAD FEEDBACKEN SÄGER
+
+- Sida **`/portal/playbook`** med undernav: Mötesstruktur | Frågor | Räknesnurran | Invändningar | Cases (länk till `07` för invändningar eller anchor).
+- Innehåll i **Markdown/MDX** i repo: `apps/web/src/content/playbook/**/*.mdx` (eller `contentlayer` om projektet redan har det — annars enkel `next-mdx-remote` / statisk import).
+- **Sökbar** — klient-side index (MiniSearch) eller server `/api/playbook-search` som indexerar vid build.
+- **Versionerad i Git** — ingen CMS; "Senast uppdaterad" = `lastReviewed` frontmatter + `owner` (e-post eller namn).
+- **Åtkomst:** `SALES_REP`, `SALES_ADMIN`, `ASM` (när roll tillkommer), `INTERNAL_ADMIN` — middleware i `portal` layout eller route group.
+
+GAP
+
+- RBAC för ASM om roll saknas i `users.roleEnum` idag — antingen lägg till roll eller mappa ASM → SALES_ADMIN interim.
+
+IMPLEMENTATION
+
+- Lägg till navpost under `SALES_NAV` (och ev. ADMIN om intern coach).
+- **MDX-frontmatter:** `title`, `slug`, `section`, `owner`, `lastReviewed`, `tags`.
+- **Översiktssida:** lista artiklar per sektion; läsningstid uppskattning valfritt.
+- **Kickoff:** dokumentera "Mock-möte" checklista som egen artikel — länka från setup-wizard sista steg.
+- Koppling **skill 04 agent 6** — RAG kan indexera samma filer som playbook (undvik dubbel sanning — en källa i repo).
+
+BAKÅTKOMPATIBILITET
+
+- Offentlig sajt oförändrad; playbook bakom auth.
+
+DEPENDENCIES
+
+- Auth session roller från `apps/api`. Eventuellt samma innehåll exporterat till PDF för offline (nice-to-have).
+
+TESTPLAN
+
+- Roll som saknar åtkomst → 403/redirect. MDX broken link CI (valfritt).
+
+RISKER
+
+- Innehållsdrift utan ägare — kräv CODEOWNERS på `content/playbook/`.
+
+UPPSKATTAD INSATS
+
+- Shell + 5 stub-artiklar + sök: **3–5 dagar**. Migrera Säljprocess.pptx → skriftlig copy: **innehållsarbete parallellt** (ej bara dev).
+
+--- SLUT ---

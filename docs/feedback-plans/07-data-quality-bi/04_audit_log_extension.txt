@@ -1,0 +1,55 @@
+==============================================
+4. Utökning av befintlig audit-log
+==============================================
+Källa: Modell_register compliance; `apps/api/src/lib/audit.ts`, `packages/db/src/schema/audit.ts`
+
+NULÄGE
+
+- **`audit_logs`:** `id`, `userId` (nullable), `action` (varchar 100), `entityType` (varchar 50), `entityId` (uuid nullable), `meta` (jsonb), `createdAt` — **ingen** `ip`, `user_agent` som egna kolumner (läggs redan i `meta` via `requestContext()` enligt `audit.ts`).
+- **`auditLog()`:** fire-and-forget; avstängs när `flags.auditLogging()` falsy (`FEATURE_AUDIT_LOGGING`).
+- **Ingen** retention/archive, ingen admin-sök-UI i denna genomgång.
+
+VAD FEEDBACKEN SÄGER
+
+- **Namnkonvention `action`:** punktnotation + domän:
+  - `org.created`, `org.updated`, `org.status_changed`, `org.merged`, `org.deleted`
+  - `group.created`, `group.parsed_by_ai`, …
+  - `campaign.created`, `campaign.activated`, `campaign.settled`, …
+  - `ai_agent.org_normalizer.suggested`
+  - `data.verified`
+- **GDPR-export:** endpoint/lista "alla `audit_logs` där `userId = X` eller `meta->>'affected_email'` = …" — definiera PII-nycklar i `meta`-kontrakt.
+- **Retention:** **365 dagar** hot storage → nattjobb kopierar till **S3 Parquet** (eller Glacier) + `archived_at` på rad eller flytt till `audit_logs_archive` tabell.
+- **Query helpers:** `getAuditTrailForEntity(entityType, entityId, { limit, cursor })` i `apps/api/src/lib/audit-queries.ts`.
+- **UI INTERNAL_ADMIN:** `/portal/system/audit` — sök filter action, entity, datum, användare; export CSV (PII-maskerad för OPERATOR-roll om behövs).
+
+GAP
+
+- Saknar index: `(entity_type, entity_id, created_at DESC)`, `(user_id, created_at DESC)` för prestanda.
+
+IMPLEMENTATION
+
+- Migration: nya index + ev. `action` length bump till 150 om namn blir långa.
+- **Lint:** lista tillåtna `action`-prefix i kodreview eller const-objekt `AuditActions`.
+- **Utöka inte** tabellen onödigt — `meta` räcker för IP/UA om konsekvent.
+
+BAKÅTKOMPATIBILITET
+
+- Befintliga `action`-strängar fortsätter fungera; ny konvention för ny kod + gradvis migrering.
+
+DEPENDENCIES
+
+- Agent 8 (archive job). INTERNAL_ADMIN auth.
+
+TESTPLAN
+
+- Audit write failure ska inte blockera user flow (befintligt beteende bevaras). Archive: verifiera att queries fortfarande hittar data via union view.
+
+RISKER
+
+- `meta` PII — dokumentera retention och minimera innehåll.
+
+UPPSKATTAD INSATS
+
+- Index + helpers + action-konvention: **2–3 dagar**. Admin UI + archive pipeline: **+5–8 dagar**.
+
+--- SLUT ---

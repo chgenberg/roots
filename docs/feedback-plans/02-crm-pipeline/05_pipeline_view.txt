@@ -1,0 +1,96 @@
+==============================================
+5. Pipeline-vy (Kanban + tabell)
+==============================================
+
+NULÄGE
+
+**Route:** `apps/web/src/app/(portal)/portal/pipeline/page.tsx` → URL **`/portal/pipeline`**. Endast filen `pipeline/page.tsx` (ingen djupare undermapp).
+
+**Nav:** "Pipeline" i `SALES_NAV` för `SALES_REP` och `SALES_ADMIN` — `apps/web/src/app/(portal)/portal/layout.tsx`. `INTERNAL_ADMIN` har **ingen** Pipeline-post i `ADMIN_NAV`.
+
+**Länkar:** `apps/web/src/app/(portal)/portal/page.tsx` (SalesDashboard: "Visa pipeline" / "Gå till pipeline").
+
+**API:** `portalFetch("/pipeline")` → `GET /v1/portal/pipeline` (`apps/web/src/lib/portal-api.ts`). Backend: `apps/api/src/routes/portal.ts` `portal.get("/pipeline", …)` ca 532–577. Returnerar `{ stages, deals }`:  
+- `stages[]` — per `quotes.status`: `{ stage, count, totalOre }`  
+- `deals[]` — senaste 25 offerter: `{ id, status, totalOre, orgId, createdAt }` — **inte** inbäddade per stage, saknar visningsfält för kort (klubbnamn, kontakt, ASM).
+
+**UI (`pipeline/page.tsx`):** Lokala kolumner (Lead, Kontaktad, Offert skickad, Avslutad) med demo-kort. Vid API-svar förväntas `s.deals[]` per stage — **API matchar inte** → tomma eller felaktiga kolumner vid live-data. `totalValue` kan vara hårdkodad. **Ingen** DnD, inga filter (ASM, segment, riksorg, lead_source, score), inga snabbåtgärder, ingen mobil swipe-lista. Inget DnD-paket i `apps/web/package.json`.
+
+**Dashboard:** `GET /v1/portal/dashboard` för sälj skickar **inte** `pipeline` / `topClubs` som `portal/page.tsx` kan förvänta — fallback-demo (`FALLBACK_SALES_PIPELINE`).
+
+**`/portal/saljare`:** tabell via `/v1/portal/sellers` — ingen Kanban.
+
+VAD FEEDBACKEN SÄGER
+
+- CRM först: pipeline = **organisations**-livscykel Lead → … → Lost; kolumner = status; kort = org; DnD; filter ASM, segment, riksorg, `lead_source`, score-bucket; snabbåtgärder; aggregat; mobil lista/swipe; återanvänd quotes/pipeline där det passar.
+
+GAP
+
+- Domän: UI/API är **quote**-centrerade; feedback kräver **org** + `org_status`, masterdata-fält (skill 01).  
+- Kontraktsmissmatch: `stages` utan nested `deals` vs frontend.  
+- Saknas: DnD, PATCH status, RBAC per ASM-territory, filter, quick actions, riktiga aggregat, mobil UX.  
+- ASM saknas i nav — måste läggas till när roll införs (agent 2).
+
+IMPLEMENTATION
+
+**Rekommendation:** Återanvänd **URL** `/portal/pipeline` och filen — refaktorera innehåll och utöka API (coexistence agent 8).
+
+**A) API (`portal.ts` eller ny CRM-router)**  
+- Svar med kolumner = `org_status`; kort: org id, namn, kontakt, `assigned_asm`, segment/riksorg-namn, `lead_source`, `potential_score` (+ bucket), `next_action_at`, pipeline-värde.  
+- Query-params: `asm`, `segment_id`, `riksorg_id`, `lead_source`, `score_min`/`max` eller bucket, `scope=mine|all|unassigned`.  
+- `PATCH .../organizations/:id/status` med validerade transitions (agent 1); DnD anropar samma.  
+- Parallellt: äldre quote-sammanställning under `FEATURE_CRM_PIPELINE_V2` eller `?view=quotes`.
+
+**B) Frontend (`pipeline/page.tsx`)**  
+- Datakälla = org-pipeline; kolumnrubriker mappade från `org_status`.  
+- DnD: t.ex. `@dnd-kit/core` + sortable; tangentbord + a11y.  
+- Filterrad: URL `searchParams` för delning.  
+- Snabbåtgärder: `tel:`, `mailto:`, boka möte (modal → agent 4 POST), anteckning.  
+- Aggregat: antal org, summa/uppskattat värde per filter.  
+- Mobil: lista grupperad per status; swipe för ring/mail/notera.
+
+**C) Översikt (`portal/page.tsx`)**  
+- Utöka `/dashboard` för sälj med pipeline-sammanfattning per `org_status` så funneln inte är permanent demo.
+
+**D) Layout**  
+- När ASM finns: Pipeline i ASM-nav; beslut om INTERNAL_ADMIN read-only pipeline eller endast statistik.
+
+**E) AI**  
+- `apps/api/src/lib/ai/system-prompt.ts` nämner `/portal/pipeline` — uppdatera när beteende ändras.
+
+BAKÅTKOMPATIBILITET
+
+- Behåll legacy `/v1/portal/pipeline`-fält under flagga eller query tills frontend bytt (agent 8).  
+- Nav-href oförändrad.
+
+DEPENDENCIES
+
+- Agent 1 (org_status, transitions, audit).  
+- Agent 2 (ASM, territory, RBAC, nav).  
+- Agent 3 (lead_source, score, tags).  
+- Agent 4 (aktiviteter för möte/anteckning).  
+- Skill 01 (filter-dropdowns).  
+- Agent 8 (coexistence + backfill).
+
+TESTPLAN
+
+- API-filter; tomma kolumner; pagination vid många org.  
+- DnD: tillåten/forbidden transition; rollback vid nätverksfel.  
+- Mobil vs desktop.  
+- Regression: `/portal/offerter`, quote-skapande oförändrat.
+
+RISKER
+
+- Osynkad API/frontend-deploy → tom Kanban.  
+- DnD utan serverregler bryter säljprocess (skill 05).  
+- Prestanda: virtualisering vid många kort.
+
+UPPSKATTAD INSATS
+
+- API + org-queries + filter: **3–5 d**.  
+- Kanban + DnD + aggregat: **4–6 d**.  
+- Mobil + snabbåtgärder + aktivitetskoppling: **2–4 d**.  
+- Dashboard + ASM-nav + QA: **1–2 d**.  
+**Totalt grovt:** **10–17 d** beroende på masterdata-beredskap.
+
+--- SLUT ---

@@ -1,0 +1,86 @@
+==============================================
+6. Variant: skola / klass
+==============================================
+
+NULÄGE
+
+- **`group_unit`/`school_grade`/`group_type`** finns inte i kod (greenfield).  
+- **`teams`:** endast `name` m.m. — `packages/db/src/schema/teams.ts`.  
+- Grep på `school`, `elev`, `skolklass` i `apps/web` / `apps/api` affärskod: **inga** relevanta träffar (förutom CSS `className`-brus).  
+- Ord **`grade`** i appen avser **säljar-nivåer** (starter/bronze), inte årskurs — `apps/web/src/types/fundraising.ts`, `apps/api/src/lib/milestones.ts`.  
+- **AI system-prompt** (`apps/api/src/lib/ai/system-prompt.ts`): antar **lagledare/coach** — ingen lärar-persona.
+
+VAD FEEDBACKEN SÄGER
+
+- `group_type = Class`; `school_grade` 1–12; `gender = Mixed` default; `display_name` t.ex. "Klass 9B", "9B Vivalla"; enklare formulär **utan `competition_level`**; onboarding-copy för **lärare** vs coach.
+
+GAP
+
+- Ingen datamodell som skiljer Class från Team.  
+- Ingen UI för skolkampanj.  
+- Risk: framtida `display_name` "9B" utan koppling till skolenhet.
+
+IMPLEMENTATION
+
+**A. `group_unit` för Class**  
+- `group_type = Class`.  
+- `school_grade` int NOT NULL (1–12) när Class — DB CHECK eller app.  
+- `birth_year` **valfri**; regel från skill: **minst en av** (`birth_year`, `school_grade`) — för Class räcker **`school_grade`**.  
+- `gender` default **Mixed**; override vid pojk-/flickklass.  
+- `age_band`: auto från årskurs via **heuristisk normtabell** (dokumentera att det är heuristik, inte juridiskt underlag) + manuell override.  
+- **`competition_level`:** dolt; sätt `Unknown` / NULL i DB för Class.
+
+**B. Skolkontext (additiva kolumner eller JSONB `school_context`)**  
+Strukturerade förslag: `school_unit_name`, `class_code`, `mentor_teacher_name`, föräldrakontakt (e-post/telefon med samtycke), `trip_destination` / `fundraising_purpose`.  
+**GDPR/barn:** minimera PII; dokumentera ändamål, retention, radering efter kampanj.
+
+**C. `display_name`-exempel**  
+"Klass 9B", "9B Vivalla", "Åk 3 Blå", "Klass 6A — vårtermin 2026".  
+`normalized_name`: lower-case, strip "klass ", normalisera siffra+bokstav.
+
+**D. UI**  
+Steg: skolenhet + årskurs (dropdown 1–12) + klassbeteckning → förifyllt `display_name`. Ingen competition slider. Bulk CSV: `Årskurs;Klassbeteckning;Antal elever` (senare).
+
+**E. Onboarding / copy**  
+| | Coach (befintlig) | Lärare (ny) |
+|-|-------------------|-------------|
+| Fokus | Motivera laget, taktik | Pedagogik, klassgemenskap, föräldrar |
+| Resultat | "Lagets resultat" | "Klassens insamlade belopp" / mål klassresa |
+| AI | befintlig prompt | **Variant:** "Du hjälper en lärare… utan att pressa enskilda elever…" |
+
+Implementation: `group_type`-aware copy map + conditional branch i `system-prompt.ts`.
+
+**F. `teams` (plan A)**  
+Behåll `teams` för kampanj + `inviteToken`; `teams.group_unit_id` → `group_unit` där `group_type = Class`.
+
+BAKÅTKOMPATIBILITET
+
+- Sport-lag fortsätter som `Team` med `birth_year` primärt.  
+- Befintliga endpoints oförändrade tills flag/UI släpps.
+
+DEPENDENCIES
+
+- Agent 1 (ENUM + CHECK).  
+- Agent 2 (age_band från årskurs).  
+- Agent 4 (wizard-variant).  
+- Skill 01 (org-typ skola senare — får inte förväxlas med Class `group_unit`).
+
+TESTPLAN
+
+- Skapa Class med endast `school_grade` + `display_name` — validering OK.  
+- UI döljer `competition_level`.  
+- AI laddar lärar-prompt när `group_type = Class`.  
+- BI kan GROUP BY `school_grade` (agent 8).
+
+RISKER
+
+- Heuristisk ålder från årskurs fel i internationella skolor — dokumentera scope (Sverige v1).  
+- GDPR vid föräldrakontakt-fält.
+
+UPPSKATTAD INSATS
+
+- Schema-delta för Class: **0,5 d**.  
+- UI-variant + copy + AI-gren: **1–2 dagar**.  
+- Skolkontext-fält + policy: **+1–2 dagar**.
+
+--- SLUT ---

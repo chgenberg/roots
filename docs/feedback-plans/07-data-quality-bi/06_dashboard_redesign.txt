@@ -1,0 +1,53 @@
+==============================================
+6. Dashboard-omdesign (roller, insights, export)
+==============================================
+Källa: Modell_register kap 15; `portal/statistik/page.tsx`, `portal.ts` `/statistics`
+
+NULÄGE
+
+- `apps/web/src/app/(portal)/portal/statistik/page.tsx` — kända problem i `docs/flow-audits/SALES_REP_2026-04-18_1252.txt`: fältmismatch mot API (`orderCount`/`revenueOre` vs `orders`/`revenue`) → diagram kan visa noll trots data.
+- `apps/api/src/routes/portal.ts` — `/statistics` (begränsad granskning i denna plan); `/system` för admin.
+- **Ingen** `/portal/insights`-route.
+
+VAD FEEDBACKEN SÄGER
+
+- **INTERNAL_ADMIN:** global KPI-yta, drilldown riks→segment→org, export, datakvalitet-badge-sammanfattning.
+- **ASM:** "Mina organisationer", pipeline velocity, win rate, leads som väntar (koppla CRM).
+- **ASSOCIATION_ADMIN / CLUB_ADMIN:** föreningens KPI, lag/säljare, payouts — befintlig portal utökas.
+- **TEAM_LEADER:** lagets aggregerat + säljare (respektera `hideFromLeaderboard`).
+- **SELLER:** egen försäljning + lagkontext (anonymiserad om inställningar).
+- **Komponenter:** `KpiCard`, `TrendChart`, `Leaderboard` — återanvänd shadcn/Recharts-mönster som redan finns i monorepot; **design tokens** enhetliga.
+- **Tidsväljare:** idag | 7d | 30d | kampanj | all-time — prop till alla data-hooks.
+- **Export:** CSV (client från JSON) + PDF för ledningsrapport (fas 2).
+
+GAP
+
+- API måste stabiliseras **före** fler dashboards — fixa statistik-kontrakt först (P0).
+
+IMPLEMENTATION
+
+- **Fas 0:** align `GET /v1/portal/statistics` response med frontend types (dela Zod-schema i `@roots/shared` eller `packages/api-contract`).
+- **Fas 1:** ny `/portal/insights` för INTERNAL_ADMIN/ASM med samma komponenter + extra drilldown-routes.
+- **Fas 2:** återanvänd komponenter i `statistik/page.tsx` — **vidareutveckla, inte ersätt** (skillkrav).
+
+BAKÅTKOMPATIBILITET
+
+- Gamla URL:er till `/portal/statistik` fungerar; deprecation banners om fält byts namn.
+
+DEPENDENCIES
+
+- Agent 5 (metrics catalog). Agent 3 (kvalitetsfilter i copy). Rollmatris i middleware.
+
+TESTPLAN
+
+- Rollmatris: SELLER får aldrig annan orgs data. Storybook/Chromatic valfritt för `KpiCard`.
+
+RISKER
+
+- Prestanda: server-side paginering på drilldown-listor.
+
+UPPSKATTAD INSATS
+
+- API alignment + statistik fix: **3–5 dagar**. Insights v1 + komponenter: **+5–8 dagar**.
+
+--- SLUT ---

@@ -1,0 +1,52 @@
+==============================================
+3. Push-notiser (e-post, webpush, SMS-deep-link)
+==============================================
+Källa: Säljprocess.pptx — slide 6 ("Pushar")
+
+NULÄGE
+
+- `apps/api/src/lib/email/` — `resend-sender.ts`, `mock-sender.ts`, `templates.ts`, `types.ts` — Resend-baserat; lämpligt som primär kanal.
+- Ingen central **notifications**-modul med triggers (50 % / 75 % / 90 % mål, sista veckan/dagen) eller per-nivå (säljare/lag/klubb) enligt repo-genomgång i denna plan.
+- Webpush/PWA: kräver service worker + subscription store — **gap**.
+- SMS: kräver leverantör + budget — deep link till shop som **frivillig fas 2**.
+
+VAD FEEDBACKEN SÄGER
+
+- Trigger-events: **50 %, 75 %, 90 %** mot kampanjmål; **sista veckan**, **sista dagen**; samma logik på **seller**/**team**/**club** där mål finns (individuellt `individual_goal` på `sellers` vs kampanjmål).
+- **Mall-system:** tabell `notification_templates` (`key`, `channel`, `locale`, `subject`, `body_html`, `version`) + placeholder `{{firstName}}`, `{{campaignName}}`, `{{percent}}` — ersätter ad-hoc strängar i kod.
+- **Anti-spam:** max **1** levererad notis/dygn per säljare som default; ASM justerbar per org (tabell `org_notification_settings`).
+- **Opt-out:** `seller_notification_preferences` eller kolumn på `sellers` — `email_campaign_updates` bool + juridisk grund (GDPR).
+- **Mätning:** `notification_events` (`sent_at`, `opened_at`, `clicked_at`, `provider_message_id`) för open/click där Resend webhooks stödjer.
+
+GAP
+
+- Ingen kö för schemalagda utskick (pg-boss från skill 04 agent 7 rekommenderas) — undvik synkron utskick i order-request.
+
+IMPLEMENTATION
+
+- **Beräkningscron** (eller event-driven + debounce): var 15:e min beräkna progress per entitet; jämför mot trösklar; skapa **outbox**-rad om tröskel passerats och inte redan loggats (`notification_fires` med unique `(template_key, entity_type, entity_id, campaign_id, threshold_bucket)`).
+- **Worker** skickar via befintlig Resend-wrapper.
+- **Webpush (fas 2):** `push_subscriptions` tabell + VAPID; endpoint `POST /v1/portal/push/subscribe`.
+- Koppling **agent 2** — milstolpe kan dela mall med mål-tröskel men separat logik för att undvika dubbletter.
+
+BAKÅTKOMPATIBILITET
+
+- Default på = befintliga användare får mail endast om explicit opt-in i första versionen **rekommenderas** juridiskt; annars soft-launch med opt-out-länk.
+
+DEPENDENCIES
+
+- Skill 04 (pg-boss). Skill 05 (mål satta i wizard). `customer_orders` aggregat.
+
+TESTPLAN
+
+- Simulera 49 % → 51 %: exakt ett 50 %-mail. Tidszon för "sista dagen" = kampanj `end_date` Europe/Stockholm.
+
+RISKER
+
+- Mail-tröttnad — tydlig frequency cap + preferenser.
+
+UPPSKATTAD INSATS
+
+- Mallar + utskick + 50/75/90: **5–7 dagar**. Webpush: **+4–6 dagar**. SMS: **spike + partner**.
+
+--- SLUT ---

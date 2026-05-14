@@ -1,0 +1,85 @@
+==============================================
+2. ASM-rollen
+==============================================
+
+NULÄGE
+
+- Roller i Zod och Postgres enum **utan ASM**: `PUBLIC`, `CLUB_MEMBER`, `CLUB_ADMIN`, `SALES_REP`, `SALES_ADMIN`, `INTERNAL_ADMIN`, `ASSOCIATION_ADMIN`, `TEAM_LEADER`, `SELLER`.  
+  - Kontrakt: `packages/contracts/src/roles.ts`  
+  - DB: `packages/db/src/schema/users.ts` (`roleEnum`, kolumn `users.role`)
+- `SALES_ROLES` = `SALES_REP` + `SALES_ADMIN`; `ADMIN_ROLES` = `SALES_ADMIN` + `INTERNAL_ADMIN`.
+- `users` har ingen `territory` JSONB och ingen `asm_territories`-tabell i granskad schemafil.
+- Webb-middleware `/sales`: roller `SALES_REP`, `SALES_ADMIN`, `INTERNAL_ADMIN` — `apps/web/src/middleware.ts`.  
+  Övriga prefix: `/club`, `/forening`, `/lag`, `/min-shop`.
+- Portal-nav: `SALES_REP`/`SALES_ADMIN` → `SALES_NAV`; övriga (inkl. `INTERNAL_ADMIN`) → `ADMIN_NAV` — `apps/web/src/app/(portal)/portal/layout.tsx`.
+- Portal dashboard: samma uppdelning — `apps/web/src/app/(portal)/portal/page.tsx`.
+- API `portal.ts`: KPI för `SALES_REP`/`SALES_ADMIN`; global admin för övriga; offerter alla för INTERNAL/SALES_ADMIN annars `quotes.userId === session.userId` (säljrep); `/system` strikt INTERNAL_ADMIN.  
+- tRPC: `isSalesUser` / `isAdmin` — `apps/api/src/trpc/middleware/auth.ts`; `trpc/routers/sales.ts` stubbar.
+- Sälj-ytor: `apps/web/src/app/(sales)/sales/**` (dashboard, kunder, ordrar, offerter, admin).
+- Invite: team `inviteToken` + registrering — `apps/api/src/routes/auth.ts`; inte ASM-onboarding.
+
+VAD FEEDBACKEN SÄGER
+
+- Modell_register / skill 02: **ASM** (Area Sales Manager) som territoryägare kopplad till pipeline (`assigned_asm`, m.m.).  
+- ASM ≠ enstaka `SALES_REP`; regional/segmenterad ägare; synergi med `SALES_ADMIN` / `INTERNAL_ADMIN`.  
+- Cross-ref: `docs/feedback-plans/01-master-data/03_organization_upgrade.txt` (`assigned_asm`, `lead_source`), `08_migration_strategy.txt`.
+
+GAP
+
+- Ingen `ASM` i `RoleEnum` / `roleEnum` / session / middleware / portal-grenar.
+- Ingen territory-modell (JSONB eller `asm_territories`).
+- Ingen mellannivå "alla inom mitt territorium" i API.
+- tRPC `salesRouter` mock — inget CRM att hänga ASM på.
+- Invite-flöden täcker fundraising-säljare, inte ASM-anställning.
+
+IMPLEMENTATION
+
+1. **Additiv roll:** `ASM` i `packages/contracts/src/roles.ts`; ev. `ASM_ROLES` eller utöka `SALES_ROLES` (beslut: dela `/sales` eller enbart portal).  
+2. **DB-migration:** utöka Postgres `user_role` enum + Drizzle `roleEnum`; seed vid behov.  
+3. **Territorium:**  
+   - **A — `users.territory` JSONB:** MVP (`regions`, `segmentIds`, `postalPrefixes`); Zod-validering i API.  
+   - **B — `asm_territories`:** normaliserat, indexerbart, bättre för BI.  
+   Rekommendation: B om masterdata (skill 01) är centralt.  
+4. **Middleware:** lägg `ASM` i `/sales` och/eller `/portal` beroende på produkt.  
+5. **Portal UI:** `layout.tsx`, `page.tsx`, `installningar`, `ai` — ASM-nav och dashboard-variant.  
+6. **API `portal.ts`:** territoriefiltrerade listor för `/clubs`, `/quotes`, `/pipeline`, `/orders`; `/sellers` inkludera ASM om relevant; `/system` typiskt **nej** för ASM.  
+7. **tRPC:** `isAsmOrAbove`; separera så `ASM` inte ärvs in i `ADMIN_ROLES` oavsiktligt.  
+8. **Matris:** dokumentera INTERNAL vs SALES_ADMIN vs ASM vs SALES_REP.
+
+BAKÅTKOMPATIBILITET
+
+- Enum-tillägg: befintliga rader oförändrade.  
+- Uppdatera hårdkodade roll-listor eller centralisera till kontrakt.  
+- Sessioner: gamla sessioner med ogiltig roll — TTL eller invalidation vid deploy.
+
+DEPENDENCIES
+
+- Skill 01 (segment/riksorg/geografi) för meningsfull territory-matchning.  
+- CRM-fält på `organizations` (`assigned_asm`, status).  
+- Produktbeslut: ASM i `/sales` vs enbart `/portal`.
+
+TESTPLAN
+
+- Enhet: rollgrupper inkluderar ASM där avsett.  
+- Integration: middleware — ASM når avsedda routes; blockerad från `/system` om så beslutas.  
+- API: ASM ser endast territory; SALES_REP oförändrat; INTERNAL globalt.  
+- Regression: SALES_ADMIN oförändrat.  
+- Seed: minst en ASM + territory för QA.
+
+RISKER
+
+- ASM i `SALES_ROLES` utan data-scope → global åtkomst som SALES_ADMIN.  
+- Ofiltrerade endpoints (`/pipeline` aggregerar quotes) läcker data mellan regioner.  
+- Enum-migration i produktion + långa session-TTL.  
+- Fragmenterad RBAC (Hono vs tRPC).
+
+UPPSKATTAD INSATS
+
+- Roll + migration + kontrakt: ~0,5–1 d.  
+- Territorium JSONB MVP: ~1–2 d; normaliserad tabell + admin-UI: ~3–5 d.  
+- Portal + middleware + `portal.ts` + tester: ~3–6 d.  
+- ASM-invite (e-post/reset likt auth): ~1–2 d.
+
+**Invite-flöde (skiss):** INTERNAL/SALES_ADMIN skapar user `role=ASM` → e-postlänk (reset/magic) → första inloggning → sätt `asm_territories` / JSONB → session med `ASM`.
+
+--- SLUT ---

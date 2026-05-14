@@ -1,0 +1,76 @@
+==============================================
+4. Duplikatkontroll
+==============================================
+
+NULÄGE
+
+- `organizations` (`packages/db/src/schema/organizations.ts`): primär text `name`; ingen `normalized_name`, `deleted_at`, merge-metadata.
+- FK till `organizations.id`: `users.org_id`, `teams.org_id`, `campaigns.org_id`, `orders.org_id`, `quotes.org_id`, `customer_orders.org_id`, `payouts.org_id`, `integrations.org_id` — merge måste uppdatera alla.
+- Grep `duplicate` i affärskod: bl.a. Fortnox webhook `duplicate` (idempotens, ej org-dedup); tRPC idempotency middleware — **ingen** org-dedup-pipeline.
+- Ingen `pg_trgm`, ingen `duplicate_candidates`-tabell.
+- `audit_logs` + `auditLog()` — används idag bl.a. `auth.ts`, `settlement.ts`; **inte** från AI-dedup.
+
+VAD FEEDBACKEN SÄGER
+
+- Nattlig sweep + on-create-check.
+- Pipeline: `pg_trgm similarity > 0.7` → AI-bedömning → rad i **`duplicate_candidates`**.
+- INTERNAL_ADMIN-UI: lista, side-by-side, **Merge / Reject / Mark not duplicate**.
+- Merge: behåll **äldsta** `id`, flytta FK:er, **soft-delete** övriga; **audit**; **aldrig auto-merge** i v1.
+- E-post/PII: **hasha** (t.ex. HMAC-SHA256 av normaliserad e-post + secret) före jämförelse/AI — skicka inte rå e-post till modellen.
+- `customers`-dedup: ingen fristående `customers`-tabell i nuvarande schema — planera när CRM-kundpost införs (skill 02).
+
+GAP
+
+- Saknar tabell, index, worker, UI, merge-transaktion, soft-delete på org.
+- Dedup på enbart `name` brusar tills `normalized_name` (skill 01) finns.
+
+IMPLEMENTATION
+
+**Tabell `duplicate_candidates` (förslag)**  
+`id`, `entity_type` (`organization`|`group_unit`|framtida `customer`), `left_id`, `right_id` (canonical `left_id < right_id`), `trgm_score`, `ai_same_entity`, `ai_confidence`, `ai_reason`, `ai_model`, `prompt_version`, `status` (`pending`|`rejected`|`not_duplicate`|`merged`|`superseded`), tidsstämplar, `resolved_by_user_id`, `merge_target_id`, `idempotency_key` UNIQUE.  
+Partial unique på `(entity_type, left_id, right_id)` WHERE `pending`.  
+GIN trigram på textkolumn som används för fuzzy (**helst `normalized_name`** efter skill 01).
+
+**Pipeline**  
+1) On-create async jobb + nattlig sweep (batch).  
+2) **trgm** mot kandidater filtrerade på segment/sport när kolumner finns.  
+3) **AI** endast vid trgm-träff; input utan rå PII; output JSON `{ same_entity, confidence, reasons[] }`.  
+4) Insert `pending` endast om AI indikerar samma entitet över sekundär tröskel — **ingen** auto-merge.
+
+**Merge (manuell)**  
+Transaktion: välj `canonical_id` = äldsta `created_at` (tie-break: lägst uuid); `UPDATE` alla FK-tabeller; icke-kanonisk rad: `deleted_at` + ev. `merged_into_id` (nya kolumner). Blockera om motstridiga `fortnox_customer_id` utan manuell hantering.
+
+**UI**  
+Lista pending, filter, side-by-side; knappar uppdaterar `status` + audit.
+
+BAKÅTKOMPATIBILITET
+
+- Inga automatiska merges; alla writes explicit INTERNAL_ADMIN (ev. SALES_ADMIN enligt policy).
+- `not_duplicate` kan kräva separat `duplicate_suppressions` för att undvika omtröttande sweep.
+
+DEPENDENCIES
+
+- **Skill 01:** `normalized_name`, segment — bättre trgm-kvalitet.  
+- **Skill 02:** CRM-status vid merge av två "leads" — policy för vilket statusfält som vinner.  
+- **Agent 7:** kö.  
+- **Agent 8:** `ai_agent_runs` för AI-steg.  
+- `openclaw-client.ts` för AI-steg.
+
+TESTPLAN
+
+- Stor transaktion merge på testdata — inga orphans.  
+- On-create dedup race mot samma transaktion — kö efter commit.  
+- PII: e-post endast som hash i jämförelse.  
+- Reject / not_duplicate uppdaterar status + audit.
+
+RISKER
+
+- Långa `UPDATE` på stora tabeller — underhållsfönster / batch.  
+- Falska positiva utan segmentfilter.
+
+UPPSKATTAD INSATS
+
+- Schema + trgm + grund-API: **3–5 dagar**.  
+- UI + merge-engine + audit: **+5–8 dagar**.
+
+--- SLUT ---

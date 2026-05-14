@@ -1,0 +1,51 @@
+==============================================
+3. data_source, data_quality, last_verified_at
+==============================================
+Källa: Modell_register — estimat vs verifierad; sista stycket om estimat-fält
+
+NULÄGE
+
+- `organizations` har `verified` (boolean) men **ingen** granularitet: vem, när, källa, kvalitetsgrad.
+- Planerade fält `potential_score`, `estimated_members` m.m. (skills 02/04) saknar ännu enhetlig **datakvalitetsmodell** i schema.
+
+VAD FEEDBACKEN SÄGER
+
+- **ENUM `data_source`:** `ASM` | `FORENING` | `WEBSITE` | `IMPORT` | `AI` | `MANUAL` (justera värden mot svensk copy i UI).
+- **ENUM `data_quality`:** `LOW` | `MEDIUM` | `HIGH` (DB snake / TS enum — konsekvent mapping).
+- **`last_verified_at`**, **`verified_by_user_id`** (FK users, nullable).
+- **v1 rekommendation:** kvalitet **per rad** (organization, senare `group_unit`) — undvik per-fält-explosion tills behov; för känsliga fält (`birth_year` på grupp) lägg `field_provenance` JSONB som tillägg.
+- **UI:** badge "Uppskattat" vs "Verifierat"; tooltip "Senast verifierat 2026-03-01 av Anna".
+- **"Verifiera"-knapp:** sätter `data_quality = HIGH`, `last_verified_at = now()`, `verified_by_user_id`; skriver `auditLog({ action: 'data.verified', ... })`.
+- **BI:** aggregera **aldrig** ihop estimat och verifierade utan explicit `quality_bucket` i GROUP BY — rapporter visar två serier eller filtrerar `WHERE data_quality = 'HIGH'` för "officiella" siffror.
+- **`estimate_history`:** valfri append-only (`entity_type`, `entity_id`, `field`, `old_value_json`, `new_value_json`, `source`, `at`, `by_user_id`) för AI/ASM-spårning och tvistlösning.
+
+GAP
+
+- UI måste finnas i portal + INTERNAL_ADMIN; annars blir kolumner döda.
+
+IMPLEMENTATION
+
+- Migration på `organizations`: lägg kolumner + ev. `normalized_name_source` borttagen till förmån för generiska fält om man vill minimera antal kolumner (alternativ: endast JSONB `data_provenance` i v0.5 — **rekommendation:** konkreta kolumner för BI-filter-prestanda).
+- **Backfill:** `verified = true` → `data_quality = HIGH`, `last_verified_at = updated_at`, `source = MANUAL`.
+
+BAKÅTKOMPATIBILITET
+
+- Nullable enums; default `data_quality = MEDIUM` för legacy om osäker.
+
+DEPENDENCIES
+
+- Skill 01 (org masterdata). Skill 03 (group_unit samma mönster). Skill 04 (AI = source).
+
+TESTPLAN
+
+- Rapport: summa med/utan LOW. Verifiera-knapp RBAC (endast ASM/INTERNAL).
+
+RISKER
+
+- AI-fält som markeras HIGH av misstag — kräv tvåstegsverifiering för HIGH.
+
+UPPSKATTAD INSATS
+
+- Schema + org UI: **4–6 dagar**. `estimate_history` + rapporter: **+4–5 dagar**.
+
+--- SLUT ---

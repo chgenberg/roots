@@ -1,0 +1,95 @@
+==============================================
+7. Admin-UI för masterdata
+==============================================
+
+NULÄGE
+------
+
+- Under `apps/web/src/app/(portal)/portal/` finns idag bl.a. `page.tsx`, `layout.tsx`, `klubbar/`, `pipeline/`, `system/`, `produkter/`, `saljare/` — **inga** `masterdata/`-routes.
+- Listor använder **`Table`** (`components/ui/table.tsx`), inte en färdig `DataTable`-datagrid.
+- **`Dialog`** finns (`components/ui/dialog.tsx`, Radix) — används t.ex. i search-dialog, hair-analysis-lead-dialog.
+- **Ingen** `xlsx`/`papaparse` i `apps/web/package.json` — bulk import kräver ny dependency eller **server-side** parse i `apps/api`.
+- **Portal layout** (`portal/layout.tsx`): `getNavItems` — CLUB → club-nav; SALES → sales-nav; **övriga roller → `ADMIN_NAV`**. `INTERNAL_ADMIN` delar alltså nav med andra icke-klubb/icke-sales-roller — masterdata-länkar måste **villkorligt** visas endast för `INTERNAL_ADMIN`.
+- **Next middleware** (`middleware.ts`) matchar **inte** `/portal` — åtkomst = klient (`/v1/auth/me`) + **API per route**.
+- **API:** `GET /v1/portal/system` i `apps/api/src/routes/portal.ts` — **403** om `session.role !== "INTERNAL_ADMIN"`; läser senaste `audit_logs`.
+- **`GET /v1/portal/clubs`** filtrerar inte på INTERNAL_ADMIN i samma strängenta sätt — risk vid känslig org-lista; masterdata bör ha **egna** endpoints med strikt RBAC.
+- **`audit_logs`:** `packages/db/src/schema/audit.ts`; `auditLog()` i `apps/api/src/lib/audit.ts` (feature `FEATURE_AUDIT_LOGGING`); anrop idag bl.a. `auth.ts`, `settlement.ts` — **inte** masterdata-mutationer.
+
+VAD FEEDBACKEN SÄGER
+--------------------
+
+- INTERNAL_ADMIN ska kunna lista/CRUD/soft delete riksorganisationer och segment, bulk CSV/XLSX, inline editing, spårbarhet via befintlig audit-logg, backend-spärr identisk med UI.
+
+GAP
+---
+
+- Saknade sidor och API för masterdata.  
+- Saknar spreadsheet-pipeline.  
+- Saknar inline-edit-mönster i portal (MVP: Dialog per rad).  
+- Nav visar inte skillnad INTERNAL_ADMIN vs övriga `ADMIN_NAV`-roller.
+
+IMPLEMENTATION
+--------------
+
+**Sidor (web)**  
+- `/portal/masterdata/riksorganisationer` — kort + toolbar (sök, exportera, importera) + `Table`; radåtgärder i `Dialog`.  
+- `/portal/masterdata/segment` — samma; filter per riksorg (dropdown från master).  
+- **Nav:** Lägg till länkar i `ADMIN_NAV` **endast** när `user.role === "INTERNAL_ADMIN"` (eller dedikerad `MasterdataLayout` med guard).
+
+**Bulk import**  
+- `POST` multipart till **API**; parse CSV/XLSX server-side (`papaparse` / `exceljs`); validering; transaktion; svar med radfel + nedladdningsbar error-CSV.  
+- UI: `Dialog` + file `Input` + progress.
+
+**Inline edit**  
+- MVP: öppna `Dialog` med formulär per rad (befintligt mönster).  
+- V2: redigerbara `TableCell` + debounced PATCH + React Query (redan i `package.json`).
+
+**Audit**  
+- Varje PATCH/bulk: `auditLog({ userId, action, entityType, entityId, meta: { before, after, source: "csv" } })`.
+
+**Backend (Hono, `portal.ts` eller delrouter)**  
+- `requireSession` + `if (session.role !== "INTERNAL_ADMIN") return 403` (samma som `/system`).  
+- Föreslagna endpoints:  
+  - `GET/PATCH /v1/portal/masterdata/riksorganisationer`, `POST .../import`  
+  - `GET/PATCH /v1/portal/masterdata/segment`, `POST .../import`  
+  - `GET /v1/portal/masterdata/audit` — filtrerade `audit_logs` för master-entity_types  
+- **CSRF:** följ `apiFetch` / `x-csrf-token` (`apps/web/src/lib/api.ts`).
+
+**UI-stack (befintligt)**  
+- Next 15, React 19, Tailwind 4, Radix dialog, lucide, TanStack Query (kan användas för mutations), `@roots/contracts`, lokala `components/ui/*`.
+
+BAKÅTKOMPATIBILITET
+-------------------
+
+- Nya sidor additiva; befintliga portal-flöden oförändrade.  
+- Tänj inte `GET /clubs` för master — separata list-endpoints.
+
+DEPENDENCIES
+------------
+
+- Agent 1–2 (tabeller), 4 (seed/import-konventioner), 8 (om org-backfill UI behövs parallellt).
+
+TESTPLAN
+--------
+
+1. Icke-INTERNAL_ADMIN → 403 på alla masterdata-API.  
+2. INTERNAL_ADMIN CRUD + audit-rad skapad.  
+3. Bulk import: ogiltig rad → 400 med radnummer; delvis rollback enligt policy.  
+4. UI: masterdata-länk syns **inte** för SALES_ADMIN om så beslutas.  
+5. CSRF: mutation utan token → 403/400.
+
+RISKER
+------
+
+- `ADMIN_NAV` läcker tomma eller farliga länkar till fel roll om inte villkorstyrt.  
+- `GET /clubs` för bred — säkerhetsreview vid känslig data.  
+- Ingen datagrid — pagination/sort/filter blir custom eller ny dep (TanStack Table).
+
+UPPSKATTAD INSATS
+-----------------
+
+- MVP list + dialog CRUD + API guards: **3–5 dagar**.  
+- Bulk import + felrapport + audit: **+3–5 dagar**.  
+- Inline grid-redigering: **+3–5 dagar**.
+
+--- SLUT ---

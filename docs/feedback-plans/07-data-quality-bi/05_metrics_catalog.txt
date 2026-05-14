@@ -1,0 +1,73 @@
+==============================================
+5. Mätetal-katalog (alla hierarkinivåer)
+==============================================
+Källa: Modell_register kap 15; `customer_orders`, `campaigns`, `payouts`, `subscriptions`
+
+NULÄGE
+
+- Aggregerad affärsdata finns i `customer_orders` (per org/campaign/team/seller), `campaigns` (mål), `payouts`, `subscriptions`.
+- **Ingen** publicerad `metrics`-katalog eller materialiserade vyer i repo (förväntat gap).
+- Hierarki **riks → segment → org → grupp → säljare** — `segment`/`riksorganisation` delvis planerad i skill 01, ej fullt i nuvarande `organizations`.
+
+VAD FEEDBACKEN SÄGER
+
+**Riksnivå**
+
+- Total intäkt (sum `customer_orders.total_ore` där status ∈ PAID+), antal aktiva organisationer (`organizations` + campaign ACTIVE), ASM-täckning (andel org med `assigned_asm_user_id`), segmentfördelning.
+
+**Segmentnivå**
+
+- Konversion lead→customer (skill 02 status), genomsnittlig dealstorlek, repeat rate (antal org med >1 avslutad kampanj / 12 mån).
+
+**Föreningsnivå**
+
+- Intäkt per kampanj, payout-historik (`payouts`), subscription-LTV (`subscriptions` aggregerat per org via seller/campaign-länk — dokumentera join-path).
+
+**Gruppnivå**
+
+- Paket per medlem (kräver medlemsantal — `estimated_members` verifierad vs **inte** blanda i samma KPI), retention år-över-år (samma org + samma `group_unit` key över kampanjer).
+
+**Säljarnivå**
+
+- Paket sålda, snittorderstorlek, "social share rate" (kräver tracking — ny `share_events` eller befintlig analytics), dropoff (inbjuden → första order).
+
+**ASM-performance**
+
+- Pipeline velocity (dagar lead→ACTIVE campaign), win rate, time-to-active, antal touchpoints (kräver `activities` tabell från skill 02 — markera som beroende).
+
+**Teknik**
+
+- **Materialiserade vyer:** `mv_org_perf_daily`, `mv_segment_perf_daily` — `REFRESH MATERIALIZED VIEW CONCURRENTLY` nattligt (kräver UNIQUE index).
+- **SQL-skiss:** dokumentera en `WITH` per KPI i bilaga (implementation).
+- **Kuber:** v2 — exportera till warehouse (agent 7); v1 SQL-vyer räcker.
+
+GAP
+
+- Saknar `activities` / `lead_status` tills skill 02 landar — KPI:er markeras "blocked".
+
+IMPLEMENTATION
+
+- Skapa `docs/metrics/METRICS_CATALOG.md` **eller** håll i denna planserie tills produkt äger doc — skill säger .txt endast; utöka då **denna fil** med bilaga i nästa iteration eller separat bilaga-fil (användaren bad ej om MD — **håll SQL-skisser korta här**).
+- Prioritera **10 P0-mått** första kvartalet: intäkt, orders, conversion rate, repeat, ASM pipeline tid, churn proxy, AOV, refund rate, aktiv kampanj count, payout accuracy.
+
+BAKÅTKOMPATIBILITET
+
+- Vyer läser historik; inga ändringar i OLTP-tabeller utöver index för JOIN-prestanda.
+
+DEPENDENCIES
+
+- Skill 01–03 (dimensioner). Skill 02 (CRM events). Agent 8 (refresh job).
+
+TESTPLAN
+
+- Jämför MV mot live query på staging snapshot — diff 0.
+
+RISKER
+
+- Dubbelräkning refunds — alla KPI:er ska definiera `status` filter explicit.
+
+UPPSKATTAD INSATS
+
+- Katalog + 3 MV + 10 SQL: **1–2 veckor**. Full cuber: **månader**.
+
+--- SLUT ---

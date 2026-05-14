@@ -1,0 +1,54 @@
+==============================================
+1. Audit av BI-kolumner (alla tabeller)
+==============================================
+Källa: Modell_register kap 14–15; `packages/db/src/schema/`
+
+NULÄGE
+
+- **Gemensamt mönster:** de flesta kärntabeller har `createdAt` + `updatedAt` (t.ex. `organizations`, `users`, `campaigns`, `sellers`, `customer_orders`, `quotes`).
+- **`deletedAt` / soft delete:** ingen träff i `packages/db/src/schema/*.ts` — **saknas** överallt.
+- **`organizations`** (`organizations.ts`): `createdAt`, `updatedAt`, `verified` (boolean) — **saknar** `status` (enum), `deletedAt`, `ownerUserId` / `assignedAsmUserId`, `source`, `active`.
+- **`users`:** `createdAt`, `updatedAt` — ingen `deletedAt`; utloggning/radering = oklart juridiskt läge för GDPR.
+- **`hair_analysis_leads`:** endast `createdAt` — **saknar** `updatedAt` (acceptabelt om append-only; dokumentera).
+- **`audit_logs`:** endast `createdAt` (korrekt append-only).
+- **`campaigns`:** `status` (DRAFT/ACTIVE/ENDED/SETTLED) finns — bra BI-fält; saknar `deletedAt`, `owner`, `source`.
+- **`sessions`:** typiskt TTL — undvik soft delete; dokumentera undantag i standard.
+
+VAD FEEDBACKEN SÄGER
+
+- Per **huvudobjekt:** `created_at`, `updated_at`, `deleted_at`, `status` (där relevant), `active`, `owner` / `assigned_asm`, `source`.
+- **Naming:** snake_case i PostgreSQL (Drizzle mappar till `camelCase` i TS — behåll konsekvent; dokumentera i CONTRIBUTING).
+- **`updated_at`:** Postgres `BEFORE UPDATE` trigger **vs** app-lager — rekommendation: **trigger** för kritiska tabeller (org, campaign, user) så API-buggar inte lämnar fel `updated_at`; **Drizzle `$onUpdate`** där stöds för enklare tabeller.
+- **Helper:** `withBaseColumns()` i `packages/db/src/helpers/base-columns.ts` som spreadar `id`, `createdAt`, `updatedAt`, `deletedAt` nullable — minskar drift.
+
+GAP
+
+- Ingen inventerad "sanningsfil" i repo — denna plan + migration backlog blir källa tills spreadsheet tas fram.
+
+IMPLEMENTATION
+
+- **Fas 1:** spreadsheet/checklista: en rad per tabell i `schema/` + kolumn-matris (Ja/Nej/N/A).
+- **Fas 2:** additiva `ALTER TABLE` per release (små PR: org → campaign → seller → …).
+- **Owner-semantik:** `assigned_asm_user_id` → FK `users.id` med roll-check i app (eller CHECK trigger); skilj från `created_by` om båda behövs.
+
+BAKÅTKOMPATIBILITET
+
+- Nya kolumner **nullable** eller default (`active = true`, `source = 'legacy'`) tills backfill.
+
+DEPENDENCIES
+
+- Skill 02 (ASM på org). Skill 01 (masterdata source).
+
+TESTPLAN
+
+- Migration rollback på staging. ORM-select: inga rader försvinner tills default-filter införs (agent 2).
+
+RISKER
+
+- `owner` dubbeltydig — använd alltid prefix `assigned_asm_user_id` i schema.
+
+UPPSKATTAD INSATS
+
+- Full audit-dokument + första migration (org + campaigns): **3–5 dagar**. Resterande tabeller: **+1–2 veckor** i batchar.
+
+--- SLUT ---

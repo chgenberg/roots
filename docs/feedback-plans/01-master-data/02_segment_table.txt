@@ -1,0 +1,109 @@
+==============================================
+2. Segmenttabellen
+==============================================
+
+NULÄGE
+------
+
+- `organizations` har ingen `segment_id` eller `riksorganisation_id`; förbunds-/sportspår är lösa strängar `national_federation` och `sport_type` samt `type` som portal-/roll-typ (`club`/`team`/`association`), inte masterdata-hierarki.
+
+```9:20:packages/db/src/schema/organizations.ts
+export const organizations = pgTable("organizations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: varchar("name", { length: 255 }).notNull(),
+  orgNumber: varchar("org_number", { length: 20 }),
+  type: varchar("type", { length: 50 }).notNull().default("club"),
+  nationalFederation: varchar("national_federation", { length: 255 }),
+  sportType: varchar("sport_type", { length: 100 }),
+  verified: boolean("verified").notNull().default(false),
+  fortnoxCustomerId: varchar("fortnox_customer_id", { length: 100 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+```
+
+- `packages/db/src/schema/index.ts` exporterar idag inga `master_segment` / `master_riksorganisation`.
+- Excel `public/Feedback_14:5/roots_segment_master_rekommenderad.xlsx`: blad med kolumner **Riksorganisation**, **Segment/Förbund**, **Typ** (~110 datarader + rubrik enligt utforskning).
+
+VAD FEEDBACKEN SÄGER
+--------------------
+
+- Hierarki: **Riksorganisation → Segment/Förbund → Organisation → Grupp**; segment-filen är avsedd **seed** (~110 rader).
+- **v1-regel:** ett segment tillhör **exakt en** riksorganisation (ingen M:N i v1).
+- Kolumnen **Typ** ska standardiseras till **enum/dropdown** (analysdata), inte fri drift i produktion.
+
+GAP
+---
+
+- Tabell `master_segment` saknas.
+- FK till `master_riksorganisation` saknas.
+- Ingen unikhet per riksorg för namn/kod utan explicit design.
+- Ingen mappning från Excels distinkta **Typ**-strängar till stabila DB-värden utan implementation.
+- `organizations.segment_id` saknas (agent 3).
+
+IMPLEMENTATION
+--------------
+
+**Fil:** `packages/db/src/schema/master-segment.ts` (+ export i `schema/index.ts`). **Beror på** `master_riksorganisation` med PK `id` och seed-stabilt `name` för join.
+
+**Typ-kolumn (standardisering)**  
+Ur segment-exceln finns flera unika värden i **Typ** (t.ex. Idrott, Friluftsliv, Skola/Ungdom, Musik/Kultur m.fl. — exakt lista vid import).  
+**Rekommendation v1:** `pgEnum("master_segment_category", [...])` med **en variant per unikt Excel-värde** så seed är 1:1; mappa via `Record<excelString, Enum>` med strikt validering (okänt värde → fail loud).
+
+**Drizzle-schema (utkast)**
+
+- `id` uuid PK default random  
+- `riksorganisation_id` uuid NOT NULL → FK `master_riksorganisation.id` (`onDelete: restrict`)  
+- `name` varchar(255) NOT NULL  
+- `code` varchar(64) NOT NULL  
+- `type` master_segment_category enum NOT NULL  
+- `active` boolean default true NOT NULL  
+- `created_at` / `updated_at`  
+- **Unika index:** `(riksorganisation_id, name)` och `(riksorganisation_id, code)`  
+- **Kod:** deterministisk slug inom riksorg + suffix vid kollision.
+
+**Seed join-logik**
+
+1. Läs XLSX-rader.  
+2. Slå upp riksorg på `name` (trim, NFC) — vid miss: avbryt med radnummer.  
+3. Mappa `Typ` → enum.  
+4. **Idempotent upsert** på `(riksorganisation_id, name)` så Excel-korrigeringar lyfts in.
+
+**Hierarki v1:** `riksorganisation_id` NOT NULL; samma segmentnamn hos två riksorgar = **två rader**.
+
+BAKÅTKOMPATIBILITET
+-------------------
+
+- Nya tabeller additiva; befintliga API:er påverkas inte förrän nullable `segment_id` på `organizations` (agent 3).  
+- `national_federation` / `sport_type` kan lämnas under migration.  
+- FK `restrict` skyddar mot radering av riksorg med segment.
+
+DEPENDENCIES
+------------
+
+- **Blocker:** Agent 1 — `master_riksorganisation` seedas **före** segment-seed.  
+- **Konsument:** Agent 3, 4, 7, 8.
+
+TESTPLAN
+--------
+
+1. Dublett `name` under samma riksorg → DB-fel.  
+2. Dublett `code` under samma riksorg → fel.  
+3. Radera riksorg med segment → `restrict`.  
+4. Dubbel seed-körning → idempotens.  
+5. Okänd `Typ` i testrad → tydligt seed-fel.  
+6. Riksorg-sträng saknas i master → fail med lista.
+
+RISKER
+------
+
+- Namn-drift mellan två Excel-filer (mellanslag, stavning).  
+- `pgEnum`-ändringar kräver `ALTER TYPE ... ADD VALUE`.  
+- Slug-kollisioner — suffix-hantering i seed.
+
+UPPSKATTAD INSATS
+-----------------
+
+- 1–2 dagar: schema + migration + enum + seed-mappning + manuell granskning av Typ-värden och riksorgsnamn mot riksorg-excel.
+
+--- SLUT ---

@@ -1,0 +1,129 @@
+==============================================
+8. Migrationsstrategi
+==============================================
+
+NULÄGE
+------
+
+Datamodellen är Drizzle/Postgres under `packages/db/src/schema/`. Tabellen `organizations` är navet med `id`, `name`, `org_number`, `type` (default "club"), `national_federation`, `sport_type`, `verified`, `fortnox_customer_id`, tidsstämplar. Ingen riksorganisation/segment-hierarki i kodbasen idag.
+
+FK till `organizations.id` (org_id) finns explicit i schema för:
+- `users.org_id` (nullable) — `packages/db/src/schema/users.ts`
+- `campaigns.org_id` (NOT NULL) — `packages/db/src/schema/campaigns.ts`
+- `teams.org_id` (NOT NULL) — `packages/db/src/schema/teams.ts`
+- `orders.org_id` (NOT NULL) — `packages/db/src/schema/orders.ts`
+- `quotes.org_id` (NOT NULL) — `packages/db/src/schema/quotes.ts`
+- `customer_orders.org_id` (NOT NULL) — `packages/db/src/schema/customer-orders.ts`
+- `payouts.org_id` (NOT NULL) — `packages/db/src/schema/payouts.ts`
+- `integration_fortnox.org_id` (NOT NULL) — `packages/db/src/schema/integrations.ts`
+
+`sellers` har ingen `org_id`; organisation härleds via `team_id` -> `teams.org_id` och `campaign_id` -> `campaigns.org_id` (mönster i `apps/api/src/routes/shop.ts`, `checkout.ts`, `sharing.ts`, `dashboard.ts`, `trpc/routers/campaigns.ts`).
+
+Session/ctx bär `orgId` (`apps/api/src/lib/session.ts`, `apps/api/src/trpc/context.ts`). Rollbaserad scoping mot org sker i t.ex. `trpc/routers/campaigns.ts`, `routes/dashboard.ts`, `portal.ts`, `settlement.ts`, `sharing.ts`.
+
+Feature-flag-mönster finns i `apps/api/src/lib/flags.ts` (`isEnabled`, `flags.*`) men ingen `FEATURE_NEW_ORG_HIERARCHY` idag.
+
+Automatiserade API-snapshot-tester: i praktiken begränsat (t.ex. `tests/persona-test.mjs` under `tests/`).
+
+VAD FEEDBACKEN SÄGER
+--------------------
+
+(Från skill 01 + avsedda källor `Modell_register.docx`, Excel-mastrar.)
+
+Masterdata ska stödja hierarkin Riksorganisation -> Segment/Förbund -> Organisation 2.0 (och vidare Grupp/Lag i annan skill), med seed från Excel-filerna. `organizations` ska utökas med bl.a. `riksorganisation_id`, `segment_id`, CRM-fält (`status`, `lead_source`, `potential_score`, `assigned_asm`), geografiska fält, samt `display_name` vs `normalized_name`. Befintlig `organizations.type` ('club'/'team'/'association') måste mappas till ny semantik utan att bryta commerce-flöden.
+
+GAP
+---
+
+1) Schema vs produkt: platt `organizations`-rad räcker inte; saknade tabeller/FK för riksorg och segment.  
+2) `teams.org_id` och `campaigns.org_id` är båda NOT NULL och ska hållas konsistenta.  
+3) `customer_orders.org_id` och `payouts.org_id` denormaliseras vid skrivning (`checkout.ts` sätter `orgId: team.orgId`); vid org-split måste backfill + ev. constraints övervägas.  
+4) `users.org_id` nullable — ASSOCIATION_ADMIN kan sakna org i vissa paths.  
+5) `integration_fortnox` org-kopplad i DB men OAuth-flöde kan vara underutnyttjat.  
+6) Sälj-TRPC `sales.ts`: offerter delvis mock men tar `orgId` — framtida persistens måste följa samma org-nyckel.  
+7) Testtäckning för regressions-snapshots saknas.
+
+IMPLEMENTATION
+--------------
+
+**Inventering (exempel på ytor)**  
+- Schema: `organizations.ts`, `users.ts`, `campaigns.ts`, `teams.ts`, `sellers.ts`, `customer-orders.ts`, `orders.ts`, `quotes.ts`, `payouts.ts`, `integrations.ts`, `seed.ts`.  
+- API/tRPC: `apps/api/src/routes/auth.ts`, `portal.ts`, `dashboard.ts`, `checkout.ts`, `settlement.ts`, `shop.ts`, `sharing.ts`, `trpc/routers/campaigns.ts`, `context.ts`, `lib/session.ts`, `trpc/middleware/auth.ts`, `trpc/routers/auth.ts`, `trpc/routers/sales.ts`, `trpc/routers/club.ts`.  
+- Övrigt: `packages/contracts/src/invoicing.ts`, `apps/web/src/types/fundraising.ts`, `apps/web/src/app/(auth)/registrera/page.tsx`, SQL baseline `packages/db/drizzle/0000_premium_photon.sql` + snapshots.
+
+**Backfill**  
+- Steg 1: importera `master_riksorganisation` + `master_segment` från Excel (deterministiskt).  
+- Steg 2: för varje `organizations`-rad, matcha `national_federation` / `name` / ev. `sport_type` mot segment-mastern (fuzzy: trigram/levenshtein i SQL eller offline script); kö för manuell ASM-granskning där confidence < tröskel.  
+- Steg 3: validera att varje org med aktiva campaigns/teams får giltig `segment_id` + `riksorganisation_id` innan NOT NULL.
+
+**Två-stegs rollout**  
+- v1: ADD kolumner NULLABLE + nya index.  
+- Backfill + UI för korrigering.  
+- v2: SET NOT NULL där regler tillåter; undvik synthetic "Unknown" om möjligt — annars explicit review-queue.
+
+**FEATURE_NEW_ORG_HIERARCHY**  
+- Lägg till i `apps/api/src/lib/flags.ts` + ev. frontend env.  
+- När flag false: legacy API-shape; när true: inkludera riksorg, segment, aliased fält.
+
+**API bakåtkompatibilitet**  
+- Behåll `orgId` som stabil organisations-UUID.  
+- Lägg till valfria fält `riksorganisationId`, `segmentId`, `organizationDisplayName` utan att ta bort gamla.  
+- `/v1/auth/organizations/search`: utöka men behåll samma `id` för befintliga rader.
+
+**Dataloss för omappade rader**  
+- Policy: karantän utan NOT NULL-påtvingelse **eller** explicit "Unmatched"-segment med spårbarhet. Inga hårda deletes av `organizations` med befintliga FK utan arkiveringsstrategi.
+
+**Propagering om `organizations.id` behålls (rekommenderat)**  
+- Primär nyckel oförändrad = lägst risk.  
+- Om UUID-byte krävs: propagera i ordning campaigns -> teams -> sellers (ingen org-kolumn), customer_orders, payouts, orders, quotes, users, integration_fortnox — plus session-invalidering.
+
+**API snapshot-tester**  
+- Vitest/Hono `app.request()` eller Playwright mot nyckelroutes: dashboard, portal, `trpc.campaigns.list`, `auth/organizations/search`, shop slug — frys JSON med/utan flagga.
+
+BAKÅTKOMPATIBILITET
+-------------------
+
+- Behåll `organizations.id` som stabil kundnyckel.  
+- Session `orgId` oförändrad semantik.  
+- Befintliga index `*_org_id_idx` behålls.  
+- Registreringsflöden som skapar org + campaign + team i transaktion måste fortsatt sätta samma org på alla tre nivåer.  
+- `orders` vs `customer_orders` — dokumentera att båda bär org_id.
+
+DEPENDENCIES
+------------
+
+- Planer 01–04 (tabeller + seed) innan NOT NULL på FK.  
+- Relaterade skills: `roots-feedback-02-crm-pipeline`, `roots-feedback-08-ecommerce-integration`.  
+- Drizzle migrations + zero-downtime deploy-ordning.
+
+TESTPLAN
+--------
+
+1) Migration up/down på tom DB + seed.  
+2) Integration: org -> campaign -> team -> seller -> customer_order; assert org_id konsekvent.  
+3) Portal: club-admin ser endast egna orders/quotes.  
+4) TRPC: campaigns/teams 403 vid fel orgId.  
+5) Settlement/payouts: payout.orgId matchar team.orgId för samma campaign.  
+6) Registrering: organizations/search + signup paths.  
+7) Efter flag-toggle: dubbel körning av snapshot-tester.
+
+RISKER
+------
+
+- FK-cascade: inga ON DELETE CASCADE på org i baseline; hårda deletes blockerar — migrering additiv.  
+- Dubbel sanning: `teams.org_id` vs `campaigns.org_id` — överväg trigger eller hämta org via campaign.  
+- Långa transaktioner vid backfill på stora tabeller.  
+- `users.org_id` NULL för roller som antas ha org i dashboard.  
+- Fortnox: `fortnox_customer_id` vid org-merge.
+
+UPPSKATTAD INSATS
+-----------------
+
+- P0 (schema + additive migration + seed): ~3–5 ingenjörsdagar  
+- P1 (backfill/fuzzy + review): ~5–10 dagar beroende på volym  
+- P2 (flagg, API-alias, snapshot-suite): ~3–5 dagar  
+- P3 (NOT NULL + städning + ev. ID-rewrite): +1–2 veckor riskbuffert  
+
+Totalt ofta ~2–4 veckor kalendertid med parallell ASM-review, lägre om `organizations.id` behålls och endast nya kolumner läggs till.
+
+--- SLUT ---

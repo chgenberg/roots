@@ -1,0 +1,83 @@
+==============================================
+8. Analytics och BI-dimensioner
+==============================================
+
+NULÄGE
+
+- **`customer_orders`:** `org_id`, `campaign_id`, `team_id`, `seller_id`, `status`, `total_ore`, index — `packages/db/src/schema/customer-orders.ts` ~39–84.  
+- **`dashboard.ts`:** aggregeringar PAID per **team** (`GROUP BY team_id`) för förening; per **seller** för lag — `apps/api/src/routes/dashboard.ts` (association ~83–96, team ~181–194, ~223–234).  
+- **`portal.ts`:** KPI för klubb/sälj/admin — bl.a. **`orders`** (B2B) för vissa roller; **quotes** för pipeline — **inte** samma källa som `customer_orders` för allt (`apps/api/src/routes/portal.ts` ~43–180).  
+- **`teams`:** ingen `group_type`, `birth_year`, `competition_level` — `packages/db/src/schema/teams.ts`.  
+- **`organizations`:** inga CRM/geo-fält i nuvarande schema — `organizations.ts` ~9–20 (planerade i skill 01/02).  
+- **`users`:** `birthYear`, guardian-fält — individ; `sellers`: `hide_from_leaderboard`, `publicAlias` — `sellers.ts`.  
+- **`MASTER_PLAN_2026-04-18.md`:** Fas 5–6 — audit, SAR, minors, pseudonym — **ingen** färdig Power BI/Metabase/CDC i texten.  
+- **`docs/composer-agents/MASTER_BUILD_CHECKLIST.txt`:** analytics privacy-first punkt.  
+- **Saknas:** `mv_group_unit_performance`, `group_unit`, CDC-konfig i repo.
+
+VAD FEEDBACKEN SÄGER
+
+- Analyser per **birth_year-kohort**, **gender**, **segment**, **region/kommun**, **group_type**, **competition_level**.  
+- Materialiserad vy **`mv_group_unit_performance`** nattlig refresh.  
+- Externt BI: **read replica**; förändringar via **CDC** (logical replication / Debezium) valfritt.  
+- **GDPR:** inga **säljarnivå-aggregat** i extern BI utan samtycke — jmf `hide_from_leaderboard`, guardian, pseudonym.  
+- **Cross-ref skill 02:** `org.lead_source` × `group.competition_level` → förklaring av `potential_score` när fält finns.
+
+GAP
+
+1. Dimensionkolumner saknas tills `group_unit` + org-masterdata migrerats.  
+2. Två orderkällor (`customer_orders` vs `orders`) — risk dubbelräkning om BI inte väljer canonical grain.  
+3. Dashboard exponerar redan **per-säljare** intäkter — BI måste maskera/rulla upp.  
+4. `lead_source` / `potential_score` planerade men ej i `organizations.ts` ännu.
+
+IMPLEMENTATION
+
+**Grain (förslag)**  
+`(day, org_id, campaign_id, group_unit_id)` med mått: `paid_orders`, `paid_revenue_ore`, `active_sellers_count` (endast om consent), `buyers_count` pseudonymiserad.  
+Join: `group_unit` för `group_type`, `gender`, `birth_year`/`min`/`max`, `competition_level`; org för segment/region när skill 01 klar.
+
+**`mv_group_unit_performance`**  
+`REFRESH MATERIALIZED VIEW CONCURRENTLY` (unikt index på view-PK). Källor: `customer_orders` (PAID) + `campaigns` + `group_unit` + `organizations`; **exkludera** seller-grain i standardvyn — separat **restricted mart** med RBAC.
+
+**Read replica & CDC**  
+BI: endast SELECT på replica. CDC till warehouse med begränsat fältset; **exkludera** eller hasha PII.
+
+**GDPR**  
+- `hide_from_leaderboard` eller saknad guardian-consent → exkludera `seller_id` från seller-mart; aggregera till team/group eller anonym hink.  
+- Pseudonym: `public_alias` i kundytor; BI-export utan `display_name`/e-post.  
+- **k-anonymitet** för små celler (kö × kommun × cohort).
+
+**Cross-ref skill 02**  
+När CRM-fält finns: dimension `org_crm` på materialiserad vy (attribut, inte persondata).
+
+BAKÅTKOMPATIBILITET
+
+- Befintliga dashboard-endpoints oförändrade tills nya vyer konsumeras via flagga eller separata BI-routes.  
+- Primär DB för operativ styrning; replica för tunga rapporter.
+
+DEPENDENCIES
+
+- **Skill 01** (segment, region, kommun).  
+- **Skill 02** (`lead_source`, `potential_score`, ASM).  
+- **Skill 03** agent 1–5 (`group_unit`, sellers-länk).  
+- **MASTER_PLAN** Fas 5–6 som **gate** för seller-kohort i extern BI.
+
+TESTPLAN
+
+- `EXPLAIN` MV vs rå `customer_orders`.  
+- Consent-matrix: `hide_from_leaderboard=true` → inga seller-rader i export; team-summa korrekt.  
+- Replica-lag acceptanskriterier.  
+- Join CRM: kardinalitet org × group_type utan dubbletter.
+
+RISKER
+
+- Dubbel räkning om båda ordertabellerna används fel.  
+- Re-identifikation små celler.  
+- Replica-lag för operativa beslut om fel källa väljs.
+
+UPPSKATTAD INSATS
+
+- MV + nattjobb (pg-boss/cron enligt MASTER_PLAN Fas 7): **3–5 dagar**.  
+- Replica + grundläggande Metabase/Power BI-lager: **1–2 veckor** (infra-beroende).  
+- CDC till warehouse: **+1–2 veckor** om scope ingår.
+
+--- SLUT ---

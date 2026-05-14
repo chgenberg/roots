@@ -1,0 +1,103 @@
+==============================================
+5. Normaliseringsregler (visningsdata vs analysdata)
+==============================================
+
+NULÄGE
+------
+
+- `organizations`: endast `name` + fritextfält; ingen uppdelning display vs normaliserad nyckel (`packages/db/src/schema/organizations.ts`).
+- Klubblista/sök: `ILIKE` på `organizations.name` (`apps/api/src/routes/portal.ts`).
+- `sellers`: `display_name`, `shop_slug` (deriverad URL-nyckel med suffix — **inte** CRM-`normalized_name`), `public_alias`, `personal_message` (`packages/db/src/schema/sellers.ts`; `auth.ts`, `dashboard.ts`).
+- `teams.name`: fritext utan `normalized_name` (`teams.ts`).
+- `users.contact_name`: fritext (`users.ts`, `auth.ts`).
+- `customer_orders.customer_name`: fritext leverans/visning (`customer-orders.ts`).
+- Katalogmönster: `products`/`bundles`/`campaigns` med `name` + unik `slug` — liknande "visning + stabil nyckel" men för katalog.
+
+VAD FEEDBACKEN SÄGER
+--------------------
+
+(Modell_register kap 3, 7, 13 — konceptuellt; .docx ej parsad här.)
+
+- **Visningsdata:** mänskligt ytskikt (UI, e-post, faktura-rader) — får ändras utan att bryta BI om analysfält uppdateras separat.
+- **Analysdata:** ENUM:er, FK:er, tal, scores, `code` från master, verifieringsmetadata — får inte vara enda sanningen härledd genom att "tolka" fritext.
+- Kap 7: "P10 Svart" = visning; kön, födelseår, age_band = analys — inte parsa visningssträng.
+- Kap 13: källa, kvalitet, tidsstämpel + kanonisk nyckel separat från visningsnamn.
+
+GAP
+---
+
+1. `organizations` saknar explicit `display_name` / `normalized_name`.  
+2. Ingen gemensam normaliseringsfunktion delad org/säljare/kund.  
+3. `teams` / framtida `group_unit` riskerar samma fritextproblem.  
+4. `customer_name` utan koppling till customer-entitet med analysfält.  
+5. AI/BI-fält ska inte härledas enbart från fritext.
+
+IMPLEMENTATION
+--------------
+
+**Princip — två lager**  
+- **Visningsdata:** display_name, alias, beskrivningar, anteckningar, adress som kunden skrev.  
+- **Analysdata:** enums, FK:er (riksorganisation_id, segment_id, organization_type, status), birth_year, age_band, municipality som strukturerat, potential_score, lead_source, master-`code`, verified_at, data_quality, source.
+
+**Namnkonventioner**  
+- `display_name`: alltid mänskligt namn i UI.  
+- `normalized_name`: dold/kanonisk för dedupe, UNIQUE där affärsregel kräver, fuzzy-jämförelse — policy: NFKC, lowercase, whitespace, bolagssuffix (dokumentera åäö-policy).  
+- `code` (master): maskinnyckel från seed — inte samma som display_name.  
+- `slug` / `shop_slug`: URL; får inte ersätta `normalized_name` för CRM-dedupe.
+
+**Trigger / computed**  
+1. Delad Postgres-funktion `roots_normalize_org_name(text) IMMUTABLE` **eller** delad TS-modul + DB-trigger så API och batch inte divergerar.  
+2. `BEFORE INSERT OR UPDATE OF display_name` sätter `normalized_name` om inte override.  
+3. Partial unique index där affären kräver.  
+4. `pg_trgm` på display/normalized för sök (agent 6).  
+5. Import/seed: beräkna `normalized_name` i samma transaktion.
+
+**Framtida entiteter**  
+- **group_unit:** display_name + gender, birth_year/age_band + FK; normalized_name inom parent-org.  
+- **seller:** behåll shop_slug; lägg CRM-normalisering endast om dedupe över kampanjer krävs.  
+- **customer:** tabell med display_name + normalized_name + email_normalized; `customer_orders` FK till customer.
+
+**Lint / review-checklista**  
+- Nytt fritext: är det visning? Finns ENUM/FK för samma semantik?  
+- Tabell med display_name: finns normalized_name eller dokumenterat undantag (ADR)?  
+- UNIQUE på normalized_name/code — inte på display_name för dedupe?  
+- Publik API: exponera inte normalized_name.  
+- Sök: ILIKE för UX — affärslogik "samma org" = normalized_name/FK, inte bara ILIKE.  
+- Import: samma transaktion för display + normalized.  
+- PII/minors: `public_alias` vs riktiga namn.
+
+BAKÅTKOMPATIBILITET
+-------------------
+
+- `organizations.name`: backfill `display_name = name`; API-alias `name` under övergång.  
+- `shop_slug`-algoritm oförändrad för URL; parallella kolumner utan att ändra befintliga shop-URL:er.
+
+DEPENDENCIES
+------------
+
+- Agent 1–2 (code/name-konventioner), 3 (org-kolumner), 4 (seed), 6 (sökindex).  
+- Blockerar konsekvent merge/dedupe i CRM (skill 02) och grupp-hierarki (skill 03).
+
+TESTPLAN
+--------
+
+1. Unit: normalisering ger samma utfall för unicode-varianter.  
+2. DB: två display_name → samma normalized_name där UNIQUE krävs → förväntat fel.  
+3. API: normalized_name dold för icke-admin.  
+4. Regression: säljregistrering + giltig shop_slug.  
+5. Import: specialtecken + loggad konflikt vid dubblett `code`.
+
+RISKER
+------
+
+- För aggressiv normalisering slår ihop skilda juridiska enheter — override-flagga.  
+- Trigger-prestanda — `IMMUTABLE` + index.  
+- Förvirring slug vs normalized_name — tydliga typnamn.
+
+UPPSKATTAD INSATS
+-----------------
+
+- 1–2 dagar: delad funktion + trigger + migration för organizations + tester.  
+- +0,5 dag per entitet (`group_unit`, `customer`) vid återanvändning.
+
+--- SLUT ---

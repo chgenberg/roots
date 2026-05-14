@@ -1,0 +1,88 @@
+==============================================
+4. Seed-import för Excel-mastrarna
+==============================================
+
+NULÄGE
+------
+
+- `packages/db/src/seed.ts` är TypeScript-seed utan fil-I/O: demo-organisationer, användare, produkter, bundle — ingen `xlsx`/`csv`-parser, ingen import från `public/Feedback_14:5/`.
+- `packages/db/package.json`: `"db:seed": "tsx src/seed.ts"`. Root: `"db:seed": "turbo db:seed"`; `turbo.json` sätter `cache: false` för `db:seed`.
+- Katalogen `packages/db/scripts/` är tom eller obefolkad; **`packages/db/data/master/` finns inte** ännu.
+
+VAD FEEDBACKEN SÄGER
+--------------------
+
+- Två Excel-mastrar (`roots_master_riksorganisationer.xlsx`, `roots_segment_master_rekommenderad.xlsx`) ska bli **kanonisk seed** för riksorganisation respektive segment.
+- Import ska vara **idempotent** och köras i CI efter migrate.
+- Vid borttag av rad i master: **soft delete** eller explicit policy (additive-only i v1).
+
+GAP
+---
+
+- Ingen validerad pipeline från Excel/CSV till Drizzle.  
+- Ingen `ON CONFLICT`-strategi dokumenterad i kod (idempotens idag applikationsvis i seed).  
+- Ingen versionsstyrd datakatalog i repo för CI-determinism om endast binär xlsx checkas in.
+
+IMPLEMENTATION
+--------------
+
+**Skriptstruktur**  
+1. **CSV i repo** (exporterat från Excel) under `packages/db/data/master/` — diffbart, reproducerbart i CI.  
+2. **Valfritt lokalt xlsx:** dev-script med `xlsx`/`exceljs`; CI konsumerar checkad CSV eller versionerad export.  
+3. Orchestrator: `seed.ts` anropar `seed/masters/*.ts` eller separat `pnpm db:seed:masters`.
+
+**Idempotent upsert**  
+- Stabila natural keys (`code`, `(riksorganisation_id, name)`).  
+- Drizzle `.onConflictDoUpdate()` eller raw `ON CONFLICT ... DO UPDATE`.  
+- Transaktion per fil/batch.
+
+**Sökvägar**  
+- `packages/db/data/master/riksorganisationer.csv`, `segment_master.csv` (+ README med kolumnordning och källa).
+
+**pnpm db:seed / CI**  
+- Efter `migrate`: `pnpm db:seed`; `DATABASE_URL` i CI.  
+- Överväg separat jobb eller flagga så produktion aldrig kör destruktiv full-sync av misstag.
+
+**Soft delete / borttagna rader**  
+- Master-rader: `deleted_at` eller `is_active` + `updated_at`.  
+- Diff fil ↔ DB: rader som försvunnit från fil kan soft-deletas (kräver `source_batch_id` eller import_version).  
+- **v1-alternativ:** endast additive seed — inga automatiska deletes.
+
+BAKÅTKOMPATIBILITET
+-------------------
+
+- Befintlig demo-seed ska fortsätta fungera; master-import efter eller i separat entry.  
+- Nya UNIQUE-index kan misslyckas om gammal data har dubbletter — datafix före index.  
+- CSV-headerändringar: strikt validering (Zod) så fel blir högljudda.
+
+DEPENDENCIES
+------------
+
+- Drizzle-migrationer för master-tabeller (agent 1–2).  
+- `@roots/contracts` eller delade Zod-scheman för validering.  
+- Vid xlsx: devDependency `exceljs` eller `xlsx`.
+
+TESTPLAN
+--------
+
+- Enhet: parser + mapping med fixtures under `packages/db/data/master/__fixtures__/`.  
+- Integration: tom DB → migrate → seed → förväntat radantal; dubbel körning → idempotens.  
+- CI: `migrate && db:seed` + SQL-räkning.  
+- Regression: demo-inlogg oförändrad.
+
+RISKER
+------
+
+- Dubbletter innan UNIQUE-constraints.  
+- Binär xlsx i git → svår review.  
+- Soft-delete från diff → oavsiktlig avpublicering vid trunkerad CSV.
+
+UPPSKATTAD INSATS
+-----------------
+
+- CSV + data/master + seed-integration + tester: **2–4 dagar**.  
+- ON CONFLICT + unika keys + datastädning: **+1–2 dagar**.  
+- Full diff-sync + tombstones: **+2–3 dagar**.  
+- Xlsx-first pipeline: **+0,5–1 dag** om CSV ändå är CI-sanning.
+
+--- SLUT ---

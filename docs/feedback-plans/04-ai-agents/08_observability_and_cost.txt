@@ -1,0 +1,63 @@
+==============================================
+8. Observability, kostnad & feedback
+==============================================
+
+NULÄGE
+
+- **`openclaw-client.ts`:** loggar `[openclaw] chat error` + `status`/`data` vid fel; **ingen** central tabell för token usage per anrop.
+- **`flags.aiEnabled()`** — `AI_ENABLED` env (default true); `isAiConfigured()` kollar API-nyckel — **ingen** env som stänger AI per agent.
+- **Audit:** `audit_logs` + `auditLog()` — bra för admin-actions, **ej** systematiskt från alla AI-anrop.
+- **Rate limit:** `apps/api/src/lib/rate-limit.ts` — `checkAiRateLimit` / `checkHairAnalysisRateLimit` (Redis sliding window per IP) — **ingen** global token budget per org/dygn för interna agenter.
+- **Portal/sales AI:** anropar `"/api/public/chat"` (Next API route) — **skiljer path** från `apps/api` `/v1/ai/chat` (svårare enhetlig telemetri tills frontend enas).
+- **`ai_agent_runs`:** saknas i schema (grep ingen tabell).
+
+VAD FEEDBACKEN SÄGER
+
+- Tabell **`ai_agent_runs`:** `id`, `agent_name`, `entity_type`, `entity_id`, `model`, `prompt_tokens`, `completion_tokens`, `cost_sek` (eller USD + FX), `latency_ms`, `success`, `error_code`, `user_id` (nullable för worker), `org_id`, `idempotency_key`, `created_at`, ev. `feedback` (`thumbs_up`|`thumbs_down`|`null`), `feedback_comment`.
+- **Dashboard:** token/cost per agent per dag; felrate; p95 latency — **INTERNAL_ADMIN**.
+- **Budget alerts:** Slack/e-post när org/dygn över tröskel (Redis counter eller aggregering från `ai_agent_runs`).
+- **PII:** prompt/response **ej** fulltext i DB — max hash + kort excerpt enligt policy.
+
+GAP
+
+- Ingen tabell, ingen instrumentation wrapper runt `chatCompletion` / `chatCompletionStream`.
+- Ingen admin-vy.
+- Streaming: tokenräkning ofta i svarchunk — behöver parser/hook.
+
+IMPLEMENTATION
+
+- **Wrapper:** `instrumentedChatCompletion(opts)` som anropar `chatCompletion` / stream-variant, mäter `Date.now()` delta, läser `usage` ur svar när OpenAI returnerar det, beräknar `cost` via modellpris-tabell (konfig/YAML i repo).
+- **Persist:** `insert(ai_agent_runs)` efter completed stream (flush vid slut) eller after non-stream return; vid fel logga `success=false` + `error_code`.
+- **Idempotens:** `idempotency_key` från anroparen (t.ex. org+agent+input_hash) för att undvika dubbelräkning vid retries.
+- **Dashboard:** enkel intern sida eller befintlig admin — filter agent, datum, org.
+- **Feedback:** POST `/v1/ai/feedback` med `run_id` + thumb; RBAC.
+- **Feature flags:** överväg `FEATURE_AI_ORG_NORM` etc. (agent 1) — alla läser `flags.ts`.
+
+BAKÅTKOMPATIBILITET
+
+- Wrapper optional via gradual adoption — börja med nya agenter + `ai-chat.ts` / sales-coach.
+- Befintlig logging kvar.
+
+DEPENDENCIES
+
+- Postgres migration `ai_agent_runs`.  
+- Prisma/Drizzle schema mirror.  
+- **Agent 7** för worker-run logging (system `user_id` null).
+
+TESTPLAN
+
+- Mock OpenAI med `usage` — korrekt insert.  
+- Stream utan usage — graceful nulls.  
+- RBAC på feedback + dashboard.
+
+RISKER
+
+- Kostnadsdrift om modellpris inte uppdateras.  
+- GDPR om någon loggar prompt by mistake — kodreview + max excerpt.
+
+UPPSKATTAD INSATS
+
+- Tabell + wrapper + hook i 2 endpoints: **2–3 dagar**.  
+- Dashboard + budget alerts: **+2–4 dagar**.
+
+--- SLUT ---

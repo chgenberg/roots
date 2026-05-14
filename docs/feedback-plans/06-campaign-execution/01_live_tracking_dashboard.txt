@@ -1,0 +1,53 @@
+==============================================
+1. Live tracking-dashboard (klubb / lag / individ)
+==============================================
+Källa: Säljprocess.pptx — slide 6 (Genomförande, energi & driv)
+
+NULÄGE
+
+- `customer_orders` + `customer_order_lines` (`packages/db/src/schema/customer-orders.ts`) ger underlag för sålda paket och intäkt per `campaignId`, `teamId`, `sellerId`, `orgId`. Statusflöde: `DRAFT` … `DELIVERED`/`REFUNDED`.
+- `apps/api/src/routes/portal.ts` exponerar bl.a. `GET /dashboard` (sälj-/admin-aggregat) — **ingen** dedikerad hierarkisk "live"-endpoint med klubb→lag→säljare i ett svep enligt snabb sökning.
+- `apps/web/src/app/(portal)/portal/page.tsx` — översikt för portal; skillen anger att befintlig CLUB_ADMIN-upplevelse ska **utökas**, inte ersättas.
+- `teams` är idag fritext-lag; **group_unit** (skill 03) planeras för riktig kohort — drill-down "per lag" bör så småningom mappa `teamId` → `group_unit_id` när migration klar.
+
+VAD FEEDBACKEN SÄGER
+
+- Tre nivåer: **Klubb** (förening) → **Lag** (group_unit/team) → **Individ** (seller).
+- Mätetal per nivå: sålda paket (sum `qty` på relevanta rader, policy för status: räkna `PAID+` vs endast `DELIVERERAD` — dokumentera), intäkt (`total_ore`), % till mål (`campaigns.goalType`/`goalValue`), antal sålda idag, trend senaste 7 dagar.
+- Realtid: **SSE** *eller* **30 s polling** — rekommendation: **börja med 30 s polling + stale-while-revalidate** i klient; SSE vid behov senare (färre moving parts, fungerar bakom proxies). För "live"-känsla: optimistic refresh efter checkout-webhook.
+- **Cache:** Redis TTL **30 s** per nyckel `campaign:live:{campaignId}:{granularity}` där granularity = club|team:{id}|seller:{id} — invalidering vid order-insert (best-effort `DEL` av club-nyckel).
+- **Drill-down:** klick klubb → lista lag → klick lag → lista säljare (filtrera `hideFromLeaderboard` endast på **publik** leaderboard — intern klubbvy kan visa alla enligt policy).
+- **Mobile-first** — kort-layout, horisontell scroll för mini-sparklines valfritt.
+
+GAP
+
+- Ingen samlad API + UI för hierarki; risk dubbel logik mot statistik-sidor med kända fält-mismatch (jfr. `docs/flow-audits/SALES_REP_2026-04-18_1252.txt` för portal statistik).
+
+IMPLEMENTATION
+
+- **API:** `GET /v1/portal/campaigns/:id/live-summary?level=club|team|seller&parentId=` — returnerar buckets + children ids + mål-progress.
+- **Agg SQL:** CTE per campaign — en query per request (undvik N+1); materialiserad vy vid skala.
+- **UI:** ny undersida `/portal/kampanj/live` eller flik på befintlig översikt när aktiv kampanj vald; återanvänd design tokens från portal.
+- **Utöka** `portal/page.tsx`: widget "Dagens försäljning" + länk till full drill-down.
+
+BAKÅTKOMPATIBILITET
+
+- Kampanjer utan ordrar: nollor + tomma listor. Befintliga dashboard-svar oförändrade tills klient byts.
+
+DEPENDENCIES
+
+- Skill 03 (group_unit för korrekt lag-etikett). Skill 05 (aktiverad kampanj med mål). Skill 07 (datakvalitet på mål vs faktisk räkning).
+
+TESTPLAN
+
+- Prestanda: 10k ordrar — query-plan + index på `(campaign_id, created_at)`. Cache hit-rate. Mobil viewport.
+
+RISKER
+
+- Dubbelräkning om både `DRAFT` och `PAID` räknas — strikt enum-filter i SQL.
+
+UPPSKATTAD INSATS
+
+- API + Redis + grund-UI: **5–8 dagar**. Polish + SSE: **+2–4 dagar**.
+
+--- SLUT ---

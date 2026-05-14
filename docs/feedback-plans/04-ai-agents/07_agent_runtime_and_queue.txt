@@ -1,0 +1,63 @@
+==============================================
+7. Agent-runtime & kö (pg-boss)
+==============================================
+
+NULÄGE
+
+- **`pg-boss`:** deklarerad i `apps/api/package.json` (^10.3.2) — **inga imports** av `pg-boss` / `PgBoss` under `apps/api/src` (grep tom på implementation).
+- **`WORKERS_ENABLED`:** `flags.workersEnabled()` i `flags.ts` (default **false**) — **inga anrop** i `apps/api/src`.
+- **Redis:** `apps/api/src/lib/redis.ts` — aktiv för session, rate-limit (`ai:*`), portal hälsa — **ingen** `agent:job:*`-kön dokumenterad.
+- **BullMQ:** ej i `apps/api/package.json`.
+- **Hair-analys:** `apps/api/src/routes/hair-analysis.ts` + `lib/hair-analysis/*` — synkron/openAI-flöde, **ej** pg-boss-driven enligt snabb granskning.
+- **Dokumentation:** `MASTER_PLAN_2026-04-18.md` nämner `boss.ts` — fil saknas / ej wired.
+
+VAD FEEDBACKEN SÄGER
+
+- **pg-boss** som primär kö för nattjobb: lead score refresh, duplicate sweep, member estimate refresh, bulk CSV group-parse, embeddings rebuild.
+- **Idempotens:** `jobId = hash(org_id + job_type + date)`; `ON CONFLICT DO NOTHING` på jobb-tabell eller boss inbyggd dedup.
+- **Concurrency:** per job-typ limits (t.ex. max 5 parallella OpenAI-anrop globalt).
+- **DLQ + retry:** exponentiell backoff, `dead_letter` efter N försök.
+- **Circuit breaker:** vid OpenAI 5xx — pausa nya jobs, behåll kö.
+- **Observability:** job duration, failures — kopplat till agent 8.
+
+GAP
+
+- Ingen boss-instans, ingen worker-process entrypoint, ingen job registry.
+- `WORKERS_ENABLED` används inte — risk att dev/prod aldrig startar workers.
+
+IMPLEMENTATION
+
+- **`apps/api/src/lib/jobs/boss.ts`:** skapa `PgBoss` med befintlig `DATABASE_URL` / pool; `await boss.start()` i server bootstrap **endast** när `flags.workersEnabled()`.
+- **Registrera workers:** `lead-score-refresh`, `duplicate-sweep`, `member-estimate-refresh`, `group-parse-bulk`, `playbook-embed-reindex` (namn enligt produkt).
+- **Concurrency:** boss `teamSize` / custom middleware som räknar aktiva OpenAI-anrop via Redis semaphore.
+- **Idempotens:** `boss.send(name, data, { singletonKey })` där singletonKey = hash ovan.
+- **Graceful shutdown:** `SIGTERM` → `boss.stop({ timeout })` i `index.ts` / server entry.
+- **Separation:** valfri separat process `node dist/worker.js` om API och worker ska skalas isär; annars samma process med flagga.
+
+BAKÅTKOMPATIBILITET
+
+- Default `WORKERS_ENABLED=false` — ingen beteendeförändring tills ops sätter true.
+- Jobs ska vara **side-effect safe** vid dubbel körning (idempotent writes).
+
+DEPENDENCIES
+
+- Postgres (boss skapar egna tabeller).  
+- **Agent 3–5** (innehåll i job handlers).  
+- **Agent 8** (metrics per job).
+
+TESTPLAN
+
+- Lokal: starta boss, skicka testjobb, verifiera singleton.  
+- Simulera OpenAI-fel → retry + DLQ.  
+- Load: begränsa parallella anrop — inga rate-limit storms.
+
+RISKER
+
+- Dubbel worker i flera instanser utan singleton — dokumentera exakt en worker-leader eller använd boss leader election.
+
+UPPSKATTAD INSATS
+
+- Grund boss + 1 jobb end-to-end: **2–3 dagar**.  
+- Full suite + DLQ + metrics: **+3–5 dagar**.
+
+--- SLUT ---

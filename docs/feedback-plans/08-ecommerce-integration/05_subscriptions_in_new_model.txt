@@ -1,0 +1,49 @@
+==============================================
+5. Subscriptions i nya modellen
+==============================================
+Källa: `packages/db/src/schema/subscriptions.ts`; skill 06/08 repeat loop
+
+NULÄGE
+
+- `subscriptions`: B2C-orienterad — `customerEmail`, `sellerId`, `teamId`, `campaignId`, `interval`, `nextDeliveryDate`, status ACTIVE|PAUSED|CANCELLED|EXPIRED.
+- **Ingen** `organization_id` direkt — org härleds via seller/team/campaign.
+
+VAD FEEDBACKEN SÄGER
+
+- **Personliga prenumerationer** (schampo var 3:e månad): **oförändrat** kärnflöde — befintliga rader och renewal fortsätter.
+- **Föreningsprenumeration** (kvartalskampanj): skill föreslår **campaign-side** — t.ex. `campaigns.recurrence_pattern` JSON eller enum `NONE|QUARTERLY_SEASON` + `next_suggested_start_date` istället för ny tabell i v1 (**ADR**); undvik duplicerad sanning mot `subscriptions` tills B2B-spår klart (jfr. skill 05/08).
+- **Attribution:** prenumeration kopplad till **sista kända säljaren** (`sellerId`) för provision; alternativt **org-nivå** om `sellerId` nullas — välj en policy och dokumentera i payout (kan skilja från engångsköp).
+- **Renewal:** background job (skill 07 agent 8) — `next_delivery_date` bump + order skapande eller payment charge — befintlig logik utökas, bryts inte.
+- **Återköp-promo** (skill 06/08): kupongkod eller `unit_price_ore` justering vid renewal — separat tabell `promotion_applications` (förslag) för spårbarhet.
+- **GDPR:** enkel avbeställning i e-post + reminder 7 dagar före renewal (content från playbook).
+
+GAP
+
+- Föreningsprenumeration vs `subscriptions` semantik — risk för felaktig Fortnox-faktura om org felaktigt behandlas som slutkund.
+
+IMPLEMENTATION
+
+- Lägg `org_id` FK på `subscriptions` **om** B2B behöver direkt länk (additiv); nullable; backfill via join.
+- Kampanj `recurrence_pattern` endast metadata tills charge-flöde byggs.
+
+BAKÅTKOMPATIBILITET
+
+- Alla befintliga subscriptions: `org_id` null tills backfill.
+
+DEPENDENCIES
+
+- Skill 08 repeat loop. Skill 07 workers.
+
+TESTPLAN
+
+- Tre renewal-cykler — inga duplicerade `customer_orders` om designen är "subscription skapar ny order" vs "ledger only".
+
+RISKER
+
+- Dubbeldebitering — idempotency keys på renewal (samma mönster som B2B orders).
+
+UPPSKATTAD INSATS
+
+- ADR + org_id + policy: **2–3 dagar**. Campaign recurrence metadata: **+2 dagar**. Full B2B charge: **separat epik**.
+
+--- SLUT ---

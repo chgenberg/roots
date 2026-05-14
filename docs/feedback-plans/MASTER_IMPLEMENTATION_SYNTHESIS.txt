@@ -1,0 +1,592 @@
+================================================================================
+ROOTS — MASTERPLAN: BEFINTLIGT LÄGE + FEEDBACK 01–08 + VÄG TILL KOMPLETT
+================================================================================
+Version: 2026-05-14 (rev 2026-05-14b — utökad byggstrategi §13–§17)
+Syfte: Sammanfoga ALL befintlig funktionalitet (kod + webb), alla 64 .txt-filer
+       under docs/feedback-plans/01–08/, samt MASTER_PLAN + flow-audits, till EN
+       prioriterad byggplan. Inget som redan fungerar ska förstöras. Inga dubbla
+       system för samma problem.
+Läsanvisning: §2 (nuvarande läge) → §5 (anti-dublett) → §6 (faser) → **§13–§17
+       (säker byggmodell, kontrakt, kopplingar, grindar, rollback)** → §7 (lås).
+       §18 = filindex. §19 = slutord.
+
+================================================================================
+§1 KÄLLOR SOM DENNA PLAN BYGGER PÅ
+================================================================================
+
+A) Feedback-planer (64 filer) — kataloger:
+   - 01-master-data/          (8 filer)  — Riksorg, segment, org 2.0, migration
+   - 02-crm-pipeline/         (8 filer)  — Lead→Customer, ASM, pipeline, quotes
+   - 03-hierarchy-groups/     (8 filer)  — group_unit, team-migration, UI
+   - 04-ai-agents/            (8 filer)  — Normalisering, scoring, kö, observability
+   - 05-sales-process/        (8 filer)  — Säljprocess PPT → portal-verktyg
+   - 06-campaign-execution/   (8 filer)  — Live tracking, gamification, logistics
+   - 07-data-quality-bi/      (8 filer)  — BI-kolumner, soft delete, warehouse
+   - 08-ecommerce-integration/(8 filer)  — Shop/kassa/settlement utan regression
+
+B) Redan existerande masterdokument (läs parallellt, undvik dubbelplanering):
+   - docs/flow-audits/MASTER_PLAN_2026-04-18.md
+     → Tema T1–T8, Fas 0–3+, "additivt först", API↔UI-kontrakt, AI public vs
+       session-route, pg-boss oanvänd, audit underutnyttjad, supporter-commerce.
+   - docs/flow-audits/*.txt  (571 findings totalt i auditsammanfattningen)
+
+C) Kodbas (sanning vid genomgång 2026-05-14):
+   - apps/web: (marketing), (shop), (portal), (sales), (club), (fundraising),
+     (auth), haranalys m.fl. — se §2.1
+   - apps/api/src/routes/: auth, shop, checkout, portal, settlement, sharing,
+     dashboard, ai-chat, public-chat, hair-analysis, fortnox-webhook, bankid,
+     contact (+ tRPC)
+   - packages/db/src/schema/: 17 tabellfiler (organizations, users, campaigns,
+     teams, sellers, customer_orders, orders, quotes, payouts, subscriptions,
+     products, …) — se §2.3
+
+================================================================================
+§2 SANNING OM VAD SOM FINNS (FÖR ATT INTE BYGGA DUBBELT)
+================================================================================
+
+§2.1 Webb — route groups och huvudintention (befintligt)
+--------------------------------------------------------
+(marketing)/     — startsida, produkter, om oss, kontakt, villkor, integritet,
+                    föreningsliv, haranalys (lead magnet).
+(shop)/           — /shop/[slug] personlig shop, kassa, bekräftelse, orderstatus.
+(portal)/         — INTERNAL_ADMIN, SALES_*, CLUB_* gemensam portal-shell:
+                    översikt, pipeline, klubbar, offerter, statistik, AI,
+                    beställningar, medlemmar, intäkter, produkter, säljare,
+                    system, installningar.
+(sales)/          — Separat sälj-shell (dashboard, offerter, kunder, ordrar …)
+                    — delvis överlappar portal; audits varnar för dubbel navigering.
+(club)/           — Klubb-shell (dashboard, beställ, konto, historik).
+(fundraising)/    — Förening/lag-ytor för kampanj (min-shop, mål, avräkning,
+                    säljare, beställningar).
+(auth)/           — login, registrera, säljregistrering via token.
+
+VIKTIGT: Många ytor finns som UI; delar är **stubbar** eller **kontraktsmissmatch**
+mot API (MASTER_PLAN T1, T8). Att "sidan finns" ≠ "affärslogik komplett".
+
+§2.2 API — vad som är riktigt kopplat (kort)
+--------------------------------------------
+• Shop + checkout + settlement + shop slug     — kärn-B2C commerce finns.
+• Portal (portal.ts)                           — dashboard, pipeline, quotes,
+  statistics, orders, system m.m. — men fältnamn/former måste stämmas (T1).
+• Auth + session                               — BankID-init, cookies.
+• AI: /v1/ai/chat + public-chat + hair-analysis — flera ytor; webben använder
+  ofta public path för inloggade (T3) — **redan dokumenterat, bygg inte ny AI-
+  gateway** förrän befintlig konsoliderats.
+• Fortnox webhook                              — integration path finns.
+• tRPC                                         — club/sales routers delvis **stub**
+  (MASTER T8) — **bygg inte parallell REST** för samma domän utan att ta bort
+  eller fylla tRPC först.
+
+§2.3 Databas — tabeller som redan bär affär (bygg ovanpå, duplicera inte)
+-------------------------------------------------------------------------
+• organizations     — nav; created/updated; verified; fortnox_customer_id;
+                      **saknar** riks/segment/CRM enligt 01–02-planer.
+• users             — roller, orgId, birthYear/guardian (sälj-minor); MFA-fält.
+• campaigns, teams, sellers, campaign_products — kampanjmotor + shop-slug.
+• customer_orders + lines                       — B2C-intäktsspår (supporter).
+• orders + order_lines                          — B2B klubbordrar (separat spår).
+• quotes                                          — offert (API/UI delvis trasig).
+• payouts                                         — per campaign+team idag.
+• subscriptions                                   — B2C prenumeration (kvartal etc.).
+• audit_logs + lib/audit.ts                     — **finns** men begränsad
+                      användning; utöka (07) istället för ny loggtabell.
+• milestones.ts (lib)                           — **statiska** milstolpar +
+                      getSellerGrade — utöka till DB (06) istället för ny
+                      parallell "achievements engine" utan migration path.
+
+§2.4 Vad som uttryckligen INTE ska dupliceras
+---------------------------------------------
+1. **Orderflöden:** customer_orders (B2C) och orders (B2B) — behåll separation
+   (08). Bygg inte tredje "unified_orders" utan ADR.
+2. **Milstolpar:** milestones.ts — bygg DB-lager (06/07) som **läser** eller
+   migrerar från befintlig lista, skapa inte ny hårdkodad lista på annat ställe.
+3. **Kömotor:** pg-boss finns i package.json — **wire** den (04/07/08), inför
+   inte BullMQ/Inngest parallellt utan beslut.
+4. **AI-anrop:** openclaw-client / befintliga routes — nya agenter som **klienter**
+   till samma lager (04).
+5. **Portal vs sales:** Konsolidera nav/shell (MASTER T2) — bygg inte tredje
+   "ASM workspace" utan beslut om kanonisk yta.
+6. **Prenumerationer:** subscriptions.ts — utöka (05/08) istället för parallell
+   tabell om inte ADR säger annat.
+7. **Statistik:** portal/statistik — **fixa kontrakt** (MASTER Fas 1 + 07/06)
+   innan ni bygger ny /insights med samma KPI:er utan delade komponenter.
+
+================================================================================
+§3 VAD FEEDBACK 01–08 LÄGGER TILL (ÖVERGRIPANDE KAPABILITETER)
+================================================================================
+
+01 Masterdata        Hierarki riks→segment→org, normalisering, admin UI, import.
+02 CRM               Lead-status, ASM, pipeline sanning, aktiviteter, quotes→kund.
+03 Groups            group_unit, kön/år, team→group migration, seller-koppling.
+04 AI                Org/group normalizer, lead score, dupes, estimat, coach,
+                     pg-boss runtime, ai_agent_runs.
+05 Sales process     Lead-prio, Motor + contacts, räknesnurra, marketing tiers,
+                     setup-wizard, playbook, invändningar, pilot.
+06 Campaign exec     Live dashboard, gamification DB, push, leaderboards,
+                     celebration, share-kit, logistics export, repeat loop.
+07 Data/BI          BI-kolumner, soft delete, data_quality, audit utökning,
+                     metrics catalog, insights, warehouse, workers.
+08 eCommerce        group_unit i shop/orders, settlement/payout per group_unit,
+                     Fortnox allowlist, subscriptions policy, GDPR kund,
+                     regressionmatris.
+
+Korsberoenden (förenklad DAG — inte alla pilar):
+  01 ─┬─► 02 (segment, org status)
+      ├─► 03 (org context)
+      ├─► 04 (källor för AI)
+      └─► 07 (owner, source, quality)
+  03 ───► 04 (group parser), 06 (lag leaderboard), 08 (shop/attribution)
+  02 ───► 04 (scoring), 05 (ASM, pipeline), 06 (push till rätt roll)
+  07 ───► 04 (workers), 06 (MV refresh), 08 (audit, PII export)
+  05 ───► 06 (marketing tiers, setup), 08 (payout bonus)
+
+================================================================================
+§4 GAP-MATRIX: "KOMPLETT" ENLIGT MODELL_REGISTER + BEFINTLIG ROOTS
+================================================================================
+
+Kolumn: BEFINTLIGT | SAKNAS / DELVIS | VAR PLANERAS | RISK OM IGNORERAS
+------------------------------------------------------------------------
+
+A) Masterdata & hierarki
+   Delvis org-nav    Full riks/segment + normalized_name   01, del 07
+   teams som fritext group_unit + analysdimensioner       03, 08
+                     Dubbel org i produktion               04 + 02
+
+B) CRM & sälj
+   Portal pipeline   Verkliga deals + drag-status          02, MASTER T1
+   Quotes DB         Offert persistens + produktrader      02, MASTER T8
+   Kunder lista      Konto-detalj / 360                    02, SALES audit
+
+C) AI
+   Public chat       Session-baserad rollprompt + tools    04, MASTER T3
+                     pg-boss för batch AI                  04, 07
+                     Kostnad/telemetry per körning         04, 07
+
+D) Säljprocess (ASM)
+   (saknas som helhet) Lead-prio, Motor, räknesnurra, wizard 05
+                     Playbook MDX + invändningar           05
+
+E) Kampanjdrift
+   Portal översikt   Live klubb→lag→säljare + cache       06, 01/03
+   milestones.ts     DB-milestones + tiers                 06, 02
+   (mail delvis)     Triggerpush 50/75/90 %                06, 07 workers
+
+F) Data & BI
+   created/updated   deleted_at, status, owner, source     07, 01/02
+   audit minimal     Index, archive, admin sök             07, MASTER T6
+                     Metrics MV + insights               07, 06
+
+G) Commerce
+   Shop/checkout     group_unit i UX + orders              08, 03
+   Settlement        group_unit payout + tier bonus       08, 05, 03
+                     Status ENDED vs SETTLED audit fix     08 (P0)
+
+H) Trust & minors
+   Schema-fält       Full gate + copy                      MASTER T5,
+                     hideFromLeaderboard (finns) utnyttjas 03, 06, audits
+
+================================================================================
+§5 ANTI-DUBLETT — KONKRETA BESLUT INNAN NI KODAR
+================================================================================
+
+1. **En kanonisk "deal"-sanning:** Antingen utöka `GET /portal/pipeline` med
+   deals[] (MASTER) ELLER inför ny tabell `crm_deals` (02) — men UI får inte
+   läsa båda utan migrationsplan. Rek: 02:s modell som sanningskälla + pipeline
+   API som tunn läsare.
+2. **En kö:** pg-boss endast tills annat beslutats — alla nya batchar (AI,
+   notiser, MV, settlement-påminnelser) som jobb-typer där.
+3. **En AI HTTP-ingång per kontext:** Konsolidera public vs session (MASTER T3)
+   innan ni lägger sales-coach tools — annars dupliceras prompt/säkerhet.
+4. **Statistik / insights:** Delade Zod-typer + `KpiCard` — bygg insights som
+   komposition av samma datakällor som statistik (07/06).
+5. **Leaderboard:** En motor — filtrera med hideFromLeaderboard + pilot (06 +
+   05/08). Ingen separat "ranking API" per yta.
+6. **Kund-PII:** Antingen fingerprint på order (08) ELLER customers-tabell —
+   inte båda samtidigt utan migrationsfas.
+
+================================================================================
+§6 REKOMMENDERAD BYGGORDNING (FASER) — REGRESSIONSSÄKER
+================================================================================
+Princip: Varje fas har "frys"-punkter: snapshot/E2E enligt MASTER Fas 0 + rad 08
+E1–E3 minimum. Feature-flagga (`flags.ts` / FEATURE_* env) allt större UX.
+
+--------------------------------------------------------------------------------
+FAS 0 — Skyddsnät (3–7 dagar)     [MASTER Fas 0 + 08 regression P0]
+--------------------------------------------------------------------------------
+• API snapshot tests: portal/dashboard, statistics, pipeline, quotes, shop.
+• E2E-rök: registrera, login per roll, shop→kassa stub, portal load.
+• Dokumentera settlement: ENDED vs audit "ACTIVE→SETTLED" — **bugfix eller meta-
+  korrigering** innan group_unit-rörelse (08/03).
+Leverans: grönt CI-skydd. Ingen produktlogik ändrad utom renodlad bugfix.
+
+--------------------------------------------------------------------------------
+FAS 1 — Kontraktsreparation UI↔API (1–2 veckor)   [MASTER Fas 1 + 07/06 del]
+--------------------------------------------------------------------------------
+• Alias-fält / isDemo / bort med hårdkodade demo-siffror (T1).
+• Statistik-sida: fältmapping (SALES audit).
+• **Rör inte:** checkout, Klarna webhook, seller slug resolution.
+
+--------------------------------------------------------------------------------
+FAS 2 — Dataplattformens fundament (2–4 veckor)   [01 + 07 del A–D]
+--------------------------------------------------------------------------------
+• organizations: riksorganisation_id, segment_id, CRM-fält (nullable → backfill).
+• BI-bas: deleted_at strategi först på LÄSTA tunga listor (07/02) — inte allt på
+  dag ett.
+• audit: index + action-konvention + börja skriva fler händelser (07/04).
+• data_source / data_quality / last_verified_at på org (07/03 + 01).
+Ingen förändring av customer_orders PRIMARY flow utom **additiva** kolumner
+förberedda i 08 (group_unit_id) bakom flagga.
+
+--------------------------------------------------------------------------------
+FAS 3 — CRM-kärna (3–5 veckor)     [02]
+--------------------------------------------------------------------------------
+• lead_status, assigned_asm, aktiviteter, pipeline deals eller synonym.
+• Quotes: riktig persistens — **ersätt** tRPC stub gradvis (MASTER T8).
+• Kundkort / org 360 minimum.
+Integration: befintlig portal/pipeline UI — **återanvänd**, flytta inte till /sales
+  utan nav-beslut (T2).
+
+--------------------------------------------------------------------------------
+FAS 4 — group_unit & migration (3–6 veckor)   [03]
+--------------------------------------------------------------------------------
+• Ny tabell + sellers.group_unit_id + team mapping UI.
+• Backfill + validering mot commerce inserts (08 förberedd).
+• Analytics dimensioner (03/08).
+
+--------------------------------------------------------------------------------
+FAS 5 — AI-agenter v1 (parallellt 2–4 veckor EFTER Fas 2 data)   [04]
+--------------------------------------------------------------------------------
+• org-normalizer + group-parser bakom FEATURE_* + Redis cache (plan 04).
+• lead_scoring när CRM-fält finns.
+• duplicate_candidates när pg_trgm migration klar.
+• ai_agent_runs + instrumenterad chatCompletion.
+**Inte:** ny LLM-leverantör; befintlig openai-path.
+
+--------------------------------------------------------------------------------
+FAS 6 — Säljverktygslåda (4–8 veckor)   [05]
+--------------------------------------------------------------------------------
+• organization_contacts + Motor.
+• RevenueCalculator + meeting_calculations.
+• marketing_support_tiers + admin UI.
+• /portal/setup-campaign wizard (koppling 03).
+• playbook MDX + objections DB.
+• pilot-flagga campaign (05/06/08 samordning).
+
+--------------------------------------------------------------------------------
+FAS 7 — Kampanjexecution (4–8 veckor)   [06]
+--------------------------------------------------------------------------------
+• live-summary API + portal widgets.
+• milestone_definitions DB + befintlig milestones.ts som fallback.
+• notification templates + rate cap.
+• leaderboards med opt-in regional.
+• celebration + share-kit (Remotion apps/videos återanvänd).
+• packing PDF + status ADR (PACKED vs SHIPPED).
+
+--------------------------------------------------------------------------------
+FAS 8 — Commerce hardening (2–5 veckor, löpande från Fas 4)   [08]
+--------------------------------------------------------------------------------
+• customer_orders.group_unit_id + checkout + indexes.
+• Payouts: group_unit nyckel + unik constraint policy — parallell med team
+  tills legacy kampanjer migrerade.
+• Fortnox DTO allowlist.
+• GDPR: consent + anonymize path (08/06).
+• Kör regressionmatris 08 efter varje delrelease.
+
+--------------------------------------------------------------------------------
+FAS 9 — BI enterprise (pågående)   [07 E–H + 05 metrics]
+--------------------------------------------------------------------------------
+• metrics catalog + materialiserade vyer.
+• /portal/insights INTERNAL_ADMIN + ASM begränsat.
+• warehouse v1 CSV → v2 replica (ADR).
+• Workers: MV refresh, audit archive, ASM digest (07/08).
+
+================================================================================
+§7 "RÖR INTE" — ABSOLUT LÅS UNDER HIERARKI- OCH CRM-PROJEKTET
+================================================================================
+• checkout.ts + Klarna statusövergångar — ändra endast med backward-compat och
+  feature flagg om experiment.
+• sellers.shop_slug unikhet + shop GET /by-slug — måste returnera 200 för alla
+  befintliga slug:ar under migration.
+• customer_orders.status enum-ordning — nya värden additivt; PACKED ADR innan
+  produktion.
+• Auth cookies / session format.
+• Primärnyckel organizations.id — behåll (01/08).
+
+================================================================================
+§8 DEFINITION AV "KOMPLETT" (ACCEPTANSKRITERIER)
+================================================================================
+Organisation:
+  [ ] Riks + segment + normalized_name + CRM-status + ASM + källa/kvalitet
+  [ ] Org merge/dedup process (04+02) utan brutna FK
+
+Sälj:
+  [ ] Lead-prio vy + pipeline med riktiga deals + offert till kund spårbar
+  [ ] ASM-uppgifter + aktivitetslogg
+
+Grupp:
+  [ ] group_unit för alla aktiva lag; shop visar grupp+org; orders attribuerade
+
+AI:
+  [ ] Konfigurerbar; mätbar; ingen PII-läcka i loggar; batch under kontroll
+
+Kampanj:
+  [ ] Live läge + milstolpar + kontrollerade utskick + avslut firande + logistik
+
+Data:
+  [ ] Soft delete policy + audit sökbar + KPI-set per roll + export
+
+Commerce:
+  [ ] Settlement stämmer per utfall + Fortnox + regression E2E grön
+
+Trust:
+  [ ] Minors + leaderboards + copy — i linje med audits T5
+
+================================================================================
+§9 ROLLUP AV UPpskattad INSATS (grovt, överlappande team)
+================================================================================
+Fas 0–1:     ~2–3 veckor
+Fas 2–4:     ~8–14 veckor (kritiskt spår)
+Fas 5–6:     ~6–12 veckor (delvis parallellt efter Fas 2)
+Fas 7–9:     ~10–18 veckor (pågående / iterativt)
+
+Total kalender för "komplett" enligt ovan: **~6–12 månader** beroende på
+teamstorlek och hur mycket av MASTER_PLAN P1 som redan stängts innan detta spår.
+
+================================================================================
+§10 NÄSTA KONKRETA STEG (TOPP 10)
+================================================================================
+1. Inför API snapshot + minimal Playwright (Fas 0).
+2. Fixa settlement audit/kampanjstatus inkonsistens (08 P0).
+3. Stäm pipeline + statistics kontrakt (MASTER Fas 1).
+4. Lägg FEATURE_NEW_ORG_HIERARCHY + nullable masterdata-fält (01).
+5. Beslut: kanonisk yta för sälj — portal vs sales — dokumentera (T2).
+6. pg-boss bootstrap i separat process + 1 idempotent jobb (07/04).
+7. CRM deals/offert datamodell spike (02) — en ER-diagram i ticket.
+8. group_unit ER + seller FK plan (03) — utan UI första veckan.
+9. Fortnox allowlist-funktion stub + test (08/04).
+10. Sammanställ **en** KPI-lista P0–P3 från 05_metrics_catalog + MASTER T1.
+
+================================================================================
+§13 SÄKER BYGGMODELL — "FÖRBÄTTRA ELLER LÅT VARA", ALDRIG TVINGA OM
+================================================================================
+Målet är att varje release antingen (a) **lämnar beteende identiskt** när flagga
+av, eller (b) **förbättrar** mätbart (korrekta siffror, färre 500, tydligare UX)
+utan att ta bort en fungerande väg.
+
+§13.1 Strangler Fig / expand–contract (standard för all större förändring)
+-------------------------------------------------------------------------
+1. **Expand:** Lägg till nytt vid sidan av (nya kolumner, nya API-fält, ny route
+   `/portal/insights` medan `/portal/statistik` lever kvar).
+2. **Migrate:** Fyll data bakifrån (backfill-jobb, dubbel-skrivning kort period
+   om nödvändigt — se §14.3).
+3. **Contract:** När alla konsumenter läst nya fält/rutter, **deprecera** gamla
+   fält i API (svara med båda en release), sedan ta bort i kod + UI sista steg.
+4. **Never:** Bryt JSON-nycklar eller query-parametrar i samma PR som logikbyte
+   utan mellanliggande "alias-release".
+
+§13.2 Förbättring utan regression — accepterade förändringstyper
+---------------------------------------------------------------
+• **Bugfix** som gör att UI visar samma data API redan skickade = OK utan flagga.
+• **Prestanda** (index, mindre JOIN) som inte ändrar svar = OK med benchmark i PR.
+• **Säkerhet** (striktare validering, CSRF) som stoppar tidigare felaktiga requests
+  = OK med tydlig release note; övervaka 4xx-spik.
+• **Copy/tilgänglighet** som inte ändrar affärslogik = OK.
+
+§13.3 När feature-flagga ALLTID krävs
+--------------------------------------
+• Ny navigation som flyttar användare mellan `/sales` och `/portal`.
+• Ny obligatorisk validering på org (t.ex. segment NOT NULL) innan backfill klar.
+• AI som ändrar persistens (auto-normalisera orgnamn vid save).
+• Soft delete som döljer rader i listor.
+• Settlement/payout-nyckelbyte (team → group_unit).
+
+================================================================================
+§14 KONTRAKTS- OCH SCHEMAREGLER (OPERATIONELLA)
+================================================================================
+
+§14.1 API: additivitet
+----------------------
+• **GET-respons:** nya fält ska vara **optional** i klienttyper; server ska alltid
+  acceptera att gamla klienter ignorerar nycklar.
+• **Breaking rename:** förbjud utan version `/v2/` eller parallell nyckel + en
+  release med båda.
+• **Portal-endpoints:** dela Zod-schema i `packages/` (eller motsvarande) så
+  statistik, dashboard och framtida insights **importerar samma definition** —
+  eliminerar T1 permanent.
+
+§14.2 Databas: migrationsdisciplin
+----------------------------------
+• Endast **ADD COLUMN** / **CREATE INDEX CONCURRENTLY** / nya tabeller i samma
+  release som kod som **inte kräver** kolumnen (nullable).
+• **NOT NULL** + **SET NOT NULL** först när backfill = 100 % och verifierings-SQL
+  grön i staging ≥ 48h.
+• **ENUM-värden:** lägg alltid nytt värde sist; undvik att ändra betydelse av
+  befintligt värde. Ny livscykel (t.ex. PACKED) = ADR + deploy-ordning: kod som
+  förstår nya värdet **före** default som sätter det.
+• **Triggers** (updated_at): introducera app-wide i små steg; verifiera att
+  Drizzle `onUpdateNow()` inte dubblerar med DB-trigger.
+
+§14.3 Denormaliserad data (org_id på customer_orders m.m.)
+---------------------------------------------------------
+Regel: **Skriv alltid org_id/group_unit_id från kanonisk källa vid transaktion**
+(seller → team → org som idag). När nya FK tillkommer:
+• I samma `INSERT`-transaktion: hämta seller + team + campaign och sätt alla
+  konsistensfält; **DB CHECK** (valfritt) för `org_id = campaigns.org_id`.
+• Backfill-jobb: idempotent `UPDATE … FROM` med LIMIT-batches; logga antal rader
+  per körning; stoppa om avvikelse > 0.
+
+§14.4 Läsning vs skrivning vid soft delete (07 + 02)
+----------------------------------------------------
+• **Fas A:** Lägg `deleted_at`, men **inga** default-filter i befintliga queries
+  första release (ingen beteendeförändring).
+• **Fas B:** Inför `withActive()` helper och använd i **nya** endpoints först.
+• **Fas C:** Flytta befintliga list-endpoints en i taget med flagga per endpoint.
+• **Fas D:** INTERNAL_ADMIN "papperskorg"-vy; först därefter global default-filter.
+
+================================================================================
+§15 KOPPLINGAR PER DOMÄN — BEFINTLIG KOD → NYTT (INGA LÖSA ÄNDAR)
+================================================================================
+Detta avsnitt binder Modell_register-arbetet till **konkreta befintliga ingångar**
+så team inte skapar parallella moduler.
+
+§15.1 Shop & checkout (MÅSTE fortsätta fungera)
+-----------------------------------------------
+• **Ingång:** `apps/api/src/routes/shop.ts`, `checkout.ts`, web `(shop)/`.
+• **Förändring:** `sellers.group_unit_id` + JOIN `group_units` **LEFT**; kassa
+  sätter `customer_orders.group_unit_id` från seller vid INSERT (08).
+• **Verifiering:** samma `shopSlug` resolver; samma pris/aggr för "sold"; E2E
+  checkout före/efter diff på orderpayload (08 matris E1, E9).
+
+§15.2 Settlement & payouts
+----------------------------
+• **Ingång:** `apps/api/src/routes/settlement.ts`, `payouts`-schema.
+• **Förändring:** Behåll `teamId`-payout tills group_unit-backfill klar; lägg
+  parallell beräkning bakom `FEATURE_PAYOUT_BY_GROUP_UNIT`; jämför **diff-report**
+  mot team-summa innan switch (inga utbetalningar ändras utan manuell sign-off).
+• **Förbättring:** Rätta audit/meta vs faktisk kampanjstatus (ENDED vs SETTLED)
+  utan att ändra affärsresultat — renodling först (08 P0).
+
+§15.3 Portal / pipeline / statistik / offerter
+-----------------------------------------------
+• **Ingång:** `apps/api/src/routes/portal.ts`, `(portal)/portal/*`.
+• **Förändring:** MASTER Fas 1 alias + Zod-delning; CRM deals (02) matas in i
+  **samma** pipeline-komponent när data finns — tom lista ska betyda "noll deals",
+  inte demo (T1).
+• **Förbättring:** Ta bort hårdkodade belopp när API levererar värde; annars
+  **dölj** widget (bättre än fel siffra).
+
+§15.4 AI (chat, coach, agenter)
+-------------------------------
+• **Ingång:** `ai-chat.ts`, `public-chat.ts`, `openclaw-client`, portal/sales AI
+  som POST:ar public (T3).
+• **Förändring:** **Steg 1** — en gemensam `buildChatContext({ role, route })`
+  som väljer system prompt + rate limit; **steg 2** — flytta portal/sälj till
+  session-route; **steg 3** — lägg tools (04). Ingen ny LLM-proxy.
+• **Förbättring:** Strippa `history` roller injection (säkerhet) samtidigt som
+  samma ändring gäller public om delad parser.
+
+§15.5 tRPC club / sales
+-----------------------
+• **Ingång:** `apps/api/src/trpc/routers/club.ts`, `sales.ts`.
+• **Regel:** Antingen **implementera** mutationerna mot samma tabeller som REST
+  ELLER **ta bort** UI som låtsas anropa dem — "stub + aktiv UI" är förbjudet
+  tillstånd efter Fas 1 (MASTER T8).
+
+§15.6 Mail / notiser / cron
+---------------------------
+• **Ingång:** `lib/email/*`, ev. framtida pg-boss `workers/` (07/08).
+• **Regel:** Mallar centraliseras (`notification_templates` i 06); befintliga
+  direktsträngar migreras **per mall** utan att ändra mottagarlogik samma release.
+
+================================================================================
+§16 VERIFIERINGSGRIND — MÅSTE GRÖN INNAN MERGE TILL MAIN
+================================================================================
+Minimikrav per PR-typ (utöver unit tests):
+
+**Typ A — Endast schema (nullable kolumner)**
+  [ ] Migration up + down testad i CI
+  [ ] Ingen ny obligatorisk validering i app utan flagga
+
+**Typ B — API-responsändring**
+  [ ] Snapshot uppdaterad medvetet + frontend i samma PR ELLER nyckel bakom flagga
+  [ ] Gamla fält kvar en release om rename
+
+**Typ C — Commerce (shop, checkout, settlement, webhook)**
+  [ ] Minst en integration: order create + status transition
+  [ ] Manuell checklist rad 08 E1–E3 relevant subset
+
+**Typ D — AI / PII**
+  [ ] Ingen ny logg av rå prompt i DB
+  [ ] auditLog meta size limit respekterad
+
+**Typ E — Soft delete / filter**
+  [ ] Räkna rader före/efter på staging mot känt seed — ingen oväntad minskning
+      i listor där flagga är av
+
+Release train: **kanarie** (1 org / intern only) → **10 % org** (feature lista)
+→ **100 %** med rollback-plan (flagga av).
+
+================================================================================
+§17 ROLLBACK, OBSERVABILITY, ÄGARSKAP
+================================================================================
+• **Rollback:** feature flagga av; DB-migrationer som bara ADD är triviala;
+  NOT NULL-backout kräver ny migration — därför sen NOT NULL.
+• **Observability:** strukturerad log på settlement, checkout, webhooks; metric
+  för 4xx/5xx per route efter portal-ändringar.
+• **Ägarskap:** en "API-kontraktsägare" + en "dataägare" som godkänner NOT NULL och
+  ENUM; PR-template checkbox som länkar till §14–§16.
+
+================================================================================
+§18 BILAGA — INDEX ÖVER ALLA 64 FEEDBACK-.TXT (SPÅRBARHET)
+================================================================================
+01-master-data/
+  01_riksorganisation_table.txt  02_segment_table.txt  03_organization_upgrade.txt
+  04_seed_import.txt  05_normalization_rules.txt  06_search_autocomplete.txt
+  07_admin_ui.txt  08_migration_strategy.txt
+02-crm-pipeline/
+  01_lead_status_model.txt  02_asm_role.txt  03_lead_source_potential.txt
+  04_activity_log.txt  05_pipeline_view.txt  06_quote_to_customer_journey.txt
+  07_assignment_routing.txt  08_existing_quote_migration.txt
+03-hierarchy-groups/
+  01_group_unit_schema.txt  02_birth_year_age_band_principle.txt
+  03_team_to_group_migration.txt  04_create_group_ui.txt
+  05_seller_group_relationship.txt  06_school_class_variant.txt
+  07_scout_association_variant.txt  08_analytics_dimensions.txt
+04-ai-agents/
+  01_organization_normalizer.txt  02_group_normalizer.txt  03_lead_scoring.txt
+  04_duplicate_detector.txt  05_member_estimator.txt  06_sales_coach.txt
+  07_agent_runtime_and_queue.txt  08_observability_and_cost.txt
+05-sales-process/
+  01_lead_prioritization.txt  02_motor_identification.txt
+  03_revenue_calculator.txt  04_marketing_support_trigger.txt
+  05_close_and_setup_wizard.txt  06_seller_playbook.txt
+  07_objection_library.txt  08_pilot_mode_and_subscription.txt
+06-campaign-execution/
+  01_live_tracking_dashboard.txt  02_gamification_levels.txt
+  03_push_notifications.txt  04_leaderboards_and_pride.txt
+  05_closing_celebration.txt  06_share_content_generator.txt
+  07_logistics_packing.txt  08_repeat_business_loop.txt
+07-data-quality-bi/
+  01_bi_columns_audit.txt  02_soft_delete_strategy.txt  03_data_source_quality.txt
+  04_audit_log_extension.txt  05_metrics_catalog.txt  06_dashboard_redesign.txt
+  07_data_warehouse_export.txt  08_background_workers.txt
+08-ecommerce-integration/
+  01_shop_links_to_group_unit.txt  02_order_attribution.txt
+  03_settlement_and_payouts.txt  04_fortnox_klarna_compatibility.txt
+  05_subscriptions_in_new_model.txt  06_customer_records_and_gdpr.txt
+  07_b2b_club_orders.txt  08_regression_test_matrix.txt
+
+================================================================================
+§19 SLUTORD
+================================================================================
+Denna synthesis **ersätter inte** de 64 detaljplanerna — den **prioriterar** och
+**koordinerar** dem mot befintlig kod och MASTER_PLAN. Varje implementation ska
+lämna spår tillbaka: vilken .txt-fil uppdateras när beslut ändras?
+
+**Med §13–§17** ska varje team kunna svara på: (1) vilken expand–contract-fas är
+vi i?, (2) vilken flagga skyddar produktion?, (3) vilken grind är grön?
+
+Vid avvikelse: **kod och MASTER_PLAN går före** denna fil om de divergerar —
+uppdatera då denna synthesis.
+
+--- SLUT MASTER_IMPLEMENTATION_SYNTHESIS ---

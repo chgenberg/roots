@@ -1,0 +1,53 @@
+==============================================
+3. Räknesnurran (Revenue Calculator)
+==============================================
+Källa: Säljprocess.pptx — slide 4 ("vår killer 🔥")
+
+NULÄGE
+
+- Ingen `<RevenueCalculator />`-komponent i repo (grep förväntat negativt).
+- `packages/db/src/schema/campaigns.ts` — `goalType` (AMOUNT | PACKAGES), `goalValue`, `marginPercent`, datum, `deliveryType`; ingen tabell för mötes-snapshot av beräkningar.
+- Sälj-dashboard / portal AI använder `public/chat` enligt tidigare audit — räknesnurran ska **INTE** bero på opålitlig LLM-matte; endast deterministisk JS + ev. AI som **formulerar** förklaring (skill 04).
+- `apps/web/src/app/(portal)/portal/saljare/page.tsx` — admin-lista över säljare (`INTERNAL_ADMIN`); inte samma som ASM-fältarbete; calculator kan bo på `/portal/saljare` underordnat org eller på org-detalj — skill specificerar `/portal/saljare/<id>` **ELLER** inbäddad i möte-formulär.
+
+VAD FEEDBACKEN SÄGER
+
+- Live-komponent: två lägen — **per medlem** (paket × medlemmar) och **per lag** (paket × antal lag); säljaren matar "vad tror du är rimligt per spelare?" (DEM:s siffra).
+- Visualisering: stapeldiagram, nettotal, föreningens andel, säljarens/Roots andel enligt `marginPercent` / affärsregler (dokumentera vs `campaigns.margin_percent`).
+- Spara **snapshot per möte:** tabell `meeting_calculations` — `id`, `organization_id`, `campaign_id` nullable, `sales_rep_id`, `input_json` (rå inputs), `result_json` (beräknade fält), `created_at`, ev. `meeting_id` framtida.
+- Mobile-first — möte på telefon.
+- **Aldrig garantera utfall** — samma princip som i AI-guardrails; fast copy i footer.
+
+GAP
+
+- Ingen komponent, ingen API-persistens, ingen graf-bibliotekspolicy (Recharts m.fl. — följ befintlig stack i `apps/web`).
+
+IMPLEMENTATION
+
+- **Paket:** `apps/web/src/components/sales/RevenueCalculator.tsx` — props: `defaultMembers`, `defaultTeams`, `marginPercent`, `onSaveSnapshot`.
+- **Formler:** ren TypeScript; enhet öre/kr konsekvent med resten av shoppen (`Ore`-suffix i schema).
+- **API:** `POST /v1/portal/meeting-calculations` — validera med Zod; returnerar sparad rad.
+- **Inbäddning:** flik på framtida org-mötesvy + länk från setup-wizard (agent 5).
+- **AI-tool (skill 04 agent 6):** valfritt verktyg `get_last_meeting_calculation(orgId)` för coach — läs endast snapshot, räkna inte om i LLM.
+
+BAKÅTKOMPATIBILITET
+
+- Kampanj utan snapshot fungerar som idag; calculator är additiv.
+
+DEPENDENCIES
+
+- Skill 02 (org, kampanj kopplad till deal). Skill 04 (sales coach tools). Eventuellt `products` för paketpris om inte manuellt belopp.
+
+TESTPLAN
+
+- Snapshots med extrema värden (0 medlemmar). Marginal 0/100 edge. Mobil viewport.
+
+RISKER
+
+- Missmatch mot faktisk provision — tydlig källa "preliminär kalkyl".
+
+UPPSKATTAD INSATS
+
+- MVP UI + save API: **4–6 dagar**. Diagram + polish: **+2–3 dagar**.
+
+--- SLUT ---
