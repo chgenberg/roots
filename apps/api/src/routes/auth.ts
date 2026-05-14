@@ -23,6 +23,7 @@ import { welcomeEmail } from "../lib/email/templates";
 import { loginRateLimit } from "../lib/rate-limit";
 import { childLogger } from "../lib/logger";
 import { auditLog, requestContext } from "../lib/audit";
+import { scheduleOrgNormalize } from "../lib/jobs/schedule-org-normalize";
 
 const log = childLogger("auth");
 
@@ -338,6 +339,11 @@ auth.post("/register/association", async (c) => {
       return { org, user };
     });
 
+    // Enqueue AFTER tx commits — pg-boss runs on a separate connection and
+    // cannot participate in the Drizzle transaction. If we enqueued inside
+    // the tx and it rolled back, we'd schedule work for a non-existent org.
+    scheduleOrgNormalize(org.id);
+
     const sessionData: SessionData = {
       userId: user.id,
       role: "ASSOCIATION_ADMIN",
@@ -440,6 +446,11 @@ auth.post("/register/team-leader", async (c) => {
       resolvedOrgName = org.name;
     }
 
+    // Captured inside the tx and consumed AFTER commit. Must be `let` (and
+    // declared outside the closure) so the enqueue call below the tx can see
+    // whether a new org was actually created.
+    let newlyCreatedOrgId: string | null = null;
+
     const txResult = await db.transaction(async (tx) => {
       let orgId = validatedOrgId;
 
@@ -450,6 +461,7 @@ auth.post("/register/team-leader", async (c) => {
           .returning();
         orgId = org.id;
         resolvedOrgName = org.name;
+        newlyCreatedOrgId = org.id;
       } else if (!orgId) {
         const [org] = await tx
           .insert(organizations)
@@ -457,6 +469,7 @@ auth.post("/register/team-leader", async (c) => {
           .returning();
         orgId = org.id;
         resolvedOrgName = org.name;
+        newlyCreatedOrgId = org.id;
       }
 
       const [user] = await tx
@@ -501,6 +514,11 @@ auth.post("/register/team-leader", async (c) => {
 
       return { orgId: orgId!, user, createdTeamId };
     });
+
+    // Enqueue AFTER tx commits — see note in /register/association above.
+    if (newlyCreatedOrgId) {
+      scheduleOrgNormalize(newlyCreatedOrgId);
+    }
 
     const sessionData: SessionData = {
       userId: txResult.user.id,
