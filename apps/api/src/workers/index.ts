@@ -1,5 +1,6 @@
 import { flags } from "../lib/flags";
 import { childLogger } from "../lib/logger";
+import { runBootMigrations } from "../lib/migrate-on-boot";
 import {
   registerJobHandler,
   startWorkers,
@@ -33,6 +34,11 @@ async function main(): Promise<void> {
     log.warn("WORKERS_ENABLED is not truthy — exiting");
     process.exit(0);
   }
+
+  // Recommended: let the API container own migrations and set this off in
+  // worker env. Honouring the flag here means a worker-only deploy still
+  // works (and the advisory lock prevents races with the API).
+  await runBootMigrations();
 
   // Real handler.
   registerJobHandler("agent.organization-normalize", async ({ payload }) => {

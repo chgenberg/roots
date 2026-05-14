@@ -38,11 +38,37 @@ services:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/roots
       REDIS_URL: redis://redis:6379
       PORT: "4000"
+      # API container owns the migration runner. Workers wait on the
+      # advisory lock so this is safe regardless of which one starts first.
+      RUN_MIGRATIONS_ON_BOOT: "true"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+
+  workers:
+    # Same image as `api` — we just override the command. Saves a second
+    # build pipeline and guarantees the API and workers ship together.
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/roots
+      REDIS_URL: redis://redis:6379
+      WORKERS_ENABLED: "true"
+      # API runs migrations; workers just attach to the already-migrated DB.
+      RUN_MIGRATIONS_ON_BOOT: "false"
+    command: ["node", "dist/workers/index.js"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_started
+    restart: unless-stopped
 
   web:
     build:

@@ -323,6 +323,75 @@ GENOMFÖRT I KOD
       0 nya typecheck-fel. Pre-existerande `seed.ts` produkt-seed-fel och
       `bankid` peer-dep kvarstår orelaterat.
 
+19. **DEPLOY-AUTOMATION — migrate-on-boot + worker-image** (det här steget)
+    Mål: möjliggöra att den nyss pushade Fas 1-koden (master-data v1 +
+    organization-normalize-agenten) faktiskt kan rullas ut i produktion
+    utan manuell `drizzle-kit migrate` på DB-värden och utan separat
+    worker-byggpipeline.
+
+    - **`packages/db/src/migrate.ts`** (ny):
+        * `runMigrations({ databaseUrl?, migrationsFolder?, lockTimeoutMs? })`
+          – dedikerad single-connection `postgres-js`-klient (separat från
+          långlivade pool:en i `client.ts`).
+          – wrappar `drizzle migrate()` i `pg_advisory_lock(hashtext('roots_migrator_v1'))`
+          så fler API/worker-instanser kan boota samtidigt – en kör, andra
+          väntar och no-op:ar efteråt.
+          – returnerar `{ applied, finalCount, durationMs }` (mäter genom
+          räkning av `drizzle.__drizzle_migrations` före/efter).
+          – resolvar migrations-mappen från (1) argument, (2)
+          `MIGRATIONS_FOLDER` env, (3) `<dirname>/../drizzle` (dev), (4)
+          `<cwd>/drizzle` (Docker runtime).
+    - **`packages/db/src/index.ts`** re-exporterar `runMigrations` +
+      typer så `apps/api` och framtida CLI-verktyg slipper djupimporter.
+    - **`apps/api/src/lib/migrate-on-boot.ts`** (ny):
+        * `runBootMigrations()` gated bakom `RUN_MIGRATIONS_ON_BOOT`
+          (default: off → ingen beteendeförändring för existerande deploys).
+        * No-op om `DATABASE_URL` saknas (defensiv).
+        * Migration-fel = **fatalt** → re-throws så orchestratorn (Docker /
+          Railway / Fly) markerar deployen ond. Säkrare än att starta API
+          mot schema-inkompatibel DB.
+        * `MIGRATE_LOCK_TIMEOUT_MS` (default 60s) skickas vidare till
+          `runMigrations()` → kort wait om annan instans håller låset.
+    - **Hookas in på boot:**
+        * `apps/api/src/index.ts` → `await runBootMigrations()` **före**
+          `serve()` så HTTP-trafik aldrig accepteras mot fel schema.
+        * `apps/api/src/workers/index.ts` → samma anrop före
+          `startWorkers()`. Säker pga advisory-låset (race med API:n no-op:ar).
+    - **`apps/api/src/lib/migrate-on-boot.test.ts`** (6 tester):
+        * No-op om flag unset/false.
+        * Kör om flag truthy + `DATABASE_URL` finns.
+        * No-op (inte throw) om `DATABASE_URL` saknas.
+        * Re-throws migration-fel.
+        * Forwardar `MIGRATE_LOCK_TIMEOUT_MS`.
+    - **`apps/api/tsup.config.ts`** unifierad till en enda källa:
+        * `entry: ["src/index.ts", "src/workers/index.ts"]` — bygger **båda**
+          bundlarna med samma kommando.
+        * `format: ["cjs"]` matchar Dockerfile:s `node dist/index.js` (och
+          `dist/workers/index.js`).
+        * `dts: false` — sparade ~49s på cold-build i CI; `pnpm typecheck`
+          står för typkontrollen ändå.
+    - **`apps/api/package.json`**: `build` förenklat till `tsup` (inga
+      CLI-args som krockar med configen).
+    - **`apps/api/Dockerfile`** (runtime-stage):
+        * Kopierar `packages/db/drizzle` → `/app/drizzle` i runtime-imagen.
+        * Kopierar `packages/db/data` → `/app/data` för ad-hoc seed-körningar.
+        * `ENV MIGRATIONS_FOLDER=/app/drizzle` — explicit, ingen tvetydighet.
+        * CMD oförändrad (`node dist/index.js`); kommentar tillagd att
+          workers återanvänder samma image via `command:`-override.
+    - **`docker-compose.yml`**:
+        * Ny `workers`-service som bygger **samma** image som `api` men
+          startas med `command: ["node","dist/workers/index.js"]`. Slipper
+          en parallell byggpipeline.
+        * `api` får `RUN_MIGRATIONS_ON_BOOT=true` (äger schemat).
+        * `workers` får `RUN_MIGRATIONS_ON_BOOT=false` + `WORKERS_ENABLED=true`
+          och `depends_on: api: service_started` så API:n hinner låsa och
+          köra eventuella migrations först. Advisory-låset är säkerheten
+          om ordningen ändå skulle byta plats.
+    - **Resultat:** 83 tester gröna över hela monorepot (20 db + 63 api),
+      `pnpm --filter @roots/api build` producerar både `dist/index.js`
+      (224 KB CJS) och `dist/workers/index.js` (51 KB CJS) på <100 ms.
+      Ingen ändring i affärslogik.
+
 NÄSTA BYGGSTEG (rekommenderat i ordning)
 ---------------------------------------
 1. CI-jobb som kör `db:migrate && db:seed:masters` mot staging-DB efter merge.
@@ -345,7 +414,11 @@ FEATURE_NEW_ORG_HIERARCHY_ORGS=<uuid,...>   # valfritt, tom = alla om flag on
 FEATURE_PAYOUT_BY_GROUP_UNIT=on|off
 FEATURE_PAYOUT_BY_GROUP_UNIT_ORGS=...
 
-WORKERS_ENABLED=on|off                       # av i prod tills handler-PR är klar
+WORKERS_ENABLED=on|off                       # på i worker-containern, av i API
 WORKERS_INMEMORY=on|off                      # endast dev/test — kör utan Postgres
+
+RUN_MIGRATIONS_ON_BOOT=on|off                # på i API-containern, av i workers
+MIGRATE_LOCK_TIMEOUT_MS=60000                # max väntan på advisory-låset
+MIGRATIONS_FOLDER=/app/drizzle               # auto-satt av Dockerfile, override-bar
 
 --- SLUT ---
