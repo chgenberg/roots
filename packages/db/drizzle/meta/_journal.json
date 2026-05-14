@@ -15,6 +15,20 @@
       "when": 1776643200000,
       "tag": "0001_minor_consent_and_seller_privacy",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1778889600000,
+      "tag": "0002_organizations_masterdata_v1",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1778889600001,
+      "tag": "0003_master_riksorganisation_and_segment",
+      "breakpoints": true
     }
   ]
 }

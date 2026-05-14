@@ -12,17 +12,23 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx src/seed.ts",
-    "typecheck": "tsc --noEmit"
+    "db:seed:masters": "tsx src/seed-masters/index.ts",
+    "db:masters:extract": "tsx scripts/extract-master-csv.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
+    "@roots/contracts": "workspace:*",
     "drizzle-orm": "^0.39",
     "postgres": "^3.4",
-    "@roots/contracts": "workspace:*"
+    "zod": "^3.24"
   },
   "devDependencies": {
     "@node-rs/argon2": "^2.0.2",
     "drizzle-kit": "^0.30",
     "tsx": "^4.19",
-    "typescript": "^5.7"
+    "typescript": "^5.7",
+    "vitest": "^3.1.4",
+    "xlsx": "^0.18.5"
   }
 }

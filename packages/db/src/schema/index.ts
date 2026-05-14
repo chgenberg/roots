@@ -14,3 +14,5 @@ export * from "./customer-orders";
 export * from "./payouts";
 export * from "./campaign-products";
 export * from "./subscriptions";
+export * from "./master-riksorganisation";
+export * from "./master-segment";
