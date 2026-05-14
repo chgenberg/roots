@@ -392,6 +392,62 @@ GENOMFÖRT I KOD
       (224 KB CJS) och `dist/workers/index.js` (51 KB CJS) på <100 ms.
       Ingen ändring i affärslogik.
 
+20. **PROD-ROLLOUT — schema-journal-fix + auth-fallback-härdning**
+    Mål: faktiskt aktivera Fas 1 i Railway-produktion.
+
+    - **Upptäckt schema-drift**: prod-DB:n hade ursprungligen provisionerats
+      via `drizzle-kit push`, så alla tabeller från 0000_premium_photon
+      fanns, men `drizzle.__drizzle_migrations`-journalen var tom.
+      Migrate-on-boot trodde därför att 0000 aldrig kört → försökte skapa
+      enum:en `user_role` igen → `type already exists` → healthcheck-fail.
+      Eftersom migrate-on-boot är fail-fast (re-throw) avvisade
+      orchestratorn deployen — bra design, men prod var fast i en gammal
+      container utan kolumnerna från 0001–0003.
+    - **Auth-fallback-bugg blottad samtidigt**: `apps/api/src/routes/auth.ts`
+      hade `try { db.select... } catch { return 401 }` som slukade DB-fel
+      i tystnad. När `users.birth_year` saknades (0001 ej kört) returnerade
+      varje login 401 *innan* in-memory-demo-fallbacken hann triggas.
+      Detta gjorde att `ROOTS_ENABLE_DEMO_ACCOUNTS=true` inte räckte för
+      att logga in i prod när schemat hade drift.
+        * Fix (commit `5978b7e`): `try`-blocket loggar nu felet via
+          `log.warn({ err, ... }, "DB user lookup failed during login —
+          falling back to demo accounts")` och **faller igenom** till
+          demo-blocket istället för att returnera 401. Sekundär
+          `organizations`-uppslagning fick eget try/catch så att en
+          partiellt migrerad org-tabell inte heller dödar inloggningen.
+        * Tester: 63/63 grön. Snapshots oförändrade (demo-flödet är
+          inte täckt av snapshots → ingen drift).
+    - **Journal-seed mot prod** (engångsåtgärd):
+        1. `node` lokal helper läste alla migrations-filer och beräknade
+           SHA-256-hashar (samma algoritm som drizzles `readMigrationFiles`).
+        2. `psql` via Railway:s public TCP proxy (junction.proxy.rlwy.net:52526):
+           ```sql
+           INSERT INTO drizzle.__drizzle_migrations (hash, created_at)
+           VALUES ('8477b88456bd…1b9f', 1775387675375);
+           ```
+           Markerade endast **0000** som applicerad — eftersom 0001–0003
+           alla är `IF NOT EXISTS`-baserade kunde de köras säkert av nästa
+           migrate-on-boot.
+    - **Aktiverad rollout**:
+        * `RUN_MIGRATIONS_ON_BOOT=true` på `roots`-servicen → boot körde
+          0001, 0002, 0003 utan fel → journalen har nu 4 rader.
+        * Verifierat schema: `users.birth_year/guardian_user_id/
+          guardian_consent_at` finns, `organizations` har alla 9 nya
+          masterdata-kolumner, `master_riksorganisation` + `master_segment`
+          tabellerna finns.
+        * `ROOTS_ENABLE_DEMO_ACCOUNTS=true` → demo-login funkar
+          (`salj@roots.se / Demo1234!` returnerar 200 med korrekt role +
+          orgName).
+    - **Fortfarande av i prod**:
+        * `FEATURE_NEW_ORG_HIERARCHY` — schemat finns men master-tabellerna
+          är tomma. Slå inte på förrän `db:seed:masters` körts mot prod-DB
+          (alternativ: in-DB upsert via UI när admin-vy från skill 01
+          plan 07 landar).
+        * `WORKERS_ENABLED` — `workers`-servicen finns i `docker-compose.yml`
+          men inget motsvarande Railway-service är skapat. Lägg till manuellt
+          via Railway UI eller via `railway add` när org-normalizer-agentens
+          batch-körning behövs.
+
 NÄSTA BYGGSTEG (rekommenderat i ordning)
 ---------------------------------------
 1. CI-jobb som kör `db:migrate && db:seed:masters` mot staging-DB efter merge.
