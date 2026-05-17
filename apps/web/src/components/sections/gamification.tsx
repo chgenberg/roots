@@ -8,17 +8,17 @@ const ACHIEVEMENTS = [
   {
     icon: Award,
     title: "Första beställningen",
-    stat: "12 föreningar har nått detta",
+    stat: "Bli en av de första föreningarna med Roots",
   },
   {
     icon: Star,
     title: "10 beställningar",
-    stat: "5 föreningar",
+    stat: "Bygg en vana som föder kassan",
   },
   {
     icon: Trophy,
     title: "1 års medlem",
-    stat: "3 föreningar",
+    stat: "Skapa en återkommande intäktskälla",
   },
 ] as const;
 

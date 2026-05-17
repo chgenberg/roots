@@ -34,53 +34,21 @@ function daysBetween(iso: string): number {
   return Math.max(0, Math.floor((Date.now() - t) / (1000 * 60 * 60 * 24)));
 }
 
-const FALLBACK_COLUMNS: {
+interface PipelineColumn {
   stage: string;
   icon: React.ComponentType<{ className?: string }>;
   color: string;
   headerBg: string;
   deals: Deal[];
-}[] = [
-  {
-    stage: "Lead",
-    icon: Target,
-    color: "border-t-brand-300",
-    headerBg: "bg-brand-50",
-    deals: [
-      { id: 1, club: "Brynäs IF", contact: "Per Olsson", value: "8 500 kr", daysInStage: 2 },
-      { id: 2, club: "Luleå HF", contact: "Karin Ström", value: "6 000 kr", daysInStage: 5 },
-      { id: 3, club: "IFK Norrköping", contact: "Mats Ek", value: "7 200 kr", daysInStage: 1 },
-    ],
-  },
-  {
-    stage: "Kontaktad",
-    icon: Phone,
-    color: "border-t-brand-400",
-    headerBg: "bg-brand-50",
-    deals: [
-      { id: 4, club: "GAIS", contact: "Lisa Blom", value: "5 400 kr", daysInStage: 3 },
-      { id: 5, club: "Malmö FF Basket", contact: "Jonas Ryd", value: "9 100 kr", daysInStage: 7 },
-    ],
-  },
-  {
-    stage: "Offert skickad",
-    icon: FileText,
-    color: "border-t-brand-500",
-    headerBg: "bg-brand-50",
-    deals: [
-      { id: 6, club: "AIK Simning", contact: "Sara Björk", value: "4 900 kr", daysInStage: 4 },
-      { id: 7, club: "Hammarby HK", contact: "Erik Ljung", value: "12 000 kr", daysInStage: 10 },
-    ],
-  },
-  {
-    stage: "Avslutad",
-    icon: CheckCircle2,
-    color: "border-t-brand-600",
-    headerBg: "bg-brand-50",
-    deals: [
-      { id: 8, club: "Djurgårdens IF", contact: "Anna K.", value: "8 400 kr", daysInStage: 0 },
-    ],
-  },
+}
+
+// Visual scaffolding only — no fake deals. The columns themselves are always
+// rendered (so the stage hierarchy is visible) and populate from /pipeline.
+const EMPTY_COLUMNS: PipelineColumn[] = [
+  { stage: "Lead", icon: Target, color: "border-t-brand-300", headerBg: "bg-brand-50", deals: [] },
+  { stage: "Kontaktad", icon: Phone, color: "border-t-brand-400", headerBg: "bg-brand-50", deals: [] },
+  { stage: "Offert skickad", icon: FileText, color: "border-t-brand-500", headerBg: "bg-brand-50", deals: [] },
+  { stage: "Avslutad", icon: CheckCircle2, color: "border-t-brand-600", headerBg: "bg-brand-50", deals: [] },
 ];
 
 function DealCard({ deal }: { deal: Deal }) {
@@ -102,21 +70,23 @@ function DealCard({ deal }: { deal: Deal }) {
 }
 
 export default function PipelinePage() {
-  const [columns, setColumns] = useState(FALLBACK_COLUMNS);
+  const [columns, setColumns] = useState<PipelineColumn[]>(EMPTY_COLUMNS);
   const [totalValueOre, setTotalValueOre] = useState<number | null>(null);
 
   useEffect(() => {
     // API shape (see packages/contracts/src/portal.ts):
     //   { stages: [{ stage, count, totalOre }], deals: [{ id, status, totalOre, orgId, createdAt }] }
-    // Each stage's `deals` list is derived client-side by filtering `deals`
-    // on status — previously the UI tried `s.deals` which the API never
-    // produced, so the pipeline page always showed empty columns.
+    // Stage scaffolding is fixed (EMPTY_COLUMNS); we only swap in real deals
+    // when the API returns them.
     portalFetch("/pipeline", { schema: pipelineResponseSchema })
       .then((data) => {
-        if (!data.stages?.length) return;
+        if (!data.stages?.length) {
+          setTotalValueOre(0);
+          return;
+        }
         setColumns(
           data.stages.map((s, i) => {
-            const fb = FALLBACK_COLUMNS[i] || FALLBACK_COLUMNS[0];
+            const scaffold = EMPTY_COLUMNS[i] ?? EMPTY_COLUMNS[0];
             const stageDeals = data.deals
               .filter((d) => d.status === s.stage)
               .map((d) => ({
@@ -131,10 +101,10 @@ export default function PipelinePage() {
                 ),
               }));
             return {
-              stage: STAGE_LABELS[s.stage] ?? fb.stage,
-              icon: fb.icon,
-              color: fb.color,
-              headerBg: fb.headerBg,
+              stage: STAGE_LABELS[s.stage] ?? scaffold.stage,
+              icon: scaffold.icon,
+              color: scaffold.color,
+              headerBg: scaffold.headerBg,
               deals: stageDeals,
             };
           })
@@ -147,7 +117,7 @@ export default function PipelinePage() {
   }, []);
 
   const totalValue =
-    totalValueOre !== null ? formatSek(totalValueOre) : "45 000 kr";
+    totalValueOre !== null ? formatSek(totalValueOre) : "—";
 
   return (
     <div className="page-enter space-y-6">

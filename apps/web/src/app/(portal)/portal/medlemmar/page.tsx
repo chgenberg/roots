@@ -26,17 +26,6 @@ interface MemberRow {
   joined: string;
 }
 
-const FALLBACK_MEMBERS: MemberRow[] = [
-  { id: 1, name: "Anna Lindgren", email: "anna@hammarby.se", status: "Aktiv", joined: "2025-01-15" },
-  { id: 2, name: "Erik Svensson", email: "erik@hammarby.se", status: "Aktiv", joined: "2025-02-03" },
-  { id: 3, name: "Sofia Karlsson", email: "sofia@hammarby.se", status: "Aktiv", joined: "2025-02-18" },
-  { id: 4, name: "Oscar Björk", email: "oscar@hammarby.se", status: "Aktiv", joined: "2025-03-01" },
-  { id: 5, name: "Maja Holm", email: "maja@hammarby.se", status: "Inbjuden", joined: "2025-03-20" },
-  { id: 6, name: "Liam Ekström", email: "liam@hammarby.se", status: "Aktiv", joined: "2025-03-22" },
-  { id: 7, name: "Ella Nilsson", email: "ella@hammarby.se", status: "Inaktiv", joined: "2024-11-10" },
-  { id: 8, name: "Hugo Andersson", email: "hugo@hammarby.se", status: "Aktiv", joined: "2025-01-28" },
-];
-
 // API role enum → Swedish UI label. Roots doesn't track invite/active state
 // per user yet, so the "status" column reflects the user's club role.
 const ROLE_LABELS: Record<string, string> = {
@@ -65,18 +54,16 @@ function isoDate(value: string | Date): string {
 
 export default function MedlemmarPage() {
   const [search, setSearch] = useState("");
-  const [members, setMembers] = useState<MemberRow[]>(FALLBACK_MEMBERS);
+  const [members, setMembers] = useState<MemberRow[]>([]);
+  const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
   useEffect(() => {
     // API shape: { members: [{ id, email, name, role, createdAt }] }
-    // Previously the UI consumed `joined/status` directly — neither field
-    // existed in the API response, so every member row looked empty.
     portalFetch("/members", { schema: membersListResponseSchema })
       .then((data) => {
-        if (!data.members?.length) return;
         setMembers(
-          data.members.map((m) => ({
+          (data.members ?? []).map((m) => ({
             id: m.id,
             name: m.name || m.email,
             email: m.email,
@@ -85,7 +72,8 @@ export default function MedlemmarPage() {
           }))
         );
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
   const activeCount = members.filter((m) => m.status === "Aktiv").length;
@@ -191,10 +179,19 @@ export default function MedlemmarPage() {
                   </TableCell>
                 </TableRow>
               ))}
-              {filtered.length === 0 && (
+              {!loading && filtered.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
-                    Inga medlemmar hittades.
+                    {members.length === 0
+                      ? "Ingen medlem är registrerad ännu. Bjud in den första medlemmen för att komma igång."
+                      : "Inga medlemmar matchade sökningen."}
+                  </TableCell>
+                </TableRow>
+              )}
+              {loading && (
+                <TableRow>
+                  <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
+                    Hämtar medlemmar…
                   </TableCell>
                 </TableRow>
               )}

@@ -25,51 +25,40 @@ import {
 } from "lucide-react";
 import { usePortalUser } from "@/lib/portal-context";
 
-/* ─── Club Fallback Data ──────────────────────────────────── */
+/* ─── Club Empty State ────────────────────────────────────── */
 
-const FALLBACK_CLUB_STATS = [
-  { label: "Aktiva medlemmar", value: "24", icon: Users },
-  { label: "Beställningar denna månad", value: "3", icon: ShoppingCart },
-  { label: "Intäkter till klubben", value: "2 450 kr", icon: TrendingUp },
-  { label: "Nästa leverans", value: "12 april", icon: CalendarDays },
+const EMPTY_CLUB_STATS = [
+  { label: "Aktiva medlemmar", value: "—", icon: Users },
+  { label: "Beställningar denna månad", value: "—", icon: ShoppingCart },
+  { label: "Intäkter till klubben", value: "—", icon: TrendingUp },
+  { label: "Nästa leverans", value: "—", icon: CalendarDays },
 ];
 
-const FALLBACK_CLUB_ACTIONS = [
+const CLUB_QUICK_ACTIONS = [
   { label: "Beställ igen", href: "/portal/bestallningar", icon: ShoppingCart },
   { label: "Bjud in medlem", href: "/portal/medlemmar", icon: Users },
   { label: "Se intäktsrapport", href: "/portal/intakter", icon: TrendingUp },
 ];
 
-const FALLBACK_CLUB_ACTIVITY = [
-  { text: "Anna L. beställde 2 × First Growth", time: "2 tim sedan" },
-  { text: "Ny medlem: Erik S. gick med", time: "Igår" },
-  { text: "Leverans mottagen — 12 produkter", time: "3 dagar sedan" },
-  { text: "Intäktsutbetalning: 1 200 kr", time: "1 vecka sedan" },
-];
+const EMPTY_CLUB_ACTIVITY: Array<{ text: string; time: string }> = [];
 
-/* ─── Sales Fallback Data ─────────────────────────────────── */
-/* Fallback data is illustrative only; the UI marks values as demo-data when
- * the API reports no real rows so we never present these numbers as live. */
+/* ─── Sales Empty State ───────────────────────────────────── */
 
-const FALLBACK_SALES_STATS = [
+const EMPTY_SALES_STATS = [
   { label: "Aktiva klubbar", value: "—", icon: Building2 },
   { label: "Offerter ute", value: "—", icon: FileText },
   { label: "Stängda denna månad", value: "—", icon: CheckCircle2 },
   { label: "Pipeline-värde", value: "—", icon: TrendingUp },
 ];
 
-const FALLBACK_SALES_PIPELINE = [
-  { stage: "Lead", count: 6, active: false },
-  { stage: "Kontaktad", count: 4, active: false },
-  { stage: "Offert", count: 3, active: true },
-  { stage: "Stängd", count: 2, active: false },
+const EMPTY_SALES_PIPELINE: Array<{ stage: string; count: number; active: boolean }> = [
+  { stage: "Lead", count: 0, active: false },
+  { stage: "Kontaktad", count: 0, active: false },
+  { stage: "Offert", count: 0, active: false },
+  { stage: "Stängd", count: 0, active: false },
 ];
 
-const FALLBACK_SALES_TOP_CLUBS = [
-  { name: "Hammarby HK", orders: 12, revenue: "8 400 kr" },
-  { name: "Djurgårdens IF Basket", orders: 9, revenue: "6 200 kr" },
-  { name: "AIK Simning", orders: 7, revenue: "4 900 kr" },
-];
+const EMPTY_SALES_TOP_CLUBS: Array<{ name: string; orders: number; revenue: string }> = [];
 
 /* ─── Admin Fallback Data ─────────────────────────────────── */
 
@@ -102,8 +91,8 @@ const FALLBACK_ADMIN_RECENT_ACTIVITY: Array<{
 /* ─── Club Dashboard ───────────────────────────────────────── */
 
 function ClubDashboard({ name }: { name: string }) {
-  const [stats, setStats] = useState(FALLBACK_CLUB_STATS);
-  const [activity, setActivity] = useState(FALLBACK_CLUB_ACTIVITY);
+  const [stats, setStats] = useState(EMPTY_CLUB_STATS);
+  const [activity, setActivity] = useState(EMPTY_CLUB_ACTIVITY);
 
   useEffect(() => {
     portalFetch<{ role: string; stats: any }>("/dashboard")
@@ -178,7 +167,7 @@ function ClubDashboard({ name }: { name: string }) {
             <CardContent className="p-5">
               <h2 className="font-semibold">Snabbåtgärder</h2>
               <div className="mt-4 space-y-2">
-                {FALLBACK_CLUB_ACTIONS.map((action) => (
+                {CLUB_QUICK_ACTIONS.map((action) => (
                   <Button
                     key={action.href}
                     variant="ghost"
@@ -219,9 +208,9 @@ function ClubDashboard({ name }: { name: string }) {
 /* ─── Sales Dashboard ──────────────────────────────────────── */
 
 function SalesDashboard({ name }: { name: string }) {
-  const [stats, setStats] = useState(FALLBACK_SALES_STATS);
-  const [pipeline, setPipeline] = useState(FALLBACK_SALES_PIPELINE);
-  const [topClubs, setTopClubs] = useState(FALLBACK_SALES_TOP_CLUBS);
+  const [stats, setStats] = useState(EMPTY_SALES_STATS);
+  const [pipeline, setPipeline] = useState(EMPTY_SALES_PIPELINE);
+  const [topClubs, setTopClubs] = useState(EMPTY_SALES_TOP_CLUBS);
   const [isDemo, setIsDemo] = useState(true);
 
   useEffect(() => {
@@ -305,27 +294,33 @@ function SalesDashboard({ name }: { name: string }) {
               <h3 className="text-sm font-medium text-muted-foreground">
                 Toppklubbar
               </h3>
-              <div className="mt-3 divide-y divide-border">
-                {topClubs.map((c, i) => (
-                  <div
-                    key={c.name}
-                    className="flex items-center justify-between py-3 first:pt-0 last:pb-0"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-medium text-brand-500">
-                        {i + 1}
-                      </span>
-                      <div>
-                        <p className="text-sm font-medium">{c.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {c.orders} ordrar
-                        </p>
+              {topClubs.length === 0 ? (
+                <p className="mt-3 rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+                  Listan fylls på när dina klubbar börjar lägga ordrar.
+                </p>
+              ) : (
+                <div className="mt-3 divide-y divide-border">
+                  {topClubs.map((c, i) => (
+                    <div
+                      key={c.name}
+                      className="flex items-center justify-between py-3 first:pt-0 last:pb-0"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-medium text-brand-500">
+                          {i + 1}
+                        </span>
+                        <div>
+                          <p className="text-sm font-medium">{c.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {c.orders} ordrar
+                          </p>
+                        </div>
                       </div>
+                      <span className="text-sm font-semibold">{c.revenue}</span>
                     </div>
-                    <span className="text-sm font-semibold">{c.revenue}</span>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

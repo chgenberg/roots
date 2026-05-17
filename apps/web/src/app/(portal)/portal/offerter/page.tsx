@@ -36,62 +36,15 @@ function formatDate(value: string | Date | null | undefined): string {
   return d.toISOString().slice(0, 10);
 }
 
-const FALLBACK_QUOTES = [
-  {
-    id: "OFF-001",
-    client: "Brynäs IF",
-    contact: "Per Olsson",
-    amount: "8 500 kr",
-    status: "Skickad",
-    date: "2025-03-28",
-    validUntil: "2025-04-28",
-  },
-  {
-    id: "OFF-002",
-    client: "GAIS",
-    contact: "Lisa Blom",
-    amount: "5 400 kr",
-    status: "Utkast",
-    date: "2025-03-27",
-    validUntil: "—",
-  },
-  {
-    id: "OFF-003",
-    client: "Malmö FF Basket",
-    contact: "Jonas Ryd",
-    amount: "9 100 kr",
-    status: "Skickad",
-    date: "2025-03-20",
-    validUntil: "2025-04-20",
-  },
-  {
-    id: "OFF-004",
-    client: "AIK Simning",
-    contact: "Sara Björk",
-    amount: "4 900 kr",
-    status: "Accepterad",
-    date: "2025-03-15",
-    validUntil: "2025-04-15",
-  },
-  {
-    id: "OFF-005",
-    client: "Luleå HF",
-    contact: "Karin Ström",
-    amount: "6 000 kr",
-    status: "Nekad",
-    date: "2025-03-10",
-    validUntil: "2025-04-10",
-  },
-  {
-    id: "OFF-006",
-    client: "Hammarby HK",
-    contact: "Erik Ljung",
-    amount: "12 000 kr",
-    status: "Skickad",
-    date: "2025-03-05",
-    validUntil: "2025-04-05",
-  },
-];
+interface QuoteRow {
+  id: string;
+  client: string;
+  contact: string;
+  totalOre: number;
+  status: string;
+  date: string;
+  validUntil: string;
+}
 
 function statusBadge(status: string) {
   switch (status) {
@@ -120,35 +73,37 @@ function statusIcon(status: string) {
 
 export default function OfferterPage() {
   const { toast } = useToast();
-  const [quotes, setQuotes] = useState(FALLBACK_QUOTES);
+  const [quotes, setQuotes] = useState<QuoteRow[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     // API shape: { quotes: [{ id, orgId, salesRepId, status, totalOre, validUntil, createdAt }] }
-    // Previously the UI read `client/contact/amount` (and a Swedish-string
-    // status) — none of which the API ever produced. We now map each row
-    // through the contract schema and format it into the table's display
-    // shape.
     portalFetch("/quotes", { schema: quotesListResponseSchema })
       .then((data) => {
-        if (!data.quotes?.length) return;
         setQuotes(
-          data.quotes.map((q) => ({
+          (data.quotes ?? []).map((q) => ({
             id: q.id.slice(0, 8).toUpperCase(),
             client: `Klubb ${q.orgId.slice(0, 6)}`,
             contact: "",
-            amount: formatSek(q.totalOre),
+            totalOre: q.totalOre,
             status: QUOTE_STATUS_LABELS[q.status] ?? q.status,
             date: formatDate(q.createdAt),
             validUntil: formatDate(q.validUntil ?? null),
           }))
         );
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
   const totalSent = quotes.filter((q) => q.status === "Skickad").length;
   const totalAccepted = quotes.filter((q) => q.status === "Accepterad").length;
-  const totalValue = "45 900 kr";
+  // Pipeline-value: sum of every "open" offer (Utkast + Skickad). Accepterade
+  // räknas inte längre eftersom de då övergår till order.
+  const openTotalOre = quotes
+    .filter((q) => q.status === "Utkast" || q.status === "Skickad")
+    .reduce((sum, q) => sum + q.totalOre, 0);
+  const totalValue = formatSek(openTotalOre);
 
   return (
     <div className="page-enter space-y-6">
@@ -220,13 +175,27 @@ export default function OfferterPage() {
                 <TableRow key={q.id}>
                   <TableCell className="font-mono text-xs">{q.id}</TableCell>
                   <TableCell className="font-medium">{q.client}</TableCell>
-                  <TableCell className="text-muted-foreground">{q.contact}</TableCell>
-                  <TableCell className="font-medium">{q.amount}</TableCell>
+                  <TableCell className="text-muted-foreground">{q.contact || "—"}</TableCell>
+                  <TableCell className="font-medium">{formatSek(q.totalOre)}</TableCell>
                   <TableCell>{statusBadge(q.status)}</TableCell>
                   <TableCell className="text-muted-foreground">{q.date}</TableCell>
                   <TableCell className="text-right text-muted-foreground">{q.validUntil}</TableCell>
                 </TableRow>
               ))}
+              {!loading && quotes.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                    Inga offerter ännu. Klicka på "Ny offert" för att skapa den första.
+                  </TableCell>
+                </TableRow>
+              )}
+              {loading && (
+                <TableRow>
+                  <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                    Hämtar offerter…
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </CardContent>

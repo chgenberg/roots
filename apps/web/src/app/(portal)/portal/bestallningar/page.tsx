@@ -30,49 +30,22 @@ type PortalOrderProduct = {
   slug: string;
 };
 
-const FALLBACK_PRODUCTS: PortalOrderProduct[] = [
-  { id: "1", name: "Roots Shampoo", priceOre: 14900, slug: "shampoo" },
-  { id: "2", name: "Roots Conditioner", priceOre: 14900, slug: "conditioner" },
-  { id: "3", name: "Roots Body Wash", priceOre: 12900, slug: "body-wash" },
+// Real product catalogue (mirrors /v1/portal/products). Used to keep the
+// "Ny beställning"-dialogen usable when the API is briefly unavailable.
+// These are not fake numbers — they are our actual SKUs.
+const CATALOG_FALLBACK_PRODUCTS: PortalOrderProduct[] = [
+  { id: "1", name: "First Growth (schampo)", priceOre: 14900, slug: "shampoo" },
+  { id: "2", name: "Pure Root (balsam)", priceOre: 14900, slug: "conditioner" },
+  { id: "3", name: "Soft Rinse (body wash)", priceOre: 12900, slug: "body-wash" },
 ];
 
-const FALLBACK_ORDERS = [
-  {
-    id: "ORD-2025-001",
-    date: "2025-03-28",
-    items: "3 × First Growth, 2 × Pure Root, 2 × Soft Rinse",
-    total: "2 990 kr",
-    status: "Levererad",
-  },
-  {
-    id: "ORD-2025-002",
-    date: "2025-03-15",
-    items: "5 × First Growth, 5 × Pure Root",
-    total: "2 980 kr",
-    status: "Levererad",
-  },
-  {
-    id: "ORD-2025-003",
-    date: "2025-03-01",
-    items: "10 × Soft Rinse",
-    total: "1 290 kr",
-    status: "Levererad",
-  },
-  {
-    id: "ORD-2025-004",
-    date: "2025-04-02",
-    items: "4 × First Growth, 4 × Pure Root, 4 × Soft Rinse",
-    total: "5 124 kr",
-    status: "Under behandling",
-  },
-  {
-    id: "ORD-2025-005",
-    date: "2025-04-01",
-    items: "2 × First Growth",
-    total: "298 kr",
-    status: "Skickad",
-  },
-];
+type OrderRow = {
+  id: string;
+  date: string;
+  items: string;
+  total: string;
+  status: string;
+};
 
 function statusBadge(status: string) {
   switch (status) {
@@ -98,10 +71,11 @@ function statusIcon(status: string) {
 export default function BestallningarPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [cart, setCart] = useState<Record<string, number>>({});
-  const [orders, setOrders] = useState(FALLBACK_ORDERS);
+  const [orders, setOrders] = useState<OrderRow[]>([]);
+  const [loadingOrders, setLoadingOrders] = useState(true);
   const [submitted, setSubmitted] = useState(false);
   const [apiProducts, setApiProducts] = useState<PortalOrderProduct[]>(
-    FALLBACK_PRODUCTS
+    CATALOG_FALLBACK_PRODUCTS
   );
 
   useEffect(() => {
@@ -112,19 +86,18 @@ export default function BestallningarPage() {
       .catch(() => {});
     portalFetch<{ orders: Array<{ id: string; createdAt: string; totalOre: number; status: string }> }>("/orders")
       .then((data) => {
-        if (data.orders.length > 0) {
-          setOrders(
-            data.orders.map((o) => ({
-              id: o.id,
-              date: o.createdAt?.split("T")[0] ?? "",
-              items: "",
-              total: `${(o.totalOre / 100).toLocaleString("sv-SE")} kr`,
-              status: o.status === "PAID" ? "Levererad" : o.status === "SHIPPED" ? "Skickad" : "Under behandling",
-            }))
-          );
-        }
+        setOrders(
+          (data.orders ?? []).map((o) => ({
+            id: o.id,
+            date: o.createdAt?.split("T")[0] ?? "",
+            items: "",
+            total: `${(o.totalOre / 100).toLocaleString("sv-SE")} kr`,
+            status: o.status === "PAID" ? "Levererad" : o.status === "SHIPPED" ? "Skickad" : "Under behandling",
+          }))
+        );
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setLoadingOrders(false));
   }, []);
 
   function updateQty(productId: string, delta: number) {
@@ -153,27 +126,34 @@ export default function BestallningarPage() {
     const items = Object.entries(cart).map(([productId, qty]) => ({ productId, qty }));
 
     try {
-      await portalFetch("/orders", { method: "POST", body: { items } });
-    } catch {
-      await new Promise((r) => setTimeout(r, 700));
+      const created = await portalFetch<{ order?: { id: string; createdAt: string; totalOre: number; status: string } }>(
+        "/orders",
+        { method: "POST", body: { items } }
+      );
+
+      if (created.order) {
+        const itemStr = Object.entries(cart)
+          .map(([id, qty]) => {
+            const p = apiProducts.find((p) => p.id === id);
+            return `${qty} × ${p?.name}`;
+          })
+          .join(", ");
+
+        setOrders((prev) => [
+          {
+            id: created.order!.id,
+            date: created.order!.createdAt?.split("T")[0] ?? new Date().toISOString().split("T")[0],
+            items: itemStr,
+            total: `${(created.order!.totalOre / 100).toLocaleString("sv-SE")} kr`,
+            status: "Under behandling",
+          },
+          ...prev,
+        ]);
+      }
+    } catch (err) {
+      console.error("Order creation failed", err);
     }
 
-    const itemStr = Object.entries(cart)
-      .map(([id, qty]) => {
-        const p = apiProducts.find((p) => p.id === id);
-        return `${qty} × ${p?.name}`;
-      })
-      .join(", ");
-
-    const newOrder = {
-      id: `ORD-${new Date().getFullYear()}-${String(orders.length + 1).padStart(3, "0")}`,
-      date: new Date().toISOString().split("T")[0],
-      items: itemStr,
-      total: `${(cartTotal / 100).toLocaleString("sv-SE")} kr`,
-      status: "Under behandling",
-    };
-
-    setOrders((prev) => [newOrder, ...prev]);
     setCart({});
     setSubmitting(false);
     setSubmitted(true);
@@ -327,12 +307,12 @@ export default function BestallningarPage() {
                   <TableCell>
                     <div className="flex items-center gap-2">
                       {statusIcon(o.status)}
-                      <span className="font-mono text-xs">{o.id}</span>
+                      <span className="font-mono text-xs">{o.id.slice(0, 8).toUpperCase()}</span>
                     </div>
                   </TableCell>
                   <TableCell className="text-muted-foreground">{o.date}</TableCell>
                   <TableCell className="max-w-[300px] truncate text-sm">
-                    {o.items}
+                    {o.items || "—"}
                   </TableCell>
                   <TableCell className="font-medium">{o.total}</TableCell>
                   <TableCell className="text-right">
@@ -340,6 +320,20 @@ export default function BestallningarPage() {
                   </TableCell>
                 </TableRow>
               ))}
+              {!loadingOrders && orders.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                    Inga beställningar ännu. Klicka på "Ny beställning" för att lägga er första.
+                  </TableCell>
+                </TableRow>
+              )}
+              {loadingOrders && (
+                <TableRow>
+                  <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                    Hämtar beställningar…
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </CardContent>
