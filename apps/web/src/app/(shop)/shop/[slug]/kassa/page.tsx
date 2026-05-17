@@ -15,6 +15,7 @@ import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, Loader2, Package, Truck } from "lucide-react";
 import Link from "next/link";
 import { getBrowserApiBase } from "@/lib/api-base";
+import { apiFetch } from "@/lib/api";
 
 const API_URL = getBrowserApiBase();
 
@@ -100,31 +101,35 @@ export default function CheckoutPage() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${API_URL}/v1/checkout/create`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sellerSlug: slug,
-          customerName,
-          customerEmail,
-          customerPhone: customerPhone || undefined,
-          deliveryType,
-          shippingAddressLine1: deliveryType === "DIRECT" ? addressLine1 : undefined,
-          shippingCity: deliveryType === "DIRECT" ? city : undefined,
-          shippingPostalCode: deliveryType === "DIRECT" ? postalCode : undefined,
-          items,
-          note: note || undefined,
-        }),
-      });
-
-      const data = await res.json();
+      // apiFetch attaches the CSRF token + credentials cookie so the API's
+      // CSRF middleware in production accepts the POST.
+      const res = await apiFetch<{ htmlSnippet?: string; error?: string }>(
+        "/v1/checkout/create",
+        {
+          method: "POST",
+          body: {
+            sellerSlug: slug,
+            customerName,
+            customerEmail,
+            customerPhone: customerPhone || undefined,
+            deliveryType,
+            shippingAddressLine1:
+              deliveryType === "DIRECT" ? addressLine1 : undefined,
+            shippingCity: deliveryType === "DIRECT" ? city : undefined,
+            shippingPostalCode:
+              deliveryType === "DIRECT" ? postalCode : undefined,
+            items,
+            note: note || undefined,
+          },
+        }
+      );
 
       if (!res.ok) {
-        setError(data.error || "Något gick fel.");
+        setError(res.data?.error || "Något gick fel.");
         return;
       }
 
-      setKlarnaHtml(data.htmlSnippet);
+      setKlarnaHtml(res.data?.htmlSnippet || "");
     } catch {
       setError("Kunde inte nå servern.");
     } finally {

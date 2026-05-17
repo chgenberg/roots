@@ -25,6 +25,7 @@ import {
   type PortalUser,
 } from "@/lib/portal-context";
 import { getBrowserApiBase } from "@/lib/api-base";
+import { apiFetch } from "@/lib/api";
 
 const API_URL = getBrowserApiBase();
 
@@ -116,10 +117,9 @@ export default function PortalLayout({
   }, [router]);
 
   async function handleLogout() {
-    await fetch(`${API_URL}/v1/auth/logout`, {
-      method: "POST",
-      credentials: "include",
-    });
+    // apiFetch attaches CSRF + cookies; production rejects un-tokened
+    // POSTs with 403 which previously left users logged in.
+    await apiFetch("/v1/auth/logout", { method: "POST" });
     router.replace("/login");
   }
 

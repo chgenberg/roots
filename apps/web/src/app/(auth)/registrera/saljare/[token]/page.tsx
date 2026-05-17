@@ -14,9 +14,7 @@ import {
 } from "@/components/ui/card";
 import { Loader2, CheckCircle2, ShoppingBag } from "lucide-react";
 
-import { getBrowserApiBase } from "@/lib/api-base";
-
-const API_URL = getBrowserApiBase();
+import { apiFetch } from "@/lib/api";
 
 export default function SellerRegistrationPage() {
   const router = useRouter();
@@ -38,27 +36,28 @@ export default function SellerRegistrationPage() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${API_URL}/v1/auth/register/seller`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          inviteToken,
-          email,
-          password,
-          displayName,
-          phone: phone || undefined,
-        }),
-      });
-
-      const data = await res.json();
+      // apiFetch attaches CSRF + cookies so the POST passes the API's
+      // CSRF middleware in production.
+      const res = await apiFetch<{ shopSlug?: string; error?: string }>(
+        "/v1/auth/register/seller",
+        {
+          method: "POST",
+          body: {
+            inviteToken,
+            email,
+            password,
+            displayName,
+            phone: phone || undefined,
+          },
+        }
+      );
 
       if (!res.ok) {
-        setError(data.error || "Något gick fel. Försök igen.");
+        setError(res.data?.error || "Något gick fel. Försök igen.");
         return;
       }
 
-      setShopSlug(data.shopSlug);
+      setShopSlug(res.data?.shopSlug || "");
       setSuccess(true);
       setTimeout(() => router.push("/min-shop"), 2000);
     } catch {

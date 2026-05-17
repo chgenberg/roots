@@ -19,6 +19,7 @@ import { useToast } from "@/components/ui/toast";
 import { GradeBadge, GradeProgress } from "@/components/seller-grade";
 import type { TeamDashboard, Seller } from "@/types/fundraising";
 import { getBrowserApiBase } from "@/lib/api-base";
+import { apiFetch } from "@/lib/api";
 
 const API_URL = getBrowserApiBase();
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
@@ -101,22 +102,22 @@ export default function TeamSellersPage() {
     setCreating(true);
 
     try {
-      const res = await fetch(
-        `${API_URL}/v1/dashboard/team/${data.team.id}/sellers`,
+      // apiFetch attaches CSRF + cookies so the POST passes the API's
+      // CSRF middleware in production.
+      const res = await apiFetch<{ ok?: boolean; seller?: Seller; error?: string }>(
+        `/v1/dashboard/team/${data.team.id}/sellers`,
         {
           method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+          body: {
             displayName: createName,
             email: createEmail,
             password: createPassword,
-          }),
+          },
         }
       );
 
-      const json = await res.json();
-      if (res.ok && json.ok) {
+      if (res.ok && res.data?.ok && res.data.seller) {
+        const newSeller = res.data.seller;
         toast("Säljare tillagd!", "success");
         setCreateName("");
         setCreateEmail("");
@@ -124,11 +125,11 @@ export default function TeamSellersPage() {
         setShowCreate(false);
         setData((prev) =>
           prev
-            ? { ...prev, sellers: [...prev.sellers, json.seller] }
+            ? { ...prev, sellers: [...prev.sellers, newSeller] }
             : prev
         );
       } else {
-        toast(json.error || "Kunde inte skapa säljare.", "error");
+        toast(res.data?.error || "Kunde inte skapa säljare.", "error");
       }
     } catch {
       toast("Ett nätverksfel uppstod.", "error");
