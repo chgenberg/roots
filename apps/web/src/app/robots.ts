@@ -13,7 +13,6 @@ export default function robots(): MetadataRoute.Robots {
         // blocked from crawlers.
         disallow: [
           "/api/",
-          "/sales/",
           "/portal/",
           "/forening/",
           "/lag/",
