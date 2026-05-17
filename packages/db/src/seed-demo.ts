@@ -37,6 +37,8 @@ import {
   campaigns,
   teams,
   sellers,
+  customerOrders,
+  customerOrderLines,
 } from "./schema";
 
 const ARGON2_OPTIONS = {
@@ -495,6 +497,278 @@ async function seedDemo() {
   }
   console.log(
     `Campaign: ${campaign.slug} ready (1 team, ${DEMO_SELLER_USERS.length} sellers)`
+  );
+
+  // ── 8. Fundraising-portalen (Sprint E1) ────────────────────────────
+  //   We seed a *separate* association org so the new portal roles
+  //   never collide with the existing CLUB_ADMIN flow on `clubOrg`.
+  //   Result: an investor can log in as four distinct surfaces from
+  //   the SAME seed:
+  //     - klubb@demo.se      (CLUB_ADMIN)        → /portal
+  //     - salj@roots.se      (SALES_REP)         → /portal
+  //     - admin@roots.se     (INTERNAL_ADMIN)    → /portal
+  //     - forening@demo-if.se (ASSOCIATION_ADMIN) → /forening   ← new
+  //     - lag@demo-if.se     (TEAM_LEADER)       → /lag         ← new
+  //     - noah.saljare@demo-if.se (SELLER)       → /min-shop
+  const associationOrg = await ensureOrg({
+    name: "Demo IF Sundsvall",
+    orgNumber: "556700-1111",
+    type: "association",
+  });
+
+  const foreningAdmin = await ensureUser({
+    email: "forening@demo-if.se",
+    passwordHash,
+    role: "ASSOCIATION_ADMIN",
+    orgId: associationOrg.id,
+    contactName: "Karin Lindgren",
+  });
+
+  const teamLeader = await ensureUser({
+    email: "lag@demo-if.se",
+    passwordHash,
+    role: "TEAM_LEADER",
+    orgId: associationOrg.id,
+    contactName: "Mikael Berg",
+  });
+
+  // Campaign goal sized so seeded customerOrders bring it to ~55 %.
+  const associationGoalSek = 40000;
+  const [existingAssocCampaign] = await db
+    .select()
+    .from(campaigns)
+    .where(eq(campaigns.slug, "demo-hostkampanj-2026"))
+    .limit(1);
+
+  const assocCampaign = existingAssocCampaign
+    ? existingAssocCampaign
+    : (
+        await db
+          .insert(campaigns)
+          .values({
+            orgId: associationOrg.id,
+            name: "Höstkampanj 2026 (Demo)",
+            slug: "demo-hostkampanj-2026",
+            description:
+              "Föreningen säljer Roots-paket för att finansiera ungdoms-cup i Helsingborg.",
+            story:
+              "Demo IF Sundsvall samlar in pengar till en gemensam ungdoms-" +
+              "cup. Varje paket ger föreningen 30 % i bidrag — pengarna går " +
+              "till resa, boende och matchanmälningar.",
+            status: "ACTIVE",
+            goalType: "AMOUNT",
+            goalValue: associationGoalSek,
+            startDate: daysAgo(45).toISOString().slice(0, 10),
+            endDate: daysAgo(-45).toISOString().slice(0, 10),
+            deliveryType: "BULK",
+            marginPercent: 30,
+          })
+          .returning()
+      )[0];
+
+  // The team owned by the TEAM_LEADER. /lag uses
+  // `teams.leaderId === session.userId` to find the right team, so we
+  // MUST point leaderId at the new teamLeader user (not clubAdmin).
+  const ASSOC_TEAM_NAME = "P14 Blå (Demo)";
+  const [existingAssocTeam] = await db
+    .select()
+    .from(teams)
+    .where(
+      and(
+        eq(teams.orgId, associationOrg.id),
+        eq(teams.campaignId, assocCampaign.id),
+        eq(teams.name, ASSOC_TEAM_NAME)
+      )
+    )
+    .limit(1);
+
+  const assocTeam = existingAssocTeam
+    ? existingAssocTeam
+    : (
+        await db
+          .insert(teams)
+          .values({
+            orgId: associationOrg.id,
+            campaignId: assocCampaign.id,
+            leaderId: teamLeader.id,
+            name: ASSOC_TEAM_NAME,
+            inviteToken: "demo-assoc-team-invite",
+            memberCount: 3,
+          })
+          .returning()
+      )[0];
+
+  // Three sellers under the association team. Real users so a future
+  // demo could even log in as one and walk the /min-shop flow.
+  const ASSOC_SELLERS: ReadonlyArray<{
+    email: string;
+    name: string;
+    shopSlug: string;
+    individualGoal: number;
+  }> = [
+    { email: "leo.assoc@demo-if.se", name: "Leo Karlsson", shopSlug: "demo-assoc-leo", individualGoal: 5000 },
+    { email: "felicia.assoc@demo-if.se", name: "Felicia Strand", shopSlug: "demo-assoc-felicia", individualGoal: 5000 },
+    { email: "william.assoc@demo-if.se", name: "William Holm", shopSlug: "demo-assoc-william", individualGoal: 5000 },
+  ];
+
+  const assocSellerRows: { id: string; shopSlug: string }[] = [];
+  for (const s of ASSOC_SELLERS) {
+    const sellerUser = await ensureUser({
+      email: s.email,
+      passwordHash,
+      role: "SELLER",
+      orgId: associationOrg.id,
+      contactName: s.name,
+    });
+
+    const [existing] = await db
+      .select()
+      .from(sellers)
+      .where(eq(sellers.shopSlug, s.shopSlug))
+      .limit(1);
+    if (existing) {
+      assocSellerRows.push({ id: existing.id, shopSlug: existing.shopSlug });
+      continue;
+    }
+
+    const [created] = await db
+      .insert(sellers)
+      .values({
+        userId: sellerUser.id,
+        teamId: assocTeam.id,
+        campaignId: assocCampaign.id,
+        shopSlug: s.shopSlug,
+        displayName: s.name.split(" ")[0],
+        individualGoal: s.individualGoal,
+        status: "ACTIVE",
+      })
+      .returning({ id: sellers.id, shopSlug: sellers.shopSlug });
+    assocSellerRows.push(created);
+  }
+
+  // Customer orders so /forening + /lag dashboards have real numbers.
+  // /dashboard/association reads `customer_orders` (NOT internal orders).
+  // We only insert if we don't already have enough rows for this team —
+  // re-running the seed should not balloon the dataset.
+  const [coCountRow] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(customerOrders)
+    .where(eq(customerOrders.teamId, assocTeam.id));
+
+  if (Number(coCountRow?.count ?? 0) < 4) {
+    const shampoo = await getRequiredProduct("ROOTS-SH-001");
+    const conditioner = await getRequiredProduct("ROOTS-CO-001");
+    const bodyWash = await getRequiredProduct("ROOTS-BW-001");
+
+    const fakeCustomers: ReadonlyArray<{
+      sellerIndex: number;
+      daysAgo: number;
+      customerName: string;
+      customerEmail: string;
+      status: "PAID" | "SHIPPED" | "DELIVERED" | "PENDING";
+      lines: ReadonlyArray<{ productId: string; priceOre: number; qty: number }>;
+    }> = [
+      {
+        sellerIndex: 0,
+        daysAgo: 30,
+        customerName: "Margareta Eriksson",
+        customerEmail: "margareta@example.com",
+        status: "DELIVERED",
+        lines: [
+          { productId: shampoo.id, priceOre: shampoo.priceOre, qty: 2 },
+          { productId: conditioner.id, priceOre: conditioner.priceOre, qty: 2 },
+        ],
+      },
+      {
+        sellerIndex: 0,
+        daysAgo: 18,
+        customerName: "Stig Andersson",
+        customerEmail: "stig@example.com",
+        status: "DELIVERED",
+        lines: [{ productId: bodyWash.id, priceOre: bodyWash.priceOre, qty: 3 }],
+      },
+      {
+        sellerIndex: 1,
+        daysAgo: 22,
+        customerName: "Lena Falk",
+        customerEmail: "lena@example.com",
+        status: "PAID",
+        lines: [
+          { productId: shampoo.id, priceOre: shampoo.priceOre, qty: 1 },
+          { productId: conditioner.id, priceOre: conditioner.priceOre, qty: 1 },
+          { productId: bodyWash.id, priceOre: bodyWash.priceOre, qty: 1 },
+        ],
+      },
+      {
+        sellerIndex: 1,
+        daysAgo: 8,
+        customerName: "Hans Berg",
+        customerEmail: "hans@example.com",
+        status: "PAID",
+        lines: [{ productId: shampoo.id, priceOre: shampoo.priceOre, qty: 4 }],
+      },
+      {
+        sellerIndex: 2,
+        daysAgo: 14,
+        customerName: "Birgit Larsson",
+        customerEmail: "birgit@example.com",
+        status: "SHIPPED",
+        lines: [
+          { productId: conditioner.id, priceOre: conditioner.priceOre, qty: 2 },
+          { productId: bodyWash.id, priceOre: bodyWash.priceOre, qty: 2 },
+        ],
+      },
+      {
+        sellerIndex: 2,
+        daysAgo: 3,
+        customerName: "Ulla Sjöberg",
+        customerEmail: "ulla@example.com",
+        status: "PAID",
+        lines: [{ productId: shampoo.id, priceOre: shampoo.priceOre, qty: 2 }],
+      },
+    ];
+
+    for (const f of fakeCustomers) {
+      const seller = assocSellerRows[f.sellerIndex];
+      if (!seller) continue;
+      const totalOre = f.lines.reduce((s, l) => s + l.priceOre * l.qty, 0);
+      const created = daysAgo(f.daysAgo);
+      const [newOrder] = await db
+        .insert(customerOrders)
+        .values({
+          orgId: associationOrg.id,
+          campaignId: assocCampaign.id,
+          teamId: assocTeam.id,
+          sellerId: seller.id,
+          customerName: f.customerName,
+          customerEmail: f.customerEmail,
+          status: f.status,
+          totalOre,
+          createdAt: created,
+          updatedAt: created,
+        })
+        .returning({ id: customerOrders.id });
+      await db.insert(customerOrderLines).values(
+        f.lines.map((l) => ({
+          orderId: newOrder.id,
+          productId: l.productId,
+          qty: l.qty,
+          unitPriceOre: l.priceOre,
+        }))
+      );
+    }
+    console.log(
+      `Customer orders: inserted ${fakeCustomers.length} demo orders for ${ASSOC_TEAM_NAME}`
+    );
+  } else {
+    console.log(
+      `Customer orders: ${coCountRow?.count ?? 0} already present for ${ASSOC_TEAM_NAME}, skipping`
+    );
+  }
+
+  console.log(
+    `Association: forening=${foreningAdmin.id}, leader=${teamLeader.id}, ` +
+      `team=${assocTeam.id}, sellers=${assocSellerRows.length}`
   );
 
   console.log("Demo seed complete.");

@@ -65,6 +65,24 @@ const DEMO_ACCOUNTS: Record<
         name: "Roots Admin",
         orgName: "Roots AB",
       },
+      // Sprint E1: fundraising-portal roles. The in-memory fallback
+      // gives a successful login experience, but the actual
+      // /forening + /lag dashboards require DB-seeded data
+      // (`pnpm db:seed:demo`) — otherwise the API returns 403
+      // (`Ingen organisation`) because session.orgId is null on the
+      // in-memory path.
+      "forening@demo-if.se": {
+        password: "Demo1234!",
+        role: "ASSOCIATION_ADMIN",
+        name: "Karin Lindgren",
+        orgName: "Demo IF Sundsvall",
+      },
+      "lag@demo-if.se": {
+        password: "Demo1234!",
+        role: "TEAM_LEADER",
+        name: "Mikael Berg",
+        orgName: "Demo IF Sundsvall",
+      },
     }
   : {};
 
