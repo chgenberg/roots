@@ -5,12 +5,20 @@ import { initBankIdAdapter } from "./lib/bankid/adapter";
 import { runBootMigrations } from "./lib/migrate-on-boot";
 import { startWorkers, stopWorkers } from "./lib/jobs";
 import { flags } from "./lib/flags";
+import { validateEnvOrExit } from "./lib/validate-env";
 
 const log = childLogger("server");
 
 const port = Number(process.env.PORT) || 4000;
 
 async function start() {
+  // Sprint D — Prod-konfig: validate env BEFORE we do anything that
+  // touches the DB or Redis. If a required prod var is missing or still
+  // holds an .env.example placeholder we exit(1) here so the orchestrator
+  // rolls the deploy back. No DB queries get executed against the wrong
+  // database, no Klarna webhooks get signed with the dev secret.
+  validateEnvOrExit();
+
   // Run pending schema migrations BEFORE we accept HTTP traffic. A failure
   // crashes the process so the orchestrator can roll back the deploy.
   // No-op when `RUN_MIGRATIONS_ON_BOOT` is off — schema is then assumed to

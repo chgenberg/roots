@@ -17,6 +17,7 @@ import { contact } from "./routes/contact";
 import { portal } from "./routes/portal";
 import { securityHeaders } from "./middleware/security-headers";
 import { generateCsrfToken, verifyCsrfToken } from "./lib/csrf";
+import { checkReadiness } from "./lib/health-checks";
 
 export const app = new Hono();
 
@@ -34,6 +35,12 @@ const CSRF_SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 const CSRF_EXEMPT_PATHS = [
   "/v1/integrations/fortnox/webhook",
   "/health",
+  // Sprint D: Railway/Cloud Run/k8s liveness + readiness probes never
+  // carry a CSRF token. They're GET-only so the safe-method check
+  // already lets them through, but listing them here documents intent
+  // and protects against accidental method changes later.
+  "/healthz",
+  "/readyz",
 ];
 
 app.use("*", async (c, next) => {
@@ -61,6 +68,25 @@ app.get("/", (c) =>
 app.get("/health", (c) =>
   c.json({ status: "ok", timestamp: new Date().toISOString() })
 );
+
+// Sprint D: split the legacy `/health` into Kubernetes-style probes.
+// `/health` stays for back-compat with any external monitors.
+//
+// /healthz — LIVENESS: does the process respond at all? No external
+// deps touched so a flapping DB/Redis can NEVER trigger a restart loop.
+app.get("/healthz", (c) =>
+  c.json({ status: "ok", timestamp: new Date().toISOString() })
+);
+
+// /readyz — READINESS: pings DB + Redis with a strict timeout. 503 if
+// either is down so a load balancer can drain the instance.
+app.get("/readyz", async (c) => {
+  const report = await checkReadiness();
+  return c.json(
+    { status: report.ok ? "ok" : "degraded", ...report },
+    report.ok ? 200 : 503
+  );
+});
 
 app.get("/v1/csrf-token", (c) => {
   return c.json({ token: generateCsrfToken() });
