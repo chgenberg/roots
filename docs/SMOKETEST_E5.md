@@ -1,5 +1,16 @@
 # Sprint E5 — Role-by-role API smoketest
 
+> **⚠ ERRATA (Sprint E6, 2026-05-18 01:35 CET):** The "🔴 NO-GO" for
+> ASSOCIATION_ADMIN / TEAM_LEADER / SELLER below was a **false
+> positive**. This script probed `/v1/association/*`, `/v1/team/*`,
+> `/v1/seller/*` — paths that don't exist — and reported 404s as
+> "router missing". The real endpoints live on **`/v1/dashboard/*`**
+> (in `apps/api/src/routes/dashboard.ts`) and the frontend already
+> calls them correctly. See [`SMOKETEST_E6.md`](./SMOKETEST_E6.md)
+> for the corrected verification — **all 7 roles are GO**. The
+> `/v1/portal/statistics` regression fix from this run is still
+> valid.
+
 Run date: **2026-05-17 23:25 CET** (local against `:4099` with
 `REDIS_DISABLED=true`, `NODE_ENV=development`, demo-seed loaded from
 `pnpm db:seed:demo`).
