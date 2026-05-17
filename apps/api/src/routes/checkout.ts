@@ -14,6 +14,7 @@ import {
   getCheckoutOrder,
   acknowledgeOrder,
 } from "../lib/payments/klarna";
+import { verifyKlarnaSignature } from "../lib/payments/klarna-webhook";
 import { getEmailSender } from "../lib/email";
 import { orderConfirmationEmail } from "../lib/email/templates";
 import { childLogger } from "../lib/logger";
@@ -33,6 +34,11 @@ const KLARNA_ALLOWED_IPS = new Set(
     .map((ip) => ip.trim())
     .filter(Boolean)
 );
+
+// Shared secret used for HMAC-SHA256 verification of Klarna's push
+// notifications. The verifier lives in ../lib/payments/klarna-webhook.ts
+// so it can be unit-tested without touching the route.
+const KLARNA_WEBHOOK_SECRET = process.env.KLARNA_WEBHOOK_SECRET || "";
 
 checkout.post("/create", async (c) => {
   let body: any;
@@ -273,13 +279,44 @@ checkout.post("/create", async (c) => {
 checkout.post("/webhook/:klarnaOrderId", async (c) => {
   const klarnaOrderId = c.req.param("klarnaOrderId");
 
-  if (KLARNA_ALLOWED_IPS.size > 0) {
-    const clientIp = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "";
+  // Connection-audit P0 #3: fail-closed when neither HMAC signing nor
+  // IP allowlist is configured in production. Previously this was a
+  // bare endpoint that anyone could POST to and flip orders to PAID.
+  const isProd = process.env.NODE_ENV === "production";
+  const hasSecret = KLARNA_WEBHOOK_SECRET.length > 0;
+  const hasIpAllowlist = KLARNA_ALLOWED_IPS.size > 0;
+
+  if (isProd && !hasSecret && !hasIpAllowlist) {
+    log.error(
+      "Klarna webhook called in production with neither KLARNA_WEBHOOK_SECRET nor KLARNA_WEBHOOK_IPS configured — refusing"
+    );
+    return c.json({ error: "Webhook not configured" }, 503);
+  }
+
+  // Read the raw body up-front so we can HMAC it before parsing JSON.
+  const rawBody = await c.req.text();
+  const signatureHeader = c.req.header("klarna-signature") || "";
+
+  // If a signing secret is configured, require a valid signature. The
+  // signature path takes precedence over IP allowlist because spoofed
+  // X-Forwarded-For is easy without HMAC.
+  if (hasSecret) {
+    if (!verifyKlarnaSignature(rawBody, signatureHeader, KLARNA_WEBHOOK_SECRET)) {
+      log.warn(
+        { hasHeader: signatureHeader.length > 0 },
+        "Rejected Klarna webhook: invalid signature"
+      );
+      return c.json({ error: "Invalid signature" }, 401);
+    }
+  } else if (hasIpAllowlist) {
+    const clientIp =
+      c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "";
     if (!KLARNA_ALLOWED_IPS.has(clientIp)) {
       log.warn({ clientIp }, "Rejected webhook IP");
       return c.json({ error: "Forbidden" }, 403);
     }
   }
+  // Non-prod with neither configured falls through (dev/test convenience).
 
   try {
     const klarnaOrder = await getCheckoutOrder(klarnaOrderId);
