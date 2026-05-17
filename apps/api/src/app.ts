@@ -18,6 +18,10 @@ import { portal } from "./routes/portal";
 import { securityHeaders } from "./middleware/security-headers";
 import { generateCsrfToken, verifyCsrfToken } from "./lib/csrf";
 import { checkReadiness } from "./lib/health-checks";
+import { captureException } from "./lib/sentry";
+import { childLogger } from "./lib/logger";
+
+const errLog = childLogger("hono-error");
 
 export const app = new Hono();
 
@@ -110,5 +114,38 @@ v1Ai.route("/", publicChat);
 app.route("/v1/ai", v1Ai);
 
 app.all("/trpc/*", trpcHandler);
+
+// Sprint D+1: central error handler. Hono swallows route exceptions by
+// default and returns 500 with no body — opaque both for users and for
+// our incident response. We:
+//   1. Log a single structured pino line so it shows up in Railway.
+//   2. Forward to Sentry with route + method tags for grouping.
+//   3. Return a stable JSON shape so the frontend's `apiFetch` can
+//      surface a non-empty `error` field.
+// We intentionally do NOT leak the original error message in
+// production — could expose stack/internal table names.
+app.onError((err, c) => {
+  const isProd = process.env.NODE_ENV === "production";
+  errLog.error(
+    { err, path: c.req.path, method: c.req.method },
+    "unhandled route error"
+  );
+  captureException(err, {
+    tags: {
+      route: c.req.path,
+      method: c.req.method,
+    },
+  });
+  return c.json(
+    {
+      error: isProd
+        ? "Internal server error"
+        : err instanceof Error
+          ? err.message
+          : String(err),
+    },
+    500
+  );
+});
 
 export type AppType = typeof app;

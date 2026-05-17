@@ -6,12 +6,19 @@ import { runBootMigrations } from "./lib/migrate-on-boot";
 import { startWorkers, stopWorkers } from "./lib/jobs";
 import { flags } from "./lib/flags";
 import { validateEnvOrExit } from "./lib/validate-env";
+import { initSentry, captureException, flushSentry } from "./lib/sentry";
 
 const log = childLogger("server");
 
 const port = Number(process.env.PORT) || 4000;
 
 async function start() {
+  // Sprint D+1 — Observability: initialise Sentry as the very first
+  // thing so any error during env-validation, migrations, or worker
+  // startup gets captured. No-op when SENTRY_DSN is unset, so dev and
+  // tests are unaffected.
+  initSentry();
+
   // Sprint D — Prod-konfig: validate env BEFORE we do anything that
   // touches the DB or Redis. If a required prod var is missing or still
   // holds an .env.example placeholder we exit(1) here so the orchestrator
@@ -53,13 +60,31 @@ async function shutdown(signal: string) {
   } catch (err) {
     log.error({ err }, "stopWorkers failed during shutdown");
   }
+  // Sprint D+1: drain in-flight Sentry events before exiting. 2s cap
+  // so orchestrators never see a stuck container.
+  await flushSentry(2_000);
   process.exit(0);
 }
 
 process.on("SIGTERM", () => void shutdown("SIGTERM"));
 process.on("SIGINT", () => void shutdown("SIGINT"));
 
+// Sprint D+1: catch errors that escape every async boundary. Logging
+// them was already done by pino's default behaviour; Sentry-reporting
+// gives us alerting + grouping on top.
+process.on("unhandledRejection", (reason) => {
+  log.error({ err: reason }, "unhandledRejection");
+  captureException(reason, { tags: { type: "unhandledRejection" } });
+});
+process.on("uncaughtException", (err) => {
+  log.error({ err }, "uncaughtException");
+  captureException(err, { tags: { type: "uncaughtException" } });
+});
+
 start().catch((err) => {
   log.error({ err }, "Failed to start server");
-  process.exit(1);
+  captureException(err, { tags: { phase: "boot" } });
+  // Best-effort flush so the boot failure shows up in Sentry even if
+  // we exit immediately after.
+  void flushSentry(1_500).finally(() => process.exit(1));
 });

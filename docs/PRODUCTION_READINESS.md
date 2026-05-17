@@ -100,19 +100,31 @@ this endpoint means traffic should be drained.
 
 ---
 
-## 6. Observability (P1 follow-up)
+## 6. Observability
 
-Sentry wiring is documented but **not yet committed**. Until then:
+**API-side Sentry is wired** (Sprint D+1). Sets `SENTRY_DSN` and
+relevant tracking is automatic — every uncaught route error,
+`unhandledRejection`, `uncaughtException`, and boot failure is
+captured. See `apps/api/src/lib/sentry.ts`.
 
+- [x] `@sentry/node` initialised when `SENTRY_DSN` is set
+- [x] Hono `onError` handler forwards 5xx to Sentry with route + method tags
+- [x] `unhandledRejection` + `uncaughtException` reported with `type` tag
+- [x] Boot failures captured before exit(1) with `phase=boot` tag
+- [x] `flushSentry()` called from SIGTERM/SIGINT so no events lost on redeploy
+
+Operational checks regardless of Sentry:
 - [ ] Railway / hosting provider logs are tailed during the demo.
 - [ ] Slack / email alert is set on Railway "deploy crashed" events.
 - [ ] `/readyz` is hit from an uptime monitor (e.g. UptimeRobot,
       Better Uptime) every 60s.
 
-Planned for Sprint D+1:
-- [ ] `@sentry/node` initialised when `SENTRY_DSN` is set.
-- [ ] Hono `onError` handler that forwards 5xx to Sentry.
-- [ ] Frontend `@sentry/nextjs` mirror via `NEXT_PUBLIC_SENTRY_DSN`.
+Pending for a follow-up commit (out of scope for Sprint D+1):
+- [ ] Frontend `@sentry/nextjs` mirror via `NEXT_PUBLIC_SENTRY_DSN`
+      (requires the Next.js webpack-plugin + source-maps upload — needs
+      `SENTRY_AUTH_TOKEN` + dedicated test in staging).
+- [ ] Sentry release-tagging tied to the CI build SHA.
+- [ ] Performance / tracing dashboard tuning once we have a baseline.
 
 ---
 
