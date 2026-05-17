@@ -68,13 +68,27 @@ const DEMO_MEMBERS: ReadonlyArray<{ email: string; name: string }> = [
   { email: "viktor.lund@demo-if.se", name: "Viktor Lund" },
 ];
 
+// Sprint E7 (F6): these two sellers belong to `Demo Fotbollsklubb`
+// (a CLUB-type org, not an association). Their emails used to be
+// `@demo-if.se` which made it look like they belonged to the IF
+// association — confusing during the investor demo. They now use
+// `@demo.se` matching their CLUB_ADMIN org. `migrateLegacyEmails`
+// below renames any pre-existing rows so seeds stay idempotent.
 const DEMO_SELLER_USERS: ReadonlyArray<{
   email: string;
   name: string;
   shopSlug: string;
 }> = [
-  { email: "noah.saljare@demo-if.se", name: "Noah Berglund", shopSlug: "demo-noah" },
-  { email: "alma.saljare@demo-if.se", name: "Alma Sundberg", shopSlug: "demo-alma" },
+  { email: "noah.saljare@demo.se", name: "Noah Berglund", shopSlug: "demo-noah" },
+  { email: "alma.saljare@demo.se", name: "Alma Sundberg", shopSlug: "demo-alma" },
+];
+
+// Pre-Sprint-E7 emails → post-Sprint-E7 emails. Run once at the top
+// of seed-demo. Each row is renamed only if the OLD email exists AND
+// the NEW email does not, so two consecutive seed runs are safe.
+const LEGACY_EMAIL_RENAMES: ReadonlyArray<{ from: string; to: string }> = [
+  { from: "noah.saljare@demo-if.se", to: "noah.saljare@demo.se" },
+  { from: "alma.saljare@demo-if.se", to: "alma.saljare@demo.se" },
 ];
 
 interface RowWithId {
@@ -154,8 +168,39 @@ async function getRequiredProduct(sku: string): Promise<{
   return row;
 }
 
+// Sprint E7 (F6). Run BEFORE `ensureUser` for any of the renamed
+// accounts so we never end up with two rows (old email + new email)
+// both attached to the same seller-profile via FK.
+async function migrateLegacyEmails(): Promise<void> {
+  for (const { from, to } of LEGACY_EMAIL_RENAMES) {
+    const [oldUser] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, from))
+      .limit(1);
+    if (!oldUser) continue;
+    const [conflicting] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, to))
+      .limit(1);
+    if (conflicting) {
+      // Pre-existing target — leave the legacy row alone so we don't
+      // collide. Surfaces in the seed log so an operator can clean up.
+      console.warn(
+        `[seed-demo] legacy email rename skipped (target exists): ${from} → ${to}`
+      );
+      continue;
+    }
+    await db.update(users).set({ email: to }).where(eq(users.email, from));
+    console.log(`[seed-demo] migrated email ${from} → ${to}`);
+  }
+}
+
 async function seedDemo() {
   console.log("Seeding demo dataset…");
+
+  await migrateLegacyEmails();
 
   const passwordHash = await hash(DEMO_PASSWORD, ARGON2_OPTIONS);
 

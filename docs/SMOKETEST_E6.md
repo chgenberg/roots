@@ -155,7 +155,7 @@ The remaining findings worth keeping:
 |---|---|---|---|---|
 | F4 | 🟡 P1 | Browser smoketest | Replace the curl-based E5/E6 with a Playwright smoketest that actually renders each role's first dashboard page and asserts non-zero UI. | Add `apps/web/e2e/smoketest.spec.ts` per role. |
 | F5 | 🟢 P2 | URL naming | `/v1/dashboard/{association,team/:id,seller}` is a *role-aware* endpoint masquerading under a generic `/dashboard` prefix. A future cleanup could split it into `/v1/association`, `/v1/team`, `/v1/seller` for OpenAPI clarity, but it's purely cosmetic — frontend already calls the correct paths. | Optional rename + alias for one release cycle, then drop the old prefix. |
-| F6 | 🟢 P2 | Demo seed | `alma.saljare@demo-if.se` + `noah.saljare@demo-if.se` are attached to `Demo Fotbollsklubb` (a CLUB org), not the IF association. Mixed metaphor in seed-demo §6. | Tighten `seed-demo.ts` so all `demo-if.se` sellers live under `Demo IF Sundsvall`. |
+| F6 | ✅ DONE (E7) | Demo seed | ~~`alma.saljare@demo-if.se` + `noah.saljare@demo-if.se` were attached to `Demo Fotbollsklubb` (a CLUB org), not the IF association.~~ Renamed in `seed-demo.ts` to `alma.saljare@demo.se` / `noah.saljare@demo.se` so the domain matches the org type. `migrateLegacyEmails()` repairs existing DBs in-place. Verified locally + idempotent. | — |
 | F7 | 🟢 P3 | `/readyz` | Production must wire Redis. | Covered by `PRODUCTION_READINESS.md` §4. |
 
 ---
@@ -175,7 +175,7 @@ The remaining findings worth keeping:
 only items left are:
 - Optional Playwright e2e (F4)
 - Cosmetic URL rename (F5)
-- Cosmetic seed tweak (F6)
+- ~~Cosmetic seed tweak (F6)~~ — done in Sprint E7
 - Production Redis wiring (F7, already in `PRODUCTION_READINESS.md`)
 
 No P0 blockers remain.
