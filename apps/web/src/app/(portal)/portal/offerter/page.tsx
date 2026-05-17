@@ -83,7 +83,10 @@ export default function OfferterPage() {
         setQuotes(
           (data.quotes ?? []).map((q) => ({
             id: q.id.slice(0, 8).toUpperCase(),
-            client: `Klubb ${q.orgId.slice(0, 6)}`,
+            // Use the joined org name. Fall back to "—" instead of the
+            // old "Klubb a3f2b1" placeholder, which made even real data
+            // look fake.
+            client: q.orgName ?? "—",
             contact: "",
             totalOre: q.totalOre,
             status: QUOTE_STATUS_LABELS[q.status] ?? q.status,

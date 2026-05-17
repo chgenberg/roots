@@ -142,7 +142,7 @@ async function seed() {
   const insertedProducts: { id: string; sku: string }[] = [];
   for (const p of productSeeds) {
     const [exists] = await db
-      .select({ id: products.id })
+      .select({ id: products.id, sku: products.sku })
       .from(products)
       .where(eq(products.sku, p.sku))
       .limit(1);

@@ -260,6 +260,10 @@ describe("GET /v1/portal/pipeline", () => {
           status: "SENT",
           totalOre: 250_000,
           orgId: "00000000-0000-0000-0000-0000000000aa",
+          // Joined from `organizations` via LEFT JOIN in
+          // /v1/portal/pipeline (Sprint B). The UI renders this as the
+          // kanban-card title instead of "Klubb <orgId-prefix>".
+          orgName: "Demo Fotbollsklubb",
           createdAt: new Date("2026-05-14T08:00:00.000Z"),
         },
         {
@@ -267,6 +271,10 @@ describe("GET /v1/portal/pipeline", () => {
           status: "DRAFT",
           totalOre: 150_000,
           orgId: "00000000-0000-0000-0000-0000000000bb",
+          // Null orgName covers the data-migration edge case where the
+          // FK lookup misses; the contract schema allows it and the UI
+          // falls back to "—".
+          orgName: null,
           createdAt: new Date("2026-05-13T12:00:00.000Z"),
         },
       ],

@@ -533,19 +533,36 @@ portal.get("/quotes", async (c) => {
   const session = await requireSession(c);
   if (!session) return c.json({ error: "Ej inloggad" }, 401);
 
+  // LEFT JOIN organizations so the UI can render the club name in the
+  // "Kund"-column. Previously the page fell back to "Klubb <orgId-prefix>"
+  // because the API only returned `orgId`. This is the single SQL change
+  // that turns the offert-tabellen into a real customer list.
+  const baseSelect = {
+    id: quotes.id,
+    orgId: quotes.orgId,
+    salesRepId: quotes.salesRepId,
+    status: quotes.status,
+    totalOre: quotes.totalOre,
+    validUntil: quotes.validUntil,
+    createdAt: quotes.createdAt,
+    orgName: organizations.name,
+  };
+
   try {
     let quoteList;
     if (session.role === "INTERNAL_ADMIN" || session.role === "SALES_ADMIN") {
       quoteList = await db
-        .select()
+        .select(baseSelect)
         .from(quotes)
+        .leftJoin(organizations, eq(quotes.orgId, organizations.id))
         .orderBy(desc(quotes.createdAt))
         .limit(100);
     } else {
       // quotes.salesRepId is the canonical column — there is no quotes.userId.
       quoteList = await db
-        .select()
+        .select(baseSelect)
         .from(quotes)
+        .leftJoin(organizations, eq(quotes.orgId, organizations.id))
         .where(eq(quotes.salesRepId, session.userId))
         .orderBy(desc(quotes.createdAt))
         .limit(100);
@@ -737,15 +754,19 @@ portal.get("/pipeline", async (c) => {
     });
 
     // Recent deals (non-empty list helps the pipeline page render real data).
+    // LEFT JOIN organizations so the kanban-card can show the club name
+    // instead of "Klubb <orgId-prefix>".
     const recentDeals = await db
       .select({
         id: quotes.id,
         status: quotes.status,
         totalOre: quotes.totalOre,
         orgId: quotes.orgId,
+        orgName: organizations.name,
         createdAt: quotes.createdAt,
       })
       .from(quotes)
+      .leftJoin(organizations, eq(quotes.orgId, organizations.id))
       .where(repFilter)
       .orderBy(desc(quotes.createdAt))
       .limit(25);
@@ -757,6 +778,7 @@ portal.get("/pipeline", async (c) => {
         status: String(d.status),
         totalOre: Number(d.totalOre),
         orgId: d.orgId,
+        orgName: d.orgName,
         createdAt: d.createdAt instanceof Date ? d.createdAt.toISOString() : d.createdAt,
       })),
     };

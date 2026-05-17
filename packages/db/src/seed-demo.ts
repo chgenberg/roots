@@ -1,0 +1,507 @@
+/**
+ * `db:seed:demo` — Investor-demo dataset (Sprint B).
+ *
+ * Builds on top of the base `seed.ts` (which creates the demo accounts
+ * `klubb@demo.se`, `salj@roots.se`, `admin@roots.se` and the three
+ * products). This script then layers on realistic relational data so
+ * every portal surface shows live numbers instead of "—" empty states:
+ *
+ *  - 12 CLUB_MEMBERs in Demo Fotbollsklubb     → /portal/medlemmar, dashboard
+ *  - 1 extra discovery klubb                    → /portal/klubbar shows >1 row
+ *  - 1 extra SALES_REP                          → /portal/saljare shows >1 row
+ *  - 5 orders (3 PAID over 3 months + 2 open)   → /portal/statistik, /intakter,
+ *                                                 /bestallningar, dashboard MRR
+ *  - 4 quotes by salj@roots.se                  → /portal/quotes, /pipeline
+ *  - 1 active campaign + 1 team + 2 sellers     → groundwork for fundraising
+ *                                                 demo flows
+ *
+ * Idempotency: safe to run repeatedly. Rows are skipped when a stable
+ * identity already matches (org name, user email, campaign slug,
+ * seller shop_slug) or when the target table already contains enough
+ * demo rows to make the page render (orders ≥ 3, quotes ≥ 3).
+ *
+ * Usage: `pnpm -F @roots/db db:seed && pnpm -F @roots/db db:seed:demo`
+ */
+
+import { and, eq, sql } from "drizzle-orm";
+import { hash } from "@node-rs/argon2";
+import { db } from "./client";
+import {
+  organizations,
+  users,
+  products,
+  orders,
+  orderLines,
+  quotes,
+  quoteLines,
+  campaigns,
+  teams,
+  sellers,
+} from "./schema";
+
+const ARGON2_OPTIONS = {
+  memoryCost: 19456,
+  timeCost: 2,
+  outputLen: 32,
+  parallelism: 1,
+};
+
+const DEMO_PASSWORD = "Demo1234!";
+
+// Stable list of demo member names. Real-sounding Swedish names so the
+// member table looks like a real club roster, but addressed at
+// `@demo-if.se` so an investor can't mistake them for live customers.
+const DEMO_MEMBERS: ReadonlyArray<{ email: string; name: string }> = [
+  { email: "anna.lindgren@demo-if.se", name: "Anna Lindgren" },
+  { email: "erik.svensson@demo-if.se", name: "Erik Svensson" },
+  { email: "sofia.karlsson@demo-if.se", name: "Sofia Karlsson" },
+  { email: "oscar.bjork@demo-if.se", name: "Oscar Björk" },
+  { email: "maja.holm@demo-if.se", name: "Maja Holm" },
+  { email: "liam.ekstrom@demo-if.se", name: "Liam Ekström" },
+  { email: "ella.nilsson@demo-if.se", name: "Ella Nilsson" },
+  { email: "hugo.andersson@demo-if.se", name: "Hugo Andersson" },
+  { email: "linnea.bergman@demo-if.se", name: "Linnea Bergman" },
+  { email: "noah.persson@demo-if.se", name: "Noah Persson" },
+  { email: "alma.jonsson@demo-if.se", name: "Alma Jonsson" },
+  { email: "viktor.lund@demo-if.se", name: "Viktor Lund" },
+];
+
+const DEMO_SELLER_USERS: ReadonlyArray<{
+  email: string;
+  name: string;
+  shopSlug: string;
+}> = [
+  { email: "noah.saljare@demo-if.se", name: "Noah Berglund", shopSlug: "demo-noah" },
+  { email: "alma.saljare@demo-if.se", name: "Alma Sundberg", shopSlug: "demo-alma" },
+];
+
+interface RowWithId {
+  id: string;
+}
+
+function daysAgo(n: number): Date {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d;
+}
+
+async function ensureOrg(values: {
+  name: string;
+  orgNumber: string | null;
+  type: string;
+}): Promise<RowWithId> {
+  const [existing] = await db
+    .select()
+    .from(organizations)
+    .where(eq(organizations.name, values.name))
+    .limit(1);
+  if (existing) return existing;
+  const [created] = await db.insert(organizations).values(values).returning();
+  return created;
+}
+
+async function ensureUser(values: {
+  email: string;
+  passwordHash: string;
+  role:
+    | "PUBLIC"
+    | "CLUB_MEMBER"
+    | "CLUB_ADMIN"
+    | "SALES_REP"
+    | "SALES_ADMIN"
+    | "INTERNAL_ADMIN"
+    | "ASSOCIATION_ADMIN"
+    | "TEAM_LEADER"
+    | "SELLER";
+  orgId: string | null;
+  contactName: string;
+}): Promise<RowWithId> {
+  const [existing] = await db
+    .select()
+    .from(users)
+    .where(eq(users.email, values.email))
+    .limit(1);
+  if (existing) return existing;
+  const [created] = await db
+    .insert(users)
+    .values({
+      email: values.email,
+      passwordHash: values.passwordHash,
+      role: values.role,
+      orgId: values.orgId,
+      contactName: values.contactName,
+    })
+    .returning();
+  return created;
+}
+
+async function getRequiredProduct(sku: string): Promise<{
+  id: string;
+  priceOre: number;
+}> {
+  const [row] = await db
+    .select({ id: products.id, priceOre: products.priceOre })
+    .from(products)
+    .where(eq(products.sku, sku))
+    .limit(1);
+  if (!row) {
+    throw new Error(
+      `Missing product ${sku}. Run \`pnpm -F @roots/db db:seed\` first.`
+    );
+  }
+  return row;
+}
+
+async function seedDemo() {
+  console.log("Seeding demo dataset…");
+
+  const passwordHash = await hash(DEMO_PASSWORD, ARGON2_OPTIONS);
+
+  // ── 1. Base orgs + the discovery klubb ─────────────────────────────
+  const clubOrg = await ensureOrg({
+    name: "Demo Fotbollsklubb",
+    orgNumber: "556677-8899",
+    type: "club",
+  });
+  const salesOrg = await ensureOrg({
+    name: "Roots AB",
+    orgNumber: "559900-1122",
+    type: "internal",
+  });
+  await ensureOrg({
+    name: "Stockholm Allmänna Bandysällskap",
+    orgNumber: "556688-1234",
+    type: "club",
+  });
+
+  // ── 2. Demo accounts already created by seed.ts; we look them up. ──
+  const [clubAdmin] = await db
+    .select()
+    .from(users)
+    .where(eq(users.email, "klubb@demo.se"))
+    .limit(1);
+  const [salesRep] = await db
+    .select()
+    .from(users)
+    .where(eq(users.email, "salj@roots.se"))
+    .limit(1);
+  if (!clubAdmin || !salesRep) {
+    throw new Error(
+      "Missing base demo users. Run `pnpm -F @roots/db db:seed` first."
+    );
+  }
+
+  // ── 3. Extra säljare so /portal/saljare shows more than 1 row ──────
+  await ensureUser({
+    email: "maria.saljare@roots.se",
+    passwordHash,
+    role: "SALES_REP",
+    orgId: salesOrg.id,
+    contactName: "Maria Försäljning",
+  });
+
+  // ── 4. 12 klubbmedlemmar ───────────────────────────────────────────
+  for (const m of DEMO_MEMBERS) {
+    await ensureUser({
+      email: m.email,
+      passwordHash,
+      role: "CLUB_MEMBER",
+      orgId: clubOrg.id,
+      contactName: m.name,
+    });
+  }
+  console.log(
+    `Members: ensured ${DEMO_MEMBERS.length} CLUB_MEMBERs in ${clubOrg.id}`
+  );
+
+  // ── 5. Orders (statistik / intäkter / dashboard MRR) ───────────────
+  const shampoo = await getRequiredProduct("ROOTS-SH-001");
+  const conditioner = await getRequiredProduct("ROOTS-CO-001");
+  const bodyWash = await getRequiredProduct("ROOTS-BW-001");
+
+  const [orderCount] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(orders)
+    .where(eq(orders.orgId, clubOrg.id));
+
+  if (Number(orderCount?.count ?? 0) < 3) {
+    const demoOrders: ReadonlyArray<{
+      createdAt: Date;
+      status: "DELIVERED" | "SHIPPED" | "PENDING";
+      invoiceStatus: "PAID" | "PENDING" | "NONE";
+      lines: ReadonlyArray<{
+        productId: string;
+        priceOre: number;
+        qty: number;
+      }>;
+    }> = [
+      {
+        createdAt: daysAgo(85),
+        status: "DELIVERED",
+        invoiceStatus: "PAID",
+        lines: [
+          { productId: shampoo.id, priceOre: shampoo.priceOre, qty: 6 },
+          { productId: conditioner.id, priceOre: conditioner.priceOre, qty: 4 },
+          { productId: bodyWash.id, priceOre: bodyWash.priceOre, qty: 4 },
+        ],
+      },
+      {
+        createdAt: daysAgo(55),
+        status: "DELIVERED",
+        invoiceStatus: "PAID",
+        lines: [
+          { productId: shampoo.id, priceOre: shampoo.priceOre, qty: 8 },
+          { productId: conditioner.id, priceOre: conditioner.priceOre, qty: 8 },
+        ],
+      },
+      {
+        createdAt: daysAgo(30),
+        status: "DELIVERED",
+        invoiceStatus: "PAID",
+        lines: [
+          { productId: bodyWash.id, priceOre: bodyWash.priceOre, qty: 10 },
+        ],
+      },
+      {
+        createdAt: daysAgo(12),
+        status: "SHIPPED",
+        invoiceStatus: "PAID",
+        lines: [
+          { productId: shampoo.id, priceOre: shampoo.priceOre, qty: 4 },
+          { productId: conditioner.id, priceOre: conditioner.priceOre, qty: 4 },
+          { productId: bodyWash.id, priceOre: bodyWash.priceOre, qty: 4 },
+        ],
+      },
+      {
+        createdAt: daysAgo(2),
+        status: "PENDING",
+        invoiceStatus: "NONE",
+        lines: [
+          { productId: shampoo.id, priceOre: shampoo.priceOre, qty: 2 },
+        ],
+      },
+    ];
+
+    for (const o of demoOrders) {
+      const totalOre = o.lines.reduce((s, l) => s + l.priceOre * l.qty, 0);
+      const [newOrder] = await db
+        .insert(orders)
+        .values({
+          orgId: clubOrg.id,
+          userId: clubAdmin.id,
+          status: o.status,
+          invoiceStatus: o.invoiceStatus,
+          totalOre,
+          createdAt: o.createdAt,
+          updatedAt: o.createdAt,
+        })
+        .returning({ id: orders.id });
+
+      await db.insert(orderLines).values(
+        o.lines.map((l) => ({
+          orderId: newOrder.id,
+          productId: l.productId,
+          qty: l.qty,
+          unitPriceOre: l.priceOre,
+        }))
+      );
+    }
+    console.log(`Orders: inserted ${demoOrders.length} demo orders`);
+  } else {
+    console.log(
+      `Orders: ${orderCount?.count ?? 0} already present for club, skipping`
+    );
+  }
+
+  // ── 6. Quotes (pipeline / quotes-tabellen) ─────────────────────────
+  const [quoteCount] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(quotes)
+    .where(
+      and(
+        eq(quotes.orgId, clubOrg.id),
+        eq(quotes.salesRepId, salesRep.id)
+      )
+    );
+
+  if (Number(quoteCount?.count ?? 0) < 3) {
+    const demoQuotes: ReadonlyArray<{
+      createdAt: Date;
+      validUntil: Date | null;
+      status: "DRAFT" | "SENT" | "ACCEPTED";
+      lines: ReadonlyArray<{
+        productId: string;
+        priceOre: number;
+        qty: number;
+      }>;
+    }> = [
+      {
+        createdAt: daysAgo(45),
+        validUntil: daysAgo(-15),
+        status: "ACCEPTED",
+        lines: [
+          { productId: shampoo.id, priceOre: shampoo.priceOre, qty: 10 },
+          { productId: conditioner.id, priceOre: conditioner.priceOre, qty: 10 },
+        ],
+      },
+      {
+        createdAt: daysAgo(14),
+        validUntil: daysAgo(-16),
+        status: "SENT",
+        lines: [
+          { productId: shampoo.id, priceOre: shampoo.priceOre, qty: 20 },
+          { productId: bodyWash.id, priceOre: bodyWash.priceOre, qty: 10 },
+        ],
+      },
+      {
+        createdAt: daysAgo(7),
+        validUntil: daysAgo(-23),
+        status: "SENT",
+        lines: [
+          { productId: conditioner.id, priceOre: conditioner.priceOre, qty: 15 },
+        ],
+      },
+      {
+        createdAt: daysAgo(2),
+        validUntil: null,
+        status: "DRAFT",
+        lines: [
+          { productId: shampoo.id, priceOre: shampoo.priceOre, qty: 6 },
+          { productId: conditioner.id, priceOre: conditioner.priceOre, qty: 6 },
+          { productId: bodyWash.id, priceOre: bodyWash.priceOre, qty: 6 },
+        ],
+      },
+    ];
+
+    for (const q of demoQuotes) {
+      const totalOre = q.lines.reduce((s, l) => s + l.priceOre * l.qty, 0);
+      const [newQuote] = await db
+        .insert(quotes)
+        .values({
+          orgId: clubOrg.id,
+          salesRepId: salesRep.id,
+          status: q.status,
+          totalOre,
+          validUntil: q.validUntil,
+          createdAt: q.createdAt,
+          updatedAt: q.createdAt,
+        })
+        .returning({ id: quotes.id });
+
+      await db.insert(quoteLines).values(
+        q.lines.map((l) => ({
+          quoteId: newQuote.id,
+          productId: l.productId,
+          qty: l.qty,
+          unitPriceOre: l.priceOre,
+        }))
+      );
+    }
+    console.log(`Quotes: inserted ${demoQuotes.length} demo quotes`);
+  } else {
+    console.log(
+      `Quotes: ${quoteCount?.count ?? 0} already present for rep+club, skipping`
+    );
+  }
+
+  // ── 7. Campaign + team + sellers ───────────────────────────────────
+  //   Groundwork for the fundraising portal demo flow. Campaign goal is
+  //   sized so that the seeded orders bring it to ~65 % completion.
+  const goalSek = 80000;
+  const [existingCampaign] = await db
+    .select()
+    .from(campaigns)
+    .where(eq(campaigns.slug, "demo-varkampanj-2026"))
+    .limit(1);
+
+  const campaign = existingCampaign
+    ? existingCampaign
+    : (
+        await db
+          .insert(campaigns)
+          .values({
+            orgId: clubOrg.id,
+            name: "Vårkampanj 2026 (Demo)",
+            slug: "demo-varkampanj-2026",
+            description: "Insamling till nya tröjor och bortamatcher.",
+            story:
+              "Demo Fotbollsklubb samlar in pengar för att kunna åka på " +
+              "den årliga försäsongsturneringen i Malmö. Varje paket ger " +
+              "föreningen 30 % i bidrag.",
+            status: "ACTIVE",
+            goalType: "AMOUNT",
+            goalValue: goalSek,
+            startDate: daysAgo(60).toISOString().slice(0, 10),
+            endDate: daysAgo(-30).toISOString().slice(0, 10),
+            deliveryType: "BULK",
+            marginPercent: 30,
+          })
+          .returning()
+      )[0];
+
+  const [existingTeam] = await db
+    .select()
+    .from(teams)
+    .where(
+      and(
+        eq(teams.orgId, clubOrg.id),
+        eq(teams.campaignId, campaign.id),
+        eq(teams.name, "Herr A-lag (Demo)")
+      )
+    )
+    .limit(1);
+
+  const team = existingTeam
+    ? existingTeam
+    : (
+        await db
+          .insert(teams)
+          .values({
+            orgId: clubOrg.id,
+            campaignId: campaign.id,
+            leaderId: clubAdmin.id,
+            name: "Herr A-lag (Demo)",
+            inviteToken: "demo-team-invite-token",
+            memberCount: DEMO_SELLER_USERS.length,
+          })
+          .returning()
+      )[0];
+
+  for (const s of DEMO_SELLER_USERS) {
+    const sellerUser = await ensureUser({
+      email: s.email,
+      passwordHash,
+      role: "SELLER",
+      orgId: clubOrg.id,
+      contactName: s.name,
+    });
+
+    const [existingSeller] = await db
+      .select()
+      .from(sellers)
+      .where(eq(sellers.shopSlug, s.shopSlug))
+      .limit(1);
+    if (existingSeller) continue;
+
+    await db.insert(sellers).values({
+      userId: sellerUser.id,
+      teamId: team.id,
+      campaignId: campaign.id,
+      shopSlug: s.shopSlug,
+      displayName: s.name.split(" ")[0],
+      individualGoal: 8000,
+      status: "ACTIVE",
+    });
+  }
+  console.log(
+    `Campaign: ${campaign.slug} ready (1 team, ${DEMO_SELLER_USERS.length} sellers)`
+  );
+
+  console.log("Demo seed complete.");
+  process.exit(0);
+}
+
+seedDemo().catch((err) => {
+  console.error("Demo seed failed:", err);
+  process.exit(1);
+});

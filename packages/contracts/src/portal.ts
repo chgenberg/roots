@@ -105,6 +105,10 @@ export const pipelineDealSchema = z.object({
   status: z.string(),
   totalOre: z.number().int().nonnegative(),
   orgId: z.string().uuid(),
+  // Populated by the LEFT JOIN in /v1/portal/pipeline. Nullable because
+  // the FK could in theory be unresolved during data-migration windows,
+  // and optional so older API responses still validate.
+  orgName: z.string().nullable().optional(),
   createdAt: z.union([z.string(), z.date()]),
 });
 
@@ -140,6 +144,9 @@ export const quoteStatusEnum = z.union([
 export const portalQuoteSchema = z.object({
   id: z.string().uuid(),
   orgId: z.string().uuid(),
+  // Same nullable-optional treatment as `pipelineDealSchema.orgName` —
+  // server-side LEFT JOIN, client renders "—" if it's missing.
+  orgName: z.string().nullable().optional(),
   salesRepId: z.string().uuid().nullable().optional(),
   status: quoteStatusEnum,
   totalOre: z.number().int(),

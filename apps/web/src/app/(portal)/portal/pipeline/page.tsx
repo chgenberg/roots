@@ -91,7 +91,11 @@ export default function PipelinePage() {
               .filter((d) => d.status === s.stage)
               .map((d) => ({
                 id: d.id,
-                club: `Klubb ${d.orgId.slice(0, 6)}`,
+                // Use the joined org name from /v1/portal/pipeline. Fall
+                // back to "—" rather than the old "Klubb <orgId-prefix>"
+                // placeholder, which made every kanban card look like
+                // synthetic data.
+                club: d.orgName ?? "—",
                 contact: "",
                 value: formatSek(d.totalOre),
                 daysInStage: daysBetween(
