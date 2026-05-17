@@ -211,10 +211,36 @@ describe("GET /v1/portal/statistics", () => {
     } as any);
 
     dbHandle.reset([
+      // 1. monthlyData (12-month rolling buckets)
       [
         { month: "2026-03", orderCount: 4, revenueOre: 80_000 },
         { month: "2026-04", orderCount: 6, revenueOre: 150_000 },
         { month: "2026-05", orderCount: 9, revenueOre: 270_000 },
+      ],
+      // 2. KPI: current 30-day window aggregate
+      [{ orderCount: 9, revenueOre: 270_000, uniqueUsers: 7 }],
+      // 3. KPI: previous 30-day window aggregate (for % delta)
+      [{ orderCount: 6, revenueOre: 150_000, uniqueUsers: 4 }],
+      // 4. KPI: new members in current 30-day window
+      [{ count: 12 }],
+      // 5. KPI: new members in previous 30-day window
+      [{ count: 8 }],
+      // 6. Top products (90-day rolling, ordered by revenue desc)
+      [
+        {
+          productId: "00000000-0000-0000-0000-0000000000a1",
+          name: "Roots Schampoo",
+          slug: "roots-schampoo",
+          soldUnits: 30,
+          revenueOre: 90_000,
+        },
+        {
+          productId: "00000000-0000-0000-0000-0000000000a2",
+          name: "Roots Conditioner",
+          slug: "roots-conditioner",
+          soldUnits: 25,
+          revenueOre: 75_000,
+        },
       ],
     ]);
 

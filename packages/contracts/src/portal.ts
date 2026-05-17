@@ -81,6 +81,35 @@ export const monthBucketSchema = z.object({
   revenue: z.string(),
 });
 
+// KPI block populates the four cards at the top of /portal/statistik.
+// Every numeric field is computed over the last 30 days and (where it
+// makes sense) compared to the preceding 30 days for a percent delta.
+// `prev*Percent` is nullable because the previous window can be zero
+// (e.g. brand-new orgs) — the UI then hides the delta badge instead of
+// rendering "Infinity %".
+export const statisticsKpisSchema = z.object({
+  totalRevenueOre: z.number().int().nonnegative(),
+  totalRevenue: z.string(),
+  avgOrderValueOre: z.number().int().nonnegative(),
+  avgOrderValue: z.string(),
+  totalOrders: z.number().int().nonnegative(),
+  newMembersThisPeriod: z.number().int().nonnegative(),
+  activeMembersThisPeriod: z.number().int().nonnegative(),
+  prevPeriodRevenuePercent: z.number().nullable(),
+  prevPeriodOrdersPercent: z.number().nullable(),
+  prevPeriodMembersPercent: z.number().nullable(),
+});
+
+export const topProductSchema = z.object({
+  productId: z.string().uuid(),
+  name: z.string(),
+  slug: z.string(),
+  soldUnits: z.number().int().nonnegative(),
+  revenueOre: z.number().int().nonnegative(),
+  revenue: z.string(),
+  sharePercent: z.number().min(0).max(100),
+});
+
 export const statisticsResponseSchema = z.object({
   monthlyData: z.array(monthBucketSchema),
   isDemo: z.boolean(),
@@ -89,8 +118,15 @@ export const statisticsResponseSchema = z.object({
     revenueOre: z.number().int().nonnegative(),
     revenue: z.string(),
   }),
+  // Optional + default so older clients/snapshots keep validating while
+  // the API rolls out the additive payload. Once all consumers are on
+  // the new shape these can be tightened to required.
+  kpis: statisticsKpisSchema.optional(),
+  topProducts: z.array(topProductSchema).default([]),
 });
 export type StatisticsResponse = z.infer<typeof statisticsResponseSchema>;
+export type StatisticsKpis = z.infer<typeof statisticsKpisSchema>;
+export type TopProduct = z.infer<typeof topProductSchema>;
 
 // ── /v1/portal/pipeline ─────────────────────────────────────────────
 

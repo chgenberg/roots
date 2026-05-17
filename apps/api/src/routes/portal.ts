@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq, sql, desc, and, count as drizzleCount } from "drizzle-orm";
+import { eq, sql, desc, and, gte, count as drizzleCount } from "drizzle-orm";
 import { db } from "@roots/db";
 import {
   users,
@@ -905,6 +905,122 @@ portal.get("/statistics", async (c) => {
       { orders: 0, revenueOre: 0 }
     );
 
+    // ── KPI block (rolling 30-day windows) ────────────────────────────
+    // Sprint E4: feed the four KPI cards at the top of /portal/statistik
+    // and the top-products list to the right of the revenue chart with
+    // real data. All windows are *rolling* off `now()` so the cards stay
+    // meaningful even mid-month.
+    const now = new Date();
+    const period30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const period60 = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+
+    const buildPeriodAgg = async (since: Date, until: Date | null) => {
+      const where = until
+        ? and(orderScope, gte(orders.createdAt, since), sql`${orders.createdAt} < ${until}`)
+        : and(orderScope, gte(orders.createdAt, since));
+      const rows = await db
+        .select({
+          orderCount: sql<number>`count(*)`,
+          revenueOre: sql<number>`coalesce(sum(${orders.totalOre}), 0)`,
+          uniqueUsers: sql<number>`count(distinct ${orders.userId})`,
+        })
+        .from(orders)
+        .where(where);
+      const row = rows[0] ?? { orderCount: 0, revenueOre: 0, uniqueUsers: 0 };
+      return {
+        orderCount: Number(row.orderCount),
+        revenueOre: Number(row.revenueOre),
+        uniqueUsers: Number(row.uniqueUsers),
+      };
+    };
+
+    const [curr, prev] = await Promise.all([
+      buildPeriodAgg(period30, null),
+      buildPeriodAgg(period60, period30),
+    ]);
+
+    // New-members scope mirrors the order scope: org-scoped users for
+    // CLUB roles, platform-wide for INTERNAL_ADMIN/SALES_ADMIN.
+    const memberScope =
+      !isPlatformAdmin && session.orgId
+        ? eq(users.orgId, session.orgId)
+        : sql`1=1`;
+    const [{ count: newMembers30 } = { count: 0 }] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(users)
+      .where(and(memberScope, gte(users.createdAt, period30)));
+    const [{ count: newMembers60 } = { count: 0 }] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(users)
+      .where(
+        and(
+          memberScope,
+          gte(users.createdAt, period60),
+          sql`${users.createdAt} < ${period30}`
+        )
+      );
+
+    const pct = (currVal: number, prevVal: number): number | null => {
+      if (prevVal <= 0) return null;
+      return Math.round(((currVal - prevVal) / prevVal) * 1000) / 10;
+    };
+
+    const avgOrderValueOre =
+      curr.orderCount > 0 ? Math.round(curr.revenueOre / curr.orderCount) : 0;
+
+    const kpis = {
+      totalRevenueOre: curr.revenueOre,
+      totalRevenue: formatSek(curr.revenueOre),
+      avgOrderValueOre,
+      avgOrderValue: formatSek(avgOrderValueOre),
+      totalOrders: curr.orderCount,
+      newMembersThisPeriod: Number(newMembers30),
+      activeMembersThisPeriod: curr.uniqueUsers,
+      prevPeriodRevenuePercent: pct(curr.revenueOre, prev.revenueOre),
+      prevPeriodOrdersPercent: pct(curr.orderCount, prev.orderCount),
+      prevPeriodMembersPercent: pct(Number(newMembers30), Number(newMembers60)),
+    };
+
+    // ── Top products (rolling 90-day window) ──────────────────────────
+    // Joined through order_lines → products. We deliberately use a 90-day
+    // window for top-products since it stays useful even when last month
+    // had few orders, while still excluding old discontinued SKUs.
+    const period90 = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+    const topRows = await db
+      .select({
+        productId: products.id,
+        name: products.name,
+        slug: products.slug,
+        soldUnits: sql<number>`coalesce(sum(${orderLines.qty}), 0)`,
+        revenueOre: sql<number>`coalesce(sum(${orderLines.qty} * ${orderLines.unitPriceOre}), 0)`,
+      })
+      .from(orderLines)
+      .innerJoin(orders, eq(orderLines.orderId, orders.id))
+      .innerJoin(products, eq(orderLines.productId, products.id))
+      .where(and(orderScope, gte(orders.createdAt, period90)))
+      .groupBy(products.id, products.name, products.slug)
+      .orderBy(desc(sql`sum(${orderLines.qty} * ${orderLines.unitPriceOre})`))
+      .limit(5);
+
+    const topTotalOre = topRows.reduce(
+      (acc, r) => acc + Number(r.revenueOre),
+      0
+    );
+    const topProducts = topRows.map((r) => {
+      const revOre = Number(r.revenueOre);
+      const share =
+        topTotalOre > 0 ? Math.round((revOre / topTotalOre) * 1000) / 10 : 0;
+      return {
+        productId: String(r.productId),
+        name: String(r.name),
+        slug: String(r.slug),
+        soldUnits: Number(r.soldUnits),
+        revenueOre: revOre,
+        revenue: formatSek(revOre),
+        sharePercent: share,
+      };
+    });
+
     const payload: StatisticsResponse = {
       monthlyData: enriched.map((m) => ({
         month: String(m.month),
@@ -919,6 +1035,8 @@ portal.get("/statistics", async (c) => {
         revenueOre: totals.revenueOre,
         revenue: formatSek(totals.revenueOre),
       },
+      kpis,
+      topProducts,
     };
     return c.json(payload);
   } catch (err) {

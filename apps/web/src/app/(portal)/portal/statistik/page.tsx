@@ -10,77 +10,91 @@ import {
   Users,
   ShoppingCart,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ComponentType } from "react";
 import { portalFetch } from "@/lib/portal-api";
 import { publicProductHref } from "@/lib/portal-products";
 
-/* Fallback data is illustrative only. When the API reports no real data we
- * render the dataset with empty-state copy instead of presenting demo numbers
- * as live. */
-
-const FALLBACK_MONTHLY_DATA: Array<{ month: string; orders: number; revenue: number }> = [];
-
-const FALLBACK_KPI_CARDS: Array<{
+type MonthlyBucket = { month: string; orders: number; revenue: number };
+type KpiCard = {
   label: string;
   value: string;
-  change: string | null;
-  positive: boolean;
-  icon: typeof TrendingUp;
-}> = [
+  changePercent: number | null;
+  icon: ComponentType<{ className?: string }>;
+};
+type TopProduct = {
+  productId: string;
+  name: string;
+  slug: string;
+  soldUnits: number;
+  revenue: string;
+  sharePercent: number;
+};
+
+// Sprint E4: KPI defaults show em-dashes while data loads (and stay
+// as em-dashes if the endpoint reports a brand-new tenant with zero
+// orders). We never render synthetic numbers — investors must always
+// be looking at real org data.
+const KPI_CARD_TEMPLATE: KpiCard[] = [
   {
-    label: "Total omsättning",
+    label: "Total omsättning (30d)",
     value: "—",
-    change: null,
-    positive: true,
+    changePercent: null,
     icon: TrendingUp,
   },
   {
     label: "Genomsnittligt ordervärde",
     value: "—",
-    change: null,
-    positive: true,
+    changePercent: null,
     icon: ShoppingCart,
   },
   {
-    label: "Nya medlemmar",
+    label: "Nya medlemmar (30d)",
     value: "—",
-    change: null,
-    positive: true,
+    changePercent: null,
     icon: Users,
   },
   {
-    label: "Churn rate",
+    label: "Aktiva medlemmar (30d)",
     value: "—",
-    change: null,
-    positive: true,
+    changePercent: null,
     icon: TrendingDown,
   },
 ];
 
-const FALLBACK_TOP_PRODUCTS: Array<{
-  name: string;
-  slug: string;
-  sold: number;
-  revenue: string;
-  share: number;
-}> = [];
-
 export default function StatistikPage() {
-  const [monthlyData, setMonthlyData] = useState<
-    Array<{ month: string; orders: number; revenue: number }>
-  >(FALLBACK_MONTHLY_DATA);
-  const [kpiCards] = useState(FALLBACK_KPI_CARDS);
-  const [topProducts] = useState(FALLBACK_TOP_PRODUCTS);
+  const [monthlyData, setMonthlyData] = useState<MonthlyBucket[]>([]);
+  const [kpiCards, setKpiCards] = useState<KpiCard[]>(KPI_CARD_TEMPLATE);
+  const [topProducts, setTopProducts] = useState<TopProduct[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
     portalFetch<{
       monthlyData?: Array<{
         month: string;
         orders?: number;
         revenueOre?: number;
       }>;
+      kpis?: {
+        totalRevenue?: string;
+        avgOrderValue?: string;
+        newMembersThisPeriod?: number;
+        activeMembersThisPeriod?: number;
+        prevPeriodRevenuePercent?: number | null;
+        prevPeriodOrdersPercent?: number | null;
+        prevPeriodMembersPercent?: number | null;
+      };
+      topProducts?: Array<{
+        productId: string;
+        name: string;
+        slug: string;
+        soldUnits: number;
+        revenue: string;
+        sharePercent: number;
+      }>;
     }>("/statistics")
       .then((data) => {
+        if (cancelled) return;
         if (data.monthlyData?.length) {
           setMonthlyData(
             data.monthlyData.map((d) => ({
@@ -90,8 +104,49 @@ export default function StatistikPage() {
             }))
           );
         }
+        if (data.kpis) {
+          const k = data.kpis;
+          setKpiCards([
+            {
+              label: "Total omsättning (30d)",
+              value: k.totalRevenue ?? "—",
+              changePercent: k.prevPeriodRevenuePercent ?? null,
+              icon: TrendingUp,
+            },
+            {
+              label: "Genomsnittligt ordervärde",
+              value: k.avgOrderValue ?? "—",
+              changePercent: k.prevPeriodOrdersPercent ?? null,
+              icon: ShoppingCart,
+            },
+            {
+              label: "Nya medlemmar (30d)",
+              value: String(k.newMembersThisPeriod ?? 0),
+              changePercent: k.prevPeriodMembersPercent ?? null,
+              icon: Users,
+            },
+            {
+              label: "Aktiva medlemmar (30d)",
+              value: String(k.activeMembersThisPeriod ?? 0),
+              changePercent: null,
+              icon: TrendingDown,
+            },
+          ]);
+        }
+        if (data.topProducts?.length) {
+          setTopProducts(data.topProducts);
+        }
       })
-      .catch(() => {});
+      .catch(() => {
+        // Leave fallback em-dashes in place; the user will see the
+        // "ingen data ännu"-states for the charts below.
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const maxRevenue = Math.max(1, ...monthlyData.map((d) => d.revenue));
@@ -107,30 +162,37 @@ export default function StatistikPage() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {kpiCards.map((k) => (
-          <Card key={k.label}>
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">{k.label}</span>
-                <k.icon className="h-4 w-4 text-brand-400" />
-              </div>
-              <p className="mt-2 text-2xl font-bold">{k.value}</p>
-              {k.change && (
-                <div className="mt-1 flex items-center gap-1">
-                  <Badge
-                    variant={k.positive ? "success" : "destructive"}
-                    className="text-[10px]"
-                  >
-                    {k.change}
-                  </Badge>
-                  <span className="text-xs text-muted-foreground">
-                    vs förra månaden
-                  </span>
+        {kpiCards.map((k) => {
+          const positive = (k.changePercent ?? 0) >= 0;
+          const formatted =
+            k.changePercent === null
+              ? null
+              : `${positive ? "+" : ""}${k.changePercent.toFixed(1)} %`;
+          return (
+            <Card key={k.label}>
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">{k.label}</span>
+                  <k.icon className="h-4 w-4 text-brand-400" />
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        ))}
+                <p className="mt-2 text-2xl font-bold">{k.value}</p>
+                {formatted && (
+                  <div className="mt-1 flex items-center gap-1">
+                    <Badge
+                      variant={positive ? "success" : "destructive"}
+                      className="text-[10px]"
+                    >
+                      {formatted}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      vs förra 30d
+                    </span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -140,7 +202,7 @@ export default function StatistikPage() {
             <div className="flex items-center justify-between">
               <h2 className="font-semibold">Omsättning per månad</h2>
               <Badge variant="outline" className="text-xs">
-                Senaste 6 mån
+                Senaste 12 mån
               </Badge>
             </div>
             {hasData ? (
@@ -174,8 +236,9 @@ export default function StatistikPage() {
               </>
             ) : (
               <p className="mt-6 rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-                Ingen omsättningshistorik ännu. Diagrammet fylls i automatiskt
-                när ni får era första betalda ordrar.
+                {loading
+                  ? "Laddar omsättningshistorik …"
+                  : "Ingen omsättningshistorik ännu. Diagrammet fylls i automatiskt när ni får era första betalda ordrar."}
               </p>
             )}
           </CardContent>
@@ -187,12 +250,14 @@ export default function StatistikPage() {
             <h2 className="font-semibold">Toppprodukter</h2>
             {topProducts.length === 0 && (
               <p className="mt-4 rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
-                Listan fylls på när ni har fått ordrar.
+                {loading
+                  ? "Laddar toppprodukter …"
+                  : "Listan fylls på när ni har fått ordrar de senaste 90 dagarna."}
               </p>
             )}
             <div className="mt-4 space-y-4">
               {topProducts.map((p) => (
-                <div key={p.name}>
+                <div key={p.productId}>
                   <div className="flex items-center justify-between gap-2">
                     <Link
                       href={publicProductHref(p.slug)}
@@ -206,15 +271,15 @@ export default function StatistikPage() {
                     <div className="h-2 flex-1 rounded-full bg-brand-100">
                       <div
                         className="h-2 rounded-full bg-inverse-surface transition-all"
-                        style={{ width: `${p.share}%` }}
+                        style={{ width: `${Math.min(100, p.sharePercent)}%` }}
                       />
                     </div>
                     <span className="text-xs text-muted-foreground">
-                      {p.share}%
+                      {p.sharePercent.toFixed(1)} %
                     </span>
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {p.sold} sålda enheter
+                    {p.soldUnits} sålda enheter
                   </p>
                 </div>
               ))}
@@ -257,7 +322,7 @@ export default function StatistikPage() {
             </div>
           ) : (
             <p className="mt-6 rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-              Inga ordrar registrerade ännu.
+              {loading ? "Laddar …" : "Inga ordrar registrerade ännu."}
             </p>
           )}
         </CardContent>

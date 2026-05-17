@@ -131,7 +131,20 @@ exports[`GET /v1/portal/pipeline > returns stage rollups and recent deals (snaps
 exports[`GET /v1/portal/statistics > returns isDemo=true for empty buckets (snapshot) 1`] = `
 {
   "isDemo": true,
+  "kpis": {
+    "activeMembersThisPeriod": 0,
+    "avgOrderValue": "0 kr",
+    "avgOrderValueOre": 0,
+    "newMembersThisPeriod": 0,
+    "prevPeriodMembersPercent": null,
+    "prevPeriodOrdersPercent": null,
+    "prevPeriodRevenuePercent": null,
+    "totalOrders": 0,
+    "totalRevenue": "0 kr",
+    "totalRevenueOre": 0,
+  },
   "monthlyData": [],
+  "topProducts": [],
   "totals": {
     "orders": 0,
     "revenue": "0 kr",
@@ -143,6 +156,18 @@ exports[`GET /v1/portal/statistics > returns isDemo=true for empty buckets (snap
 exports[`GET /v1/portal/statistics > returns monthly buckets with formatted aliases (snapshot) 1`] = `
 {
   "isDemo": false,
+  "kpis": {
+    "activeMembersThisPeriod": 7,
+    "avgOrderValue": "300 kr",
+    "avgOrderValueOre": 30000,
+    "newMembersThisPeriod": 12,
+    "prevPeriodMembersPercent": 50,
+    "prevPeriodOrdersPercent": 50,
+    "prevPeriodRevenuePercent": 80,
+    "totalOrders": 9,
+    "totalRevenue": "2 700 kr",
+    "totalRevenueOre": 270000,
+  },
   "monthlyData": [
     {
       "month": "2026-03",
@@ -164,6 +189,26 @@ exports[`GET /v1/portal/statistics > returns monthly buckets with formatted alia
       "orders": 9,
       "revenue": "2 700 kr",
       "revenueOre": 270000,
+    },
+  ],
+  "topProducts": [
+    {
+      "name": "Roots Schampoo",
+      "productId": "00000000-0000-0000-0000-0000000000a1",
+      "revenue": "900 kr",
+      "revenueOre": 90000,
+      "sharePercent": 54.5,
+      "slug": "roots-schampoo",
+      "soldUnits": 30,
+    },
+    {
+      "name": "Roots Conditioner",
+      "productId": "00000000-0000-0000-0000-0000000000a2",
+      "revenue": "750 kr",
+      "revenueOre": 75000,
+      "sharePercent": 45.5,
+      "slug": "roots-conditioner",
+      "soldUnits": 25,
     },
   ],
   "totals": {
