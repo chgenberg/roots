@@ -18,11 +18,27 @@ import type {
   StatisticsResponse,
   PipelineResponse,
   IncomeResponse,
+  PortalRole,
 } from "@roots/contracts";
 
 const log = childLogger("portal");
 
 export const portal = new Hono();
+
+// ── Role / tenancy guards ──────────────────────────────────────────────
+// Connection-audit P0 #1: prevent CLUB/fundraising sessions from falling
+// through into admin aggregates that ignore orgId scoping. Fundraising
+// roles (ASSOCIATION_ADMIN/TEAM_LEADER/SELLER) live on /forening, /lag,
+// /min-shop — they must never hit /portal/*.
+function isPortalRole(role: string): role is PortalRole {
+  return (
+    role === "CLUB_ADMIN" ||
+    role === "CLUB_MEMBER" ||
+    role === "SALES_REP" ||
+    role === "SALES_ADMIN" ||
+    role === "INTERNAL_ADMIN"
+  );
+}
 
 function formatSek(ore: number): string {
   return `${Math.round(ore / 100).toLocaleString("sv-SE")} kr`;
@@ -50,40 +66,39 @@ portal.get("/dashboard", async (c) => {
   const session = await requireSession(c);
   if (!session) return c.json({ error: "Ej inloggad" }, 401);
 
+  const role = session.role;
+  if (!isPortalRole(role)) {
+    // Fundraising roles (ASSOCIATION_ADMIN/TEAM_LEADER/SELLER) use the
+    // /forening, /lag and /min-shop surfaces — they must not see portal
+    // dashboards (which would leak cross-tenant aggregates).
+    return c.json({ error: "Behörighet saknas" }, 403);
+  }
+
   try {
-    const role = session.role;
+    if (role === "CLUB_ADMIN" || role === "CLUB_MEMBER") {
+      if (!session.orgId) {
+        return c.json({ error: "Klubbkontext saknas" }, 400);
+      }
+      const orgId = session.orgId;
 
-    if (
-      role === "CLUB_ADMIN" ||
-      role === "CLUB_MEMBER"
-    ) {
-      const memberCount = session.orgId
-        ? await db
-            .select({ count: sql<number>`count(*)` })
-            .from(users)
-            .where(eq(users.orgId, session.orgId))
-        : [{ count: 0 }];
+      const memberCount = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(users)
+        .where(eq(users.orgId, orgId));
 
-      const orderCount = session.orgId
-        ? await db
-            .select({ count: sql<number>`count(*)` })
-            .from(orders)
-            .where(eq(orders.orgId, session.orgId))
-        : [{ count: 0 }];
+      const orderCount = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(orders)
+        .where(eq(orders.orgId, orgId));
 
-      const revenueResult = session.orgId
-        ? await db
-            .select({
-              total: sql<number>`coalesce(sum(${orders.totalOre}), 0)`,
-            })
-            .from(orders)
-            .where(
-              and(
-                eq(orders.orgId, session.orgId),
-                eq(orders.invoiceStatus, "PAID")
-              )
-            )
-        : [{ total: 0 }];
+      const revenueResult = await db
+        .select({
+          total: sql<number>`coalesce(sum(${orders.totalOre}), 0)`,
+        })
+        .from(orders)
+        .where(
+          and(eq(orders.orgId, orgId), eq(orders.invoiceStatus, "PAID"))
+        );
 
       const membersNum = Number(memberCount[0]?.count || 0);
       const ordersNum = Number(orderCount[0]?.count || 0);
@@ -104,7 +119,67 @@ portal.get("/dashboard", async (c) => {
       return c.json(payload);
     }
 
-    if (role === "SALES_REP" || role === "SALES_ADMIN") {
+    if (role === "SALES_REP") {
+      // Scope sales-rep dashboard to the rep's own pipeline. They still
+      // see the global club count (read-only catalog), but quote counts
+      // and pipeline value reflect only quotes they own.
+      const clubCount = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(organizations)
+        .where(eq(organizations.type, "club"));
+
+      const quoteCount = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(quotes)
+        .where(eq(quotes.salesRepId, session.userId));
+
+      const closedCount = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(quotes)
+        .where(
+          and(
+            eq(quotes.salesRepId, session.userId),
+            eq(quotes.status, "ACCEPTED")
+          )
+        );
+
+      const pipelineValue = await db
+        .select({
+          total: sql<number>`coalesce(sum(${quotes.totalOre}), 0)`,
+        })
+        .from(quotes)
+        .where(
+          and(
+            eq(quotes.salesRepId, session.userId),
+            eq(quotes.status, "SENT")
+          )
+        );
+
+      const clubsNum = Number(clubCount[0]?.count || 0);
+      const quotesNum = Number(quoteCount[0]?.count || 0);
+      const closedNum = Number(closedCount[0]?.count || 0);
+      const pipelineOre = Number(pipelineValue[0]?.total || 0);
+      const isDemo =
+        clubsNum === 0 && quotesNum === 0 && closedNum === 0 && pipelineOre === 0;
+
+      const payload: DashboardResponse = {
+        role,
+        isDemo,
+        stats: {
+          clubs: clubsNum,
+          quotesOut: quotesNum,
+          closedThisMonth: closedNum,
+          pipelineValueOre: pipelineOre,
+          activeClubs: clubsNum,
+          openQuotes: quotesNum,
+          pipelineValue: formatSek(pipelineOre),
+        },
+      };
+      return c.json(payload);
+    }
+
+    if (role === "SALES_ADMIN") {
+      // Sales managers see the global sales pipeline.
       const clubCount = await db
         .select({ count: sql<number>`count(*)` })
         .from(organizations)
@@ -149,7 +224,12 @@ portal.get("/dashboard", async (c) => {
       return c.json(payload);
     }
 
-    // INTERNAL_ADMIN
+    // INTERNAL_ADMIN — explicit guard prevents fall-through from any future
+    // role that may slip past `isPortalRole`.
+    if (role !== "INTERNAL_ADMIN") {
+      return c.json({ error: "Behörighet saknas" }, 403);
+    }
+
     const totalOrders = await db
       .select({ count: sql<number>`count(*)` })
       .from(orders);
@@ -284,26 +364,33 @@ portal.post("/orders", async (c) => {
       });
     }
 
-    const [order] = await db
-      .insert(orders)
-      .values({
-        orgId: session.orgId,
-        userId: session.userId,
-        status: "PENDING",
-        totalOre,
-      })
-      .returning();
+    // Connection-audit P0 #6: wrap header + lines in a single transaction
+    // so we never persist an order header without its lines (which would
+    // leave totals correct on the parent but no item-level audit trail).
+    const order = await db.transaction(async (tx) => {
+      const [newOrder] = await tx
+        .insert(orders)
+        .values({
+          orgId: session.orgId!,
+          userId: session.userId,
+          status: "PENDING",
+          totalOre,
+        })
+        .returning();
 
-    if (lines.length > 0) {
-      await db.insert(orderLines).values(
-        lines.map((l) => ({
-          orderId: order.id,
-          productId: l.productId,
-          qty: l.qty,
-          unitPriceOre: l.unitPriceOre,
-        }))
-      );
-    }
+      if (lines.length > 0) {
+        await tx.insert(orderLines).values(
+          lines.map((l) => ({
+            orderId: newOrder.id,
+            productId: l.productId,
+            qty: l.qty,
+            unitPriceOre: l.unitPriceOre,
+          }))
+        );
+      }
+
+      return newOrder;
+    });
 
     return c.json({ ok: true, order });
   } catch (err) {
@@ -317,6 +404,17 @@ portal.post("/orders", async (c) => {
 portal.get("/clubs", async (c) => {
   const session = await requireSession(c);
   if (!session) return c.json({ error: "Ej inloggad" }, 401);
+
+  // /clubs is a discovery surface for sales reps and platform admins.
+  // CLUB roles already see their own org via /dashboard and /members,
+  // so they don't need (and shouldn't get) a list of every club.
+  if (
+    session.role !== "SALES_REP" &&
+    session.role !== "SALES_ADMIN" &&
+    session.role !== "INTERNAL_ADMIN"
+  ) {
+    return c.json({ error: "Behörighet saknas" }, 403);
+  }
 
   const q = c.req.query("q") || "";
 
@@ -401,6 +499,13 @@ portal.get("/sellers", async (c) => {
   const session = await requireSession(c);
   if (!session) return c.json({ error: "Ej inloggad" }, 401);
 
+  // /sellers exposes internal-staff (SALES_REP/SALES_ADMIN) directory.
+  // Only platform admins should see it; previously any logged-in user
+  // (including a CLUB_MEMBER on a personal shop) could enumerate it.
+  if (session.role !== "INTERNAL_ADMIN" && session.role !== "SALES_ADMIN") {
+    return c.json({ error: "Behörighet saknas" }, 403);
+  }
+
   try {
     const sellerList = await db
       .select({
@@ -459,6 +564,29 @@ portal.get("/statistics", async (c) => {
   const session = await requireSession(c);
   if (!session) return c.json({ error: "Ej inloggad" }, 401);
 
+  const role = session.role;
+  if (!isPortalRole(role)) {
+    return c.json({ error: "Behörighet saknas" }, 403);
+  }
+
+  // Statistics is order-revenue per month. Sales reps don't own orders,
+  // so they get a 403 here (their stats live on /pipeline).
+  if (role === "SALES_REP") {
+    return c.json({ error: "Behörighet saknas" }, 403);
+  }
+
+  // Club roles must have an orgId; otherwise we'd return platform-wide
+  // revenue (the original `1=1` fallback).
+  if ((role === "CLUB_ADMIN" || role === "CLUB_MEMBER") && !session.orgId) {
+    return c.json({ error: "Klubbkontext saknas" }, 400);
+  }
+
+  const isPlatformAdmin = role === "INTERNAL_ADMIN" || role === "SALES_ADMIN";
+  const orderScope =
+    !isPlatformAdmin && session.orgId
+      ? eq(orders.orgId, session.orgId)
+      : sql`1=1`;
+
   try {
     const monthlyData = await db
       .select({
@@ -467,11 +595,7 @@ portal.get("/statistics", async (c) => {
         revenueOre: sql<number>`coalesce(sum(${orders.totalOre}), 0)`,
       })
       .from(orders)
-      .where(
-        session.orgId
-          ? eq(orders.orgId, session.orgId)
-          : sql`1=1`
-      )
+      .where(orderScope)
       .groupBy(sql`to_char(${orders.createdAt}, 'YYYY-MM')`)
       .orderBy(sql`to_char(${orders.createdAt}, 'YYYY-MM')`)
       .limit(12);
@@ -521,6 +645,23 @@ portal.get("/income", async (c) => {
   const session = await requireSession(c);
   if (!session) return c.json({ error: "Ej inloggad" }, 401);
 
+  const role = session.role;
+  if (!isPortalRole(role)) {
+    return c.json({ error: "Behörighet saknas" }, 403);
+  }
+  if (role === "SALES_REP") {
+    return c.json({ error: "Behörighet saknas" }, 403);
+  }
+  if ((role === "CLUB_ADMIN" || role === "CLUB_MEMBER") && !session.orgId) {
+    return c.json({ error: "Klubbkontext saknas" }, 400);
+  }
+
+  const isPlatformAdmin = role === "INTERNAL_ADMIN" || role === "SALES_ADMIN";
+  const incomeScope =
+    !isPlatformAdmin && session.orgId
+      ? and(eq(orders.orgId, session.orgId), eq(orders.invoiceStatus, "PAID"))
+      : eq(orders.invoiceStatus, "PAID");
+
   try {
     const monthlyRevenue = await db
       .select({
@@ -529,11 +670,7 @@ portal.get("/income", async (c) => {
         orderCount: sql<number>`count(*)`,
       })
       .from(orders)
-      .where(
-        session.orgId
-          ? and(eq(orders.orgId, session.orgId), eq(orders.invoiceStatus, "PAID"))
-          : eq(orders.invoiceStatus, "PAID")
-      )
+      .where(incomeScope)
       .groupBy(sql`to_char(${orders.createdAt}, 'YYYY-MM')`)
       .orderBy(sql`to_char(${orders.createdAt}, 'YYYY-MM') DESC`)
       .limit(6);
@@ -543,11 +680,7 @@ portal.get("/income", async (c) => {
         total: sql<number>`coalesce(sum(${orders.totalOre}), 0)`,
       })
       .from(orders)
-      .where(
-        session.orgId
-          ? and(eq(orders.orgId, session.orgId), eq(orders.invoiceStatus, "PAID"))
-          : eq(orders.invoiceStatus, "PAID")
-      );
+      .where(incomeScope);
 
     const payload: IncomeResponse = {
       months: monthlyRevenue.map((m) => ({
@@ -570,6 +703,18 @@ portal.get("/pipeline", async (c) => {
   const session = await requireSession(c);
   if (!session) return c.json({ error: "Ej inloggad" }, 401);
 
+  const role = session.role;
+  // Pipeline is a sales-internal view (quotes pre-sale). Club roles and
+  // fundraising roles must not see it — that would leak all clubs' quotes
+  // platform-wide. Previously this endpoint had NO tenancy filter at all.
+  if (role !== "SALES_REP" && role !== "SALES_ADMIN" && role !== "INTERNAL_ADMIN") {
+    return c.json({ error: "Behörighet saknas" }, 403);
+  }
+
+  // SALES_REP only sees their own quotes; SALES_ADMIN/INTERNAL_ADMIN see all.
+  const repFilter =
+    role === "SALES_REP" ? eq(quotes.salesRepId, session.userId) : sql`1=1`;
+
   try {
     const stages = ["DRAFT", "SENT", "ACCEPTED", "REJECTED"];
     const byStage = await db
@@ -579,6 +724,7 @@ portal.get("/pipeline", async (c) => {
         totalOre: sql<number>`coalesce(sum(${quotes.totalOre}), 0)`,
       })
       .from(quotes)
+      .where(repFilter)
       .groupBy(quotes.status);
 
     const stageData = stages.map((s) => {
@@ -600,6 +746,7 @@ portal.get("/pipeline", async (c) => {
         createdAt: quotes.createdAt,
       })
       .from(quotes)
+      .where(repFilter)
       .orderBy(desc(quotes.createdAt))
       .limit(25);
 

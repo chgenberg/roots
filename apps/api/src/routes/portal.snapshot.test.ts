@@ -313,6 +313,110 @@ describe("GET /v1/portal/dashboard — unauthenticated", () => {
 });
 
 /**
+ * Regression coverage for connection-audit P0 #1 — role + tenancy scoping.
+ *
+ * Before this fix, the /dashboard handler had a bare "else" branch that
+ * served the INTERNAL_ADMIN aggregate (totalOrders/totalClubs/mrr across
+ * the platform) to anything that wasn't CLUB_* or SALES_*. That meant
+ * fundraising sessions (ASSOCIATION_ADMIN, TEAM_LEADER, SELLER) silently
+ * leaked global platform numbers. Similarly /statistics and /income used
+ * `session.orgId ? eq(...) : sql\`1=1\`` so null-orgId sessions saw global
+ * revenue, and /pipeline had no tenancy filter at all.
+ */
+describe("portal role scoping — connection audit P0 #1", () => {
+  it("dashboard returns 403 for fundraising roles (no platform leak)", async () => {
+    getSessionMock.mockResolvedValue({
+      userId: "00000000-0000-0000-0000-000000000060",
+      role: "ASSOCIATION_ADMIN",
+      orgId: "00000000-0000-0000-0000-0000000000aa",
+      createdAt: 0,
+    } as any);
+    dbHandle.reset();
+    const out = await callPortal("/dashboard");
+    expect(out.status).toBe(403);
+    expect(out.body).toEqual({ error: "Behörighet saknas" });
+  });
+
+  it("dashboard returns 400 for CLUB_ADMIN without orgId", async () => {
+    getSessionMock.mockResolvedValue({
+      userId: "00000000-0000-0000-0000-000000000061",
+      role: "CLUB_ADMIN",
+      orgId: null,
+      createdAt: 0,
+    } as any);
+    dbHandle.reset();
+    const out = await callPortal("/dashboard");
+    expect(out.status).toBe(400);
+    expect(out.body).toEqual({ error: "Klubbkontext saknas" });
+  });
+
+  it("statistics returns 403 for SELLER (orders are not seller-owned)", async () => {
+    getSessionMock.mockResolvedValue({
+      userId: "00000000-0000-0000-0000-000000000062",
+      role: "SELLER",
+      orgId: null,
+      createdAt: 0,
+    } as any);
+    dbHandle.reset();
+    const out = await callPortal("/statistics");
+    expect(out.status).toBe(403);
+    expect(out.body).toEqual({ error: "Behörighet saknas" });
+  });
+
+  it("income returns 400 for CLUB_ADMIN without orgId (was global 1=1)", async () => {
+    getSessionMock.mockResolvedValue({
+      userId: "00000000-0000-0000-0000-000000000063",
+      role: "CLUB_ADMIN",
+      orgId: null,
+      createdAt: 0,
+    } as any);
+    dbHandle.reset();
+    const out = await callPortal("/income");
+    expect(out.status).toBe(400);
+    expect(out.body).toEqual({ error: "Klubbkontext saknas" });
+  });
+
+  it("pipeline returns 403 for CLUB_MEMBER (quotes are sales-internal)", async () => {
+    getSessionMock.mockResolvedValue({
+      userId: "00000000-0000-0000-0000-000000000064",
+      role: "CLUB_MEMBER",
+      orgId: "00000000-0000-0000-0000-0000000000aa",
+      createdAt: 0,
+    } as any);
+    dbHandle.reset();
+    const out = await callPortal("/pipeline");
+    expect(out.status).toBe(403);
+    expect(out.body).toEqual({ error: "Behörighet saknas" });
+  });
+
+  it("clubs returns 403 for CLUB_ADMIN (only sales/admin see directory)", async () => {
+    getSessionMock.mockResolvedValue({
+      userId: "00000000-0000-0000-0000-000000000065",
+      role: "CLUB_ADMIN",
+      orgId: "00000000-0000-0000-0000-0000000000aa",
+      createdAt: 0,
+    } as any);
+    dbHandle.reset();
+    const out = await callPortal("/clubs");
+    expect(out.status).toBe(403);
+    expect(out.body).toEqual({ error: "Behörighet saknas" });
+  });
+
+  it("sellers returns 403 for non-admin roles (no staff enumeration)", async () => {
+    getSessionMock.mockResolvedValue({
+      userId: "00000000-0000-0000-0000-000000000066",
+      role: "SALES_REP",
+      orgId: null,
+      createdAt: 0,
+    } as any);
+    dbHandle.reset();
+    const out = await callPortal("/sellers");
+    expect(out.status).toBe(403);
+    expect(out.body).toEqual({ error: "Behörighet saknas" });
+  });
+});
+
+/**
  * Regression coverage for two recent portal bug fixes:
  *
  *  1. `orders.userId` / `orders.orgId` are both NOT NULL in the schema, but
