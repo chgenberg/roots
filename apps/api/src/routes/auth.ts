@@ -139,7 +139,15 @@ auth.post("/login", async (c) => {
         }
       }
 
-      const sessionId = await createSession(sessionData);
+      // Connection-audit P0 #4: a Redis hiccup must not surface as a 500
+      // on real accounts (the demo branch already returned 503; align them).
+      let sessionId: string;
+      try {
+        sessionId = await createSession(sessionData);
+      } catch (err) {
+        log.error({ err, userId: user.id }, "createSession failed during DB login");
+        return c.json({ error: "Sessionshantering otillgänglig." }, 503);
+      }
       setCookie(c, SESSION_COOKIE_NAME, sessionId, SESSION_COOKIE_OPTIONS);
 
       void auditLog({
