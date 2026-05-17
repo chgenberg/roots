@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq, sql, desc, and, gte, count as drizzleCount } from "drizzle-orm";
+import { eq, sql, desc, and, gte, lt, count as drizzleCount } from "drizzle-orm";
 import { db } from "@roots/db";
 import {
   users,
@@ -915,8 +915,12 @@ portal.get("/statistics", async (c) => {
     const period60 = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
 
     const buildPeriodAgg = async (since: Date, until: Date | null) => {
+      // Use the drizzle `lt` helper rather than a raw `sql\`...\``
+      // template — the `postgres` driver rejects raw Date params with
+      // ERR_INVALID_ARG_TYPE, which broke /portal/statistik for every
+      // role in the E5 smoketest until this fix.
       const where = until
-        ? and(orderScope, gte(orders.createdAt, since), sql`${orders.createdAt} < ${until}`)
+        ? and(orderScope, gte(orders.createdAt, since), lt(orders.createdAt, until))
         : and(orderScope, gte(orders.createdAt, since));
       const rows = await db
         .select({
@@ -956,7 +960,7 @@ portal.get("/statistics", async (c) => {
         and(
           memberScope,
           gte(users.createdAt, period60),
-          sql`${users.createdAt} < ${period30}`
+          lt(users.createdAt, period30)
         )
       );
 
