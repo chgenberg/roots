@@ -71,3 +71,19 @@ export const PasswordResetSchema = z.object({
   token: z.string(),
   newPassword: z.string().min(8),
 });
+
+// ── POST /v1/auth/change-password (Sprint C — Byt lösenord) ─────────
+
+export const ChangePasswordSchema = z.object({
+  currentPassword: z.string().min(1, "Nuvarande lösenord krävs"),
+  newPassword: z
+    .string()
+    .min(8, "Nytt lösenord måste vara minst 8 tecken")
+    .max(128, "Nytt lösenord är för långt"),
+});
+export type ChangePasswordInput = z.infer<typeof ChangePasswordSchema>;
+
+export const ChangePasswordResponseSchema = z.object({
+  ok: z.literal(true),
+});
+export type ChangePasswordResponse = z.infer<typeof ChangePasswordResponseSchema>;

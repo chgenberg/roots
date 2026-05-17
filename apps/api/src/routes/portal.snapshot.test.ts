@@ -509,3 +509,252 @@ describe("POST /v1/portal/orders", () => {
     expect(lineValues[0]).not.toHaveProperty("quantity");
   });
 });
+
+/**
+ * Sprint C — POST /v1/portal/quotes ("Ny offert").
+ *
+ * Critical guarantees:
+ *  - role scoping: CLUB roles must not create quotes (would let a club
+ *    write itself a fake deal)
+ *  - server-side pricing: the `unitPriceOre` written to `quote_lines`
+ *    must come from the product catalog, not the request body
+ *  - transactional: quote + lines are inserted together
+ */
+describe("POST /v1/portal/quotes", () => {
+  async function postQuote(body: unknown) {
+    const res = await portal.request("/quotes", {
+      method: "POST",
+      headers: {
+        cookie: SESSION_COOKIE,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+    return { status: res.status, body: await res.json() };
+  }
+
+  it("returns 403 for CLUB_ADMIN (sales-internal endpoint)", async () => {
+    getSessionMock.mockResolvedValue({
+      userId: "00000000-0000-0000-0000-000000000111",
+      role: "CLUB_ADMIN",
+      orgId: "00000000-0000-0000-0000-0000000000aa",
+      createdAt: 0,
+    } as any);
+    dbHandle.reset();
+
+    const out = await postQuote({
+      orgId: "00000000-0000-0000-0000-0000000000aa",
+      lines: [{ productId: "00000000-0000-0000-0000-0000000000f1", qty: 1 }],
+    });
+
+    expect(out.status).toBe(403);
+    expect(dbHandle.inserts).toHaveLength(0);
+  });
+
+  it("creates quote + lines with server-side pricing for SALES_REP", async () => {
+    getSessionMock.mockResolvedValue({
+      userId: "00000000-0000-0000-0000-000000000112",
+      role: "SALES_REP",
+      orgId: null,
+      createdAt: 0,
+    } as any);
+
+    dbHandle.reset([
+      // org lookup
+      [
+        {
+          id: "00000000-0000-0000-0000-0000000000bb",
+          name: "Demo Fotbollsklubb",
+        },
+      ],
+      // product catalog lookup
+      [
+        { id: "00000000-0000-0000-0000-0000000000f1", priceOre: 14_900 },
+        { id: "00000000-0000-0000-0000-0000000000f2", priceOre: 12_900 },
+      ],
+      // returning() of the new quote row
+      [
+        {
+          id: "00000000-0000-0000-0000-0000000000q1",
+          orgId: "00000000-0000-0000-0000-0000000000bb",
+          salesRepId: "00000000-0000-0000-0000-000000000112",
+          status: "DRAFT",
+          totalOre: 2 * 14_900 + 1 * 12_900,
+          validUntil: new Date("2026-06-17T00:00:00.000Z"),
+          createdAt: new Date("2026-05-17T00:00:00.000Z"),
+        },
+      ],
+    ]);
+
+    const out = await postQuote({
+      orgId: "00000000-0000-0000-0000-0000000000bb",
+      lines: [
+        // Client *tries* to send a manipulated unitPriceOre — must be
+        // ignored. Only productId + qty should reach the lines table.
+        {
+          productId: "00000000-0000-0000-0000-0000000000f1",
+          qty: 2,
+          unitPriceOre: 1,
+        },
+        { productId: "00000000-0000-0000-0000-0000000000f2", qty: 1 },
+      ],
+      status: "DRAFT",
+    });
+
+    expect(out.status).toBe(201);
+    expect(out.body).toMatchObject({
+      quote: {
+        id: "00000000-0000-0000-0000-0000000000q1",
+        orgName: "Demo Fotbollsklubb",
+        status: "DRAFT",
+        totalOre: 2 * 14_900 + 1 * 12_900,
+      },
+    });
+
+    // 1st insert = quotes, 2nd = quote_lines.
+    expect(dbHandle.inserts).toHaveLength(2);
+    const quoteValues = dbHandle.inserts[0].values as Record<string, unknown>;
+    expect(quoteValues).toMatchObject({
+      orgId: "00000000-0000-0000-0000-0000000000bb",
+      salesRepId: "00000000-0000-0000-0000-000000000112",
+      status: "DRAFT",
+      totalOre: 2 * 14_900 + 1 * 12_900,
+    });
+
+    const lineValues = dbHandle.inserts[1].values as Array<
+      Record<string, unknown>
+    >;
+    expect(lineValues).toHaveLength(2);
+    // Server-side price wins over whatever the client tried to send.
+    expect(lineValues[0]).toMatchObject({
+      productId: "00000000-0000-0000-0000-0000000000f1",
+      qty: 2,
+      unitPriceOre: 14_900,
+    });
+    expect(lineValues[1]).toMatchObject({
+      productId: "00000000-0000-0000-0000-0000000000f2",
+      qty: 1,
+      unitPriceOre: 12_900,
+    });
+  });
+
+  it("returns 400 when lines array is empty", async () => {
+    getSessionMock.mockResolvedValue({
+      userId: "00000000-0000-0000-0000-000000000113",
+      role: "SALES_REP",
+      orgId: null,
+      createdAt: 0,
+    } as any);
+    dbHandle.reset();
+    const out = await postQuote({
+      orgId: "00000000-0000-0000-0000-0000000000bb",
+      lines: [],
+    });
+    expect(out.status).toBe(400);
+    expect(dbHandle.inserts).toHaveLength(0);
+  });
+});
+
+/**
+ * Sprint C — POST /v1/portal/members/invite ("Bjud in medlem").
+ *
+ * Critical guarantees:
+ *  - role scoping: only CLUB_ADMIN (with their own orgId) and
+ *    INTERNAL_ADMIN can invite — never SALES_*, never fundraising roles
+ *  - email uniqueness: pre-existing email returns 409 (not 500)
+ *  - inserted user lands in the caller's orgId with the supplied role
+ */
+describe("POST /v1/portal/members/invite", () => {
+  async function postInvite(body: unknown) {
+    const res = await portal.request("/members/invite", {
+      method: "POST",
+      headers: {
+        cookie: SESSION_COOKIE,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+    return { status: res.status, body: await res.json() };
+  }
+
+  it("returns 403 for SALES_REP (no member-roster mutation)", async () => {
+    getSessionMock.mockResolvedValue({
+      userId: "00000000-0000-0000-0000-000000000121",
+      role: "SALES_REP",
+      orgId: null,
+      createdAt: 0,
+    } as any);
+    dbHandle.reset();
+    const out = await postInvite({
+      email: "ny@medlem.se",
+      contactName: "Ny Medlem",
+    });
+    expect(out.status).toBe(403);
+    expect(dbHandle.inserts).toHaveLength(0);
+  });
+
+  it("returns 409 when email is already registered", async () => {
+    getSessionMock.mockResolvedValue({
+      userId: "00000000-0000-0000-0000-000000000122",
+      role: "CLUB_ADMIN",
+      orgId: "00000000-0000-0000-0000-0000000000cc",
+      createdAt: 0,
+    } as any);
+    dbHandle.reset([
+      // pre-existing user row
+      [{ id: "00000000-0000-0000-0000-0000000000u1" }],
+    ]);
+    const out = await postInvite({
+      email: "redan@finns.se",
+      contactName: "Dubblett",
+    });
+    expect(out.status).toBe(409);
+    expect(dbHandle.inserts).toHaveLength(0);
+  });
+
+  it("inserts the new member into the caller's org for CLUB_ADMIN", async () => {
+    getSessionMock.mockResolvedValue({
+      userId: "00000000-0000-0000-0000-000000000123",
+      role: "CLUB_ADMIN",
+      orgId: "00000000-0000-0000-0000-0000000000cc",
+      createdAt: 0,
+    } as any);
+    dbHandle.reset([
+      // existing-user lookup returns empty array
+      [],
+      // returning() of the new user row
+      [
+        {
+          id: "00000000-0000-0000-0000-0000000000u9",
+          email: "ny@medlem.se",
+          contactName: "Ny Medlem",
+          role: "CLUB_MEMBER",
+          createdAt: new Date("2026-05-17T22:00:00.000Z"),
+        },
+      ],
+    ]);
+
+    const out = await postInvite({
+      email: "Ny@Medlem.SE  ",
+      contactName: "Ny Medlem",
+      role: "CLUB_MEMBER",
+    });
+
+    expect(out.status).toBe(201);
+    expect(out.body).toMatchObject({
+      member: { email: "ny@medlem.se", role: "CLUB_MEMBER" },
+    });
+    expect(dbHandle.inserts).toHaveLength(1);
+    const inserted = dbHandle.inserts[0].values as Record<string, unknown>;
+    expect(inserted).toMatchObject({
+      email: "ny@medlem.se",
+      role: "CLUB_MEMBER",
+      orgId: "00000000-0000-0000-0000-0000000000cc",
+      contactName: "Ny Medlem",
+    });
+    // Password hash is a non-loginable sentinel — must not be a real
+    // argon2 string (the auth route verifies argon2 and would otherwise
+    // panic before the 401 path).
+    expect(String(inserted.passwordHash)).toMatch(/^invite-pending-/);
+  });
+});

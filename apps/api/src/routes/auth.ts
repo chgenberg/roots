@@ -229,6 +229,119 @@ auth.post("/logout", async (c) => {
   return c.json({ ok: true });
 });
 
+// ── Change password (Sprint C — "Knapparna fungerar") ───────────────
+//
+// `POST /v1/auth/change-password` powers the "Byt lösenord"-knappen i
+// /portal/installningar. Requirements:
+//   - must be authenticated (DB-session, not demo-only)
+//   - verify the current password against `users.passwordHash`
+//   - enforce minimum complexity on the new password
+//   - re-hash with the same argon2 parameters used at register/seed time
+//   - invalidate other sessions? — out of scope for the MVP, noted as
+//     a follow-up. The current session keeps working so the user
+//     doesn't get bounced back to the login screen.
+auth.post("/change-password", async (c) => {
+  const cookie = c.req.header("cookie") || "";
+  const match = cookie.match(new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`));
+  if (!match) return c.json({ error: "Ej inloggad" }, 401);
+
+  let session: SessionData | null = null;
+  try {
+    session = await getSession(match[1]);
+  } catch {
+    return c.json({ error: "Ej inloggad" }, 401);
+  }
+  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+
+  // Demo sessions don't have a DB row — their password lives in code,
+  // so we can't rotate it. Reject explicitly so the UI can show a
+  // friendly message instead of a generic 500.
+  if (!session.userId || session.demoProfile) {
+    return c.json(
+      { error: "Demo-konton kan inte byta lösenord. Skapa ett riktigt konto." },
+      400
+    );
+  }
+
+  type Body = { currentPassword?: string; newPassword?: string };
+  let body: Body;
+  try {
+    body = await c.req.json<Body>();
+  } catch {
+    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+  }
+
+  const current = (body.currentPassword ?? "").trim();
+  const next = (body.newPassword ?? "").trim();
+
+  if (!current || !next) {
+    return c.json({ error: "Båda fälten krävs." }, 400);
+  }
+  if (next.length < 8) {
+    return c.json(
+      { error: "Nytt lösenord måste vara minst 8 tecken." },
+      400
+    );
+  }
+  if (next.length > 128) {
+    return c.json({ error: "Nytt lösenord är för långt." }, 400);
+  }
+  if (next === current) {
+    return c.json(
+      { error: "Nytt lösenord får inte vara samma som det gamla." },
+      400
+    );
+  }
+
+  try {
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, session.userId))
+      .limit(1);
+    if (!user) return c.json({ error: "Ej inloggad" }, 401);
+
+    // verify() throws if the stored hash isn't a valid argon2 string.
+    // Invited members have a `invite-pending-…`-prefixed sentinel that
+    // is not a valid hash; treat that as "no current password" and
+    // refuse politely instead of 500.
+    let valid: boolean;
+    try {
+      valid = await verify(user.passwordHash, current);
+    } catch {
+      return c.json(
+        { error: "Lösenordet kan inte verifieras för det här kontot." },
+        400
+      );
+    }
+    if (!valid) {
+      void auditLog({
+        userId: user.id,
+        action: "auth.change_password.failed",
+        meta: { ...requestContext((n) => c.req.header(n)), reason: "bad_current" },
+      });
+      return c.json({ error: "Fel nuvarande lösenord." }, 401);
+    }
+
+    const newHash = await hash(next, ARGON2_OPTIONS);
+    await db
+      .update(users)
+      .set({ passwordHash: newHash, updatedAt: new Date() })
+      .where(eq(users.id, user.id));
+
+    void auditLog({
+      userId: user.id,
+      action: "auth.change_password.ok",
+      meta: { ...requestContext((n) => c.req.header(n)) },
+    });
+
+    return c.json({ ok: true });
+  } catch (err) {
+    log.error({ err, userId: session.userId }, "change-password failed");
+    return c.json({ error: "Kunde inte byta lösenord just nu." }, 500);
+  }
+});
+
 auth.get("/me", async (c) => {
   const cookie = c.req.header("cookie") || "";
   const match = cookie.match(new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`));

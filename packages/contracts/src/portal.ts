@@ -159,6 +159,29 @@ export const quotesListResponseSchema = z.object({
 });
 export type QuotesListResponse = z.infer<typeof quotesListResponseSchema>;
 
+// ── POST /v1/portal/quotes (Sprint C — Ny offert) ───────────────────
+
+export const createQuoteRequestSchema = z.object({
+  orgId: z.string().uuid(),
+  lines: z
+    .array(
+      z.object({
+        productId: z.string().uuid(),
+        qty: z.number().int().positive().max(10_000),
+      })
+    )
+    .min(1)
+    .max(50),
+  validUntilDays: z.number().int().min(1).max(365).optional(),
+  status: z.union([z.literal("DRAFT"), z.literal("SENT")]).optional(),
+});
+export type CreateQuoteRequest = z.infer<typeof createQuoteRequestSchema>;
+
+export const createQuoteResponseSchema = z.object({
+  quote: portalQuoteSchema,
+});
+export type CreateQuoteResponse = z.infer<typeof createQuoteResponseSchema>;
+
 // ── /v1/portal/members ──────────────────────────────────────────────
 
 export const portalMemberSchema = z.object({
@@ -173,6 +196,22 @@ export const membersListResponseSchema = z.object({
   members: z.array(portalMemberSchema),
 });
 export type MembersListResponse = z.infer<typeof membersListResponseSchema>;
+
+// ── POST /v1/portal/members/invite (Sprint C — Bjud in medlem) ──────
+
+export const inviteMemberRequestSchema = z.object({
+  email: z.string().email().max(255),
+  contactName: z.string().max(255).optional(),
+  role: z
+    .union([z.literal("CLUB_MEMBER"), z.literal("CLUB_ADMIN")])
+    .optional(),
+});
+export type InviteMemberRequest = z.infer<typeof inviteMemberRequestSchema>;
+
+export const inviteMemberResponseSchema = z.object({
+  member: portalMemberSchema,
+});
+export type InviteMemberResponse = z.infer<typeof inviteMemberResponseSchema>;
 
 // ── /v1/portal/clubs ────────────────────────────────────────────────
 

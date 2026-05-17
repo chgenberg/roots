@@ -493,6 +493,118 @@ portal.get("/members", async (c) => {
   }
 });
 
+// ── Invite member (Sprint C — "Knapparna fungerar") ──────────
+//
+// `POST /v1/portal/members/invite` powers the "Bjud in medlem"-button
+// in the klubb-portalen. We create the user row immediately so the
+// member shows up in the table on next load; the user can't log in
+// until they accept the invite (random unguessable passwordHash
+// blocks the DB-login path in `auth.ts`, and they don't have a session
+// either). A real email invite would send a token-based link — this
+// MVP keeps the surface honest while staying minimal.
+portal.post("/members/invite", async (c) => {
+  const session = await requireSession(c);
+  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+
+  // Only club admins (scoped to their own org) and platform admins.
+  // CLUB_MEMBER, SALES_*, fundraising roles must not be able to grow
+  // the directory.
+  const canInvite =
+    (session.role === "CLUB_ADMIN" && !!session.orgId) ||
+    session.role === "INTERNAL_ADMIN";
+  if (!canInvite) {
+    return c.json({ error: "Behörighet saknas" }, 403);
+  }
+
+  type InviteBody = {
+    email?: string;
+    contactName?: string;
+    role?: "CLUB_MEMBER" | "CLUB_ADMIN";
+  };
+  let body: InviteBody;
+  try {
+    body = await c.req.json<InviteBody>();
+  } catch {
+    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+  }
+
+  const email = (body.email ?? "").toLowerCase().trim();
+  const contactName = (body.contactName ?? "").trim();
+  const requestedRole = body.role === "CLUB_ADMIN" ? "CLUB_ADMIN" : "CLUB_MEMBER";
+
+  // Conservative email validation. Real registration goes through
+  // /auth/register/* which has its own validator; here we just block
+  // obviously wrong input so the DB constraint isn't the first guard.
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!email || !EMAIL_RE.test(email) || email.length > 255) {
+    return c.json({ error: "Ogiltig e-postadress" }, 400);
+  }
+  if (contactName.length > 255) {
+    return c.json({ error: "Namnet är för långt" }, 400);
+  }
+
+  // CLUB_ADMIN can only invite into their own org. INTERNAL_ADMIN can
+  // pass an explicit orgId (e.g. support-staff onboarding for a club),
+  // but for the demo we keep it simple: use the caller's org.
+  const orgId = session.orgId;
+  if (!orgId) {
+    return c.json({ error: "Klubbkontext saknas" }, 400);
+  }
+
+  try {
+    const [existing] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, email))
+      .limit(1);
+    if (existing) {
+      return c.json({ error: "E-postadressen är redan registrerad" }, 409);
+    }
+
+    // Unguessable random bytes serialized as hex. Real password reset/
+    // accept-invite flow will replace this; until then the user simply
+    // cannot log in. (auth.ts verifies argon2 — a 64-char hex blob is
+    // not a valid argon2 hash and will reject.)
+    const blockingHash = `invite-pending-${crypto.randomUUID()}${crypto.randomUUID()}`;
+
+    const [created] = await db
+      .insert(users)
+      .values({
+        email,
+        passwordHash: blockingHash,
+        role: requestedRole,
+        orgId,
+        contactName: contactName || null,
+      })
+      .returning({
+        id: users.id,
+        email: users.email,
+        contactName: users.contactName,
+        role: users.role,
+        createdAt: users.createdAt,
+      });
+
+    return c.json(
+      {
+        member: {
+          id: created.id,
+          email: created.email,
+          name: created.contactName,
+          role: created.role,
+          createdAt:
+            created.createdAt instanceof Date
+              ? created.createdAt.toISOString()
+              : created.createdAt,
+        },
+      },
+      201
+    );
+  } catch (err) {
+    log.error({ err }, "Failed to invite member");
+    return c.json({ error: "Kunde inte bjuda in medlem" }, 500);
+  }
+});
+
 // ── Sellers (sales team) ─────────────────────────────────────
 
 portal.get("/sellers", async (c) => {
@@ -572,6 +684,165 @@ portal.get("/quotes", async (c) => {
   } catch (err) {
     log.error({ err }, "Failed to fetch quotes");
     return c.json({ error: "Kunde inte hämta offerter" }, 500);
+  }
+});
+
+// ── Create quote (Sprint C — "Knapparna fungerar") ───────────
+//
+// `POST /v1/portal/quotes` powers the "Ny offert"-button in the säljar-
+// portalen. Sales-internal endpoint only:
+//   - role must be SALES_REP / SALES_ADMIN / INTERNAL_ADMIN
+//   - `salesRepId` is always the calling user (a rep can't ghost-write a
+//     quote for someone else)
+//   - line-item prices are looked up server-side from `products.priceOre`
+//     so the client can't tamper with totalOre by sending lower numbers
+//
+// The whole insert (quote + lines) runs in one transaction so a partial
+// failure can't leave us with an orphan quote header.
+portal.post("/quotes", async (c) => {
+  const session = await requireSession(c);
+  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+
+  if (
+    session.role !== "SALES_REP" &&
+    session.role !== "SALES_ADMIN" &&
+    session.role !== "INTERNAL_ADMIN"
+  ) {
+    return c.json({ error: "Behörighet saknas" }, 403);
+  }
+
+  type CreateQuoteBody = {
+    orgId?: string;
+    lines?: Array<{ productId?: string; qty?: number }>;
+    validUntilDays?: number;
+    status?: "DRAFT" | "SENT";
+  };
+
+  let body: CreateQuoteBody;
+  try {
+    body = await c.req.json<CreateQuoteBody>();
+  } catch {
+    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+  }
+
+  const UUID_RE =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!body.orgId || !UUID_RE.test(body.orgId)) {
+    return c.json({ error: "orgId krävs (uuid)" }, 400);
+  }
+  if (!Array.isArray(body.lines) || body.lines.length === 0) {
+    return c.json({ error: "Minst en rad krävs" }, 400);
+  }
+  if (body.lines.length > 50) {
+    return c.json({ error: "Max 50 rader per offert" }, 400);
+  }
+
+  const cleanedLines: Array<{ productId: string; qty: number }> = [];
+  for (const raw of body.lines) {
+    if (!raw || typeof raw !== "object") {
+      return c.json({ error: "Ogiltig rad" }, 400);
+    }
+    if (!raw.productId || !UUID_RE.test(raw.productId)) {
+      return c.json({ error: "Ogiltigt productId" }, 400);
+    }
+    const qty = Number(raw.qty);
+    if (!Number.isInteger(qty) || qty <= 0 || qty > 10_000) {
+      return c.json({ error: "qty måste vara 1–10000" }, 400);
+    }
+    cleanedLines.push({ productId: raw.productId, qty });
+  }
+
+  const status = body.status === "SENT" ? "SENT" : "DRAFT";
+  const validDays = Number.isInteger(body.validUntilDays)
+    ? Math.max(1, Math.min(365, Number(body.validUntilDays)))
+    : 30;
+
+  try {
+    // Verify the org exists. Anyone with SALES_REP can quote any
+    // organization in the discovery directory (matches /clubs), so we
+    // only assert existence, not ownership.
+    const [org] = await db
+      .select({ id: organizations.id, name: organizations.name })
+      .from(organizations)
+      .where(eq(organizations.id, body.orgId))
+      .limit(1);
+    if (!org) {
+      return c.json({ error: "Förening hittades inte" }, 404);
+    }
+
+    // Pull canonical prices server-side. Any productId the client sent
+    // that isn't in the catalog → 400 (don't silently drop it).
+    const productIds = Array.from(
+      new Set(cleanedLines.map((l) => l.productId))
+    );
+    const productRows = await db
+      .select({ id: products.id, priceOre: products.priceOre })
+      .from(products)
+      .where(sql`${products.id} IN ${productIds}`);
+    const priceById = new Map(productRows.map((p) => [p.id, p.priceOre]));
+    for (const l of cleanedLines) {
+      if (!priceById.has(l.productId)) {
+        return c.json({ error: `Okänd produkt: ${l.productId}` }, 400);
+      }
+    }
+
+    const totalOre = cleanedLines.reduce((sum, l) => {
+      const unit = priceById.get(l.productId) ?? 0;
+      return sum + unit * l.qty;
+    }, 0);
+
+    const validUntil = new Date();
+    validUntil.setDate(validUntil.getDate() + validDays);
+
+    const inserted = await db.transaction(async (tx) => {
+      const [quoteRow] = await tx
+        .insert(quotes)
+        .values({
+          orgId: org.id,
+          salesRepId: session.userId,
+          status,
+          totalOre,
+          validUntil,
+        })
+        .returning();
+
+      await tx.insert(quoteLines).values(
+        cleanedLines.map((l) => ({
+          quoteId: quoteRow.id,
+          productId: l.productId,
+          qty: l.qty,
+          unitPriceOre: priceById.get(l.productId) ?? 0,
+        }))
+      );
+
+      return quoteRow;
+    });
+
+    return c.json(
+      {
+        quote: {
+          id: inserted.id,
+          orgId: inserted.orgId,
+          orgName: org.name,
+          salesRepId: inserted.salesRepId,
+          status: inserted.status,
+          totalOre: inserted.totalOre,
+          validUntil: inserted.validUntil
+            ? inserted.validUntil instanceof Date
+              ? inserted.validUntil.toISOString()
+              : inserted.validUntil
+            : null,
+          createdAt:
+            inserted.createdAt instanceof Date
+              ? inserted.createdAt.toISOString()
+              : inserted.createdAt,
+        },
+      },
+      201
+    );
+  } catch (err) {
+    log.error({ err }, "Failed to create quote");
+    return c.json({ error: "Kunde inte skapa offert" }, 500);
   }
 });
 

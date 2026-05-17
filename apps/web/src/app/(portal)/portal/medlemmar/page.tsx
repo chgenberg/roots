@@ -3,10 +3,21 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { portalFetch } from "@/lib/portal-api";
-import { membersListResponseSchema } from "@roots/contracts";
+import {
+  membersListResponseSchema,
+  inviteMemberResponseSchema,
+} from "@roots/contracts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import {
   Table,
   TableHeader,
@@ -52,10 +63,141 @@ function isoDate(value: string | Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+// ── Bjud in medlem-dialogen (Sprint C) ─────────────────────────────
+// Minimal-friction invite: email + optional name + role (CLUB_MEMBER by
+// default). The new user lands in the DB immediately with a non-loginable
+// passwordHash so they show up in the table; a follow-up MVP adds a
+// token-link email so they can set a real password.
+function BjudInMedlemDialog({
+  open,
+  onOpenChange,
+  onInvited,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onInvited: (row: MemberRow) => void;
+}) {
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+  const [role, setRole] = useState<"CLUB_MEMBER" | "CLUB_ADMIN">(
+    "CLUB_MEMBER"
+  );
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setEmail("");
+    setName("");
+    setRole("CLUB_MEMBER");
+    setError(null);
+  }, [open]);
+
+  async function handleSubmit() {
+    setError(null);
+    const cleanedEmail = email.trim().toLowerCase();
+    if (!cleanedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanedEmail)) {
+      setError("Ange en giltig e-postadress.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const data = await portalFetch("/members/invite", {
+        method: "POST",
+        schema: inviteMemberResponseSchema,
+        body: { email: cleanedEmail, contactName: name.trim() || undefined, role },
+      });
+      onInvited({
+        id: data.member.id,
+        name: data.member.name || data.member.email,
+        email: data.member.email,
+        status: ROLE_LABELS[data.member.role] ?? data.member.role,
+        joined: isoDate(data.member.createdAt),
+      });
+      onOpenChange(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Kunde inte bjuda in.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Bjud in medlem</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 px-6 py-2">
+          <div className="space-y-2">
+            <Label htmlFor="invite-email">E-postadress</Label>
+            <Input
+              id="invite-email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="namn@klubb.se"
+              autoFocus
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="invite-name">Namn (valfritt)</Label>
+            <Input
+              id="invite-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Anna Lindgren"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Roll</Label>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant={role === "CLUB_MEMBER" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setRole("CLUB_MEMBER")}
+              >
+                Medlem
+              </Button>
+              <Button
+                type="button"
+                variant={role === "CLUB_ADMIN" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setRole("CLUB_ADMIN")}
+              >
+                Klubbadmin
+              </Button>
+            </div>
+          </div>
+          {error && (
+            <p className="text-xs text-red-600" role="alert">
+              {error}
+            </p>
+          )}
+        </div>
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={submitting}
+          >
+            Avbryt
+          </Button>
+          <Button onClick={handleSubmit} disabled={submitting}>
+            {submitting ? "Bjuder in…" : "Skicka inbjudan"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function MedlemmarPage() {
   const [search, setSearch] = useState("");
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -101,11 +243,20 @@ export default function MedlemmarPage() {
             Hantera era föreningsmedlemmar.
           </p>
         </div>
-        <Button onClick={() => toast("Inbjudningsfunktion kommer snart!")}>
+        <Button onClick={() => setDialogOpen(true)}>
           <UserPlus className="h-4 w-4" />
           Bjud in medlem
         </Button>
       </div>
+
+      <BjudInMedlemDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        onInvited={(row) => {
+          setMembers((prev) => [row, ...prev]);
+          toast(`${row.name} har bjudits in.`);
+        }}
+      />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>

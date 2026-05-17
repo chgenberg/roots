@@ -1,15 +1,24 @@
 "use client";
 
+import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { usePortalUser } from "@/lib/portal-context";
 import { Shield, Bell, Palette } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
+import { apiFetch } from "@/lib/api";
 
 function getRoleMeta(role: string) {
   if (role === "CLUB_ADMIN" || role === "CLUB_MEMBER")
@@ -19,10 +28,153 @@ function getRoleMeta(role: string) {
   return { label: "Admin", description: "Intern administratör med full åtkomst.", color: "bg-brand-50 text-brand-600" };
 }
 
+// ── Byt lösenord-dialog (Sprint C) ────────────────────────────────
+// Three text fields (current / new / confirm). Calls
+// `POST /v1/auth/change-password`, which verifies the current password
+// against argon2 and writes the new hash. The current session keeps
+// working so the user doesn't get logged out mid-flow.
+function BytLosenordDialog({
+  open,
+  onOpenChange,
+  onSuccess,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSuccess: () => void;
+}) {
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [confirmNext, setConfirmNext] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function resetState() {
+    setCurrent("");
+    setNext("");
+    setConfirmNext("");
+    setError(null);
+  }
+
+  async function handleSubmit() {
+    setError(null);
+
+    if (!current || !next) {
+      setError("Båda lösenordsfält krävs.");
+      return;
+    }
+    if (next.length < 8) {
+      setError("Nytt lösenord måste vara minst 8 tecken.");
+      return;
+    }
+    if (next !== confirmNext) {
+      setError("Bekräftelsen matchar inte det nya lösenordet.");
+      return;
+    }
+    if (next === current) {
+      setError("Nytt lösenord får inte vara samma som det gamla.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const { ok, data, status } = await apiFetch<{ error?: string }>(
+        "/v1/auth/change-password",
+        {
+          method: "POST",
+          body: { currentPassword: current, newPassword: next },
+        }
+      );
+      if (!ok) {
+        setError(
+          data?.error ||
+            (status === 401
+              ? "Fel nuvarande lösenord."
+              : `Kunde inte byta lösenord (${status}).`)
+        );
+        return;
+      }
+      resetState();
+      onOpenChange(false);
+      onSuccess();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Kunde inte byta lösenord.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) resetState();
+        onOpenChange(o);
+      }}
+    >
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Byt lösenord</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 px-6 py-2">
+          <div className="space-y-2">
+            <Label htmlFor="pwd-current">Nuvarande lösenord</Label>
+            <Input
+              id="pwd-current"
+              type="password"
+              autoComplete="current-password"
+              value={current}
+              onChange={(e) => setCurrent(e.target.value)}
+              autoFocus
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="pwd-new">Nytt lösenord (minst 8 tecken)</Label>
+            <Input
+              id="pwd-new"
+              type="password"
+              autoComplete="new-password"
+              value={next}
+              onChange={(e) => setNext(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="pwd-confirm">Bekräfta nytt lösenord</Label>
+            <Input
+              id="pwd-confirm"
+              type="password"
+              autoComplete="new-password"
+              value={confirmNext}
+              onChange={(e) => setConfirmNext(e.target.value)}
+            />
+          </div>
+          {error && (
+            <p className="text-xs text-red-600" role="alert">
+              {error}
+            </p>
+          )}
+        </div>
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={submitting}
+          >
+            Avbryt
+          </Button>
+          <Button onClick={handleSubmit} disabled={submitting}>
+            {submitting ? "Sparar…" : "Spara nytt lösenord"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function InstallningarPage() {
   const user = usePortalUser();
   const { toast } = useToast();
   const roleMeta = getRoleMeta(user.role);
+  const [pwdOpen, setPwdOpen] = useState(false);
 
   return (
     <div className="page-enter space-y-6">
@@ -113,13 +265,21 @@ export default function InstallningarPage() {
           </div>
           <Separator />
           <div className="flex flex-col gap-3 sm:flex-row">
-            <Button variant="secondary" onClick={() => toast("Lösenordsbyte kommer snart!")}>Byt lösenord</Button>
+            <Button variant="secondary" onClick={() => setPwdOpen(true)}>
+              Byt lösenord
+            </Button>
             <Button variant="outline" className="text-destructive hover:bg-destructive/5 hover:text-destructive" onClick={() => toast("Kontakta support för att radera ditt konto.")}>
               Radera konto
             </Button>
           </div>
         </CardContent>
       </Card>
+
+      <BytLosenordDialog
+        open={pwdOpen}
+        onOpenChange={setPwdOpen}
+        onSuccess={() => toast("Lösenordet är uppdaterat.")}
+      />
     </div>
   );
 }
