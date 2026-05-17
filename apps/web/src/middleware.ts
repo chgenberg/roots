@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+// Sprint E2: the legacy "/club" route-group has been removed — CLUB
+// users now land on /portal (handled by the login redirector). The
+// matcher below intentionally drops "/club" so no stale request gets
+// proxied to /trpc/auth.me for a route that no longer exists.
 const PROTECTED_ROUTES: Record<string, string[]> = {
-  "/club": ["CLUB_ADMIN", "CLUB_MEMBER"],
   "/sales": ["SALES_REP", "SALES_ADMIN", "INTERNAL_ADMIN"],
   "/forening": ["ASSOCIATION_ADMIN", "INTERNAL_ADMIN"],
   "/lag": ["TEAM_LEADER", "ASSOCIATION_ADMIN", "INTERNAL_ADMIN"],
@@ -60,7 +63,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/club/:path*",
     "/sales/:path*",
     "/forening/:path*",
     "/lag/:path*",
