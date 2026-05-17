@@ -13,6 +13,10 @@ export class ResendEmailSender implements EmailSender {
   }
 
   async sendEmail(message: EmailMessage): Promise<{ success: boolean; id?: string }> {
+    // Connection-audit P1 #15: bound outbound HTTP — a stalled Resend
+    // socket previously held a Node event-loop task indefinitely.
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15_000);
     try {
       const res = await fetch("https://api.resend.com/emails", {
         method: "POST",
@@ -27,6 +31,7 @@ export class ResendEmailSender implements EmailSender {
           html: message.html,
           text: message.text,
         }),
+        signal: controller.signal,
       });
 
       if (!res.ok) {
@@ -40,6 +45,8 @@ export class ResendEmailSender implements EmailSender {
     } catch (err) {
       log.error({ err }, "Error sending email");
       return { success: false };
+    } finally {
+      clearTimeout(timeout);
     }
   }
 }

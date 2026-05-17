@@ -70,7 +70,13 @@ export async function runMigrations(
   try {
     const lockId = options.lockId ?? DEFAULT_LOCK_ID;
     if (options.lockTimeoutMs && options.lockTimeoutMs > 0) {
-      await sql.unsafe(`SET LOCAL lock_timeout = '${options.lockTimeoutMs}ms'`);
+      // Connection-audit P1 #8: previously `SET LOCAL lock_timeout` was
+      // issued outside of any transaction, which Postgres silently rejects
+      // (it just logs WARNING and the timeout never applies). Use a
+      // session-scoped SET so the bound covers the advisory_lock + migrate.
+      await sql.unsafe(
+        `SET lock_timeout = '${Math.floor(options.lockTimeoutMs)}ms'`
+      );
     }
     await sql.unsafe(`SELECT pg_advisory_lock(hashtext('${lockId}'))`);
 

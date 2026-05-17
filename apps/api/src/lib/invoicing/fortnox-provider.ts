@@ -23,21 +23,30 @@ export class FortnoxInvoiceProvider implements InvoiceProvider {
     path: string,
     body?: unknown
   ): Promise<unknown> {
-    const res = await fetch(`${FORTNOX_API_BASE}${path}`, {
-      method,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${this.accessToken}`,
-      },
-      body: body ? JSON.stringify(body) : undefined,
-    });
+    // Connection-audit P1 #15: bound the outbound call so a stalled
+    // Fortnox socket doesn't pin a request handler indefinitely.
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15_000);
+    try {
+      const res = await fetch(`${FORTNOX_API_BASE}${path}`, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${this.accessToken}`,
+        },
+        body: body ? JSON.stringify(body) : undefined,
+        signal: controller.signal,
+      });
 
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`Fortnox API error ${res.status}: ${text}`);
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Fortnox API error ${res.status}: ${text}`);
+      }
+
+      return await res.json();
+    } finally {
+      clearTimeout(timeout);
     }
-
-    return res.json();
   }
 
   async createOrUpdateCustomer(

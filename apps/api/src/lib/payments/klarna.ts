@@ -16,6 +16,21 @@ function getAuthHeader(): string {
   );
 }
 
+// Connection-audit P1 #15: every outbound Klarna call gets a 15 s ceiling
+// so a stalled connection doesn't hold the request handler open forever.
+async function klarnaFetch(
+  url: string,
+  init: RequestInit
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15_000);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export function isKlarnaConfigured(): boolean {
   return Boolean(KLARNA_USERNAME && KLARNA_PASSWORD);
 }
@@ -70,7 +85,7 @@ export async function createCheckoutSession(
     };
   }
 
-  const res = await fetch(`${KLARNA_API_URL}/checkout/v3/orders`, {
+  const res = await klarnaFetch(`${KLARNA_API_URL}/checkout/v3/orders`, {
     method: "POST",
     headers: {
       Authorization: getAuthHeader(),
@@ -115,7 +130,7 @@ export async function getCheckoutOrder(orderId: string) {
     };
   }
 
-  const res = await fetch(
+  const res = await klarnaFetch(
     `${KLARNA_API_URL}/checkout/v3/orders/${orderId}`,
     {
       headers: { Authorization: getAuthHeader() },
@@ -132,7 +147,7 @@ export async function getCheckoutOrder(orderId: string) {
 export async function acknowledgeOrder(orderId: string) {
   if (!isKlarnaConfigured()) return;
 
-  const res = await fetch(
+  const res = await klarnaFetch(
     `${KLARNA_API_URL}/ordermanagement/v1/orders/${orderId}/acknowledge`,
     {
       method: "POST",

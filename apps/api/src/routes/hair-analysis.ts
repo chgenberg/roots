@@ -3,6 +3,7 @@ import { isAiConfigured } from "../lib/ai/openclaw-client";
 import { runHairAnalysisVision, type HairAnswers } from "../lib/ai/hair-analysis-run";
 import { hairAnalysisIpRateLimit } from "../lib/rate-limit";
 import { childLogger } from "../lib/logger";
+import { flags } from "../lib/flags";
 
 const log = childLogger("hair-analysis");
 
@@ -108,7 +109,10 @@ hairAnalysis.post("/hair-analysis", async (c) => {
     log.warn({ err: dbErr }, "Lead save failed");
   }
 
-  if (!isAiConfigured()) {
+  // Connection-audit P1 #10: respect the master AI kill-switch. Vision
+  // tokens are the most expensive AI call we make, so a flipped
+  // AI_ENABLED=false must stop them — not just the chat endpoints.
+  if (!flags.aiEnabled() || !isAiConfigured()) {
     return c.json({
       fallback: true,
       analysis: JSON.stringify({

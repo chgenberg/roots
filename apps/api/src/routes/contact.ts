@@ -39,7 +39,11 @@ contact.post("/", async (c) => {
     const sender = getEmailSender();
     const recipientEmail = process.env.CONTACT_FORM_EMAIL || "hej@roots.se";
 
-    await sender.sendEmail({
+    // Connection-audit P1 #14: previously we ignored sender.sendEmail's
+    // `{ success }` return value, so a Resend rejection (rate-limit,
+    // invalid sender, 4xx) returned `{ok:true}` to the visitor while the
+    // mail silently vanished.
+    const result = await sender.sendEmail({
       to: recipientEmail,
       subject: `Kontaktformulär: ${subject}`,
       html: `
@@ -52,6 +56,14 @@ contact.post("/", async (c) => {
       `,
       text: `Namn: ${name}\nE-post: ${email}\nÄmne: ${subject}\n\n${message}`,
     });
+
+    if (!result.success) {
+      log.warn("Contact form email rejected by provider");
+      return c.json(
+        { error: "Kunde inte skicka meddelandet just nu. Försök igen senare." },
+        502
+      );
+    }
 
     return c.json({ ok: true });
   } catch (err) {
