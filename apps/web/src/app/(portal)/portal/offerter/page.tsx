@@ -15,6 +15,26 @@ import { FileText, Plus, Send, CheckCircle2, Clock, XCircle } from "lucide-react
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/toast";
 import { portalFetch } from "@/lib/portal-api";
+import { quotesListResponseSchema } from "@roots/contracts";
+
+// API status enum (DRAFT/SENT/ACCEPTED/REJECTED) → Swedish UI label.
+const QUOTE_STATUS_LABELS: Record<string, string> = {
+  DRAFT: "Utkast",
+  SENT: "Skickad",
+  ACCEPTED: "Accepterad",
+  REJECTED: "Nekad",
+};
+
+function formatSek(ore: number): string {
+  return `${Math.round(ore / 100).toLocaleString("sv-SE")} kr`;
+}
+
+function formatDate(value: string | Date | null | undefined): string {
+  if (!value) return "—";
+  const d = typeof value === "string" ? new Date(value) : value;
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toISOString().slice(0, 10);
+}
 
 const FALLBACK_QUOTES = [
   {
@@ -103,21 +123,25 @@ export default function OfferterPage() {
   const [quotes, setQuotes] = useState(FALLBACK_QUOTES);
 
   useEffect(() => {
-    portalFetch<{ quotes: any[] }>("/quotes")
+    // API shape: { quotes: [{ id, orgId, salesRepId, status, totalOre, validUntil, createdAt }] }
+    // Previously the UI read `client/contact/amount` (and a Swedish-string
+    // status) — none of which the API ever produced. We now map each row
+    // through the contract schema and format it into the table's display
+    // shape.
+    portalFetch("/quotes", { schema: quotesListResponseSchema })
       .then((data) => {
-        if (data.quotes?.length) {
-          setQuotes(
-            data.quotes.map((q) => ({
-              id: q.id ?? "",
-              client: q.client ?? "",
-              contact: q.contact ?? "",
-              amount: q.amount ?? "",
-              status: q.status ?? "",
-              date: q.date ?? "",
-              validUntil: q.validUntil ?? "—",
-            }))
-          );
-        }
+        if (!data.quotes?.length) return;
+        setQuotes(
+          data.quotes.map((q) => ({
+            id: q.id.slice(0, 8).toUpperCase(),
+            client: `Klubb ${q.orgId.slice(0, 6)}`,
+            contact: "",
+            amount: formatSek(q.totalOre),
+            status: QUOTE_STATUS_LABELS[q.status] ?? q.status,
+            date: formatDate(q.createdAt),
+            validUntil: formatDate(q.validUntil ?? null),
+          }))
+        );
       })
       .catch(() => {});
   }, []);

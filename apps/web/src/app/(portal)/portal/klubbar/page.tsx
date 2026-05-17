@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { portalFetch } from "@/lib/portal-api";
+import { clubsListResponseSchema } from "@roots/contracts";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
@@ -15,7 +16,16 @@ import {
 } from "@/components/ui/table";
 import { Building2, Search } from "lucide-react";
 
-const FALLBACK_CLUBS = [
+interface ClubRow {
+  id: string | number;
+  name: string;
+  members: number | null;
+  status: string;
+  lastOrder: string;
+  revenue: string;
+}
+
+const FALLBACK_CLUBS: ClubRow[] = [
   { id: 1, name: "Hammarby HK", members: 42, status: "Aktiv", lastOrder: "2025-03-28", revenue: "8 400 kr" },
   { id: 2, name: "Djurgårdens IF Basket", members: 35, status: "Aktiv", lastOrder: "2025-03-25", revenue: "6 200 kr" },
   { id: 3, name: "AIK Simning", members: 28, status: "Aktiv", lastOrder: "2025-03-20", revenue: "4 900 kr" },
@@ -34,12 +44,28 @@ function statusVariant(status: string) {
 
 export default function KlubbarPage() {
   const [search, setSearch] = useState("");
-  const [clubs, setClubs] = useState(FALLBACK_CLUBS);
+  const [clubs, setClubs] = useState<ClubRow[]>(FALLBACK_CLUBS);
 
   useEffect(() => {
-    portalFetch<{ clubs: any[] }>("/clubs")
+    // API shape: { clubs: [organization-row] }. The org row only includes
+    // identity columns (id, name, type, orgNumber, createdAt); members
+    // count, last-order date and revenue are not joined yet. Until that
+    // backend is built we display "—" instead of the previous fabricated
+    // numbers that came from `c.members/c.lastOrder/c.revenue` (none of
+    // which the API ever produced).
+    portalFetch("/clubs", { schema: clubsListResponseSchema })
       .then((data) => {
-        if (data.clubs?.length) setClubs(data.clubs);
+        if (!data.clubs?.length) return;
+        setClubs(
+          data.clubs.map((c) => ({
+            id: c.id,
+            name: c.name,
+            members: null,
+            status: c.type === "club" ? "Aktiv" : "Ny",
+            lastOrder: "—",
+            revenue: "—",
+          }))
+        );
       })
       .catch(() => {});
   }, []);
@@ -121,7 +147,7 @@ export default function KlubbarPage() {
               {filtered.map((c) => (
                 <TableRow key={c.id}>
                   <TableCell className="font-medium">{c.name}</TableCell>
-                  <TableCell>{c.members}</TableCell>
+                  <TableCell>{c.members ?? "—"}</TableCell>
                   <TableCell>
                     <Badge variant={statusVariant(c.status)}>{c.status}</Badge>
                   </TableCell>

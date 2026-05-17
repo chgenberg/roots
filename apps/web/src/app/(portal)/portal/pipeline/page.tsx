@@ -5,13 +5,33 @@ import { Badge } from "@/components/ui/badge";
 import { useState, useEffect } from "react";
 import { Target, Phone, FileText, CheckCircle2 } from "lucide-react";
 import { portalFetch } from "@/lib/portal-api";
+import { pipelineResponseSchema } from "@roots/contracts";
 
 interface Deal {
-  id: number;
+  id: string | number;
   club: string;
   contact: string;
   value: string;
   daysInStage: number;
+}
+
+// API uses the SQL enum DRAFT/SENT/ACCEPTED/REJECTED; the UI shows Swedish
+// labels. This mapping is the single source of truth in this file.
+const STAGE_LABELS: Record<string, string> = {
+  DRAFT: "Utkast",
+  SENT: "Skickad",
+  ACCEPTED: "Accepterad",
+  REJECTED: "Nekad",
+};
+
+function formatSek(ore: number): string {
+  return `${Math.round(ore / 100).toLocaleString("sv-SE")} kr`;
+}
+
+function daysBetween(iso: string): number {
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return 0;
+  return Math.max(0, Math.floor((Date.now() - t) / (1000 * 60 * 60 * 24)));
 }
 
 const FALLBACK_COLUMNS: {
@@ -83,35 +103,51 @@ function DealCard({ deal }: { deal: Deal }) {
 
 export default function PipelinePage() {
   const [columns, setColumns] = useState(FALLBACK_COLUMNS);
+  const [totalValueOre, setTotalValueOre] = useState<number | null>(null);
 
   useEffect(() => {
-    portalFetch<{ stages: any[] }>("/pipeline")
+    // API shape (see packages/contracts/src/portal.ts):
+    //   { stages: [{ stage, count, totalOre }], deals: [{ id, status, totalOre, orgId, createdAt }] }
+    // Each stage's `deals` list is derived client-side by filtering `deals`
+    // on status — previously the UI tried `s.deals` which the API never
+    // produced, so the pipeline page always showed empty columns.
+    portalFetch("/pipeline", { schema: pipelineResponseSchema })
       .then((data) => {
-        if (data.stages?.length) {
-          setColumns(
-            data.stages.map((s, i) => {
-              const fb = FALLBACK_COLUMNS[i] || FALLBACK_COLUMNS[0];
-              return {
-                stage: s.stage ?? fb.stage,
-                icon: fb.icon,
-                color: fb.color,
-                headerBg: fb.headerBg,
-                deals: (s.deals ?? []).map((d: any) => ({
-                  id: d.id ?? 0,
-                  club: d.club ?? "",
-                  contact: d.contact ?? "",
-                  value: d.value ?? "",
-                  daysInStage: d.daysInStage ?? 0,
-                })),
-              };
-            })
-          );
-        }
+        if (!data.stages?.length) return;
+        setColumns(
+          data.stages.map((s, i) => {
+            const fb = FALLBACK_COLUMNS[i] || FALLBACK_COLUMNS[0];
+            const stageDeals = data.deals
+              .filter((d) => d.status === s.stage)
+              .map((d) => ({
+                id: d.id,
+                club: `Klubb ${d.orgId.slice(0, 6)}`,
+                contact: "",
+                value: formatSek(d.totalOre),
+                daysInStage: daysBetween(
+                  typeof d.createdAt === "string"
+                    ? d.createdAt
+                    : d.createdAt.toISOString()
+                ),
+              }));
+            return {
+              stage: STAGE_LABELS[s.stage] ?? fb.stage,
+              icon: fb.icon,
+              color: fb.color,
+              headerBg: fb.headerBg,
+              deals: stageDeals,
+            };
+          })
+        );
+        setTotalValueOre(
+          data.stages.reduce((sum, s) => sum + s.totalOre, 0)
+        );
       })
       .catch(() => {});
   }, []);
 
-  const totalValue = "45 000 kr";
+  const totalValue =
+    totalValueOre !== null ? formatSek(totalValueOre) : "45 000 kr";
 
   return (
     <div className="page-enter space-y-6">

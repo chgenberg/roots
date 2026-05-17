@@ -24,6 +24,12 @@ ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_PLAUSIBLE_DOMAIN=$NEXT_PUBLIC_PLAUSIBLE_DOMAIN
 
+# Cross-package types aren't available in the Docker context (only the
+# already-built JS is copied for the workspace deps). Connection-audit
+# P1 #16: opt-out of `next build`'s typecheck explicitly so the rest of
+# next.config.ts can keep it on for CI/local builds.
+ENV SKIP_TYPECHECK=true
+
 RUN cd apps/web && npx next build
 
 FROM base AS runtime

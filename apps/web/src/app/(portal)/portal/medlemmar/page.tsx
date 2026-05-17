@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { portalFetch } from "@/lib/portal-api";
+import { membersListResponseSchema } from "@roots/contracts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,7 +18,15 @@ import {
 import { Users, UserPlus, Search, Mail } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 
-const FALLBACK_MEMBERS = [
+interface MemberRow {
+  id: string | number;
+  name: string;
+  email: string;
+  status: string;
+  joined: string;
+}
+
+const FALLBACK_MEMBERS: MemberRow[] = [
   { id: 1, name: "Anna Lindgren", email: "anna@hammarby.se", status: "Aktiv", joined: "2025-01-15" },
   { id: 2, name: "Erik Svensson", email: "erik@hammarby.se", status: "Aktiv", joined: "2025-02-03" },
   { id: 3, name: "Sofia Karlsson", email: "sofia@hammarby.se", status: "Aktiv", joined: "2025-02-18" },
@@ -28,21 +37,53 @@ const FALLBACK_MEMBERS = [
   { id: 8, name: "Hugo Andersson", email: "hugo@hammarby.se", status: "Aktiv", joined: "2025-01-28" },
 ];
 
+// API role enum → Swedish UI label. Roots doesn't track invite/active state
+// per user yet, so the "status" column reflects the user's club role.
+const ROLE_LABELS: Record<string, string> = {
+  CLUB_ADMIN: "Klubbadmin",
+  CLUB_MEMBER: "Aktiv",
+  ASSOCIATION_ADMIN: "Föreningsadmin",
+  TEAM_LEADER: "Lagansvarig",
+  SELLER: "Säljare",
+  SALES_REP: "Säljare",
+  SALES_ADMIN: "Säljchef",
+  INTERNAL_ADMIN: "Admin",
+  PUBLIC: "Inbjuden",
+};
+
 function statusVariant(status: string) {
-  if (status === "Aktiv") return "success" as const;
+  if (status === "Aktiv" || status === "Klubbadmin") return "success" as const;
   if (status === "Inbjuden") return "warning" as const;
   return "secondary" as const;
 }
 
+function isoDate(value: string | Date): string {
+  const d = typeof value === "string" ? new Date(value) : value;
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toISOString().slice(0, 10);
+}
+
 export default function MedlemmarPage() {
   const [search, setSearch] = useState("");
-  const [members, setMembers] = useState(FALLBACK_MEMBERS);
+  const [members, setMembers] = useState<MemberRow[]>(FALLBACK_MEMBERS);
   const { toast } = useToast();
 
   useEffect(() => {
-    portalFetch<{ members: any[] }>("/members")
+    // API shape: { members: [{ id, email, name, role, createdAt }] }
+    // Previously the UI consumed `joined/status` directly — neither field
+    // existed in the API response, so every member row looked empty.
+    portalFetch("/members", { schema: membersListResponseSchema })
       .then((data) => {
-        if (data.members?.length) setMembers(data.members);
+        if (!data.members?.length) return;
+        setMembers(
+          data.members.map((m) => ({
+            id: m.id,
+            name: m.name || m.email,
+            email: m.email,
+            status: ROLE_LABELS[m.role] ?? m.role,
+            joined: isoDate(m.createdAt),
+          }))
+        );
       })
       .catch(() => {});
   }, []);

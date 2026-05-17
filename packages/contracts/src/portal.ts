@@ -127,3 +127,57 @@ export const incomeResponseSchema = z.object({
   totalEarnedOre: z.number().int().nonnegative(),
 });
 export type IncomeResponse = z.infer<typeof incomeResponseSchema>;
+
+// ── /v1/portal/quotes ───────────────────────────────────────────────
+
+export const quoteStatusEnum = z.union([
+  z.literal("DRAFT"),
+  z.literal("SENT"),
+  z.literal("ACCEPTED"),
+  z.literal("REJECTED"),
+]);
+
+export const portalQuoteSchema = z.object({
+  id: z.string().uuid(),
+  orgId: z.string().uuid(),
+  salesRepId: z.string().uuid().nullable().optional(),
+  status: quoteStatusEnum,
+  totalOre: z.number().int(),
+  validUntil: z.union([z.string(), z.date()]).nullable().optional(),
+  createdAt: z.union([z.string(), z.date()]),
+});
+
+export const quotesListResponseSchema = z.object({
+  quotes: z.array(portalQuoteSchema),
+});
+export type QuotesListResponse = z.infer<typeof quotesListResponseSchema>;
+
+// ── /v1/portal/members ──────────────────────────────────────────────
+
+export const portalMemberSchema = z.object({
+  id: z.string().uuid(),
+  email: z.string(),
+  name: z.string().nullable(),
+  role: portalRoleSchema,
+  createdAt: z.union([z.string(), z.date()]),
+});
+
+export const membersListResponseSchema = z.object({
+  members: z.array(portalMemberSchema),
+});
+export type MembersListResponse = z.infer<typeof membersListResponseSchema>;
+
+// ── /v1/portal/clubs ────────────────────────────────────────────────
+
+export const portalClubSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  type: z.string().nullable().optional(),
+  orgNumber: z.string().nullable().optional(),
+  createdAt: z.union([z.string(), z.date()]).optional(),
+});
+
+export const clubsListResponseSchema = z.object({
+  clubs: z.array(portalClubSchema),
+});
+export type ClubsListResponse = z.infer<typeof clubsListResponseSchema>;

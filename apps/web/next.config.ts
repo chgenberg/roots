@@ -4,9 +4,10 @@ const nextConfig: NextConfig = {
   output: "standalone",
   transpilePackages: ["@roots/ui", "@roots/contracts"],
   typescript: {
-    // Type checking runs in CI (tsc --noEmit with full monorepo).
-    // Docker builds lack cross-package deps so we skip here.
-    ignoreBuildErrors: true,
+    // CI must catch portal-page ↔ API field-name drift (connection audit
+    // P0 #5 / P1 #16). Opt-out via SKIP_TYPECHECK=true for Docker builds
+    // that don't have access to cross-package types yet, but never silently.
+    ignoreBuildErrors: process.env.SKIP_TYPECHECK === "true",
   },
   eslint: {
     ignoreDuringBuilds: true,
