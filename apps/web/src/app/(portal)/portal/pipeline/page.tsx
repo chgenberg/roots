@@ -2,10 +2,39 @@
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { useToast } from "@/components/ui/toast";
+import { apiFetch } from "@/lib/api";
 import { useState, useEffect } from "react";
-import { Target, Phone, FileText, CheckCircle2 } from "lucide-react";
+import {
+  Target,
+  Phone,
+  FileText,
+  CheckCircle2,
+  Plus,
+  Loader2,
+} from "lucide-react";
 import { portalFetch } from "@/lib/portal-api";
 import { pipelineResponseSchema } from "@roots/contracts";
+
+const LEAD_SOURCES = [
+  { value: "INBOUND", label: "Inkommande (förfrågan)" },
+  { value: "OUTBOUND", label: "Utgående (kallt samtal)" },
+  { value: "EVENT", label: "Mässa / event" },
+  { value: "REFERRAL", label: "Rekommendation" },
+  { value: "WEB", label: "Webbplats" },
+  { value: "MANUAL", label: "Manuellt skapad" },
+] as const;
 
 interface Deal {
   id: string | number;
@@ -73,6 +102,69 @@ export default function PipelinePage() {
   const [columns, setColumns] = useState<PipelineColumn[]>(EMPTY_COLUMNS);
   const [totalValueOre, setTotalValueOre] = useState<number | null>(null);
 
+  // Sprint E9: "Nytt lead" modal. The form is intentionally minimal —
+  // every additional field is one more reason a busy sales rep won't
+  // use it. We only require the org name. Everything else is optional
+  // and can be filled in later when the lead progresses.
+  const [leadDialogOpen, setLeadDialogOpen] = useState(false);
+  const [leadSubmitting, setLeadSubmitting] = useState(false);
+  const [leadName, setLeadName] = useState("");
+  const [leadSource, setLeadSource] = useState<string>("OUTBOUND");
+  const [leadScore, setLeadScore] = useState("50");
+  const [leadMunicipality, setLeadMunicipality] = useState("");
+  const [leadWebsite, setLeadWebsite] = useState("");
+  const [leadOrgNumber, setLeadOrgNumber] = useState("");
+  const { toast } = useToast();
+
+  async function handleCreateLead() {
+    const name = leadName.trim();
+    if (name.length < 2) {
+      toast("Klubbnamn måste vara minst 2 tecken.", "error");
+      return;
+    }
+    const score = Number.parseInt(leadScore, 10);
+    if (!Number.isFinite(score) || score < 0 || score > 100) {
+      toast("Potential måste vara 0–100.", "error");
+      return;
+    }
+    setLeadSubmitting(true);
+    try {
+      const res = await apiFetch<{
+        id?: string;
+        name?: string;
+        error?: string;
+        existingOrgId?: string;
+      }>("/v1/sales/leads", {
+        method: "POST",
+        body: {
+          name,
+          leadSource,
+          potentialScore: score,
+          municipality: leadMunicipality.trim() || undefined,
+          website: leadWebsite.trim() || undefined,
+          orgNumber: leadOrgNumber.trim() || undefined,
+        },
+      });
+      if (res.ok && res.data?.id) {
+        toast(`"${res.data.name}" är nu i Pipeline.`, "success");
+        setLeadDialogOpen(false);
+        setLeadName("");
+        setLeadMunicipality("");
+        setLeadWebsite("");
+        setLeadOrgNumber("");
+        // The pipeline endpoint only surfaces deals that have quotes,
+        // so a fresh lead won't appear in the kanban yet. We just rely
+        // on the toast confirmation. /portal/klubbar will show the row.
+      } else {
+        toast(res.data?.error || "Kunde inte skapa leadet.", "error");
+      }
+    } catch {
+      toast("Ett nätverksfel uppstod. Försök igen.", "error");
+    } finally {
+      setLeadSubmitting(false);
+    }
+  }
+
   useEffect(() => {
     // API shape (see packages/contracts/src/portal.ts):
     //   { stages: [{ stage, count, totalOre }], deals: [{ id, status, totalOre, orgId, createdAt }] }
@@ -132,12 +224,18 @@ export default function PipelinePage() {
             Totalt pipeline-värde: <span className="font-semibold text-foreground">{totalValue}</span>
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          {columns.map((col) => (
-            <Badge key={col.stage} variant="outline" className="text-xs">
-              {col.stage}: {col.deals.length}
-            </Badge>
-          ))}
+        <div className="flex items-center gap-3">
+          <div className="hidden flex-wrap items-center gap-2 md:flex">
+            {columns.map((col) => (
+              <Badge key={col.stage} variant="outline" className="text-xs">
+                {col.stage}: {col.deals.length}
+              </Badge>
+            ))}
+          </div>
+          <Button onClick={() => setLeadDialogOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Nytt lead
+          </Button>
         </div>
       </div>
 
@@ -169,6 +267,104 @@ export default function PipelinePage() {
           </Card>
         ))}
       </div>
+
+      <Dialog open={leadDialogOpen} onOpenChange={setLeadDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nytt lead</DialogTitle>
+            <DialogDescription>
+              Lägg till en klubb du har börjat bearbeta. Den hamnar under{" "}
+              <strong>Lead</strong>-stadiet och tilldelas dig som ansvarig.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="leadName">Klubbnamn</Label>
+              <Input
+                id="leadName"
+                value={leadName}
+                onChange={(e) => setLeadName(e.target.value)}
+                placeholder="t.ex. Solna IF, IK Sirius"
+                maxLength={255}
+              />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="leadSource">Källa</Label>
+                <select
+                  id="leadSource"
+                  value={leadSource}
+                  onChange={(e) => setLeadSource(e.target.value)}
+                  className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  {LEAD_SOURCES.map((s) => (
+                    <option key={s.value} value={s.value}>
+                      {s.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <Label htmlFor="leadScore">Potential (0–100)</Label>
+                <Input
+                  id="leadScore"
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={leadScore}
+                  onChange={(e) => setLeadScore(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="leadMunicipality">Kommun (valfritt)</Label>
+                <Input
+                  id="leadMunicipality"
+                  value={leadMunicipality}
+                  onChange={(e) => setLeadMunicipality(e.target.value)}
+                  placeholder="t.ex. Stockholm"
+                />
+              </div>
+              <div>
+                <Label htmlFor="leadOrgNumber">Org.nr (valfritt)</Label>
+                <Input
+                  id="leadOrgNumber"
+                  value={leadOrgNumber}
+                  onChange={(e) => setLeadOrgNumber(e.target.value)}
+                  placeholder="556677-8899"
+                />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="leadWebsite">Webbplats (valfritt)</Label>
+              <Input
+                id="leadWebsite"
+                value={leadWebsite}
+                onChange={(e) => setLeadWebsite(e.target.value)}
+                placeholder="https://"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setLeadDialogOpen(false)}
+              disabled={leadSubmitting}
+            >
+              Avbryt
+            </Button>
+            <Button onClick={handleCreateLead} disabled={leadSubmitting}>
+              {leadSubmitting && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Skapa lead
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

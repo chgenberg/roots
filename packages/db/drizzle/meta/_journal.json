@@ -36,6 +36,13 @@
       "when": 1778889600002,
       "tag": "0004_fk_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1778889600003,
+      "tag": "0005_team_invites",
+      "breakpoints": true
     }
   ]
 }

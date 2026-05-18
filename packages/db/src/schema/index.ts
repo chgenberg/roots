@@ -9,6 +9,7 @@ export * from "./integrations";
 export * from "./leads";
 export * from "./campaigns";
 export * from "./teams";
+export * from "./team-invites";
 export * from "./sellers";
 export * from "./customer-orders";
 export * from "./payouts";

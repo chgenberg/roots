@@ -4,17 +4,39 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Users,
   TrendingUp,
   Trophy,
   ArrowRight,
   Loader2,
+  Plus,
+  Calendar,
 } from "lucide-react";
+import { useToast } from "@/components/ui/toast";
+import { apiFetch } from "@/lib/api";
 import type { AssociationDashboard as AssociationDashboardData, Campaign } from "@/types/fundraising";
 import { getBrowserApiBase } from "@/lib/api-base";
 
 const API_URL = getBrowserApiBase();
+
+// Helper for the campaign-form date defaults: today + 60 days as a sane
+// initial end date so the user doesn't have to type both ends manually.
+function isoDate(offsetDays = 0): string {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  return d.toISOString().slice(0, 10);
+}
 
 interface TeamData {
   id: string;
@@ -31,25 +53,93 @@ export default function AssociationDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const res = await fetch(`${API_URL}/v1/dashboard/association`, {
-          credentials: "include",
-        });
-        if (res.ok) {
-          setData(await res.json());
-        } else {
-          setError("Kunde inte hämta data. Kontrollera att du har rätt behörighet.");
-        }
-      } catch {
-        setError("Nätverksfel. Kunde inte kontakta servern.");
-      } finally {
-        setLoading(false);
+  // Sprint E9: ASSOCIATION_ADMIN can now start new campaigns from the
+  // dashboard. Form state is local to the modal so a half-typed campaign
+  // never leaks into the page's main render.
+  const [campaignDialogOpen, setCampaignDialogOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newGoalValue, setNewGoalValue] = useState("50000");
+  const [newStartDate, setNewStartDate] = useState(isoDate(0));
+  const [newEndDate, setNewEndDate] = useState(isoDate(60));
+  const [newMargin, setNewMargin] = useState("25");
+
+  const { toast } = useToast();
+
+  async function load() {
+    try {
+      const res = await fetch(`${API_URL}/v1/dashboard/association`, {
+        credentials: "include",
+      });
+      if (res.ok) {
+        setData(await res.json());
+      } else {
+        setError("Kunde inte hämta data. Kontrollera att du har rätt behörighet.");
       }
+    } catch {
+      setError("Nätverksfel. Kunde inte kontakta servern.");
+    } finally {
+      setLoading(false);
     }
+  }
+
+  useEffect(() => {
     load();
   }, []);
+
+  async function handleCreateCampaign() {
+    const trimmed = newName.trim();
+    if (trimmed.length < 3) {
+      toast("Kampanjnamn måste vara minst 3 tecken.", "error");
+      return;
+    }
+    const goalValue = Number.parseInt(newGoalValue, 10);
+    if (!Number.isFinite(goalValue) || goalValue < 0) {
+      toast("Målbeloppet måste vara ett positivt heltal.", "error");
+      return;
+    }
+    if (newEndDate < newStartDate) {
+      toast("Slutdatum måste vara efter startdatum.", "error");
+      return;
+    }
+    const margin = Number.parseInt(newMargin, 10);
+    if (!Number.isFinite(margin) || margin < 0 || margin > 100) {
+      toast("Marginal måste vara 0–100 %.", "error");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const res = await apiFetch<{
+        id?: string;
+        name?: string;
+        error?: string;
+      }>("/v1/association/campaigns", {
+        method: "POST",
+        body: {
+          name: trimmed,
+          goalType: "AMOUNT",
+          goalValue,
+          startDate: newStartDate,
+          endDate: newEndDate,
+          deliveryType: "BULK",
+          marginPercent: margin,
+        },
+      });
+      if (res.ok && res.data?.id) {
+        toast(`Kampanjen "${res.data.name}" är aktiv.`, "success");
+        setCampaignDialogOpen(false);
+        setNewName("");
+        await load();
+      } else {
+        toast(res.data?.error || "Kunde inte starta kampanjen.", "error");
+      }
+    } catch {
+      toast("Ett nätverksfel uppstod. Försök igen.", "error");
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -96,13 +186,19 @@ export default function AssociationDashboard() {
 
   return (
     <div className="page-enter space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Förenings-dashboard</h1>
-        <p className="text-sm text-muted-foreground">
-          {activeCampaign
-            ? `Kampanj: ${activeCampaign.name}`
-            : "Ingen aktiv kampanj"}
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">Förenings-dashboard</h1>
+          <p className="text-sm text-muted-foreground">
+            {activeCampaign
+              ? `Kampanj: ${activeCampaign.name}`
+              : "Ingen aktiv kampanj"}
+          </p>
+        </div>
+        <Button onClick={() => setCampaignDialogOpen(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          {activeCampaign ? "Ny kampanj" : "Starta kampanj"}
+        </Button>
       </div>
 
       {/* KPIs */}
@@ -228,6 +324,102 @@ export default function AssociationDashboard() {
           </Card>
         </Link>
       </div>
+
+      <Dialog open={campaignDialogOpen} onOpenChange={setCampaignDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Starta ny kampanj</DialogTitle>
+            <DialogDescription>
+              Sätter status till <strong>Aktiv</strong> direkt så ni kan bjuda
+              in lag och säljare. Detaljer kan justeras senare.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="campaignName">Kampanjnamn</Label>
+              <Input
+                id="campaignName"
+                placeholder="t.ex. Vårcup 2026 — Resa till Malmö"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                maxLength={255}
+              />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="goalValue">
+                  Mål (kr)
+                </Label>
+                <Input
+                  id="goalValue"
+                  type="number"
+                  min={0}
+                  step={1000}
+                  value={newGoalValue}
+                  onChange={(e) => setNewGoalValue(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label htmlFor="margin">Marginal (%)</Label>
+                <Input
+                  id="margin"
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={newMargin}
+                  onChange={(e) => setNewMargin(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="startDate">
+                  <span className="inline-flex items-center gap-1.5">
+                    <Calendar className="h-3.5 w-3.5" />
+                    Startdatum
+                  </span>
+                </Label>
+                <Input
+                  id="startDate"
+                  type="date"
+                  value={newStartDate}
+                  onChange={(e) => setNewStartDate(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label htmlFor="endDate">
+                  <span className="inline-flex items-center gap-1.5">
+                    <Calendar className="h-3.5 w-3.5" />
+                    Slutdatum
+                  </span>
+                </Label>
+                <Input
+                  id="endDate"
+                  type="date"
+                  value={newEndDate}
+                  onChange={(e) => setNewEndDate(e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setCampaignDialogOpen(false)}
+              disabled={submitting}
+            >
+              Avbryt
+            </Button>
+            <Button onClick={handleCreateCampaign} disabled={submitting}>
+              {submitting && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Starta kampanj
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
