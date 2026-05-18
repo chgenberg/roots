@@ -13,6 +13,7 @@ import {
   Menu,
   X,
   LogOut,
+  Settings,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getBrowserApiBase } from "@/lib/api-base";
@@ -89,6 +90,7 @@ export default function FundraisingLayout({
         { href: "/forening/lag", label: "Lag", icon: Users },
         { href: "/forening/mal", label: "Mål", icon: Target },
         { href: "/forening/avrakning", label: "Avräkning", icon: CreditCard },
+        { href: "/installningar", label: "Inställningar", icon: Settings },
       ]
     : isTeamLeader
     ? [
@@ -96,9 +98,11 @@ export default function FundraisingLayout({
         { href: "/lag/saljare", label: "Säljare", icon: Users },
         { href: "/lag/bestallningar", label: "Beställningar", icon: ClipboardList },
         { href: "/lag/avrakning", label: "Avräkning", icon: CreditCard },
+        { href: "/installningar", label: "Inställningar", icon: Settings },
       ]
     : [
         { href: "/min-shop", label: "Min shop", icon: ShoppingBag },
+        { href: "/installningar", label: "Inställningar", icon: Settings },
       ];
 
   const roleBadge = isAssociation
@@ -107,10 +111,21 @@ export default function FundraisingLayout({
     ? { label: "Lagansvarig", className: "bg-brand-100 text-brand-700" }
     : { label: "Säljare", className: "bg-brand-50 text-brand-600" };
 
+  // Sprint E8: build initials for the avatar bubble so the profile card
+  // looks identifiable even before we have real profile pictures.
+  const initials =
+    (user?.name ?? "")
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((p) => p[0]?.toUpperCase() ?? "")
+      .join("") || "?";
+
   return (
     <div className="flex min-h-screen">
-      {/* Sidebar desktop */}
-      <aside className="hidden w-64 shrink-0 border-r bg-background lg:flex lg:flex-col">
+      {/* Sidebar desktop — Sprint E8: sticky to the viewport so logout
+          and profile are always visible no matter how tall <main> is. */}
+      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r bg-background lg:flex">
         <div className="flex h-16 items-center gap-2 border-b px-6">
           <Link href="/" className="text-lg font-bold tracking-tight">
             Roots
@@ -119,7 +134,7 @@ export default function FundraisingLayout({
             {roleBadge.label}
           </Badge>
         </div>
-        <nav className="flex-1 space-y-1 p-3">
+        <nav className="flex-1 space-y-1 overflow-y-auto p-3">
           {navItems.map((item) => {
             const active = pathname === item.href;
             return (
@@ -138,9 +153,22 @@ export default function FundraisingLayout({
             );
           })}
         </nav>
+        {/* Profile card with initials + name + email + logout. Lives in
+            its own flex row at the bottom of the sticky aside, so it is
+            always visible no matter where the user scrolled <main>. */}
         <div className="border-t p-3">
-          <div className="mb-2 px-3 text-xs text-muted-foreground">
-            {user?.name}
+          <div className="mb-2 flex items-center gap-3 rounded-lg px-2 py-2">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-700 text-sm font-semibold text-white">
+              {initials}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium" title={user?.name}>
+                {user?.name}
+              </p>
+              <p className="truncate text-xs text-muted-foreground" title={user?.email}>
+                {user?.email}
+              </p>
+            </div>
           </div>
           <button
             onClick={handleLogout}
@@ -169,6 +197,16 @@ export default function FundraisingLayout({
 
         {mobileOpen && (
           <nav className="space-y-1 border-b bg-background p-3 lg:hidden">
+            <div className="mb-2 flex items-center gap-3 rounded-lg bg-brand-50 p-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-700 text-sm font-semibold text-white">
+                {initials}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">{user?.name}</p>
+                <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
+              </div>
+              <Badge className={`text-xs ${roleBadge.className}`}>{roleBadge.label}</Badge>
+            </div>
             {navItems.map((item) => {
               const active = pathname === item.href;
               return (
