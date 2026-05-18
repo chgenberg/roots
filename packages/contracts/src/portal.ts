@@ -257,6 +257,14 @@ export const portalClubSchema = z.object({
   type: z.string().nullable().optional(),
   orgNumber: z.string().nullable().optional(),
   createdAt: z.union([z.string(), z.date()]).optional(),
+  // Sprint E12: real aggregates surfaced by /v1/portal/clubs so the
+  // SALES_REP / INTERNAL_ADMIN klubbar-table stops showing "—" for
+  // members, last order date and revenue. All optional + nullable so
+  // older clients keep validating.
+  membersCount: z.number().int().nonnegative().optional(),
+  lastOrderAt: z.union([z.string(), z.date()]).nullable().optional(),
+  revenueOre: z.number().int().nonnegative().optional(),
+  crmStatus: z.string().nullable().optional(),
 });
 
 export const clubsListResponseSchema = z.object({

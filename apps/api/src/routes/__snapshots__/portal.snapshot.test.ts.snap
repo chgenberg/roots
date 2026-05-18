@@ -87,6 +87,14 @@ exports[`GET /v1/portal/pipeline > returns stage rollups and recent deals (snaps
 {
   "deals": [
     {
+      "createdAt": "2026-05-15T09:00:00.000Z",
+      "id": "00000000-0000-0000-0000-0000000000e1",
+      "orgId": "00000000-0000-0000-0000-0000000000e1",
+      "orgName": "IFK Lead-test",
+      "status": "LEAD",
+      "totalOre": 0,
+    },
+    {
       "createdAt": "2026-05-14T08:00:00.000Z",
       "id": "00000000-0000-0000-0000-0000000000d1",
       "orgId": "00000000-0000-0000-0000-0000000000aa",
@@ -104,6 +112,11 @@ exports[`GET /v1/portal/pipeline > returns stage rollups and recent deals (snaps
     },
   ],
   "stages": [
+    {
+      "count": 1,
+      "stage": "LEAD",
+      "totalOre": 0,
+    },
     {
       "count": 2,
       "stage": "DRAFT",

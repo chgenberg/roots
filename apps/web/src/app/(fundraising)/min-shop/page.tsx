@@ -19,6 +19,7 @@ import {
 import { useToast } from "@/components/ui/toast";
 import { GradeBadge, GradeProgress } from "@/components/seller-grade";
 import { OrderDetailDialog } from "@/components/order-detail-dialog";
+import { ShareTemplates } from "@/components/share-templates";
 import type { SellerDashboard as SellerDashboardData, Milestone } from "@/types/fundraising";
 import QRCode from "qrcode";
 
@@ -314,6 +315,17 @@ export default function SellerDashboard() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Sprint E12: ready-made share copy. Sellers told us the hardest
+          part isn't sharing — it's writing the message. Six pre-filled
+          templates covering SMS, WhatsApp, Insta, Facebook and email. */}
+      <ShareTemplates
+        displayName={data.seller.displayName}
+        shopUrl={shopUrl}
+        campaignName={data.campaign?.name ?? "vårt lag"}
+        teamName={data.team?.name ?? "vårt lag"}
+      />
+
 
       {/* Recent orders */}
       <Card>

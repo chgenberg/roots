@@ -15,32 +15,53 @@ import {
 import { Users, TrendingUp, Target, Award } from "lucide-react";
 
 interface SalesRep {
-  id: number | string;
-  name: string;
+  id: string;
+  name: string | null;
   email: string;
+  role: string;
   clubs: number;
-  pipeline: string;
-  closed: string;
-  conversion: string;
-  trend: string | null;
+  pipelineOre: number;
+  closedOre: number;
+  conversion: number | null;
 }
 
-const FALLBACK_SELLERS: SalesRep[] = [];
+interface SellersResponse {
+  sellers: SalesRep[];
+  totals: {
+    pipelineOre: number;
+    closedOre: number;
+    avgConversion: number | null;
+  };
+}
+
+function formatSek(ore: number): string {
+  if (!ore || ore <= 0) return "0 kr";
+  return `${Math.round(ore / 100).toLocaleString("sv-SE")} kr`;
+}
 
 export default function SaljarePage() {
-  const [sellers, setSellers] = useState<SalesRep[]>(FALLBACK_SELLERS);
+  const [sellers, setSellers] = useState<SalesRep[]>([]);
+  const [totals, setTotals] = useState<SellersResponse["totals"]>({
+    pipelineOre: 0,
+    closedOre: 0,
+    avgConversion: null,
+  });
 
   useEffect(() => {
-    portalFetch<{ sellers: SalesRep[] }>("/sellers")
+    portalFetch<SellersResponse>("/sellers")
       .then((data) => {
-        if (data.sellers?.length) setSellers(data.sellers);
+        if (data.sellers) {
+          // API returns rows ordered by name; sort here by closed (DESC)
+          // so the top 3 actually map to the leaderboard medal styling.
+          const sorted = [...data.sellers].sort(
+            (a, b) => b.closedOre - a.closedOre
+          );
+          setSellers(sorted);
+        }
+        if (data.totals) setTotals(data.totals);
       })
       .catch(() => {});
   }, []);
-
-  const totalPipeline = "—";
-  const totalClosed = "—";
-  const avgConversion = "—";
 
   return (
     <div className="page-enter space-y-6">
@@ -68,7 +89,7 @@ export default function SaljarePage() {
             <div className="flex items-center gap-3">
               <Target className="h-5 w-5 text-brand-400" />
               <div>
-                <p className="text-2xl font-bold">{totalPipeline}</p>
+                <p className="text-2xl font-bold">{formatSek(totals.pipelineOre)}</p>
                 <p className="text-xs text-muted-foreground">Total pipeline</p>
               </div>
             </div>
@@ -79,7 +100,7 @@ export default function SaljarePage() {
             <div className="flex items-center gap-3">
               <TrendingUp className="h-5 w-5 text-brand-400" />
               <div>
-                <p className="text-2xl font-bold">{totalClosed}</p>
+                <p className="text-2xl font-bold">{formatSek(totals.closedOre)}</p>
                 <p className="text-xs text-muted-foreground">Totalt stängt</p>
               </div>
             </div>
@@ -90,7 +111,11 @@ export default function SaljarePage() {
             <div className="flex items-center gap-3">
               <Award className="h-5 w-5 text-brand-400" />
               <div>
-                <p className="text-2xl font-bold">{avgConversion}</p>
+                <p className="text-2xl font-bold">
+                  {totals.avgConversion !== null
+                    ? `${totals.avgConversion}%`
+                    : "—"}
+                </p>
                 <p className="text-xs text-muted-foreground">Snittkonvertering</p>
               </div>
             </div>
@@ -116,8 +141,7 @@ export default function SaljarePage() {
                 <TableHead>Klubbar</TableHead>
                 <TableHead>Pipeline</TableHead>
                 <TableHead>Stängt</TableHead>
-                <TableHead>Konvertering</TableHead>
-                <TableHead className="text-right">Trend</TableHead>
+                <TableHead className="text-right">Konvertering</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -134,20 +158,25 @@ export default function SaljarePage() {
                       </span>
                     )}
                   </TableCell>
-                  <TableCell className="font-medium">{s.name}</TableCell>
+                  <TableCell className="font-medium">
+                    {s.name ?? s.email}
+                  </TableCell>
                   <TableCell className="text-muted-foreground">{s.email}</TableCell>
                   <TableCell>{s.clubs}</TableCell>
-                  <TableCell className="font-medium">{s.pipeline}</TableCell>
-                  <TableCell className="font-medium">{s.closed}</TableCell>
-                  <TableCell>{s.conversion}</TableCell>
+                  <TableCell className="font-medium">{formatSek(s.pipelineOre)}</TableCell>
+                  <TableCell className="font-medium">{formatSek(s.closedOre)}</TableCell>
                   <TableCell className="text-right">
-                    {s.trend ? (
+                    {s.conversion !== null ? (
                       <Badge
                         variant={
-                          s.trend.startsWith("+") ? "success" : "destructive"
+                          s.conversion >= 50
+                            ? "success"
+                            : s.conversion >= 25
+                              ? "secondary"
+                              : "destructive"
                         }
                       >
-                        {s.trend}
+                        {s.conversion}%
                       </Badge>
                     ) : (
                       <span className="text-xs text-muted-foreground">—</span>

@@ -44,6 +44,10 @@ export interface Seller {
   orderCount: number;
   individualGoal: number | null;
   grade?: SellerGrade;
+  // Sprint E12: team leaders can pause sellers; paused sellers stay in
+  // the list (for transparency) but are excluded from ranking + targets.
+  // Optional so older API responses keep validating.
+  status?: "ACTIVE" | "INACTIVE";
 }
 
 export interface CustomerOrder {

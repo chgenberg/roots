@@ -19,10 +19,12 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
-import { ShoppingCart, Plus, Minus, Package, Truck, CheckCircle2 } from "lucide-react";
+import { ShoppingCart, Plus, Minus, Package, Truck, CheckCircle2, Search, Download } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { portalFetch } from "@/lib/portal-api";
 import { publicProductHref } from "@/lib/portal-products";
 import { PortalOrderDialog } from "@/components/portal-order-dialog";
+import { downloadPortalOrdersCsv } from "@/lib/orders-csv";
 
 type PortalOrderProduct = {
   id: string;
@@ -46,6 +48,12 @@ type OrderRow = {
   items: string;
   total: string;
   status: string;
+  // Sprint E12: raw values kept alongside the formatted display strings
+  // so we can filter (date range) and export CSV without re-parsing
+  // localized strings.
+  createdAt: string;
+  totalOre: number;
+  statusRaw: string;
 };
 
 function statusBadge(status: string) {
@@ -94,6 +102,9 @@ export default function BestallningarPage() {
             items: "",
             total: `${(o.totalOre / 100).toLocaleString("sv-SE")} kr`,
             status: o.status === "PAID" ? "Levererad" : o.status === "SHIPPED" ? "Skickad" : "Under behandling",
+            createdAt: o.createdAt,
+            totalOre: o.totalOre,
+            statusRaw: o.status,
           }))
         );
       })
@@ -121,6 +132,11 @@ export default function BestallningarPage() {
   const [submitting, setSubmitting] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailOrderId, setDetailOrderId] = useState<string | null>(null);
+  // Sprint E12: filter/sök/CSV parity with /lag/bestallningar.
+  const [search, setSearch] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | "Levererad" | "Skickad" | "Under behandling">("ALL");
 
   async function handleSubmit() {
     if (cartCount === 0) return;
@@ -142,13 +158,17 @@ export default function BestallningarPage() {
           })
           .join(", ");
 
+        const o = created.order!;
         setOrders((prev) => [
           {
-            id: created.order!.id,
-            date: created.order!.createdAt?.split("T")[0] ?? new Date().toISOString().split("T")[0],
+            id: o.id,
+            date: o.createdAt?.split("T")[0] ?? new Date().toISOString().split("T")[0],
             items: itemStr,
-            total: `${(created.order!.totalOre / 100).toLocaleString("sv-SE")} kr`,
+            total: `${(o.totalOre / 100).toLocaleString("sv-SE")} kr`,
             status: "Under behandling",
+            createdAt: o.createdAt ?? new Date().toISOString(),
+            totalOre: o.totalOre,
+            statusRaw: o.status,
           },
           ...prev,
         ]);
@@ -292,6 +312,86 @@ export default function BestallningarPage() {
         </Card>
       </div>
 
+      {(() => {
+        const fromTs = dateFrom ? new Date(dateFrom + "T00:00:00").getTime() : null;
+        const toTs = dateTo ? new Date(dateTo + "T23:59:59.999").getTime() : null;
+        const needle = search.trim().toLowerCase();
+        const filtered = orders.filter((o) => {
+          if (statusFilter !== "ALL" && o.status !== statusFilter) return false;
+          const ts = new Date(o.createdAt).getTime();
+          if (fromTs !== null && Number.isFinite(ts) && ts < fromTs) return false;
+          if (toTs !== null && Number.isFinite(ts) && ts > toTs) return false;
+          if (needle) {
+            const hay = `${o.id} ${o.items} ${o.statusRaw}`.toLowerCase();
+            if (!hay.includes(needle)) return false;
+          }
+          return true;
+        });
+
+        return (
+          <>
+            <Card>
+              <CardContent className="p-4 space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  {(["ALL", "Levererad", "Skickad", "Under behandling"] as const).map((f) => (
+                    <Button
+                      key={f}
+                      size="sm"
+                      variant={statusFilter === f ? "default" : "outline"}
+                      onClick={() => setStatusFilter(f)}
+                    >
+                      {f === "ALL" ? "Alla" : f}
+                    </Button>
+                  ))}
+                  <div className="ml-auto">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        downloadPortalOrdersCsv(
+                          "klubb-bestallningar",
+                          filtered.map((o) => ({
+                            id: o.id,
+                            createdAt: o.createdAt,
+                            status: o.status,
+                            totalOre: o.totalOre,
+                          }))
+                        )
+                      }
+                      disabled={filtered.length === 0}
+                      className="gap-1.5"
+                    >
+                      <Download className="h-4 w-4" />
+                      Exportera CSV
+                    </Button>
+                  </div>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-[1fr_160px_160px]">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      placeholder="Sök order-ID eller produkt…"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      className="pl-9"
+                    />
+                  </div>
+                  <Input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    aria-label="Från-datum"
+                  />
+                  <Input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    aria-label="Till-datum"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
       <Card>
         <CardContent className="p-5">
           <Table>
@@ -305,7 +405,7 @@ export default function BestallningarPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {orders.map((o) => (
+              {filtered.map((o) => (
                 <TableRow
                   key={o.id}
                   onClick={() => {
@@ -331,6 +431,13 @@ export default function BestallningarPage() {
                   </TableCell>
                 </TableRow>
               ))}
+              {!loadingOrders && filtered.length === 0 && orders.length > 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                    Inga beställningar matchade dina filter.
+                  </TableCell>
+                </TableRow>
+              )}
               {!loadingOrders && orders.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
@@ -349,6 +456,9 @@ export default function BestallningarPage() {
           </Table>
         </CardContent>
       </Card>
+          </>
+        );
+      })()}
 
       <PortalOrderDialog
         open={detailOpen}

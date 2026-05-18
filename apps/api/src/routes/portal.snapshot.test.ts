@@ -274,12 +274,16 @@ describe("GET /v1/portal/pipeline", () => {
       createdAt: 0,
     } as any);
 
+    // /pipeline now executes four queries: stages-rollup, lead-count,
+    // recent-quote-deals, recent-lead-orgs. (Sprint E12 added the LEAD
+    // stage projection over `organizations.crmStatus`.)
     dbHandle.reset([
       [
         { status: "DRAFT", count: 2, totalOre: 300_000 },
         { status: "SENT", count: 4, totalOre: 800_000 },
         { status: "ACCEPTED", count: 1, totalOre: 250_000 },
       ],
+      [{ leadCount: 1 }],
       [
         {
           id: "00000000-0000-0000-0000-0000000000d1",
@@ -302,6 +306,14 @@ describe("GET /v1/portal/pipeline", () => {
           // falls back to "—".
           orgName: null,
           createdAt: new Date("2026-05-13T12:00:00.000Z"),
+        },
+      ],
+      [
+        {
+          id: "00000000-0000-0000-0000-0000000000e1",
+          orgId: "00000000-0000-0000-0000-0000000000e1",
+          orgName: "IFK Lead-test",
+          createdAt: new Date("2026-05-15T09:00:00.000Z"),
         },
       ],
     ]);

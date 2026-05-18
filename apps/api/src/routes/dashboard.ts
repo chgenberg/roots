@@ -131,6 +131,97 @@ dashboard.get("/association", async (c) => {
   }
 });
 
+// Sprint E12: ASSOCIATION_ADMIN sets per-team goals from /forening/mal.
+// Reuses the existing `team_goals` table (unique on team_id+campaign_id)
+// instead of adding a column to `teams`, so the data model stays aligned
+// with the tRPC `campaigns.setGoal` path that already exists.
+dashboard.patch("/association/team-goals", async (c) => {
+  const session = await requireSession(c);
+  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  if (!session.orgId) return c.json({ error: "Ingen organisation" }, 403);
+  if (
+    session.role !== "ASSOCIATION_ADMIN" &&
+    session.role !== "INTERNAL_ADMIN"
+  ) {
+    return c.json({ error: "Behörighet saknas" }, 403);
+  }
+
+  type Body = {
+    teamId?: string;
+    campaignId?: string;
+    goalValue?: number;
+    goalType?: "AMOUNT" | "PACKAGES";
+  };
+  let body: Body;
+  try {
+    body = await c.req.json<Body>();
+  } catch {
+    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+  }
+
+  const teamId = (body.teamId ?? "").trim();
+  const campaignId = (body.campaignId ?? "").trim();
+  const goalValue = Number(body.goalValue);
+  const goalType = body.goalType === "PACKAGES" ? "PACKAGES" : "AMOUNT";
+  if (!teamId || !campaignId) {
+    return c.json({ error: "teamId och campaignId krävs" }, 400);
+  }
+  if (!Number.isFinite(goalValue) || goalValue < 0) {
+    return c.json({ error: "goalValue måste vara ett positivt tal" }, 400);
+  }
+
+  try {
+    // Tenancy: a non-admin association admin must only edit goals for
+    // their own teams. Verify both team and campaign belong to org.
+    const [team] = await db
+      .select({ id: teams.id, orgId: teams.orgId })
+      .from(teams)
+      .where(eq(teams.id, teamId))
+      .limit(1);
+    if (!team) return c.json({ error: "Laget hittades inte" }, 404);
+    if (
+      session.role !== "INTERNAL_ADMIN" &&
+      team.orgId !== session.orgId
+    ) {
+      return c.json({ error: "Behörighet saknas" }, 403);
+    }
+
+    const [campaign] = await db
+      .select({ id: campaigns.id, orgId: campaigns.orgId })
+      .from(campaigns)
+      .where(eq(campaigns.id, campaignId))
+      .limit(1);
+    if (!campaign) return c.json({ error: "Kampanjen hittades inte" }, 404);
+    if (
+      session.role !== "INTERNAL_ADMIN" &&
+      campaign.orgId !== session.orgId
+    ) {
+      return c.json({ error: "Behörighet saknas" }, 403);
+    }
+
+    await db
+      .insert(teamGoals)
+      .values({
+        teamId,
+        campaignId,
+        goalType,
+        goalValue: Math.floor(goalValue),
+      })
+      .onConflictDoUpdate({
+        target: [teamGoals.teamId, teamGoals.campaignId],
+        set: {
+          goalType,
+          goalValue: Math.floor(goalValue),
+        },
+      });
+
+    return c.json({ ok: true, teamId, campaignId, goalValue, goalType });
+  } catch (err) {
+    log.error({ err }, "Failed to upsert team goal");
+    return c.json({ error: "Kunde inte spara målet" }, 500);
+  }
+});
+
 dashboard.get("/my-team", async (c) => {
   const session = await requireSession(c);
   if (!session) return c.json({ error: "Ej inloggad" }, 401);
@@ -233,6 +324,9 @@ dashboard.get("/team/:teamId", async (c) => {
           orderCount: Number(sales?.count || 0),
           individualGoal: s.individualGoal,
           grade: getSellerGrade(sellerSalesOre),
+          // Sprint E12: surface status so /lag/saljare can show paused
+          // sellers separately and hide them from the live ranking.
+          status: s.status,
         };
       }),
       orders: orders.map((o) => ({
@@ -277,7 +371,11 @@ dashboard.patch("/sellers/:sellerId", async (c) => {
     return c.json({ error: "Ogiltigt säljar-ID." }, 400);
   }
 
-  let body: { individualGoal?: number };
+  // Sprint E12: this endpoint now also handles seller status changes
+  // (ACTIVE / INACTIVE). Either field may be present; at least one must
+  // be. Inactivating a seller hides them from team ranking + goal totals
+  // — see /v1/dashboard/team/:teamId aggregation logic.
+  let body: { individualGoal?: number; status?: "ACTIVE" | "INACTIVE" };
   try {
     body = await c.req.json();
   } catch {
@@ -285,15 +383,35 @@ dashboard.patch("/sellers/:sellerId", async (c) => {
   }
 
   const goalRaw = body.individualGoal;
-  if (
-    goalRaw === undefined ||
-    !Number.isFinite(goalRaw) ||
-    !Number.isInteger(goalRaw) ||
-    goalRaw < 0 ||
-    goalRaw > 10_000_000
-  ) {
+  const statusRaw = body.status;
+
+  const wantsGoal = goalRaw !== undefined;
+  const wantsStatus = statusRaw !== undefined;
+
+  if (!wantsGoal && !wantsStatus) {
     return c.json(
-      { error: "individualGoal måste vara ett heltal mellan 0 och 10 000 000 kr." },
+      { error: "individualGoal eller status krävs." },
+      400
+    );
+  }
+
+  if (wantsGoal) {
+    if (
+      !Number.isFinite(goalRaw) ||
+      !Number.isInteger(goalRaw) ||
+      (goalRaw as number) < 0 ||
+      (goalRaw as number) > 10_000_000
+    ) {
+      return c.json(
+        { error: "individualGoal måste vara ett heltal mellan 0 och 10 000 000 kr." },
+        400
+      );
+    }
+  }
+
+  if (wantsStatus && statusRaw !== "ACTIVE" && statusRaw !== "INACTIVE") {
+    return c.json(
+      { error: "status måste vara ACTIVE eller INACTIVE." },
       400
     );
   }
@@ -322,19 +440,26 @@ dashboard.patch("/sellers/:sellerId", async (c) => {
       return c.json({ error: "Behörighet saknas" }, 403);
     }
 
+    const patch: { individualGoal?: number; status?: "ACTIVE" | "INACTIVE"; updatedAt: Date } = {
+      updatedAt: new Date(),
+    };
+    if (wantsGoal) patch.individualGoal = goalRaw as number;
+    if (wantsStatus) patch.status = statusRaw as "ACTIVE" | "INACTIVE";
+
     const [updated] = await db
       .update(sellers)
-      .set({ individualGoal: goalRaw, updatedAt: new Date() })
+      .set(patch)
       .where(eq(sellers.id, sellerId))
       .returning();
 
     return c.json({
       id: updated.id,
       individualGoal: updated.individualGoal,
+      status: updated.status,
     });
   } catch (err) {
-    log.error({ err }, "Failed to update seller goal");
-    return c.json({ error: "Kunde inte uppdatera mål" }, 500);
+    log.error({ err }, "Failed to update seller");
+    return c.json({ error: "Kunde inte uppdatera säljaren" }, 500);
   }
 });
 

@@ -8,9 +8,13 @@ import {
   Loader2,
   Package,
   CreditCard,
+  Search,
+  Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { OrderDetailDialog } from "@/components/order-detail-dialog";
+import { downloadCustomerOrdersCsv } from "@/lib/orders-csv";
 import type { TeamDashboard, CustomerOrder, Seller } from "@/types/fundraising";
 
 import { getBrowserApiBase } from "@/lib/api-base";
@@ -48,6 +52,10 @@ export default function TeamOrdersPage() {
   const [filter, setFilter] = useState<FilterStatus>("ALL");
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailOrderId, setDetailOrderId] = useState<string | null>(null);
+  // Sprint E12: date range + free-text search + CSV.
+  const [search, setSearch] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   useEffect(() => {
     async function load() {
@@ -112,14 +120,49 @@ export default function TeamOrdersPage() {
   const orders: CustomerOrder[] = data.orders || [];
   const sellers: Seller[] = data.sellers || [];
   const sellerMap = new Map(sellers.map((s: Seller) => [s.id, s.displayName]));
-  const filteredOrders =
-    filter === "ALL" ? orders : orders.filter((o: CustomerOrder) => o.status === filter);
+
+  const fromTs = dateFrom ? new Date(dateFrom + "T00:00:00").getTime() : null;
+  // dateTo is inclusive — extend to end-of-day so an order at 23:59 still
+  // matches when the user picks the same day in both pickers.
+  const toTs = dateTo ? new Date(dateTo + "T23:59:59.999").getTime() : null;
+  const needle = search.trim().toLowerCase();
+
+  const filteredOrders = orders.filter((o: CustomerOrder) => {
+    if (filter !== "ALL" && o.status !== filter) return false;
+    const ts = new Date(o.createdAt).getTime();
+    if (fromTs !== null && ts < fromTs) return false;
+    if (toTs !== null && ts > toTs) return false;
+    if (needle) {
+      const seller = sellerMap.get(o.sellerId ?? "") || "";
+      const hay = `${o.customerName} ${o.customerEmail ?? ""} ${seller}`.toLowerCase();
+      if (!hay.includes(needle)) return false;
+    }
+    return true;
+  });
 
   const paidTotal = orders
     .filter((o: CustomerOrder) => o.status === "PAID" || o.status === "CONFIRMED" || o.status === "SHIPPED" || o.status === "DELIVERED")
     .reduce((sum: number, o: CustomerOrder) => sum + (o.totalOre || 0), 0);
 
   const filterButtons: FilterStatus[] = ["ALL", "PAID", "PENDING", "CANCELLED"];
+
+  function exportCsv() {
+    if (filteredOrders.length === 0) return;
+    downloadCustomerOrdersCsv(
+      `bestallningar-${data?.team?.name || "lag"}`.toLowerCase().replace(/\s+/g, "-"),
+      filteredOrders.map((o) => ({
+        id: o.id,
+        createdAt: o.createdAt,
+        customerName: o.customerName,
+        customerEmail: o.customerEmail,
+        sellerName: sellerMap.get(o.sellerId ?? "") ?? null,
+        status: statusLabel(o.status),
+        paymentMethod: o.paymentMethod,
+        deliveryType: o.deliveryType,
+        totalOre: o.totalOre,
+      }))
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -155,18 +198,57 @@ export default function TeamOrdersPage() {
         </Card>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {filterButtons.map((f) => (
-          <Button
-            key={f}
-            size="sm"
-            variant={filter === f ? "default" : "outline"}
-            onClick={() => setFilter(f)}
-          >
-            {f === "ALL" ? "Alla" : statusLabel(f)}
-          </Button>
-        ))}
-      </div>
+      <Card>
+        <CardContent className="p-4 space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            {filterButtons.map((f) => (
+              <Button
+                key={f}
+                size="sm"
+                variant={filter === f ? "default" : "outline"}
+                onClick={() => setFilter(f)}
+              >
+                {f === "ALL" ? "Alla" : statusLabel(f)}
+              </Button>
+            ))}
+            <div className="ml-auto">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={exportCsv}
+                disabled={filteredOrders.length === 0}
+                className="gap-1.5"
+              >
+                <Download className="h-4 w-4" />
+                Exportera CSV
+              </Button>
+            </div>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-[1fr_160px_160px]">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Sök kund, e-post eller säljare…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              aria-label="Från-datum"
+            />
+            <Input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              aria-label="Till-datum"
+            />
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

@@ -22,13 +22,36 @@ interface ClubRow {
   members: number | null;
   status: string;
   lastOrder: string;
-  revenue: string;
+  revenueOre: number;
 }
 
 function statusVariant(status: string) {
-  if (status === "Aktiv") return "success" as const;
-  if (status === "Ny") return "warning" as const;
+  if (status === "Kund") return "success" as const;
+  if (status === "Lead") return "warning" as const;
   return "secondary" as const;
+}
+
+function formatSek(ore: number): string {
+  if (!ore || ore <= 0) return "—";
+  return `${Math.round(ore / 100).toLocaleString("sv-SE")} kr`;
+}
+
+function formatDate(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("sv-SE");
+}
+
+function crmStatusLabel(crm: string | null | undefined, type: string | null | undefined): string {
+  // crmStatus is authoritative when present; type only used as fallback so
+  // the column never shows a raw enum value like "PROSPECT".
+  if (crm === "CUSTOMER") return "Kund";
+  if (crm === "LEAD") return "Lead";
+  if (crm === "PROSPECT") return "Prospect";
+  if (crm === "INACTIVE") return "Inaktiv";
+  if (type === "club") return "Kund";
+  return "Lead";
 }
 
 export default function KlubbarPage() {
@@ -37,21 +60,22 @@ export default function KlubbarPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // API shape: { clubs: [organization-row] }. The org row only includes
-    // identity columns (id, name, type, orgNumber, createdAt); members
-    // count, last-order date and revenue are not joined yet — until that
-    // backend is built we show "—" for those columns instead of fabricated
-    // numbers.
     portalFetch("/clubs", { schema: clubsListResponseSchema })
       .then((data) => {
         setClubs(
           (data.clubs ?? []).map((c) => ({
             id: c.id,
             name: c.name,
-            members: null,
-            status: c.type === "club" ? "Aktiv" : "Ny",
-            lastOrder: "—",
-            revenue: "—",
+            members: c.membersCount ?? 0,
+            status: crmStatusLabel(c.crmStatus, c.type),
+            lastOrder: formatDate(
+              typeof c.lastOrderAt === "string"
+                ? c.lastOrderAt
+                : c.lastOrderAt instanceof Date
+                  ? c.lastOrderAt.toISOString()
+                  : null
+            ),
+            revenueOre: c.revenueOre ?? 0,
           }))
         );
       })
@@ -89,8 +113,8 @@ export default function KlubbarPage() {
             <div className="flex items-center gap-3">
               <Building2 className="h-5 w-5 text-brand-400" />
               <div>
-                <p className="text-2xl font-bold">{clubs.filter((c) => c.status === "Aktiv").length}</p>
-                <p className="text-xs text-muted-foreground">Aktiva</p>
+                <p className="text-2xl font-bold">{clubs.filter((c) => c.status === "Kund").length}</p>
+                <p className="text-xs text-muted-foreground">Aktiva kunder</p>
               </div>
             </div>
           </CardContent>
@@ -100,8 +124,21 @@ export default function KlubbarPage() {
             <div className="flex items-center gap-3">
               <Building2 className="h-5 w-5 text-brand-400" />
               <div>
-                <p className="text-2xl font-bold">{clubs.filter((c) => c.status === "Ny").length}</p>
+                <p className="text-2xl font-bold">{clubs.filter((c) => c.status === "Lead").length}</p>
                 <p className="text-xs text-muted-foreground">Nya leads</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-center gap-3">
+              <Building2 className="h-5 w-5 text-brand-400" />
+              <div>
+                <p className="text-2xl font-bold">
+                  {formatSek(clubs.reduce((sum, c) => sum + c.revenueOre, 0))}
+                </p>
+                <p className="text-xs text-muted-foreground">Total intäkt</p>
               </div>
             </div>
           </CardContent>
@@ -141,7 +178,7 @@ export default function KlubbarPage() {
                     <Badge variant={statusVariant(c.status)}>{c.status}</Badge>
                   </TableCell>
                   <TableCell className="text-muted-foreground">{c.lastOrder}</TableCell>
-                  <TableCell className="text-right font-medium">{c.revenue}</TableCell>
+                  <TableCell className="text-right font-medium">{formatSek(c.revenueOre)}</TableCell>
                 </TableRow>
               ))}
               {!loading && filtered.length === 0 && (

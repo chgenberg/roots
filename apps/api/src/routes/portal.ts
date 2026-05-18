@@ -369,7 +369,7 @@ portal.get("/orders/:orderId", async (c) => {
     const [buyer] = await db
       .select({
         id: users.id,
-        name: users.name,
+        name: users.contactName,
         email: users.email,
       })
       .from(users)
@@ -535,7 +535,87 @@ portal.get("/clubs", async (c) => {
         .limit(50);
     }
 
-    return c.json({ clubs: orgList });
+    if (orgList.length === 0) {
+      return c.json({ clubs: [] });
+    }
+
+    // Sprint E12: stitch aggregates (members / last order / revenue)
+    // so the SALES_REP + INTERNAL_ADMIN klubbar table stops showing "—".
+    // Three small grouped queries scoped to the page's 50 orgs is
+    // cheaper than 50 N+1 round-trips, and still well within Postgres'
+    // happy path for grouped counts/sums.
+    const orgIds = orgList.map((o) => o.id);
+    const orgIdsSql = sql.join(
+      orgIds.map((id) => sql`${id}::uuid`),
+      sql`, `
+    );
+
+    // Members per org. Counts every user in `users.org_id`. Filtering
+    // by role would hide CLUB_MEMBER vs CLUB_ADMIN nuance; we include
+    // both so the count matches what /portal/medlemmar shows.
+    const memberRows = (await db.execute(
+      sql`SELECT org_id::text AS org_id, COUNT(*)::int AS c
+          FROM users
+          WHERE org_id IN (${orgIdsSql})
+          GROUP BY org_id`
+    )) as unknown as Array<{ org_id: string; c: number }>;
+    const memberMap = new Map(memberRows.map((r) => [r.org_id, Number(r.c)]));
+
+    // Revenue + last order — union of paid B2C (customer_orders) and
+    // B2B (orders). For B2C we only count PAID so we don't inflate
+    // numbers with abandoned Klarna sessions; for B2B we count all
+    // because invoiceStatus has its own lifecycle.
+    const revB2cRows = (await db.execute(
+      sql`SELECT org_id::text AS org_id,
+                 COALESCE(SUM(total_ore), 0)::bigint AS total_ore,
+                 MAX(created_at) AS last_at
+          FROM customer_orders
+          WHERE org_id IN (${orgIdsSql}) AND status = 'PAID'
+          GROUP BY org_id`
+    )) as unknown as Array<{
+      org_id: string;
+      total_ore: string;
+      last_at: Date | string | null;
+    }>;
+    const revB2bRows = (await db.execute(
+      sql`SELECT org_id::text AS org_id,
+                 COALESCE(SUM(total_ore), 0)::bigint AS total_ore,
+                 MAX(created_at) AS last_at
+          FROM orders
+          WHERE org_id IN (${orgIdsSql})
+          GROUP BY org_id`
+    )) as unknown as Array<{
+      org_id: string;
+      total_ore: string;
+      last_at: Date | string | null;
+    }>;
+
+    const revenueMap = new Map<string, number>();
+    const lastOrderMap = new Map<string, Date>();
+    function ingest(rows: typeof revB2cRows) {
+      for (const r of rows) {
+        revenueMap.set(
+          r.org_id,
+          (revenueMap.get(r.org_id) ?? 0) + Number(r.total_ore)
+        );
+        if (r.last_at) {
+          const d = r.last_at instanceof Date ? r.last_at : new Date(r.last_at);
+          const cur = lastOrderMap.get(r.org_id);
+          if (!cur || d > cur) lastOrderMap.set(r.org_id, d);
+        }
+      }
+    }
+    ingest(revB2cRows);
+    ingest(revB2bRows);
+
+    const enriched = orgList.map((o) => ({
+      ...o,
+      membersCount: memberMap.get(o.id) ?? 0,
+      revenueOre: revenueMap.get(o.id) ?? 0,
+      lastOrderAt: lastOrderMap.get(o.id)?.toISOString() ?? null,
+    }));
+
+    return c.json({ clubs: enriched });
   } catch (err) {
     log.error({ err }, "Failed to fetch clubs");
     return c.json({ error: "Kunde inte hämta klubbar" }, 500);
@@ -732,7 +812,91 @@ portal.get("/sellers", async (c) => {
       )
       .orderBy(users.contactName);
 
-    return c.json({ sellers: sellerList });
+    if (sellerList.length === 0) {
+      return c.json({
+        sellers: [],
+        totals: { pipelineOre: 0, closedOre: 0, avgConversion: null },
+      });
+    }
+
+    // Sprint E12: per-seller aggregates so /portal/saljare's KPI cards
+    // and table actually show numbers instead of "—". One grouped query
+    // over quotes (pipeline + closed + rejected counts) and one over
+    // organizations (assigned-club count) — cheap even with thousands
+    // of reps, since we group by salesRepId.
+    const quoteAggRows = (await db.execute(
+      sql`SELECT sales_rep_id::text AS sales_rep_id,
+                 COALESCE(SUM(CASE WHEN status IN ('DRAFT','SENT') THEN total_ore ELSE 0 END), 0)::bigint AS pipeline_ore,
+                 COALESCE(SUM(CASE WHEN status = 'ACCEPTED' THEN total_ore ELSE 0 END), 0)::bigint AS closed_ore,
+                 COUNT(*) FILTER (WHERE status = 'ACCEPTED')::int AS won_count,
+                 COUNT(*) FILTER (WHERE status = 'REJECTED')::int AS lost_count,
+                 COUNT(*)::int AS total_count
+          FROM quotes
+          WHERE sales_rep_id IS NOT NULL
+          GROUP BY sales_rep_id`
+    )) as unknown as Array<{
+      sales_rep_id: string;
+      pipeline_ore: string;
+      closed_ore: string;
+      won_count: number;
+      lost_count: number;
+      total_count: number;
+    }>;
+
+    const clubAggRows = (await db.execute(
+      sql`SELECT assigned_asm_user_id::text AS user_id, COUNT(*)::int AS c
+          FROM organizations
+          WHERE assigned_asm_user_id IS NOT NULL
+          GROUP BY assigned_asm_user_id`
+    )) as unknown as Array<{ user_id: string; c: number }>;
+
+    const quoteMap = new Map(
+      quoteAggRows.map((r) => [
+        r.sales_rep_id,
+        {
+          pipelineOre: Number(r.pipeline_ore),
+          closedOre: Number(r.closed_ore),
+          wonCount: r.won_count,
+          // Conversion = won / (won + lost). Open quotes are excluded
+          // because they're still in-play; including them punishes new
+          // reps whose pipeline is still warming up.
+          conversion:
+            r.won_count + r.lost_count > 0
+              ? Math.round((r.won_count / (r.won_count + r.lost_count)) * 100)
+              : null,
+        },
+      ])
+    );
+    const clubMap = new Map(clubAggRows.map((r) => [r.user_id, r.c]));
+
+    const enriched = sellerList.map((s) => {
+      const q = quoteMap.get(s.id);
+      return {
+        ...s,
+        clubs: clubMap.get(s.id) ?? 0,
+        pipelineOre: q?.pipelineOre ?? 0,
+        closedOre: q?.closedOre ?? 0,
+        conversion: q?.conversion ?? null,
+      };
+    });
+
+    const totals = {
+      pipelineOre: enriched.reduce((sum, s) => sum + s.pipelineOre, 0),
+      closedOre: enriched.reduce((sum, s) => sum + s.closedOre, 0),
+      avgConversion:
+        (() => {
+          const withConv = enriched.filter(
+            (s): s is typeof s & { conversion: number } =>
+              typeof s.conversion === "number"
+          );
+          if (withConv.length === 0) return null;
+          return Math.round(
+            withConv.reduce((sum, s) => sum + s.conversion, 0) / withConv.length
+          );
+        })(),
+    };
+
+    return c.json({ sellers: enriched, totals });
   } catch (err) {
     log.error({ err }, "Failed to fetch sellers");
     return c.json({ error: "Kunde inte hämta säljare" }, 500);
@@ -1225,8 +1389,19 @@ portal.get("/pipeline", async (c) => {
   const repFilter =
     role === "SALES_REP" ? eq(quotes.salesRepId, session.userId) : sql`1=1`;
 
+  // Sprint E12: leads created via POST /v1/sales/leads previously
+  // vanished — they were inserted as `organizations` rows with
+  // `crm_status='LEAD'` but the pipeline only read `quotes`. We now
+  // union those orgs into a synthetic "LEAD" stage so a fresh lead
+  // shows up the moment the rep clicks "Spara".
+  // SALES_REP only sees orgs assigned to them, admins see all.
+  const leadFilter =
+    role === "SALES_REP"
+      ? sql`${organizations.crmStatus} = 'LEAD' AND ${organizations.assignedAsmUserId} = ${session.userId}`
+      : sql`${organizations.crmStatus} = 'LEAD'`;
+
   try {
-    const stages = ["DRAFT", "SENT", "ACCEPTED", "REJECTED"];
+    const stages = ["LEAD", "DRAFT", "SENT", "ACCEPTED", "REJECTED"];
     const byStage = await db
       .select({
         status: quotes.status,
@@ -1237,7 +1412,25 @@ portal.get("/pipeline", async (c) => {
       .where(repFilter)
       .groupBy(quotes.status);
 
+    // Count lead orgs separately. We don't have a "quote totalOre" for
+    // unquoted leads, so the LEAD column shows count + potential-score
+    // proxy is left to the FE (which already has potentialScore on the
+    // org if it cares to fetch /clubs).
+    const [{ leadCount }] = await db
+      .select({
+        leadCount: sql<number>`count(*)`,
+      })
+      .from(organizations)
+      .where(leadFilter);
+
     const stageData = stages.map((s) => {
+      if (s === "LEAD") {
+        return {
+          stage: "LEAD",
+          count: Number(leadCount || 0),
+          totalOre: 0,
+        };
+      }
       const found = byStage.find((b) => b.status === s);
       return {
         stage: s,
@@ -1246,9 +1439,7 @@ portal.get("/pipeline", async (c) => {
       };
     });
 
-    // Recent deals (non-empty list helps the pipeline page render real data).
-    // LEFT JOIN organizations so the kanban-card can show the club name
-    // instead of "Klubb <orgId-prefix>".
+    // Recent deals from `quotes` (existing behaviour).
     const recentDeals = await db
       .select({
         id: quotes.id,
@@ -1264,16 +1455,47 @@ portal.get("/pipeline", async (c) => {
       .orderBy(desc(quotes.createdAt))
       .limit(25);
 
+    // Recent leads — surfaced as synthetic "deals" with status="LEAD"
+    // and totalOre=0 so the kanban can show them in the first column.
+    // We deliberately use `id = organizations.id` so the FE's react-key
+    // never collides with a quote id (UUIDs are globally unique anyway).
+    const recentLeads = await db
+      .select({
+        id: organizations.id,
+        orgId: organizations.id,
+        orgName: organizations.name,
+        createdAt: organizations.createdAt,
+      })
+      .from(organizations)
+      .where(leadFilter)
+      .orderBy(desc(organizations.createdAt))
+      .limit(25);
+
+    const dealsFromQuotes: PipelineResponse["deals"] = recentDeals.map((d) => ({
+      id: d.id,
+      status: String(d.status),
+      totalOre: Number(d.totalOre),
+      orgId: d.orgId,
+      orgName: d.orgName,
+      createdAt:
+        d.createdAt instanceof Date ? d.createdAt.toISOString() : d.createdAt,
+    }));
+
+    const dealsFromLeads: PipelineResponse["deals"] = recentLeads.map((l) => ({
+      id: l.id,
+      status: "LEAD",
+      totalOre: 0,
+      orgId: l.orgId,
+      orgName: l.orgName,
+      createdAt:
+        l.createdAt instanceof Date ? l.createdAt.toISOString() : l.createdAt,
+    }));
+
     const payload: PipelineResponse = {
       stages: stageData,
-      deals: recentDeals.map((d) => ({
-        id: d.id,
-        status: String(d.status),
-        totalOre: Number(d.totalOre),
-        orgId: d.orgId,
-        orgName: d.orgName,
-        createdAt: d.createdAt instanceof Date ? d.createdAt.toISOString() : d.createdAt,
-      })),
+      // Leads first so the LEAD column populates even when the rep has
+      // 25 active quotes that would otherwise eat the entire 25-row cap.
+      deals: [...dealsFromLeads, ...dealsFromQuotes],
     };
     return c.json(payload);
   } catch (err) {

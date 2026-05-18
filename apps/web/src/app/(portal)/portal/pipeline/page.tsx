@@ -44,13 +44,28 @@ interface Deal {
   daysInStage: number;
 }
 
-// API uses the SQL enum DRAFT/SENT/ACCEPTED/REJECTED; the UI shows Swedish
-// labels. This mapping is the single source of truth in this file.
+// API uses the SQL enum LEAD/DRAFT/SENT/ACCEPTED/REJECTED; the UI shows
+// Swedish labels. The LEAD stage is a synthetic projection over
+// `organizations.crmStatus = 'LEAD'` — see /v1/portal/pipeline.
 const STAGE_LABELS: Record<string, string> = {
+  LEAD: "Lead",
   DRAFT: "Utkast",
   SENT: "Skickad",
   ACCEPTED: "Accepterad",
   REJECTED: "Nekad",
+};
+
+// Per-stage visual scaffold. Keyed by stage code so the API can add new
+// stages without us having to renumber.
+const STAGE_SCAFFOLD: Record<
+  string,
+  { icon: React.ComponentType<{ className?: string }>; color: string; headerBg: string }
+> = {
+  LEAD: { icon: Target, color: "border-t-brand-300", headerBg: "bg-brand-50" },
+  DRAFT: { icon: Phone, color: "border-t-brand-400", headerBg: "bg-brand-50" },
+  SENT: { icon: FileText, color: "border-t-brand-500", headerBg: "bg-brand-50" },
+  ACCEPTED: { icon: CheckCircle2, color: "border-t-brand-600", headerBg: "bg-brand-50" },
+  REJECTED: { icon: CheckCircle2, color: "border-t-rose-400", headerBg: "bg-rose-50" },
 };
 
 function formatSek(ore: number): string {
@@ -71,14 +86,20 @@ interface PipelineColumn {
   deals: Deal[];
 }
 
-// Visual scaffolding only — no fake deals. The columns themselves are always
-// rendered (so the stage hierarchy is visible) and populate from /pipeline.
-const EMPTY_COLUMNS: PipelineColumn[] = [
-  { stage: "Lead", icon: Target, color: "border-t-brand-300", headerBg: "bg-brand-50", deals: [] },
-  { stage: "Kontaktad", icon: Phone, color: "border-t-brand-400", headerBg: "bg-brand-50", deals: [] },
-  { stage: "Offert skickad", icon: FileText, color: "border-t-brand-500", headerBg: "bg-brand-50", deals: [] },
-  { stage: "Avslutad", icon: CheckCircle2, color: "border-t-brand-600", headerBg: "bg-brand-50", deals: [] },
-];
+// Empty kanban shown before the API resolves. Mirrors the five stages
+// returned by /v1/portal/pipeline.
+const EMPTY_COLUMNS: PipelineColumn[] = ["LEAD", "DRAFT", "SENT", "ACCEPTED", "REJECTED"].map(
+  (code) => {
+    const scaffold = STAGE_SCAFFOLD[code];
+    return {
+      stage: STAGE_LABELS[code],
+      icon: scaffold.icon,
+      color: scaffold.color,
+      headerBg: scaffold.headerBg,
+      deals: [],
+    };
+  }
+);
 
 function DealCard({ deal }: { deal: Deal }) {
   return (
@@ -152,9 +173,8 @@ export default function PipelinePage() {
         setLeadMunicipality("");
         setLeadWebsite("");
         setLeadOrgNumber("");
-        // The pipeline endpoint only surfaces deals that have quotes,
-        // so a fresh lead won't appear in the kanban yet. We just rely
-        // on the toast confirmation. /portal/klubbar will show the row.
+        // Reload so the new lead shows up immediately in the LEAD column.
+        void loadPipeline();
       } else {
         toast(res.data?.error || "Kunde inte skapa leadet.", "error");
       }
@@ -165,51 +185,46 @@ export default function PipelinePage() {
     }
   }
 
+  async function loadPipeline() {
+    try {
+      const data = await portalFetch("/pipeline", { schema: pipelineResponseSchema });
+      if (!data.stages?.length) {
+        setTotalValueOre(0);
+        return;
+      }
+      setColumns(
+        data.stages.map((s) => {
+          const scaffold = STAGE_SCAFFOLD[s.stage] ?? STAGE_SCAFFOLD.LEAD;
+          const stageDeals = data.deals
+            .filter((d) => d.status === s.stage)
+            .map((d) => ({
+              id: d.id,
+              club: d.orgName ?? "—",
+              contact: "",
+              value: d.totalOre > 0 ? formatSek(d.totalOre) : "Ej offererad",
+              daysInStage: daysBetween(
+                typeof d.createdAt === "string"
+                  ? d.createdAt
+                  : d.createdAt.toISOString()
+              ),
+            }));
+          return {
+            stage: STAGE_LABELS[s.stage] ?? s.stage,
+            icon: scaffold.icon,
+            color: scaffold.color,
+            headerBg: scaffold.headerBg,
+            deals: stageDeals,
+          };
+        })
+      );
+      setTotalValueOre(data.stages.reduce((sum, s) => sum + s.totalOre, 0));
+    } catch {
+      // Soft-fail; the empty scaffold remains rendered.
+    }
+  }
+
   useEffect(() => {
-    // API shape (see packages/contracts/src/portal.ts):
-    //   { stages: [{ stage, count, totalOre }], deals: [{ id, status, totalOre, orgId, createdAt }] }
-    // Stage scaffolding is fixed (EMPTY_COLUMNS); we only swap in real deals
-    // when the API returns them.
-    portalFetch("/pipeline", { schema: pipelineResponseSchema })
-      .then((data) => {
-        if (!data.stages?.length) {
-          setTotalValueOre(0);
-          return;
-        }
-        setColumns(
-          data.stages.map((s, i) => {
-            const scaffold = EMPTY_COLUMNS[i] ?? EMPTY_COLUMNS[0];
-            const stageDeals = data.deals
-              .filter((d) => d.status === s.stage)
-              .map((d) => ({
-                id: d.id,
-                // Use the joined org name from /v1/portal/pipeline. Fall
-                // back to "—" rather than the old "Klubb <orgId-prefix>"
-                // placeholder, which made every kanban card look like
-                // synthetic data.
-                club: d.orgName ?? "—",
-                contact: "",
-                value: formatSek(d.totalOre),
-                daysInStage: daysBetween(
-                  typeof d.createdAt === "string"
-                    ? d.createdAt
-                    : d.createdAt.toISOString()
-                ),
-              }));
-            return {
-              stage: STAGE_LABELS[s.stage] ?? scaffold.stage,
-              icon: scaffold.icon,
-              color: scaffold.color,
-              headerBg: scaffold.headerBg,
-              deals: stageDeals,
-            };
-          })
-        );
-        setTotalValueOre(
-          data.stages.reduce((sum, s) => sum + s.totalOre, 0)
-        );
-      })
-      .catch(() => {});
+    void loadPipeline();
   }, []);
 
   const totalValue =

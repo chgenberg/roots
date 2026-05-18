@@ -16,6 +16,8 @@ import {
   EyeOff,
   Target,
   X,
+  Pause,
+  Play,
 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { GradeBadge, GradeProgress } from "@/components/seller-grade";
@@ -50,6 +52,46 @@ export default function TeamSellersPage() {
   const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
   const [editGoalValue, setEditGoalValue] = useState<string>("");
   const [savingGoalId, setSavingGoalId] = useState<string | null>(null);
+  // Sprint E12: pause/activate state.
+  const [statusBusyId, setStatusBusyId] = useState<string | null>(null);
+
+  async function toggleStatus(seller: Seller) {
+    const next = seller.status === "INACTIVE" ? "ACTIVE" : "INACTIVE";
+    setStatusBusyId(seller.id);
+    try {
+      const res = await apiFetch<{ id?: string; status?: string; error?: string }>(
+        `/v1/dashboard/sellers/${seller.id}`,
+        {
+          method: "PATCH",
+          body: { status: next },
+        }
+      );
+      if (res.ok && res.data?.id) {
+        toast(
+          next === "INACTIVE"
+            ? `${seller.displayName} är pausad och syns inte i topplistan.`
+            : `${seller.displayName} är aktiv igen.`,
+          "success"
+        );
+        setData((prev) =>
+          prev
+            ? {
+                ...prev,
+                sellers: prev.sellers.map((s) =>
+                  s.id === seller.id ? { ...s, status: next } : s
+                ),
+              }
+            : prev
+        );
+      } else {
+        toast(res.data?.error || "Kunde inte uppdatera status.", "error");
+      }
+    } catch {
+      toast("Ett nätverksfel uppstod. Försök igen.", "error");
+    } finally {
+      setStatusBusyId(null);
+    }
+  }
 
   function startEditGoal(seller: Seller) {
     setEditingGoalId(seller.id);
@@ -231,12 +273,16 @@ export default function TeamSellersPage() {
   }
 
   const sellers: Seller[] = data.sellers || [];
-  const sortedSellers = [...sellers].sort(
+  // Sprint E12: paused sellers must not appear in the topplistan/ranking
+  // but are still listed below in a dedicated "Pausade säljare" section
+  // so the team leader can see and reactivate them.
+  const activeSellers = sellers.filter((s) => s.status !== "INACTIVE");
+  const pausedSellers = sellers.filter((s) => s.status === "INACTIVE");
+  const sortedSellers = [...activeSellers].sort(
     (a, b) => b.totalSalesOre - a.totalSalesOre
   );
 
   const topThree = sortedSellers.slice(0, 3);
-  const rest = sortedSellers.slice(3);
 
   return (
     <div className="page-enter space-y-6">
@@ -529,44 +575,107 @@ export default function TeamSellersPage() {
                     )}
                   </div>
 
-                  {seller.shopSlug && (
-                    <div className="flex gap-2 ml-9">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 text-xs"
-                        onClick={() => copyShopLink(seller.shopSlug)}
-                      >
-                        {copiedShop === seller.shopSlug ? (
-                          <CheckCircle2 className="h-3 w-3 mr-1 text-success" />
-                        ) : (
-                          <Copy className="h-3 w-3 mr-1" />
-                        )}
-                        Kopiera shop-länk
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 text-xs"
-                        asChild
-                      >
-                        <a
-                          href={`${SITE_URL}/shop/${seller.shopSlug}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                  <div className="flex flex-wrap gap-2 ml-9">
+                    {seller.shopSlug && (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 text-xs"
+                          onClick={() => copyShopLink(seller.shopSlug)}
                         >
-                          <ExternalLink className="h-3 w-3 mr-1" />
-                          Öppna shop
-                        </a>
-                      </Button>
-                    </div>
-                  )}
+                          {copiedShop === seller.shopSlug ? (
+                            <CheckCircle2 className="h-3 w-3 mr-1 text-success" />
+                          ) : (
+                            <Copy className="h-3 w-3 mr-1" />
+                          )}
+                          Kopiera shop-länk
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 text-xs"
+                          asChild
+                        >
+                          <a
+                            href={`${SITE_URL}/shop/${seller.shopSlug}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <ExternalLink className="h-3 w-3 mr-1" />
+                            Öppna shop
+                          </a>
+                        </Button>
+                      </>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                      onClick={() => void toggleStatus(seller)}
+                      disabled={statusBusyId === seller.id}
+                    >
+                      {statusBusyId === seller.id ? (
+                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                      ) : (
+                        <Pause className="h-3 w-3 mr-1" />
+                      )}
+                      Pausa
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Paused sellers (hidden from ranking) */}
+      {pausedSellers.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Pause className="h-4 w-4 text-muted-foreground" />
+              Pausade säljare ({pausedSellers.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {pausedSellers.map((seller) => (
+                <div
+                  key={seller.id}
+                  className="rounded-lg border border-dashed p-4 space-y-2 opacity-70"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">
+                        {seller.displayName}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Pausad — räknas inte i ranking eller måluppfyllelse.
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 text-xs"
+                      onClick={() => void toggleStatus(seller)}
+                      disabled={statusBusyId === seller.id}
+                    >
+                      {statusBusyId === seller.id ? (
+                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                      ) : (
+                        <Play className="h-3 w-3 mr-1" />
+                      )}
+                      Aktivera
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
