@@ -261,6 +261,81 @@ dashboard.get("/team/:teamId", async (c) => {
   }
 });
 
+// Sprint E10: update a seller's individual goal. Access rules mirror
+// the team-level RBAC used in `/team/:teamId/sellers` above — only the
+// team's own leader, the team's association admin, or an internal admin
+// can change the goal. We only allow `individualGoal` (in kronor) so a
+// bug in the UI can't accidentally PATCH e.g. role or shopSlug.
+dashboard.patch("/sellers/:sellerId", async (c) => {
+  const session = await requireSession(c);
+  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+
+  const sellerId = c.req.param("sellerId");
+  if (!/^[0-9a-f-]{36}$/i.test(sellerId)) {
+    return c.json({ error: "Ogiltigt säljar-ID." }, 400);
+  }
+
+  let body: { individualGoal?: number };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+  }
+
+  const goalRaw = body.individualGoal;
+  if (
+    goalRaw === undefined ||
+    !Number.isFinite(goalRaw) ||
+    !Number.isInteger(goalRaw) ||
+    goalRaw < 0 ||
+    goalRaw > 10_000_000
+  ) {
+    return c.json(
+      { error: "individualGoal måste vara ett heltal mellan 0 och 10 000 000 kr." },
+      400
+    );
+  }
+
+  try {
+    const [seller] = await db
+      .select()
+      .from(sellers)
+      .where(eq(sellers.id, sellerId))
+      .limit(1);
+    if (!seller) return c.json({ error: "Säljare hittades inte" }, 404);
+
+    const [team] = await db
+      .select()
+      .from(teams)
+      .where(eq(teams.id, seller.teamId))
+      .limit(1);
+    if (!team) return c.json({ error: "Lag hittades inte" }, 404);
+
+    const hasAccess =
+      session.role === "INTERNAL_ADMIN" ||
+      (session.role === "ASSOCIATION_ADMIN" && session.orgId === team.orgId) ||
+      (session.role === "TEAM_LEADER" && team.leaderId === session.userId);
+
+    if (!hasAccess) {
+      return c.json({ error: "Behörighet saknas" }, 403);
+    }
+
+    const [updated] = await db
+      .update(sellers)
+      .set({ individualGoal: goalRaw, updatedAt: new Date() })
+      .where(eq(sellers.id, sellerId))
+      .returning();
+
+    return c.json({
+      id: updated.id,
+      individualGoal: updated.individualGoal,
+    });
+  } catch (err) {
+    log.error({ err }, "Failed to update seller goal");
+    return c.json({ error: "Kunde inte uppdatera mål" }, 500);
+  }
+});
+
 dashboard.post("/team/:teamId/sellers", async (c) => {
   const session = await requireSession(c);
   if (!session) return c.json({ error: "Ej inloggad" }, 401);

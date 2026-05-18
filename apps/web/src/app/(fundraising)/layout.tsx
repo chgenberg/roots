@@ -102,6 +102,11 @@ export default function FundraisingLayout({
       ]
     : [
         { href: "/min-shop", label: "Min shop", icon: ShoppingBag },
+        {
+          href: "/min-shop/bestallningar",
+          label: "Beställningar",
+          icon: ClipboardList,
+        },
         { href: "/installningar", label: "Inställningar", icon: Settings },
       ];
 

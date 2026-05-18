@@ -34,6 +34,7 @@ type NavItem = { href: string; label: string; icon: React.ComponentType<{ classN
 const CLUB_NAV: NavItem[] = [
   { href: "/portal", label: "Översikt", icon: LayoutDashboard },
   { href: "/portal/bestallningar", label: "Beställ", icon: ShoppingCart },
+  { href: "/portal/fakturor", label: "Fakturor", icon: FileText },
   { href: "/portal/medlemmar", label: "Medlemmar", icon: Users },
   { href: "/portal/intakter", label: "Intäkter", icon: BarChart3 },
   { href: "/portal/produkter", label: "Produkter", icon: Package },

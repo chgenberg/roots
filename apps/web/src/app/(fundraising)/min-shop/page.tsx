@@ -314,8 +314,16 @@ export default function SellerDashboard() {
 
       {/* Recent orders */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">Senaste beställningar</CardTitle>
+          {/* Sprint E10 — full archive lives on its own page so the
+              "min-shop"-dashboard stays focused on the latest activity. */}
+          <a
+            href="/min-shop/bestallningar"
+            className="text-xs font-medium text-brand-600 hover:text-brand-800"
+          >
+            Visa alla →
+          </a>
         </CardHeader>
         <CardContent>
           {!data.orders || data.orders.length === 0 ? (

@@ -14,6 +14,8 @@ import {
   UserPlus,
   Eye,
   EyeOff,
+  Target,
+  X,
 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { GradeBadge, GradeProgress } from "@/components/seller-grade";
@@ -41,6 +43,68 @@ export default function TeamSellersPage() {
   const [createPassword, setCreatePassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [creating, setCreating] = useState(false);
+
+  // Sprint E10: inline goal-edit per seller. Only one row can be in
+  // edit-mode at a time (`editingGoalId`); `editGoalValue` is the draft
+  // value, `savingGoalId` flips while the PATCH is in flight.
+  const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
+  const [editGoalValue, setEditGoalValue] = useState<string>("");
+  const [savingGoalId, setSavingGoalId] = useState<string | null>(null);
+
+  function startEditGoal(seller: Seller) {
+    setEditingGoalId(seller.id);
+    setEditGoalValue(String(seller.individualGoal ?? 0));
+  }
+
+  function cancelEditGoal() {
+    setEditingGoalId(null);
+    setEditGoalValue("");
+  }
+
+  async function saveGoal(sellerId: string) {
+    const parsed = Number.parseInt(editGoalValue, 10);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      toast("Målbeloppet måste vara ett positivt heltal.", "error");
+      return;
+    }
+    if (parsed > 10_000_000) {
+      toast("Målbeloppet är orimligt högt.", "error");
+      return;
+    }
+    setSavingGoalId(sellerId);
+    try {
+      const res = await apiFetch<{
+        id?: string;
+        individualGoal?: number;
+        error?: string;
+      }>(`/v1/dashboard/sellers/${sellerId}`, {
+        method: "PATCH",
+        body: { individualGoal: parsed },
+      });
+      if (res.ok && res.data?.id) {
+        toast("Mål uppdaterat.", "success");
+        setData((prev) =>
+          prev
+            ? {
+                ...prev,
+                sellers: prev.sellers.map((s) =>
+                  s.id === sellerId
+                    ? { ...s, individualGoal: res.data!.individualGoal ?? parsed }
+                    : s
+                ),
+              }
+            : prev
+        );
+        cancelEditGoal();
+      } else {
+        toast(res.data?.error || "Kunde inte uppdatera mål.", "error");
+      }
+    } catch {
+      toast("Ett nätverksfel uppstod. Försök igen.", "error");
+    } finally {
+      setSavingGoalId(null);
+    }
+  }
 
   useEffect(() => {
     load();
@@ -377,9 +441,49 @@ export default function TeamSellersPage() {
 
                   <GradeProgress grade={seller.grade} className="ml-9" />
 
-                  {seller.individualGoal != null &&
-                    seller.individualGoal > 0 && (
-                      <div className="ml-9">
+                  {/* Goal section — Sprint E10 added inline edit. The
+                      progress bar shows up only when a goal is set; the
+                      "Sätt mål"-link appears otherwise so the leader can
+                      give a brand-new seller a target. */}
+                  <div className="ml-9">
+                    {editingGoalId === seller.id ? (
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          min={0}
+                          value={editGoalValue}
+                          onChange={(e) => setEditGoalValue(e.target.value)}
+                          className="h-8 max-w-[120px] text-xs"
+                          autoFocus
+                        />
+                        <span className="text-xs text-muted-foreground">
+                          kr
+                        </span>
+                        <Button
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() => saveGoal(seller.id)}
+                          disabled={savingGoalId === seller.id}
+                        >
+                          {savingGoalId === seller.id ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            "Spara"
+                          )}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 w-7 p-0"
+                          onClick={cancelEditGoal}
+                          disabled={savingGoalId === seller.id}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ) : seller.individualGoal != null &&
+                      seller.individualGoal > 0 ? (
+                      <div>
                         <div className="h-1.5 overflow-hidden rounded-full bg-brand-100 mt-1">
                           <div
                             className="h-full rounded-full bg-brand-700 transition-all duration-700"
@@ -395,15 +499,35 @@ export default function TeamSellersPage() {
                             }}
                           />
                         </div>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          Mål:{" "}
-                          {(seller.totalSalesOre / 100).toLocaleString(
-                            "sv-SE"
-                          )}{" "}
-                          / {seller.individualGoal.toLocaleString("sv-SE")} kr
-                        </p>
+                        <div className="mt-0.5 flex items-center justify-between">
+                          <p className="text-xs text-muted-foreground">
+                            Mål:{" "}
+                            {(seller.totalSalesOre / 100).toLocaleString(
+                              "sv-SE"
+                            )}{" "}
+                            / {seller.individualGoal.toLocaleString("sv-SE")} kr
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => startEditGoal(seller)}
+                            className="inline-flex items-center gap-1 text-xs text-brand-600 hover:text-brand-800"
+                          >
+                            <Target className="h-3 w-3" />
+                            Ändra
+                          </button>
+                        </div>
                       </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => startEditGoal(seller)}
+                        className="inline-flex items-center gap-1 text-xs text-brand-600 hover:text-brand-800"
+                      >
+                        <Target className="h-3 w-3" />
+                        Sätt mål
+                      </button>
                     )}
+                  </div>
 
                   {seller.shopSlug && (
                     <div className="flex gap-2 ml-9">
