@@ -22,6 +22,7 @@ import {
 import { ShoppingCart, Plus, Minus, Package, Truck, CheckCircle2 } from "lucide-react";
 import { portalFetch } from "@/lib/portal-api";
 import { publicProductHref } from "@/lib/portal-products";
+import { PortalOrderDialog } from "@/components/portal-order-dialog";
 
 type PortalOrderProduct = {
   id: string;
@@ -118,6 +119,8 @@ export default function BestallningarPage() {
   const cartCount = Object.values(cart).reduce((s, q) => s + q, 0);
 
   const [submitting, setSubmitting] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailOrderId, setDetailOrderId] = useState<string | null>(null);
 
   async function handleSubmit() {
     if (cartCount === 0) return;
@@ -303,7 +306,15 @@ export default function BestallningarPage() {
             </TableHeader>
             <TableBody>
               {orders.map((o) => (
-                <TableRow key={o.id}>
+                <TableRow
+                  key={o.id}
+                  onClick={() => {
+                    setDetailOrderId(o.id);
+                    setDetailOpen(true);
+                  }}
+                  className="cursor-pointer transition-colors hover:bg-brand-50/50"
+                  aria-label={`Visa detaljer för order ${o.id.slice(0, 8)}`}
+                >
                   <TableCell>
                     <div className="flex items-center gap-2">
                       {statusIcon(o.status)}
@@ -338,6 +349,12 @@ export default function BestallningarPage() {
           </Table>
         </CardContent>
       </Card>
+
+      <PortalOrderDialog
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        orderId={detailOrderId}
+      />
     </div>
   );
 }

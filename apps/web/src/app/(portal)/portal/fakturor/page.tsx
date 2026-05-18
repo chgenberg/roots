@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { portalFetch } from "@/lib/portal-api";
+import { PortalOrderDialog } from "@/components/portal-order-dialog";
 
 type ApiOrder = {
   id: string;
@@ -83,6 +84,8 @@ export default function ClubInvoicesPage() {
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailOrderId, setDetailOrderId] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -293,9 +296,15 @@ export default function ClubInvoicesPage() {
           <CardContent className="p-0">
             <div className="divide-y">
               {sorted.map((o) => (
-                <div
+                <button
                   key={o.id}
-                  className="flex flex-wrap items-center justify-between gap-3 p-4"
+                  type="button"
+                  onClick={() => {
+                    setDetailOrderId(o.id);
+                    setDetailOpen(true);
+                  }}
+                  className="flex w-full flex-wrap items-center justify-between gap-3 p-4 text-left transition-colors hover:bg-brand-50/50 focus-visible:outline-none focus-visible:bg-brand-50"
+                  aria-label={`Visa detaljer för order ${o.id.slice(0, 8)}`}
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
@@ -325,12 +334,18 @@ export default function ClubInvoicesPage() {
                   <p className="text-sm font-semibold whitespace-nowrap">
                     {formatSek(o.totalOre)}
                   </p>
-                </div>
+                </button>
               ))}
             </div>
           </CardContent>
         </Card>
       )}
+
+      <PortalOrderDialog
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        orderId={detailOrderId}
+      />
     </div>
   );
 }

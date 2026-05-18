@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { GradeBadge, GradeProgress } from "@/components/seller-grade";
+import { OrderDetailDialog } from "@/components/order-detail-dialog";
 import type { SellerDashboard as SellerDashboardData, Milestone } from "@/types/fundraising";
 import QRCode from "qrcode";
 
@@ -32,6 +33,8 @@ export default function SellerDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState("");
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailOrderId, setDetailOrderId] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -333,9 +336,15 @@ export default function SellerDashboard() {
           ) : (
             <div className="space-y-2">
               {data.orders?.map((order) => (
-                <div
+                <button
                   key={order.id}
-                  className="flex items-center justify-between rounded-lg border p-3"
+                  type="button"
+                  onClick={() => {
+                    setDetailOrderId(order.id);
+                    setDetailOpen(true);
+                  }}
+                  className="flex w-full items-center justify-between rounded-lg border p-3 text-left transition-colors hover:bg-brand-50/60"
+                  aria-label={`Visa detaljer för order från ${order.customerName}`}
                 >
                   <div>
                     <p className="text-sm font-medium">{order.customerName}</p>
@@ -353,12 +362,18 @@ export default function SellerDashboard() {
                   <p className="text-sm font-semibold">
                     {(order.totalOre / 100).toLocaleString("sv-SE")} kr
                   </p>
-                </div>
+                </button>
               ))}
             </div>
           )}
         </CardContent>
       </Card>
+
+      <OrderDetailDialog
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        orderId={detailOrderId}
+      />
     </div>
   );
 }

@@ -319,6 +319,106 @@ portal.get("/orders", async (c) => {
   }
 });
 
+/**
+ * Single B2B order detail — used by the order/invoice click-through
+ * dialog on /portal/bestallningar and /portal/fakturor. Returns
+ * order header + lines (joined with product names) + organization
+ * name so the dialog can identify the buyer for INTERNAL_ADMIN /
+ * SALES_ADMIN sessions that aren't scoped to an org.
+ *
+ * RBAC mirrors the list endpoint above: INTERNAL_ADMIN / SALES_ADMIN
+ * see any order; everyone else can only see orders for their own org.
+ * SELLER/TEAM_LEADER/ASSOCIATION_ADMIN are explicitly blocked because
+ * they live on the fundraising side and have no business with B2B
+ * subscription invoices.
+ */
+portal.get("/orders/:orderId", async (c) => {
+  const session = await requireSession(c);
+  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  if (!isPortalRole(session.role)) {
+    return c.json({ error: "Behörighet saknas" }, 403);
+  }
+
+  const orderId = c.req.param("orderId");
+  if (!/^[0-9a-f-]{36}$/i.test(orderId)) {
+    return c.json({ error: "Ogiltigt order-ID." }, 400);
+  }
+
+  try {
+    const [order] = await db
+      .select()
+      .from(orders)
+      .where(eq(orders.id, orderId))
+      .limit(1);
+    if (!order) return c.json({ error: "Order hittades inte" }, 404);
+
+    const isAdmin =
+      session.role === "INTERNAL_ADMIN" || session.role === "SALES_ADMIN";
+    const isOrgMember =
+      !!session.orgId && session.orgId === order.orgId;
+    if (!isAdmin && !isOrgMember) {
+      return c.json({ error: "Behörighet saknas" }, 403);
+    }
+
+    const [org] = await db
+      .select({ id: organizations.id, name: organizations.name })
+      .from(organizations)
+      .where(eq(organizations.id, order.orgId))
+      .limit(1);
+
+    const [buyer] = await db
+      .select({
+        id: users.id,
+        name: users.name,
+        email: users.email,
+      })
+      .from(users)
+      .where(eq(users.id, order.userId))
+      .limit(1);
+
+    const lines = await db
+      .select({
+        id: orderLines.id,
+        productId: orderLines.productId,
+        productName: products.name,
+        productSku: products.sku,
+        qty: orderLines.qty,
+        unitPriceOre: orderLines.unitPriceOre,
+      })
+      .from(orderLines)
+      .leftJoin(products, eq(orderLines.productId, products.id))
+      .where(eq(orderLines.orderId, order.id));
+
+    return c.json({
+      order: {
+        id: order.id,
+        status: order.status,
+        invoiceStatus: order.invoiceStatus,
+        fortnoxInvoiceId: order.fortnoxInvoiceId,
+        totalOre: order.totalOre,
+        idempotencyKey: order.idempotencyKey,
+        quoteId: order.quoteId,
+        createdAt: order.createdAt,
+        updatedAt: order.updatedAt,
+      },
+      organization: org ?? null,
+      buyer: buyer ?? null,
+      lines: lines.map((l) => ({
+        id: l.id,
+        productId: l.productId,
+        productName: l.productName ?? "Okänd produkt",
+        productSku: l.productSku ?? null,
+        qty: l.qty,
+        unitPriceOre: l.unitPriceOre,
+        lineTotalOre: l.qty * l.unitPriceOre,
+      })),
+    });
+  } catch (err) {
+    log.error({ err, orderId }, "Failed to fetch portal order detail");
+    return c.json({ error: "Kunde inte hämta order" }, 500);
+  }
+});
+
 portal.post("/orders", async (c) => {
   const session = await requireSession(c);
   if (!session) return c.json({ error: "Ej inloggad" }, 401);

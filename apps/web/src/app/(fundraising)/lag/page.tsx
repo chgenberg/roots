@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { GradeBadge, GradeProgress } from "@/components/seller-grade";
+import { OrderDetailDialog } from "@/components/order-detail-dialog";
 import type { TeamDashboard as TeamDashboardData, Seller, Milestone, CustomerOrder } from "@/types/fundraising";
 import { getBrowserApiBase } from "@/lib/api-base";
 
@@ -28,6 +29,8 @@ export default function TeamDashboard() {
   const [data, setData] = useState<TeamDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailOrderId, setDetailOrderId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
 
@@ -282,9 +285,15 @@ export default function TeamDashboard() {
           ) : (
             <div className="space-y-2">
               {orders.slice(0, 10).map((order: CustomerOrder) => (
-                <div
+                <button
                   key={order.id}
-                  className="flex items-center justify-between rounded-lg border p-3"
+                  type="button"
+                  onClick={() => {
+                    setDetailOrderId(order.id);
+                    setDetailOpen(true);
+                  }}
+                  className="flex w-full items-center justify-between rounded-lg border p-3 text-left transition-colors hover:bg-brand-50/60"
+                  aria-label={`Visa detaljer för order från ${order.customerName}`}
                 >
                   <div>
                     <p className="text-sm font-medium">{order.customerName}</p>
@@ -311,12 +320,18 @@ export default function TeamDashboard() {
                   <p className="text-sm font-semibold">
                     {(order.totalOre / 100).toLocaleString("sv-SE")} kr
                   </p>
-                </div>
+                </button>
               ))}
             </div>
           )}
         </CardContent>
       </Card>
+
+      <OrderDetailDialog
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        orderId={detailOrderId}
+      />
     </div>
   );
 }

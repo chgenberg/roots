@@ -10,6 +10,7 @@ import {
   CreditCard,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { OrderDetailDialog } from "@/components/order-detail-dialog";
 import type { TeamDashboard, CustomerOrder, Seller } from "@/types/fundraising";
 
 import { getBrowserApiBase } from "@/lib/api-base";
@@ -45,6 +46,8 @@ export default function TeamOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterStatus>("ALL");
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailOrderId, setDetailOrderId] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -182,9 +185,15 @@ export default function TeamOrdersPage() {
           ) : (
             <div className="space-y-2">
               {filteredOrders.map((order: CustomerOrder) => (
-                <div
+                <button
                   key={order.id}
-                  className="flex items-center justify-between rounded-lg border p-3"
+                  type="button"
+                  onClick={() => {
+                    setDetailOrderId(order.id);
+                    setDetailOpen(true);
+                  }}
+                  className="flex w-full items-center justify-between rounded-lg border p-3 text-left transition-colors hover:bg-brand-50/60"
+                  aria-label={`Visa detaljer för order från ${order.customerName}`}
                 >
                   <div className="space-y-1">
                     <p className="text-sm font-medium">{order.customerName}</p>
@@ -220,12 +229,18 @@ export default function TeamOrdersPage() {
                       {new Date(order.createdAt).toLocaleDateString("sv-SE")}
                     </p>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           )}
         </CardContent>
       </Card>
+
+      <OrderDetailDialog
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        orderId={detailOrderId}
+      />
     </div>
   );
 }
