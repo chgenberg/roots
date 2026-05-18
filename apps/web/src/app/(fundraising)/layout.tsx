@@ -14,10 +14,12 @@ import {
   X,
   LogOut,
   Settings,
+  HelpCircle,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getBrowserApiBase } from "@/lib/api-base";
 import { apiFetch } from "@/lib/api";
+import NotificationBell from "@/components/notification-bell";
 
 const API_URL = getBrowserApiBase();
 
@@ -131,13 +133,26 @@ export default function FundraisingLayout({
       {/* Sidebar desktop — Sprint E8: sticky to the viewport so logout
           and profile are always visible no matter how tall <main> is. */}
       <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r bg-background lg:flex">
-        <div className="flex h-16 items-center gap-2 border-b px-6">
+        <div className="flex h-16 items-center gap-2 border-b px-4">
           <Link href="/" className="text-lg font-bold tracking-tight">
             Roots
           </Link>
-          <Badge className={`ml-auto text-xs ${roleBadge.className}`}>
+          <Badge className={`text-xs ${roleBadge.className}`}>
             {roleBadge.label}
           </Badge>
+          {/* Sprint E11: bell + help live in the sidebar header so they
+              follow the user through every fundraising page without
+              taking up vertical space. */}
+          <div className="ml-auto flex items-center gap-1">
+            <Link
+              href="/hjalp"
+              aria-label="Hjälp"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-brand-50 hover:text-foreground"
+            >
+              <HelpCircle className="h-4 w-4" />
+            </Link>
+            <NotificationBell />
+          </div>
         </div>
         <nav className="flex-1 space-y-1 overflow-y-auto p-3">
           {navItems.map((item) => {
@@ -191,13 +206,17 @@ export default function FundraisingLayout({
           <Link href="/" className="text-lg font-bold">
             Roots
           </Link>
-          <button
-            onClick={() => setMobileOpen(!mobileOpen)}
-            aria-label={mobileOpen ? "Stäng meny" : "Öppna meny"}
-            aria-expanded={mobileOpen}
-          >
-            {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </button>
+          <div className="flex items-center gap-1">
+            <NotificationBell />
+            <button
+              onClick={() => setMobileOpen(!mobileOpen)}
+              aria-label={mobileOpen ? "Stäng meny" : "Öppna meny"}
+              aria-expanded={mobileOpen}
+              className="ml-1 inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:bg-brand-50 hover:text-foreground"
+            >
+              {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
+          </div>
         </header>
 
         {mobileOpen && (

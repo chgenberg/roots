@@ -18,6 +18,8 @@ import {
   Building2,
   FileText,
   Activity,
+  ShieldCheck,
+  HelpCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -26,6 +28,7 @@ import {
 } from "@/lib/portal-context";
 import { getBrowserApiBase } from "@/lib/api-base";
 import { apiFetch } from "@/lib/api";
+import NotificationBell from "@/components/notification-bell";
 
 const API_URL = getBrowserApiBase();
 
@@ -59,6 +62,7 @@ const ADMIN_NAV: NavItem[] = [
   { href: "/portal/bestallningar", label: "Beställningar", icon: ShoppingCart },
   { href: "/portal/statistik", label: "KPI & Statistik", icon: BarChart3 },
   { href: "/portal/system", label: "System", icon: Activity },
+  { href: "/portal/audit-log", label: "Audit-log", icon: ShieldCheck },
   { href: "/portal/ai", label: "AI-assistent", icon: MessageCircle },
   { href: "/portal/installningar", label: "Inställningar", icon: Settings },
 ];
@@ -155,18 +159,31 @@ export default function PortalLayout({
             sidebarOpen ? "translate-x-0" : "-translate-x-full"
           )}
         >
-          <div className="flex h-16 items-center justify-between border-b border-border px-6">
+          <div className="flex h-16 items-center gap-2 border-b border-border px-4">
             <Link href="/" className="text-lg font-bold tracking-tight">
               Roots
             </Link>
-            <button
-              type="button"
-              onClick={() => setSidebarOpen(false)}
-              className="rounded-lg p-1 text-muted-foreground hover:text-foreground lg:hidden"
-              aria-label="Stäng meny"
-            >
-              <X className="h-5 w-5" />
-            </button>
+            {/* Sprint E11: header gets help-link + notification bell so
+                every portal page surfaces them consistently. Mobile-close
+                button sits to the right of the bell, only on lg:hidden. */}
+            <div className="ml-auto flex items-center gap-1">
+              <Link
+                href="/hjalp"
+                aria-label="Hjälp"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-brand-50 hover:text-foreground"
+              >
+                <HelpCircle className="h-4 w-4" />
+              </Link>
+              <NotificationBell />
+              <button
+                type="button"
+                onClick={() => setSidebarOpen(false)}
+                className="ml-1 rounded-lg p-1 text-muted-foreground hover:text-foreground lg:hidden"
+                aria-label="Stäng meny"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
           </div>
 
           <nav className="flex-1 space-y-0.5 px-3 py-4">
@@ -230,6 +247,7 @@ export default function PortalLayout({
               <p className="truncate text-lg font-bold tracking-tight">{pageTitle}</p>
               <p className="truncate text-xs text-muted-foreground">Roots portal</p>
             </div>
+            <NotificationBell />
           </header>
           <main className="flex-1 p-6 md:p-8">{children}</main>
         </div>

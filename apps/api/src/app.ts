@@ -17,6 +17,8 @@ import { contact } from "./routes/contact";
 import { portal } from "./routes/portal";
 import { association } from "./routes/association";
 import { sales } from "./routes/sales";
+import { admin } from "./routes/admin";
+import { notifications } from "./routes/notifications";
 import { securityHeaders } from "./middleware/security-headers";
 import { generateCsrfToken, verifyCsrfToken } from "./lib/csrf";
 import { checkReadiness } from "./lib/health-checks";
@@ -109,6 +111,8 @@ app.route("/v1/contact", contact);
 app.route("/v1/portal", portal);
 app.route("/v1/association", association);
 app.route("/v1/sales", sales);
+app.route("/v1/admin", admin);
+app.route("/v1/notifications", notifications);
 app.route("/v1/integrations/fortnox", fortnoxWebhook);
 
 const v1Ai = new Hono();
