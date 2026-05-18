@@ -8,7 +8,9 @@ import {
   sellers,
   users,
   customerOrders,
+  customerOrderLines,
   teamGoals,
+  products,
 } from "@roots/db/schema";
 import { getSession, SESSION_COOKIE_NAME } from "../lib/session";
 import type { SessionData } from "../lib/session";
@@ -530,5 +532,122 @@ dashboard.get("/seller", async (c) => {
   } catch (err) {
     log.error({ err }, "Failed to fetch seller dashboard");
     return c.json({ error: "Kunde inte hämta data" }, 500);
+  }
+});
+
+/**
+ * Single order detail for the logged-in seller's own order. Used by
+ * the /min-shop/bestallningar order-detail dialog. Returns customer
+ * contact info, shipping address, line items with product names, and
+ * status/payment metadata.
+ *
+ * RBAC: the order must reference the seller row that belongs to the
+ * caller. INTERNAL_ADMIN and the team's leader / association admin
+ * can also view, to keep this endpoint useful for the same UX in
+ * other portals later (currently only wired up for SELLER).
+ */
+dashboard.get("/seller/orders/:orderId", async (c) => {
+  const session = await requireSession(c);
+  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+
+  const orderId = c.req.param("orderId");
+  if (!/^[0-9a-f-]{36}$/i.test(orderId)) {
+    return c.json({ error: "Ogiltigt order-ID." }, 400);
+  }
+
+  try {
+    const [order] = await db
+      .select()
+      .from(customerOrders)
+      .where(eq(customerOrders.id, orderId))
+      .limit(1);
+    if (!order) return c.json({ error: "Order hittades inte" }, 404);
+
+    const [orderSeller] = await db
+      .select()
+      .from(sellers)
+      .where(eq(sellers.id, order.sellerId))
+      .limit(1);
+    if (!orderSeller) {
+      // Defensive: an order without a seller row should not exist —
+      // treat as 404 rather than leak the order's internals.
+      return c.json({ error: "Order hittades inte" }, 404);
+    }
+
+    const [orderTeam] = await db
+      .select()
+      .from(teams)
+      .where(eq(teams.id, order.teamId))
+      .limit(1);
+
+    const isOwner = orderSeller.userId === session.userId;
+    const isInternalAdmin = session.role === "INTERNAL_ADMIN";
+    const isTeamLeader =
+      session.role === "TEAM_LEADER" &&
+      !!orderTeam &&
+      orderTeam.leaderId === session.userId;
+    const isAssocAdmin =
+      session.role === "ASSOCIATION_ADMIN" &&
+      session.orgId === order.orgId;
+
+    if (!isOwner && !isInternalAdmin && !isTeamLeader && !isAssocAdmin) {
+      return c.json({ error: "Behörighet saknas" }, 403);
+    }
+
+    // Load order lines + product names in one query. We intentionally
+    // don't ship product description/price-history fields — the dialog
+    // only needs name, qty and the unit price captured at order time
+    // (so the dialog still reflects what the customer was charged even
+    // if the product price has since changed).
+    const lines = await db
+      .select({
+        id: customerOrderLines.id,
+        productId: customerOrderLines.productId,
+        productName: products.name,
+        productSku: products.sku,
+        qty: customerOrderLines.qty,
+        unitPriceOre: customerOrderLines.unitPriceOre,
+      })
+      .from(customerOrderLines)
+      .leftJoin(products, eq(customerOrderLines.productId, products.id))
+      .where(eq(customerOrderLines.orderId, order.id));
+
+    return c.json({
+      order: {
+        id: order.id,
+        status: order.status,
+        paymentMethod: order.paymentMethod,
+        deliveryType: order.deliveryType,
+        totalOre: order.totalOre,
+        shippingOre: order.shippingOre,
+        klarnaOrderId: order.klarnaOrderId,
+        note: order.note,
+        createdAt: order.createdAt,
+        updatedAt: order.updatedAt,
+        customer: {
+          name: order.customerName,
+          email: order.customerEmail,
+          phone: order.customerPhone,
+        },
+        shipping: {
+          line1: order.shippingAddressLine1,
+          line2: order.shippingAddressLine2,
+          city: order.shippingCity,
+          postalCode: order.shippingPostalCode,
+        },
+      },
+      lines: lines.map((l) => ({
+        id: l.id,
+        productId: l.productId,
+        productName: l.productName ?? "Okänd produkt",
+        productSku: l.productSku ?? null,
+        qty: l.qty,
+        unitPriceOre: l.unitPriceOre,
+        lineTotalOre: l.qty * l.unitPriceOre,
+      })),
+    });
+  } catch (err) {
+    log.error({ err, orderId }, "Failed to fetch seller order detail");
+    return c.json({ error: "Kunde inte hämta order" }, 500);
   }
 });
