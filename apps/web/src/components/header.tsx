@@ -63,11 +63,15 @@ export function Header() {
 
   const onDarkHero = isDarkHeroPath(pathname);
   // Logo colour follows the surface behind it: at the very top of a
-  // dark-hero page the surface is the photo (use white), in every other
-  // state the surface is light (use black). Menu-open uses white because
-  // the mobile menu paints the full screen ink.
+  // dark-hero page the surface is the photo (use white), in every
+  // other state the surface is light (use black).
+  //
+  // The mobile menu overlay paints the full screen with bg-background
+  // (cream/white in light mode), so the logo must stay BLACK while
+  // open — an earlier version forced white here and the logo
+  // disappeared against the cream overlay on phones.
   const logoVariant: "black" | "white" =
-    menuOpen || (onDarkHero && !scrolled) ? "white" : "black";
+    onDarkHero && !scrolled && !menuOpen ? "white" : "black";
 
   useEffect(() => {
     function onScroll() {

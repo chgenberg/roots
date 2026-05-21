@@ -13,15 +13,19 @@ export function PreviewGateForm() {
 
   return (
     <div>
-      <div className="mb-6 grid grid-cols-2 gap-1 rounded-full bg-brand-100/60 p-1 text-sm">
+      {/* Tabs are min 44px tall so Apple HIG tap-target rules are met
+          on phones. Text bumped to text-[15px] for the same reason — the
+          previous text-sm (14px) was inside the iOS auto-zoom trigger
+          zone for nearby inputs. */}
+      <div className="mb-6 grid grid-cols-2 gap-1 rounded-full bg-brand-100/60 p-1 text-[15px]">
         <button
           type="button"
           onClick={() => setMode("password")}
           aria-pressed={mode === "password"}
           className={
             mode === "password"
-              ? "rounded-full bg-background px-4 py-2 font-medium text-foreground shadow-sm"
-              : "rounded-full px-4 py-2 text-muted-foreground transition-colors hover:text-foreground"
+              ? "rounded-full bg-background px-4 py-2.5 font-medium text-foreground shadow-sm"
+              : "rounded-full px-4 py-2.5 text-muted-foreground transition-colors hover:text-foreground"
           }
         >
           Lösenord
@@ -32,8 +36,8 @@ export function PreviewGateForm() {
           aria-pressed={mode === "waitlist"}
           className={
             mode === "waitlist"
-              ? "rounded-full bg-background px-4 py-2 font-medium text-foreground shadow-sm"
-              : "rounded-full px-4 py-2 text-muted-foreground transition-colors hover:text-foreground"
+              ? "rounded-full bg-background px-4 py-2.5 font-medium text-foreground shadow-sm"
+              : "rounded-full px-4 py-2.5 text-muted-foreground transition-colors hover:text-foreground"
           }
         >
           Få notis
@@ -99,7 +103,9 @@ function PasswordForm({ nextPath }: { nextPath: string }) {
           autoFocus
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm shadow-sm transition-colors focus:border-foreground focus:outline-none focus:ring-2 focus:ring-ring/20"
+          // text-base = 16px to disable iOS Safari auto-zoom on focus.
+          // h-11 (44px) hits the Apple HIG tap-target minimum.
+          className="h-11 w-full rounded-lg border border-border bg-background px-4 text-base shadow-sm transition-colors focus:border-foreground focus:outline-none focus:ring-2 focus:ring-ring/20"
           placeholder="Ange lösenord"
         />
       </div>
@@ -113,7 +119,7 @@ function PasswordForm({ nextPath }: { nextPath: string }) {
       <button
         type="submit"
         disabled={loading}
-        className="inline-flex w-full items-center justify-center rounded-full bg-inverse-surface px-6 py-2.5 text-sm font-medium text-inverse-on-surface transition-colors hover:bg-inverse-surface-hover disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex h-11 w-full items-center justify-center rounded-full bg-inverse-surface px-6 text-[15px] font-medium text-inverse-on-surface transition-colors hover:bg-inverse-surface-hover disabled:cursor-not-allowed disabled:opacity-60"
       >
         {loading ? "Loggar in…" : "Lås upp"}
       </button>
@@ -185,11 +191,12 @@ function WaitlistForm() {
           id="waitlist-email"
           name="email"
           type="email"
+          inputMode="email"
           autoComplete="email"
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm shadow-sm transition-colors focus:border-foreground focus:outline-none focus:ring-2 focus:ring-ring/20"
+          className="h-11 w-full rounded-lg border border-border bg-background px-4 text-base shadow-sm transition-colors focus:border-foreground focus:outline-none focus:ring-2 focus:ring-ring/20"
           placeholder="din@epost.se"
         />
       </div>
@@ -208,7 +215,7 @@ function WaitlistForm() {
           autoComplete="name"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm shadow-sm transition-colors focus:border-foreground focus:outline-none focus:ring-2 focus:ring-ring/20"
+          className="h-11 w-full rounded-lg border border-border bg-background px-4 text-base shadow-sm transition-colors focus:border-foreground focus:outline-none focus:ring-2 focus:ring-ring/20"
           placeholder="För- och efternamn"
         />
       </div>
@@ -222,7 +229,7 @@ function WaitlistForm() {
       <button
         type="submit"
         disabled={loading}
-        className="inline-flex w-full items-center justify-center rounded-full bg-inverse-surface px-6 py-2.5 text-sm font-medium text-inverse-on-surface transition-colors hover:bg-inverse-surface-hover disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex h-11 w-full items-center justify-center rounded-full bg-inverse-surface px-6 text-[15px] font-medium text-inverse-on-surface transition-colors hover:bg-inverse-surface-hover disabled:cursor-not-allowed disabled:opacity-60"
       >
         {loading ? "Sparar…" : "Få notis vid lansering"}
       </button>
