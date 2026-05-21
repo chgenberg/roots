@@ -40,23 +40,19 @@ function MorphingBurger({ open }: { open: boolean }) {
   );
 }
 
-// Marketing pages that lead with a full-bleed dark hero image. On
-// these we keep the header transparent at the top of the page and use
-// the WHITE logo so it reads against the photo. Everywhere else the
-// header sits on a light surface from frame 1, so we go straight to
-// the BLACK logo on a translucent backdrop.
-const DARK_HERO_ROUTES = new Set([
-  "/",
-  "/foreningsliv",
-  "/produkter",
-  "/om-oss",
-]);
+// Routes that lead with a true full-bleed *dark* hero image. Only on
+// these do we keep the header fully transparent at the top and switch
+// to the WHITE logo so it reads against the photo.
+//
+// E14 follow-up: previously included /foreningsliv, /produkter,
+// /om-oss and /produkter/[slug], but every one of those actually
+// opens with a LIGHT sand section (bg-brand-50/40), which meant the
+// white logo disappeared into the background. Verified each route's
+// first <section> before promoting it back to this set.
+const DARK_HERO_ROUTES = new Set(["/"]);
 
 function isDarkHeroPath(pathname: string): boolean {
-  if (DARK_HERO_ROUTES.has(pathname)) return true;
-  // /produkter/[slug] also opens with a hero image.
-  if (pathname.startsWith("/produkter/")) return true;
-  return false;
+  return DARK_HERO_ROUTES.has(pathname);
 }
 
 export function Header() {
@@ -108,9 +104,20 @@ export function Header() {
       <header
         className={cn(
           "fixed left-0 right-0 top-0 z-50 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
+          // Surface logic split three ways:
+          //  - scrolled        → translucent background backdrop everywhere
+          //  - !scrolled on /  → fully transparent (sits on the dark hero
+          //                       photo; the white logo reads against it)
+          //  - !scrolled else  → warm sand backdrop (brand-50/70 + blur)
+          //                       so the black logotype always has a
+          //                       reliable surface to read against,
+          //                       even on routes whose first section is
+          //                       light sand or full-bleed product photo.
           scrolled
             ? "h-14 border-b border-border/40 bg-background/90 shadow-[var(--shadow-card)] backdrop-blur-xl"
-            : "h-20 bg-transparent"
+            : onDarkHero
+              ? "h-20 bg-transparent"
+              : "h-20 bg-brand-50/70 backdrop-blur-xl"
         )}
       >
         <div className="mx-auto flex h-full max-w-[1280px] items-center px-6 md:px-10">
