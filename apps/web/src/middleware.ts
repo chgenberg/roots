@@ -1,20 +1,91 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-// Sprint E2 + E3: the legacy "/club" and "/sales" route-groups have
-// been removed — CLUB_ADMIN and SALES_REP users now land on /portal
-// (handled by the login redirector). The matcher below intentionally
-// drops both so no stale request gets proxied to /trpc/auth.me for a
-// route that no longer exists.
+/**
+ * Site-wide middleware. Two responsibilities, in order:
+ *
+ *   1. Pre-launch password gate. Every request without a valid
+ *      `roots_preview` cookie is rewritten to /preview-gate so the
+ *      user has to enter the shared password (or join the waitlist)
+ *      before they can see anything. Static assets, the gate page
+ *      itself, and a small allowlist of API/probe paths bypass this.
+ *
+ *   2. Existing role-based route protection for /forening, /lag,
+ *      /min-shop. Runs only after the gate has been cleared.
+ */
+
 const PROTECTED_ROUTES: Record<string, string[]> = {
   "/forening": ["ASSOCIATION_ADMIN", "INTERNAL_ADMIN"],
   "/lag": ["TEAM_LEADER", "ASSOCIATION_ADMIN", "INTERNAL_ADMIN"],
   "/min-shop": ["SELLER", "TEAM_LEADER", "ASSOCIATION_ADMIN", "INTERNAL_ADMIN"],
 };
 
+// Paths that must work even when the gate cookie is missing — the
+// gate page would otherwise be unreachable, and probes / OG-image
+// crawlers / static assets must still be served. NOTE: the static
+// asset prefixes (/_next, /brand, /fonts, /images, …) are also
+// excluded via the matcher below, but keeping them in this list
+// documents intent.
+const GATE_BYPASS_PREFIXES = [
+  "/preview-gate",
+  "/api/preview", // any future client-API for the gate
+  "/_next",
+  "/brand",
+  "/fonts",
+  "/images",
+  "/icons",
+  "/favicon",
+  "/robots.txt",
+  "/sitemap.xml",
+  "/healthz",
+  "/readyz",
+];
+
+const PREVIEW_COOKIE_NAME = "roots_preview";
+
+// Web Crypto deterministic token — must produce the same string as
+// apps/api/src/lib/preview-gate.ts. Sync-only flavour using the
+// SubtleCrypto API which is available on both the Edge and Node
+// runtimes; result is cached at module load to avoid recomputing on
+// every request.
+async function computePreviewToken(): Promise<string> {
+  const password = process.env.SITE_PREVIEW_PASSWORD?.trim() || "Roots123%";
+  const data = new TextEncoder().encode(`roots-preview-v1:${password}`);
+  const hash = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hash))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("")
+    .slice(0, 40);
+}
+
+let cachedPreviewToken: string | null = null;
+async function getPreviewToken(): Promise<string> {
+  if (cachedPreviewToken) return cachedPreviewToken;
+  cachedPreviewToken = await computePreviewToken();
+  return cachedPreviewToken;
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // 1. Gate check ────────────────────────────────────────────────
+  const isBypassed = GATE_BYPASS_PREFIXES.some(
+    (p) => pathname === p || pathname.startsWith(p + "/") || pathname.startsWith(p)
+  );
+
+  if (!isBypassed) {
+    const cookie = request.cookies.get(PREVIEW_COOKIE_NAME);
+    const expected = await getPreviewToken();
+    if (!cookie || cookie.value !== expected) {
+      // Rewrite (not redirect) so the URL bar still shows where the
+      // user *intended* to go — they'll land there after unlock.
+      const gateUrl = new URL("/preview-gate", request.url);
+      gateUrl.searchParams.set("next", pathname);
+      return NextResponse.rewrite(gateUrl);
+    }
+  }
+
+  // 2. Role-based protection (unchanged from pre-gate behaviour) ──
   const matchedPrefix = Object.keys(PROTECTED_ROUTES).find((prefix) =>
     pathname.startsWith(prefix)
   );
@@ -61,10 +132,16 @@ export async function middleware(request: NextRequest) {
   }
 }
 
+// Match every request EXCEPT static files. The internal gate-bypass
+// list above handles the rest (gate page, probes, brand assets).
 export const config = {
   matcher: [
-    "/forening/:path*",
-    "/lag/:path*",
-    "/min-shop/:path*",
+    /*
+     * Match all paths except:
+     *  - /_next/static  (build output)
+     *  - /_next/image   (image optimisation)
+     *  - file requests with an extension (.png, .jpg, .ico, .svg, .css, .js, .map, .woff2, …)
+     */
+    "/((?!_next/static|_next/image|.*\\..*).*)",
   ],
 };

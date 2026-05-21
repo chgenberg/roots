@@ -19,6 +19,7 @@ import { association } from "./routes/association";
 import { sales } from "./routes/sales";
 import { admin } from "./routes/admin";
 import { notifications } from "./routes/notifications";
+import { preview } from "./routes/preview";
 import { securityHeaders } from "./middleware/security-headers";
 import { generateCsrfToken, verifyCsrfToken } from "./lib/csrf";
 import { checkReadiness } from "./lib/health-checks";
@@ -49,6 +50,11 @@ const CSRF_EXEMPT_PATHS = [
   // and protects against accidental method changes later.
   "/healthz",
   "/readyz",
+  // Preview gate: served before the visitor has the chance to fetch
+  // a CSRF token (the gate page is the very first thing they see).
+  // Protected instead by per-IP rate limits in routes/preview.ts.
+  "/v1/preview/unlock",
+  "/v1/preview/waitlist",
 ];
 
 app.use("*", async (c, next) => {
@@ -113,6 +119,7 @@ app.route("/v1/association", association);
 app.route("/v1/sales", sales);
 app.route("/v1/admin", admin);
 app.route("/v1/notifications", notifications);
+app.route("/v1/preview", preview);
 app.route("/v1/integrations/fortnox", fortnoxWebhook);
 
 const v1Ai = new Hono();

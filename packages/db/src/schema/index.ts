@@ -17,3 +17,4 @@ export * from "./campaign-products";
 export * from "./subscriptions";
 export * from "./master-riksorganisation";
 export * from "./master-segment";
+export * from "./waitlist";

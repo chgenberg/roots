@@ -43,6 +43,13 @@
       "when": 1778889600003,
       "tag": "0005_team_invites",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1779494400000,
+      "tag": "0006_waitlist_signups",
+      "breakpoints": true
     }
   ]
 }
