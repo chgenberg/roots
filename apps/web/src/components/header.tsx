@@ -40,38 +40,21 @@ function MorphingBurger({ open }: { open: boolean }) {
   );
 }
 
-// Routes that lead with a true full-bleed *dark* hero image. Only on
-// these do we keep the header fully transparent at the top and switch
-// to the WHITE logo so it reads against the photo.
-//
-// E14 follow-up: previously included /foreningsliv, /produkter,
-// /om-oss and /produkter/[slug], but every one of those actually
-// opens with a LIGHT sand section (bg-brand-50/40), which meant the
-// white logo disappeared into the background. Verified each route's
-// first <section> before promoting it back to this set.
-const DARK_HERO_ROUTES = new Set(["/"]);
-
-function isDarkHeroPath(pathname: string): boolean {
-  return DARK_HERO_ROUTES.has(pathname);
-}
+// E14 had a "dark hero routes" allow-list that flipped the header
+// logo to white on pages assumed to lead with a dark hero photo.
+// Removed in the next follow-up: the actual hero on / is cream/sand
+// (woman in a beige top against a beige backdrop) and every other
+// marketing route opens with bg-brand-50 sand sections, so the
+// white-logo branch never had a surface dark enough to read against.
+// Keeping the logic simple — black logo + warm sand backdrop on the
+// header at the top of every page — means the logotype is always
+// visible from frame 1, with zero per-route special cases.
 
 export function Header() {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
-
-  const onDarkHero = isDarkHeroPath(pathname);
-  // Logo colour follows the surface behind it: at the very top of a
-  // dark-hero page the surface is the photo (use white), in every
-  // other state the surface is light (use black).
-  //
-  // The mobile menu overlay paints the full screen with bg-background
-  // (cream/white in light mode), so the logo must stay BLACK while
-  // open — an earlier version forced white here and the logo
-  // disappeared against the cream overlay on phones.
-  const logoVariant: "black" | "white" =
-    onDarkHero && !scrolled && !menuOpen ? "white" : "black";
 
   useEffect(() => {
     function onScroll() {
@@ -108,33 +91,27 @@ export function Header() {
       <header
         className={cn(
           "fixed left-0 right-0 top-0 z-50 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
-          // Surface logic split three ways:
-          //  - scrolled        → translucent background backdrop everywhere
-          //  - !scrolled on /  → fully transparent (sits on the dark hero
-          //                       photo; the white logo reads against it)
-          //  - !scrolled else  → warm sand backdrop (brand-50/70 + blur)
-          //                       so the black logotype always has a
-          //                       reliable surface to read against,
-          //                       even on routes whose first section is
-          //                       light sand or full-bleed product photo.
+          // Two surface states, both light:
+          //  - scrolled   → translucent background backdrop + shadow
+          //  - !scrolled  → warm sand backdrop (brand-50/70 + blur)
+          // Both keep the BLACK logotype readable from frame 1.
           scrolled
             ? "h-14 border-b border-border/40 bg-background/90 shadow-[var(--shadow-card)] backdrop-blur-xl"
-            : onDarkHero
-              ? "h-20 bg-transparent"
-              : "h-20 bg-brand-50/70 backdrop-blur-xl"
+            : "h-20 bg-brand-50/70 backdrop-blur-xl"
         )}
       >
         <div className="mx-auto flex h-full max-w-[1280px] items-center px-6 md:px-10">
           {/* Logo — Sprint E14: real brand logotype from the kit.
-              Auto-swaps black/white based on whether we're on a dark
-              hero page and not yet scrolled, see logoVariant above. */}
+              Always uses the BLACK variant — the header has a light
+              sand/cream backdrop on every page state, so a single
+              variant is enough. */}
           <Link
             href="/"
             aria-label="Roots — startsida"
             className="relative z-[60] inline-flex items-center transition-opacity duration-200 hover:opacity-70"
           >
             <RootsLogo
-              variant={logoVariant}
+              variant="black"
               priority
               className={cn(
                 "transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
