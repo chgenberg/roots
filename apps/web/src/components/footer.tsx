@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Separator } from "@/components/ui/separator";
 import { LegalIdentityBlock } from "@/components/legal-identity-block";
-import { RootsLogo, RootsGrassDivider } from "@/components/brand";
+import { RootsLogo } from "@/components/brand";
 
 const FOOTER_LINKS = [
   {
@@ -34,15 +34,12 @@ const FOOTER_LINKS = [
 
 export function Footer() {
   return (
+    // The grass element used to live above the footer as an absolute-
+    // positioned band (-top-12) but the blades floated in the white
+    // space above the footer with no ground line to grow from, so
+    // they read as broken fragments. Removed in favour of the warm
+    // sand bg + brand logotype, which carries the brand on its own.
     <footer className="relative border-t border-border bg-brand-50/30">
-      {/* Sprint E14: brand grass element above the footer. Sits in the
-          warm-sand bg-brand-50 strip so the dark element reads as a
-          gentle horizon line rather than a heavy visual break. */}
-      <RootsGrassDivider
-        variant="dark"
-        className="absolute inset-x-0 -top-12 h-12 md:-top-16 md:h-16 lg:-top-20 lg:h-20"
-        aria-hidden
-      />
       <div className="mx-auto max-w-[1280px] px-6 py-16 md:px-10">
         <div className="grid gap-10 md:grid-cols-4">
           <div>
