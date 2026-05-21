@@ -29,6 +29,7 @@ import {
 import { getBrowserApiBase } from "@/lib/api-base";
 import { apiFetch } from "@/lib/api";
 import NotificationBell from "@/components/notification-bell";
+import { RootsLogo } from "@/components/brand";
 
 const API_URL = getBrowserApiBase();
 
@@ -160,8 +161,12 @@ export default function PortalLayout({
           )}
         >
           <div className="flex h-16 items-center gap-2 border-b border-border px-4">
-            <Link href="/" className="text-lg font-bold tracking-tight">
-              Roots
+            <Link
+              href="/"
+              aria-label="Roots — startsida"
+              className="inline-flex items-center transition-opacity duration-200 hover:opacity-70"
+            >
+              <RootsLogo variant="black" className="h-7 w-[70px]" />
             </Link>
             {/* Sprint E11: header gets help-link + notification bell so
                 every portal page surfaces them consistently. Mobile-close

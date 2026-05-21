@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { getBrowserApiBase } from "@/lib/api-base";
 import { apiFetch } from "@/lib/api";
 import NotificationBell from "@/components/notification-bell";
+import { RootsLogo } from "@/components/brand";
 
 const API_URL = getBrowserApiBase();
 
@@ -134,8 +135,12 @@ export default function FundraisingLayout({
           and profile are always visible no matter how tall <main> is. */}
       <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r bg-background lg:flex">
         <div className="flex h-16 items-center gap-2 border-b px-4">
-          <Link href="/" className="text-lg font-bold tracking-tight">
-            Roots
+          <Link
+            href="/"
+            aria-label="Roots — startsida"
+            className="inline-flex items-center transition-opacity duration-200 hover:opacity-70"
+          >
+            <RootsLogo variant="black" className="h-7 w-[70px]" />
           </Link>
           <Badge className={`text-xs ${roleBadge.className}`}>
             {roleBadge.label}
@@ -203,8 +208,12 @@ export default function FundraisingLayout({
       {/* Mobile header */}
       <div className="flex flex-1 flex-col">
         <header className="flex h-14 items-center justify-between border-b px-4 lg:hidden">
-          <Link href="/" className="text-lg font-bold">
-            Roots
+          <Link
+            href="/"
+            aria-label="Roots — startsida"
+            className="inline-flex items-center transition-opacity duration-200 hover:opacity-70"
+          >
+            <RootsLogo variant="black" className="h-6 w-[60px]" />
           </Link>
           <div className="flex items-center gap-1">
             <NotificationBell />
