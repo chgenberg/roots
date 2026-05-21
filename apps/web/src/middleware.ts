@@ -92,9 +92,14 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // 2. Role-based protection (unchanged from pre-gate behaviour) ──
-  const matchedPrefix = Object.keys(PROTECTED_ROUTES).find((prefix) =>
-    pathname.startsWith(prefix)
+  // 2. Role-based protection ────────────────────────────────────
+  // Use a path-segment match (exact OR followed by "/") rather than a
+  // raw startsWith — otherwise the "/forening" prefix would also
+  // capture "/foreningsliv" (a public marketing page) and redirect
+  // logged-out visitors to /login. Same risk for any future route
+  // that shares a leading substring with a protected prefix.
+  const matchedPrefix = Object.keys(PROTECTED_ROUTES).find(
+    (prefix) => pathname === prefix || pathname.startsWith(prefix + "/")
   );
 
   if (!matchedPrefix) {
