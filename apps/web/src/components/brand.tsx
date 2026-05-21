@@ -1,0 +1,170 @@
+/**
+ * Sprint E14 — brand asset components.
+ *
+ * Wraps the marketing-agency-delivered logotype, symbol and graphic
+ * element (under `apps/web/public/brand/`) as small reusable React
+ * components so the whole codebase has a single import for each.
+ *
+ * Why a wrapper:
+ *  - Variants ("black" / "white" / "dark") are baked into the filename
+ *    convention from the brand kit. Picking the right one based on
+ *    background is the single most common mistake — centralising that
+ *    logic here means no individual page needs to remember it.
+ *  - `next/image` handles webp/avif derivation + lazy loading, so the
+ *    4000×4000 PNG sources never ship to the browser as PNG.
+ */
+
+import Image from "next/image";
+import { cn } from "@/lib/utils";
+
+type LogoVariant = "black" | "white" | "dark";
+
+const LOGO_SRC: Record<LogoVariant, string> = {
+  black: "/brand/roots-logo-black.png",
+  white: "/brand/roots-logo-white.png",
+  dark: "/brand/roots-logo-dark.png",
+};
+
+const SYMBOL_SRC: Record<LogoVariant, string> = {
+  black: "/brand/roots-symbol-black.png",
+  white: "/brand/roots-symbol-white.png",
+  dark: "/brand/roots-symbol-dark.png",
+};
+
+const ELEMENT_SRC = {
+  dark: "/brand/roots-element-dark.png",
+  light: "/brand/roots-element-light.png",
+  neutral: "/brand/roots-element-neutral.png",
+} as const;
+
+interface BrandImageProps {
+  className?: string;
+  // Apply a min-tap-target wrapper for header/footer logo clicks.
+  priority?: boolean;
+}
+
+/**
+ * The full Roots logotype (the handwritten organic "roots" wordmark).
+ * Aspect ratio is ~16:9 in the source file. We render it as a fixed-
+ * height block so the caller controls the size via Tailwind classes
+ * on the wrapper (e.g. `className="h-8 md:h-10"`).
+ */
+export function RootsLogo({
+  variant = "black",
+  className,
+  priority = false,
+}: BrandImageProps & { variant?: LogoVariant }) {
+  return (
+    <span className={cn("relative inline-block h-8 w-[80px]", className)}>
+      <Image
+        src={LOGO_SRC[variant]}
+        alt="Roots"
+        fill
+        className="object-contain"
+        priority={priority}
+        sizes="(max-width: 768px) 80px, 120px"
+      />
+    </span>
+  );
+}
+
+/**
+ * The Roots brand symbol (sand circle with the leaf/growth motif).
+ * Square. Use for favicons, avatars, badges, OG-overlays, 404 pages.
+ */
+export function RootsSymbol({
+  variant = "dark",
+  className,
+  priority = false,
+}: BrandImageProps & { variant?: LogoVariant }) {
+  return (
+    <span className={cn("relative inline-block h-8 w-8", className)}>
+      <Image
+        src={SYMBOL_SRC[variant]}
+        alt="Roots symbol"
+        fill
+        className="object-contain"
+        priority={priority}
+        sizes="(max-width: 768px) 64px, 96px"
+      />
+    </span>
+  );
+}
+
+/**
+ * The grass/roots graphic element from the brandbook — eight stylised
+ * blades growing up from a baseline. Used as a subtle bottom band on
+ * hero sections, between major sections, and above the footer.
+ *
+ * The PNG ships in dark / light / neutral colourways. The light variant
+ * pairs naturally with the warm sand-50 background, dark with cream/
+ * sand-100, neutral for image overlays.
+ */
+export function RootsGrassDivider({
+  variant = "neutral",
+  className,
+  ariaHidden = true,
+}: {
+  variant?: keyof typeof ELEMENT_SRC;
+  className?: string;
+  ariaHidden?: boolean;
+}) {
+  return (
+    <div
+      // The element is decorative — never announced to screen readers.
+      aria-hidden={ariaHidden}
+      className={cn(
+        "pointer-events-none relative w-full select-none",
+        // Default aspect ratio from the source PNG (≈3.4:1). We render
+        // it as a band that gracefully scales. Override via className.
+        "h-12 md:h-16 lg:h-20",
+        className
+      )}
+    >
+      <Image
+        src={ELEMENT_SRC[variant]}
+        alt=""
+        fill
+        className="object-contain object-bottom"
+        sizes="100vw"
+      />
+    </div>
+  );
+}
+
+/**
+ * Branded loading indicator — the Roots symbol with a gentle pulse.
+ * Replaces the generic "ring spinner" used in route loading.tsx files.
+ * Stays minimalist (single static asset, no clever animation) so it
+ * doesn't compete with the page that's about to fade in.
+ */
+export function RootsLoader({
+  className,
+  label = "Laddar…",
+}: {
+  className?: string;
+  label?: string;
+}) {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className={cn(
+        "flex min-h-[50vh] flex-col items-center justify-center gap-3",
+        className
+      )}
+    >
+      <span className="relative inline-block h-12 w-12 animate-subtle-pulse">
+        <Image
+          src={SYMBOL_SRC.dark}
+          alt=""
+          fill
+          className="object-contain"
+          sizes="48px"
+          priority
+        />
+      </span>
+      <span className="sr-only">{label}</span>
+    </div>
+  );
+}

@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { HeroLead } from "@/components/sections/hero-lead";
+import { RootsGrassDivider } from "@/components/brand";
 
 export function HeroSection() {
   return (
@@ -48,6 +49,16 @@ export function HeroSection() {
 
         {/* Soft inner ring */}
         <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-inset ring-white/10" />
+
+        {/* Sprint E14: brand grass element along the bottom edge of the
+            hero — gives the photograph a tactile "growing from the
+            ground" feel without crowding the headline. The neutral
+            variant blends with the photo tones; opacity keeps it subtle. */}
+        <RootsGrassDivider
+          variant="neutral"
+          className="absolute inset-x-0 bottom-0 h-10 opacity-50 md:h-14 lg:h-16"
+          aria-hidden
+        />
       </div>
     </section>
   );

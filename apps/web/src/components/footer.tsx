@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Separator } from "@/components/ui/separator";
 import { LegalIdentityBlock } from "@/components/legal-identity-block";
+import { RootsLogo, RootsGrassDivider } from "@/components/brand";
 
 const FOOTER_LINKS = [
   {
@@ -33,12 +34,20 @@ const FOOTER_LINKS = [
 
 export function Footer() {
   return (
-    <footer className="border-t border-border bg-brand-50/30">
+    <footer className="relative border-t border-border bg-brand-50/30">
+      {/* Sprint E14: brand grass element above the footer. Sits in the
+          warm-sand bg-brand-50 strip so the dark element reads as a
+          gentle horizon line rather than a heavy visual break. */}
+      <RootsGrassDivider
+        variant="dark"
+        className="absolute inset-x-0 -top-12 h-12 md:-top-16 md:h-16 lg:-top-20 lg:h-20"
+        aria-hidden
+      />
       <div className="mx-auto max-w-[1280px] px-6 py-16 md:px-10">
         <div className="grid gap-10 md:grid-cols-4">
           <div>
-            <span className="text-lg font-bold tracking-tight">Roots</span>
-            <p className="mt-3 max-w-[25ch] text-sm leading-relaxed text-muted-foreground">
+            <RootsLogo variant="black" className="h-8 w-[80px]" />
+            <p className="mt-4 max-w-[25ch] text-sm leading-relaxed text-muted-foreground">
               Naturlig hudvård som stärker föreningslivet i Sverige.
             </p>
           </div>

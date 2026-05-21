@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { ArrowRight, User, CalendarCheck, Search } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SearchDialog, SearchTrigger } from "@/components/search-dialog";
+import { RootsLogo } from "@/components/brand";
 
 const NAV_ITEMS = [
   { href: "/produkter", label: "Produkter" },
@@ -39,11 +40,38 @@ function MorphingBurger({ open }: { open: boolean }) {
   );
 }
 
+// Marketing pages that lead with a full-bleed dark hero image. On
+// these we keep the header transparent at the top of the page and use
+// the WHITE logo so it reads against the photo. Everywhere else the
+// header sits on a light surface from frame 1, so we go straight to
+// the BLACK logo on a translucent backdrop.
+const DARK_HERO_ROUTES = new Set([
+  "/",
+  "/foreningsliv",
+  "/produkter",
+  "/om-oss",
+]);
+
+function isDarkHeroPath(pathname: string): boolean {
+  if (DARK_HERO_ROUTES.has(pathname)) return true;
+  // /produkter/[slug] also opens with a hero image.
+  if (pathname.startsWith("/produkter/")) return true;
+  return false;
+}
+
 export function Header() {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
+
+  const onDarkHero = isDarkHeroPath(pathname);
+  // Logo colour follows the surface behind it: at the very top of a
+  // dark-hero page the surface is the photo (use white), in every other
+  // state the surface is light (use black). Menu-open uses white because
+  // the mobile menu paints the full screen ink.
+  const logoVariant: "black" | "white" =
+    menuOpen || (onDarkHero && !scrolled) ? "white" : "black";
 
   useEffect(() => {
     function onScroll() {
@@ -86,24 +114,22 @@ export function Header() {
         )}
       >
         <div className="mx-auto flex h-full max-w-[1280px] items-center px-6 md:px-10">
-          {/* Logo — Sprint E13: Alan Sans (brandbook display font) with
-              slightly wider tracking so the brand mark reads as a logotype
-              rather than a body word. Letter-spacing inverted (positive)
-              vs typical UI text because Alan Sans display tightens
-              optically when scaled up. */}
+          {/* Logo — Sprint E14: real brand logotype from the kit.
+              Auto-swaps black/white based on whether we're on a dark
+              hero page and not yet scrolled, see logoVariant above. */}
           <Link
             href="/"
             aria-label="Roots — startsida"
-            className="font-display relative z-[60] font-bold uppercase tracking-[0.18em] text-foreground transition-opacity duration-200 hover:opacity-70"
+            className="relative z-[60] inline-flex items-center transition-opacity duration-200 hover:opacity-70"
           >
-            <span
+            <RootsLogo
+              variant={logoVariant}
+              priority
               className={cn(
-                "inline-block transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
-                scrolled ? "text-base" : "text-lg"
+                "transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                scrolled ? "h-7 w-[70px] md:h-8 md:w-[80px]" : "h-8 w-[80px] md:h-9 md:w-[90px]"
               )}
-            >
-              ROOTS
-            </span>
+            />
           </Link>
 
           {/* Spacer pushes nav + icons to the right */}
