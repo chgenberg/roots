@@ -26,9 +26,16 @@ const PROTECTED_ROUTES: Record<string, string[]> = {
 // asset prefixes (/_next, /brand, /fonts, /images, …) are also
 // excluded via the matcher below, but keeping them in this list
 // documents intent.
+//
+// /api is the same-origin proxy to the backend (see lib/api-base.ts).
+// Bypassing it here is critical: the gate page itself calls
+// /api/v1/csrf-token + /api/v1/preview/unlock to do the unlock
+// handshake, and the backend already enforces its own auth + CSRF,
+// so the middleware has nothing to add by rewriting these.
 const GATE_BYPASS_PREFIXES = [
   "/preview-gate",
-  "/api/preview", // any future client-API for the gate
+  "/api",
+  "/trpc",
   "/_next",
   "/brand",
   "/fonts",
