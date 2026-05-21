@@ -1,79 +1,121 @@
 @import "tailwindcss";
 
+/*
+ * Sprint E13 — brand palette refresh based on the agency brandbook
+ * delivered in public/Roots_lev/ (Maj 2026).
+ *
+ * Strategy: rather than rename every existing component class, we
+ * remap the existing `--color-brand-*` scale to the new brand hues.
+ * That keeps the codebase additive (no churn across hundreds of
+ * files) while every surface that already used these tokens now
+ * picks up the warmer sand + forest brand language automatically.
+ *
+ * Brandbook reference (HEX):
+ *  Basfärger    : #1D1D1B ink · #7F715B sand-dark · #B2A491 sand-med
+ *                 #D5CABF sand-light · #FFFFFF white
+ *  Sekundär     : #6B794F forest · #C1BF99 olive · #A7BBC5 sky
+ *                 #ECD488 sun · #E3A1A0 rose · #E18754 terracotta
+ *  Typografi    : Alan Sans (display) · Inter (body)
+ */
+
 @theme extend {
-  /* ── Brand palette ───── */
-  --color-brand-900: #1C1410;
-  --color-brand-800: #2A1F18;
-  --color-brand-700: #3B2D22;
-  --color-brand-600: #4A372C;
-  --color-brand-500: #6B5344;
-  --color-brand-400: #8C7466;
-  --color-brand-300: #B5A89E;
-  --color-brand-200: #D4CCC4;
-  --color-brand-100: #E8E4E0;
-  --color-brand-50: #F5F3F1;
-  --color-brand-accent: #4A372C;
+  /* ── Brand palette (remapped to brandbook hues) ─────────────────
+   *
+   * The 50→900 ramp now climbs from warm sand off-white to charcoal
+   * ink. brand-700 is the "primary accent" slot — we route it to
+   * Forest (the brandbook's strongest secondary) so every existing
+   * "bg-brand-700"/"text-brand-700" call site picks up the new
+   * primary brand colour without code changes.
+   */
+  --color-brand-50:  #FAF6EF;   /* warmest off-white (was cold #F5F3F1) */
+  --color-brand-100: #F1EBE2;   /* very light sand */
+  --color-brand-200: #E5DDD2;   /* light sand tint */
+  --color-brand-300: #D5CABF;   /* brandbook sand-light */
+  --color-brand-400: #C1BF99;   /* brandbook olive (was warm grey) */
+  --color-brand-500: #B2A491;   /* brandbook sand-medium */
+  --color-brand-600: #8B7E69;   /* mid sand-dark transition */
+  --color-brand-700: #6B794F;   /* brandbook FOREST — primary accent */
+  --color-brand-800: #7F715B;   /* brandbook sand-dark */
+  --color-brand-900: #1D1D1B;   /* brandbook ink */
+  --color-brand-accent: #6B794F;
 
-  /* ── Semantic tokens ─── */
-  --color-background: #FFFFFF;
-  --color-foreground: #1C1410;
-  --color-muted: #F5F3F1;
-  --color-muted-foreground: #6B5344;
-  --color-border: #E8E4E0;
-  --color-ring: #1C1410;
-  --color-primary: #1C1410;
-  --color-primary-foreground: #FFFFFF;
-  --color-secondary: #F5F3F1;
-  --color-secondary-foreground: #1C1410;
-  --color-accent: #F5F3F1;
-  --color-accent-foreground: #1C1410;
-  --color-destructive: #8C2F2F;
+  /* ── Sekundärfärger (new tokens — additive) ──────────────────── */
+  --color-accent-forest:     #6B794F;
+  --color-accent-olive:      #C1BF99;
+  --color-accent-sky:        #A7BBC5;
+  --color-accent-sun:        #ECD488;
+  --color-accent-rose:       #E3A1A0;
+  --color-accent-terracotta: #E18754;
+
+  /* ── Semantic tokens ─────────────────────────────────────────── */
+  --color-background:           #FFFFFF;
+  --color-foreground:           #1D1D1B;
+  --color-muted:                #FAF6EF;
+  --color-muted-foreground:     #7F715B;
+  --color-border:               #E5DDD2;
+  --color-ring:                 #1D1D1B;
+  --color-primary:              #1D1D1B;
+  --color-primary-foreground:   #FFFFFF;
+  --color-secondary:            #FAF6EF;
+  --color-secondary-foreground: #1D1D1B;
+  --color-accent:               #F1EBE2;
+  --color-accent-foreground:    #1D1D1B;
+  --color-destructive:          #C76A50;     /* terracotta-dark for AA contrast on white */
   --color-destructive-foreground: #FFFFFF;
-  --color-success: #2F4A3C;
-  --color-success-foreground: #FFFFFF;
+  --color-success:              #6B794F;     /* forest */
+  --color-success-foreground:   #FFFFFF;
+  --color-warning:              #ECD488;     /* sun */
+  --color-warning-foreground:   #1D1D1B;
 
-  /* ── Surfaces ─── */
-  --color-card: #FFFFFF;
-  --color-card-foreground: #1C1410;
-  --color-popover: #FFFFFF;
-  --color-popover-foreground: #1C1410;
+  /* ── Surfaces ────────────────────────────────────────────────── */
+  --color-card:                 #FFFFFF;
+  --color-card-foreground:      #1D1D1B;
+  --color-popover:              #FFFFFF;
+  --color-popover-foreground:   #1D1D1B;
 
-  /* Dark brown UI chrome — not overridden in .dark (brand-900 flips to light there) */
-  --color-inverse-surface: #1C1410;
-  --color-inverse-on-surface: #FFFFFF;
-  --color-inverse-surface-hover: #2A1F18;
+  /* Dark UI chrome — used by the dashboard sidebar. Stays ink in
+   * both light and dark mode so the chrome is its own surface. */
+  --color-inverse-surface:        #1D1D1B;
+  --color-inverse-on-surface:     #FFFFFF;
+  --color-inverse-surface-hover:  #2A2A28;
 
-  /* ── Legacy compat ─── */
-  --color-bg-primary: #FFFFFF;
-  --color-bg-subtle: #FAFAF9;
-  --color-signal: #6B5344;
-  --color-error: #8C2F2F;
-  --color-border-default: #E8E4E0;
-  --color-border-strong: #D4CCC4;
+  /* ── Legacy compat (some components still read these) ────────── */
+  --color-bg-primary:      #FFFFFF;
+  --color-bg-subtle:       #FAF6EF;
+  --color-signal:          #6B794F;
+  --color-error:           #C76A50;
+  --color-border-default:  #E5DDD2;
+  --color-border-strong:   #D5CABF;
 
-  /* ── Custom font size ─── */
+  /* ── Typography ──────────────────────────────────────────────── */
+  /* Font families exposed to Tailwind via @theme. The font-* CSS
+   * variables come from next/font/local in apps/web/src/lib/fonts.ts.
+   * Brandbook split: Alan Sans for headings/accents, Inter for body. */
+  --font-sans:    var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-display: var(--font-alan-sans), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+
   --font-size-hero: clamp(2.5rem, 1.75rem + 3.75vw, 4.5rem);
 
-  /* ── Radius ─── */
+  /* ── Radius ──────────────────────────────────────────────────── */
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 12px;
   --radius-xl: 16px;
 
-  /* ── Animations ─── */
+  /* ── Animations ──────────────────────────────────────────────── */
   --animate-subtle-pulse: subtle-pulse 3s ease-in-out infinite;
-  --animate-float: float 6s ease-in-out infinite;
-  --animate-fade-in: fade-in 0.3s ease-out;
-  --animate-slide-up: slide-up 0.4s ease-out;
-  --animate-slide-down: slide-down 0.3s ease-out;
-  --animate-spin-slow: spin-slow 4s linear infinite;
+  --animate-float:        float 6s ease-in-out infinite;
+  --animate-fade-in:      fade-in 0.3s ease-out;
+  --animate-slide-up:     slide-up 0.4s ease-out;
+  --animate-slide-down:   slide-down 0.3s ease-out;
+  --animate-spin-slow:    spin-slow 4s linear infinite;
 }
 
-/* ── Shadow tokens (Agent 02 spec) ─── */
+/* ── Shadow tokens — tuned to ink (was the cold brown #1C1410) ── */
 :root {
-  --shadow-card: 0 1px 2px rgba(28, 20, 16, 0.04), 0 8px 24px rgba(28, 20, 16, 0.06);
-  --shadow-elevated: 0 4px 32px rgba(28, 20, 16, 0.08);
-  --shadow-dialog: 0 24px 64px rgba(28, 20, 16, 0.12);
+  --shadow-card:     0 1px 2px rgba(29, 29, 27, 0.04), 0 8px 24px rgba(29, 29, 27, 0.06);
+  --shadow-elevated: 0 4px 32px rgba(29, 29, 27, 0.08);
+  --shadow-dialog:   0 24px 64px rgba(29, 29, 27, 0.12);
 }
 
 @keyframes subtle-pulse {
@@ -107,8 +149,8 @@
 }
 
 @keyframes pulse-shadow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(28, 20, 16, 0.25); }
-  50% { box-shadow: 0 0 0 12px rgba(28, 20, 16, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(29, 29, 27, 0.25); }
+  50% { box-shadow: 0 0 0 12px rgba(29, 29, 27, 0); }
 }
 
 @keyframes pulse-shadow-light {
@@ -135,41 +177,77 @@
 body {
   color: var(--color-foreground);
   background-color: var(--color-background);
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/*
+ * Sprint E13 — automatic display-font on headings.
+ *
+ * Brandbook reserves Alan Sans for "Rubrik & Accent". We apply it
+ * globally to h1–h6 so every page picks up the brand voice without
+ * touching component code. Letter-spacing is tightened slightly
+ * because Alan Sans is a touch wider than Inter at the same weight.
+ *
+ * Components that explicitly use the body font can opt out with
+ * `font-sans` or by composing their own type.
+ */
+h1, h2, h3, h4, h5, h6,
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.015em;
+  font-feature-settings: "ss01" on, "cv11" on;
+}
+
+h1 { font-weight: 700; }
+h2 { font-weight: 700; }
+h3 { font-weight: 600; }
+h4, h5, h6 { font-weight: 600; }
 
 ::selection {
   background-color: var(--color-brand-900);
   color: white;
 }
 
-/* Dark mode — toggled via class="dark" on <html> */
+/* ── Dark mode — brandbook-anchored ─────────────────────────────
+ *
+ * Brandbook is light-led, so dark mode is interpreted: keep ink
+ * surfaces as base, lift text to warm cream, and surface accents
+ * stay forest/sand so cards/buttons read the same regardless of
+ * theme. Avoids the "two different products" feeling of cold-grey
+ * dark themes layered on warm-sand light themes.
+ */
 .dark {
-  --color-background: #1a1412;
-  --color-foreground: #f5f0eb;
-  --color-muted: #1f1a16;
-  --color-muted-foreground: #a89585;
-  --color-border: #2d2420;
-  --color-ring: #c4a882;
-  --color-brand-50: #1f1a16;
-  --color-brand-100: #2d2420;
-  --color-brand-200: #3d3028;
-  --color-brand-300: #5a4a3c;
-  --color-brand-500: #c4a882;
-  --color-brand-800: #e8d5c0;
-  --color-brand-900: #f5ece0;
-  --color-card: #1f1a16;
-  --color-card-foreground: #f5f0eb;
-  --color-popover: #1f1a16;
-  --color-popover-foreground: #f5f0eb;
-  --color-primary: #f5ece0;
-  --color-primary-foreground: #1a1412;
-  --color-secondary: #2d2420;
-  --color-secondary-foreground: #f5f0eb;
-  --shadow-card: 0 1px 2px rgba(245, 236, 224, 0.04), 0 8px 24px rgba(245, 236, 224, 0.06);
-  --shadow-elevated: 0 4px 32px rgba(245, 236, 224, 0.08);
-  --shadow-dialog: 0 24px 64px rgba(245, 236, 224, 0.12);
+  --color-background:           #1A1815;
+  --color-foreground:           #F1EBE2;
+  --color-muted:                #221F1B;
+  --color-muted-foreground:     #B2A491;
+  --color-border:               #2D2823;
+  --color-ring:                 #D5CABF;
+  --color-brand-50:             #221F1B;
+  --color-brand-100:            #2D2823;
+  --color-brand-200:            #3D362D;
+  --color-brand-300:            #7F715B;
+  --color-brand-400:            #B2A491;
+  --color-brand-500:            #C1BF99;
+  --color-brand-700:            #8FA065;   /* lifted forest for AA on dark */
+  --color-brand-800:            #D5CABF;
+  --color-brand-900:            #F1EBE2;
+  --color-card:                 #221F1B;
+  --color-card-foreground:      #F1EBE2;
+  --color-popover:              #221F1B;
+  --color-popover-foreground:   #F1EBE2;
+  --color-primary:              #F1EBE2;
+  --color-primary-foreground:   #1A1815;
+  --color-secondary:            #2D2823;
+  --color-secondary-foreground: #F1EBE2;
+  --color-success:              #8FA065;
+  --color-warning:              #ECD488;
+  --color-destructive:          #E18754;
+  --shadow-card:     0 1px 2px rgba(241, 235, 226, 0.04), 0 8px 24px rgba(241, 235, 226, 0.06);
+  --shadow-elevated: 0 4px 32px rgba(241, 235, 226, 0.08);
+  --shadow-dialog:   0 24px 64px rgba(241, 235, 226, 0.12);
 }
 
 .page-enter {

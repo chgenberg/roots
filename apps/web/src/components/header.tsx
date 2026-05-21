@@ -86,16 +86,23 @@ export function Header() {
         )}
       >
         <div className="mx-auto flex h-full max-w-[1280px] items-center px-6 md:px-10">
-          {/* Logo */}
+          {/* Logo — Sprint E13: Alan Sans (brandbook display font) with
+              slightly wider tracking so the brand mark reads as a logotype
+              rather than a body word. Letter-spacing inverted (positive)
+              vs typical UI text because Alan Sans display tightens
+              optically when scaled up. */}
           <Link
             href="/"
-            className="relative z-[60] text-xl font-bold tracking-tight text-foreground transition-opacity duration-200 hover:opacity-70"
+            aria-label="Roots — startsida"
+            className="font-display relative z-[60] font-bold uppercase tracking-[0.18em] text-foreground transition-opacity duration-200 hover:opacity-70"
           >
-            <span className={cn(
-              "inline-block transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
-              scrolled ? "text-lg" : "text-xl"
-            )}>
-              Roots
+            <span
+              className={cn(
+                "inline-block transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                scrolled ? "text-base" : "text-lg"
+              )}
+            >
+              ROOTS
             </span>
           </Link>
 

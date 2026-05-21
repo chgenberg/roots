@@ -1,15 +1,9 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import Script from "next/script";
 import { OrganizationJsonLd } from "@/components/json-ld";
 import { Providers } from "./providers";
+import { inter, alanSans } from "@/lib/fonts";
 import "./globals.css";
-
-const inter = Inter({
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-inter",
-});
 
 export const metadata: Metadata = {
   title: {
@@ -21,6 +15,18 @@ export const metadata: Metadata = {
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_SITE_URL || "https://roots.se"
   ),
+  // Sprint E13: brandbook symbol used as favicon + app icon. The
+  // 4000×4000 source is resized by Next on demand; we pass the same
+  // file for every slot so iOS, Android and desktop tabs all match.
+  icons: {
+    icon: [
+      { url: "/brand/roots-symbol-dark.png", type: "image/png" },
+    ],
+    apple: [
+      { url: "/brand/roots-symbol-dark.png" },
+    ],
+    shortcut: ["/brand/roots-symbol-dark.png"],
+  },
   openGraph: {
     type: "website",
     locale: "sv_SE",
@@ -48,7 +54,13 @@ export default function RootLayout({
   const plausibleDomain = process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN;
 
   return (
-    <html lang="sv" className={inter.variable} suppressHydrationWarning>
+    <html
+      lang="sv"
+      // Sprint E13 — expose BOTH font variables so globals.css can route
+      // body → Inter and h1-h6 → Alan Sans automatically.
+      className={`${inter.variable} ${alanSans.variable}`}
+      suppressHydrationWarning
+    >
       <head>
         <OrganizationJsonLd />
         {plausibleDomain && (
@@ -60,7 +72,10 @@ export default function RootLayout({
           />
         )}
       </head>
-      <body className="min-h-screen bg-background font-[family-name:var(--font-inter)] text-foreground antialiased" suppressHydrationWarning>
+      <body
+        className="min-h-screen bg-background font-sans text-foreground antialiased"
+        suppressHydrationWarning
+      >
         <a
           href="#main-content"
           className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-inverse-surface focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-inverse-on-surface focus:shadow-lg"
