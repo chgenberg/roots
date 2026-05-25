@@ -18,6 +18,11 @@ export function LegalIdentityBlock({
   className,
   showContact = false,
 }: LegalIdentityBlockProps) {
+  // MASTERPLAN_01 KC7.7: showContact måste ge supportern ett komplett
+  // sätt att nå oss — email + telefon — för att räknas som "lätt att
+  // komma i kontakt" enligt e-handelslagen 8 §.
+  const phoneDigits = LEGAL_IDENTITY.contact.phone.replace(/\s+/g, "");
+
   if (variant === "block") {
     return (
       <address
@@ -44,6 +49,13 @@ export function LegalIdentityBlock({
             >
               {LEGAL_IDENTITY.contact.email}
             </a>
+            {" · "}
+            <a
+              href={`tel:${phoneDigits}`}
+              className="hover:text-foreground"
+            >
+              {LEGAL_IDENTITY.contact.phone}
+            </a>
           </>
         )}
       </address>
@@ -62,6 +74,13 @@ export function LegalIdentityBlock({
             className="hover:text-foreground"
           >
             {LEGAL_IDENTITY.contact.email}
+          </a>
+          {" · "}
+          <a
+            href={`tel:${phoneDigits}`}
+            className="hover:text-foreground"
+          >
+            {LEGAL_IDENTITY.contact.phone}
           </a>
         </>
       )}

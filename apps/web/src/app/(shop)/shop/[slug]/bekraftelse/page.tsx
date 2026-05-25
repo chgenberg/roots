@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CheckCircle2, Loader2, Share2, AlertCircle } from "lucide-react";
 import { getBrowserApiBase } from "@/lib/api-base";
+import { useCart } from "@/lib/use-cart";
 
 const API_URL = getBrowserApiBase();
 
@@ -18,43 +19,84 @@ interface OrderConfirmation {
   customerEmail: string;
 }
 
+/**
+ * MASTERPLAN_01 KC4: error-state måste branchas så supportern får
+ * användbar feedback istället för en generic "något gick fel".
+ *   - missing order-id → "Ogiltig länk"
+ *   - 404 → "Vi hittade ingen order"
+ *   - 5xx / network → "Tekniskt fel, försök igen"
+ *   - status FAILED/CANCELLED → "Din betalning gick inte igenom"
+ */
+type ErrorKind = null | "missing" | "not-found" | "server" | "failed-payment";
+
+const ERROR_COPY: Record<Exclude<ErrorKind, null>, { title: string; body: string }> = {
+  missing: {
+    title: "Ogiltig länk",
+    body: "Bekräftelse-länken saknar order-id. Kontrollera länken eller gå tillbaka till shoppen.",
+  },
+  "not-found": {
+    title: "Vi hittade ingen order",
+    body: "Ordern finns inte eller har tagits bort. Maila hej@roots.se om du tror att detta är fel.",
+  },
+  server: {
+    title: "Tekniskt fel",
+    body: "Vi kunde inte hämta din beställning just nu. Försök igen om en stund, eller maila hej@roots.se.",
+  },
+  "failed-payment": {
+    title: "Din betalning gick inte igenom",
+    body: "Klarna avbröt eller nekade betalningen. Du kan försöka igen från shoppen.",
+  },
+};
+
 export default function ConfirmationPage() {
   const params = useParams();
   const searchParams = useSearchParams();
   const slug = params.slug as string;
   const orderId = searchParams.get("order_id");
+  // MASTERPLAN_01 KC1.6: rensa cart efter lyckad bekräftelse så
+  // användaren inte ser kvarvarande items vid retur till shoppen.
+  const { clear: clearCart } = useCart(slug);
 
   const [order, setOrder] = useState<OrderConfirmation | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const [errorKind, setErrorKind] = useState<ErrorKind>(null);
 
   useEffect(() => {
     async function confirm() {
       if (!orderId) {
-        setError(true);
+        setErrorKind("missing");
         setLoading(false);
         return;
       }
       try {
         const res = await fetch(`${API_URL}/v1/checkout/confirm/${orderId}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.status === "FAILED" || data.status === "CANCELLED") {
-            setError(true);
-          } else {
-            setOrder(data);
-          }
+        if (res.status === 404) {
+          setErrorKind("not-found");
+          setLoading(false);
+          return;
+        }
+        if (!res.ok) {
+          setErrorKind("server");
+          setLoading(false);
+          return;
+        }
+        const data = await res.json();
+        if (data.status === "FAILED" || data.status === "CANCELLED") {
+          setErrorKind("failed-payment");
         } else {
-          setError(true);
+          setOrder(data);
+          if (data.status === "PAID" || data.status === "CONFIRMED") {
+            clearCart();
+          }
         }
       } catch {
-        setError(true);
+        setErrorKind("server");
       } finally {
         setLoading(false);
       }
     }
     confirm();
-  }, [orderId]);
+  }, [orderId, clearCart]);
 
   if (loading) {
     return (
@@ -64,22 +106,38 @@ export default function ConfirmationPage() {
     );
   }
 
-  if (error || !order) {
+  if (errorKind || !order) {
+    const copy = errorKind ? ERROR_COPY[errorKind] : ERROR_COPY.server;
     return (
       <div className="min-h-screen bg-brand-50/30">
         <main className="mx-auto flex max-w-lg flex-col items-center px-4 py-16">
           <Card className="w-full shadow-lg">
             <CardContent className="flex flex-col items-center gap-5 py-10">
               <AlertCircle className="h-14 w-14 text-destructive" />
-              <h1 className="text-2xl font-semibold">Något gick fel</h1>
+              <h1 className="text-2xl font-semibold">{copy.title}</h1>
               <p className="text-sm text-muted-foreground text-center">
-                Vi kunde inte bekräfta din beställning. Kontakta oss om problemet kvarstår.
+                {copy.body}
               </p>
-              <Link href={`/shop/${slug}`} className="w-full">
-                <Button variant="outline" className="w-full">
-                  Tillbaka till shoppen
-                </Button>
-              </Link>
+              <div className="flex w-full flex-col gap-2">
+                {errorKind === "failed-payment" && (
+                  <Link href={`/shop/${slug}`} className="w-full">
+                    <Button className="w-full">Försök igen</Button>
+                  </Link>
+                )}
+                <Link href={`/shop/${slug}`} className="w-full">
+                  <Button variant="outline" className="w-full">
+                    Tillbaka till shoppen
+                  </Button>
+                </Link>
+                <a
+                  href="mailto:hej@roots.se?subject=Hjälp med beställning"
+                  className="w-full"
+                >
+                  <Button variant="ghost" className="w-full">
+                    Kontakta oss
+                  </Button>
+                </a>
+              </div>
             </CardContent>
           </Card>
         </main>

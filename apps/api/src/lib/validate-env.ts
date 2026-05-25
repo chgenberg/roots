@@ -70,13 +70,50 @@ const RECOMMENDED_IN_PROD: ReadonlyArray<EnvVar> = [
     name: "KLARNA_WEBHOOK_SECRET",
     purpose: "HMAC verification of Klarna payment webhooks (IP allowlist is the only fallback)",
   },
+  // MASTERPLAN_01 KC8.1: utan dessa går inga riktiga betalningar genom
+  // Klarna i prod. Saknas de bör vi varna högt vid boot så ops vet att
+  // checkout är degraderad.
+  {
+    name: "KLARNA_USERNAME",
+    purpose: "Basic-auth username mot Klarna Checkout API (utan denna kan inga sessions skapas)",
+  },
+  {
+    name: "KLARNA_PASSWORD",
+    purpose: "Basic-auth password mot Klarna Checkout API",
+  },
   {
     name: "FORTNOX_WEBHOOK_SECRET",
     purpose: "HMAC verification of Fortnox invoice webhooks (no fallback)",
   },
   {
+    name: "FORTNOX_TOKEN",
+    purpose: "Bearer-token för Fortnox API. Om FORTNOX_ENABLED=true men token saknas degraderas vi tyst till NullProvider",
+  },
+  {
     name: "SENTRY_DSN",
     purpose: "Error tracking + alerting (no DSN → uncaught errors only land in stdout)",
+  },
+];
+
+/**
+ * MASTERPLAN_01 KC8.1: vissa optional integrationer måste fail-fast i
+ * prod när de är explicit enabled men misconfigured. Annars degraderar
+ * vi tyst (NullProvider, skip-webhook etc.) och fakturor skapas aldrig.
+ */
+interface ConditionalRequirement {
+  enabledByEnv: string;
+  enabledValue: string;
+  requires: ReadonlyArray<EnvVar>;
+}
+
+const CONDITIONAL_REQUIREMENTS: ReadonlyArray<ConditionalRequirement> = [
+  {
+    enabledByEnv: "FORTNOX_ENABLED",
+    enabledValue: "true",
+    requires: [
+      { name: "FORTNOX_TOKEN", purpose: "Fortnox bearer-token" },
+      { name: "FORTNOX_CLIENT_SECRET", purpose: "Fortnox client secret" },
+    ],
   },
 ];
 
@@ -103,6 +140,8 @@ interface ValidationReport {
   missing: string[];
   placeholders: string[];
   recommendedMissing: string[];
+  /** Vars som krävs pga en aktiverad feature (ex: FORTNOX_ENABLED=true). */
+  conditionalMissing: string[];
 }
 
 /** Pure function so tests can drive it without touching `process.exit`. */
@@ -113,6 +152,7 @@ export function checkEnv(
   const missing: string[] = [];
   const placeholders: string[] = [];
   const recommendedMissing: string[] = [];
+  const conditionalMissing: string[] = [];
 
   for (const v of REQUIRED_IN_PROD) {
     const raw = env[v.name];
@@ -132,15 +172,30 @@ export function checkEnv(
         recommendedMissing.push(`${v.name} (${v.purpose})`);
       }
     }
+
+    for (const cr of CONDITIONAL_REQUIREMENTS) {
+      const flagRaw = env[cr.enabledByEnv]?.trim().toLowerCase();
+      if (flagRaw !== cr.enabledValue) continue;
+      for (const v of cr.requires) {
+        const raw = env[v.name];
+        if (!raw || raw.trim() === "" || looksLikePlaceholder(raw)) {
+          conditionalMissing.push(
+            `${v.name} (${v.purpose}) — krävs när ${cr.enabledByEnv}=${cr.enabledValue}`
+          );
+        }
+      }
+    }
   }
 
   // In dev, REQUIRED is "soft": we log warnings but `ok` stays true so
   // `pnpm dev` doesn't break for first-time contributors who haven't
   // copied `.env.example` yet.
   const ok = isProd
-    ? missing.length === 0 && placeholders.length === 0
+    ? missing.length === 0 &&
+      placeholders.length === 0 &&
+      conditionalMissing.length === 0
     : true;
-  return { ok, missing, placeholders, recommendedMissing };
+  return { ok, missing, placeholders, recommendedMissing, conditionalMissing };
 }
 
 /**
@@ -184,6 +239,23 @@ export function validateEnvOrExit(): void {
       log.warn(
         { placeholders: report.placeholders },
         "Env-vars contain dev placeholders (rotate before going live)"
+      );
+    }
+  }
+
+  // MASTERPLAN_01 KC8.1: conditional misconfig (t.ex. FORTNOX_ENABLED=true
+  // utan token) ska fail-fast i prod, inte degradera tyst.
+  if (report.conditionalMissing.length > 0) {
+    if (isProd) {
+      log.error(
+        { conditionalMissing: report.conditionalMissing },
+        "Activated integration is misconfigured — refusing to start"
+      );
+      process.exit(1);
+    } else {
+      log.warn(
+        { conditionalMissing: report.conditionalMissing },
+        "Activated integration is misconfigured (would refuse to start in production)"
       );
     }
   }

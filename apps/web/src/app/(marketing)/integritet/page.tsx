@@ -132,12 +132,24 @@ export default function IntegritetPage() {
             <li>Återkalla samtycke för nyhetsbrev och marknadsföring.</li>
           </ul>
           <p className="mt-3">
-            Kontakta oss på{" "}
+            Du kan utöva dina rättigheter på två sätt. Snabbast är att maila{" "}
             <a href="mailto:hej@roots.se" className="underline hover:text-foreground">
               hej@roots.se
             </a>{" "}
-            för att utöva dina rättigheter. Vi besvarar förfrågningar inom 30
-            dagar.
+            från den e-postadress vi har registrerad på dig. För formella
+            förfrågningar — t.ex. fullmakt eller om du vill att svaret ska
+            postas — skicka brev till nedanstående adress, märk kuvertet{" "}
+            <em className="not-italic text-foreground">&quot;Dataskydd&quot;</em>.
+          </p>
+          <div className="mt-3 rounded-lg border border-border bg-muted/30 p-4">
+            <LegalIdentityBlock
+              variant="block"
+              showContact
+              className="not-italic leading-relaxed text-muted-foreground"
+            />
+          </div>
+          <p className="mt-3">
+            Vi besvarar förfrågningar inom 30 dagar enligt GDPR Art. 12.3.
           </p>
         </section>
 

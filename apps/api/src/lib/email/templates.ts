@@ -19,6 +19,10 @@ function siteHost(): string {
 function wrap(content: string): string {
   const url = siteUrl();
   const host = siteHost();
+  // MASTERPLAN_01 KC7: e-postfötter måste innehålla full legal-identity
+  // (bokföringslagen + e-handelslagen). Org.nr + momsreg.nr hårdkodas
+  // medvetet för att matcha legal-identity-block.tsx — det är publik
+  // information och får aldrig variera mellan miljöer.
   return `<!DOCTYPE html>
 <html lang="sv">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -31,8 +35,10 @@ function wrap(content: string): string {
 </td></tr>
 <tr><td style="padding:32px">${content}</td></tr>
 <tr><td style="padding:16px 32px 24px;text-align:center;color:#999;font-size:12px;line-height:1.6">
-  Roots Nordic AB · <a href="${url}" style="color:#999">${host}</a><br>
-  Frågor? <a href="mailto:hej@roots.se" style="color:#999">hej@roots.se</a>
+  <strong style="color:#666">Roots Nordic AB</strong><br>
+  Storgatan 1, 111 51 Stockholm<br>
+  Org.nr 559517-3210 · Momsreg.nr SE559517321001<br>
+  <a href="${url}" style="color:#999">${host}</a> · <a href="mailto:hej@roots.se" style="color:#999">hej@roots.se</a>
 </td></tr>
 </table>
 </td></tr>
@@ -48,6 +54,18 @@ export function welcomeEmail(name: string, role: string): { subject: string; htm
       ? "lagansvarig"
       : "säljare";
 
+  // MASTERPLAN_01 KC3.2: /logga-in routar 404 i Next-appen. Den enda
+  // login-route som finns är /login. Sellers får dessutom en
+  // shortcut till sin nya butik så de inte behöver navigera manuellt.
+  const loginUrl = `${siteUrl()}/login`;
+  const sellerShortcut =
+    role === "SELLER"
+      ? `<p style="color:#444;line-height:1.6;margin:16px 0 0;font-size:13px">
+           Du hittar din personliga butik direkt på
+           <a href="${siteUrl()}/min-shop" style="color:${BRAND_COLOR}">min-shop</a>.
+         </p>`
+      : "";
+
   return {
     subject: `Välkommen till Roots, ${name}!`,
     html: wrap(`
@@ -58,9 +76,10 @@ export function welcomeEmail(name: string, role: string): { subject: string; htm
       <p style="color:#444;line-height:1.6;margin:0 0 24px">
         Logga in på plattformen för att komma igång. Om du har frågor är du alltid välkommen att kontakta oss.
       </p>
-      <a href="${siteUrl()}/logga-in" style="display:inline-block;background:${BRAND_COLOR};color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">
+      <a href="${loginUrl}" style="display:inline-block;background:${BRAND_COLOR};color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">
         Logga in
       </a>
+      ${sellerShortcut}
     `),
   };
 }
@@ -84,13 +103,21 @@ export function orderConfirmationEmail(params: {
     .join("");
 
   const url = siteUrl();
+  // MASTERPLAN_01 KC4: visa explicit moms-rad enligt köplag. Roots
+  // använder svensk standardmoms 25% på hudvård/hårvård. Beloppen
+  // visas både exkl. och inkl. så att supportern ser exakt vad som
+  // går till skatten.
+  const totalExVatOre = Math.round(params.totalOre / 1.25);
+  const vatOre = params.totalOre - totalExVatOre;
+  const fmt = (ore: number) => `${(ore / 100).toLocaleString("sv-SE")} kr`;
+  const orderShortId = params.orderId.slice(0, 8);
 
   return {
-    subject: `Orderbekräftelse — ${params.orderId.slice(0, 8)}`,
+    subject: `Orderbekräftelse — ${orderShortId}`,
     html: wrap(`
       <h2 style="margin:0 0 16px;color:${BRAND_COLOR};font-size:22px">Tack för din beställning, ${params.customerName}!</h2>
       <p style="color:#444;line-height:1.6;margin:0 0 8px">
-        Ordernummer: <strong>${params.orderId.slice(0, 8)}</strong>
+        Ordernummer: <strong>${orderShortId}</strong>
       </p>
       <table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0">
         <tr style="border-bottom:2px solid #eee">
@@ -100,12 +127,28 @@ export function orderConfirmationEmail(params: {
         </tr>
         ${itemRows}
       </table>
-      <p style="text-align:right;font-size:18px;font-weight:700;color:${BRAND_COLOR};margin:16px 0">
-        Totalt: ${(params.totalOre / 100).toLocaleString("sv-SE")} kr
-      </p>
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 16px">
+        <tr>
+          <td style="padding:4px 0;color:#666;font-size:13px">Summa exkl. moms</td>
+          <td style="padding:4px 0;text-align:right;color:#666;font-size:13px">${fmt(totalExVatOre)}</td>
+        </tr>
+        <tr>
+          <td style="padding:4px 0;color:#666;font-size:13px">Moms (25 %)</td>
+          <td style="padding:4px 0;text-align:right;color:#666;font-size:13px">${fmt(vatOre)}</td>
+        </tr>
+        <tr style="border-top:1px solid #eee">
+          <td style="padding:10px 0 0;color:${BRAND_COLOR};font-size:16px;font-weight:700">Totalt att betala</td>
+          <td style="padding:10px 0 0;text-align:right;color:${BRAND_COLOR};font-size:16px;font-weight:700">${fmt(params.totalOre)}</td>
+        </tr>
+      </table>
       <a href="${url}/shop/${params.shopSlug}/order/${params.orderId}" style="display:inline-block;background:${BRAND_COLOR};color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">
         Se orderstatus
       </a>
+      <p style="color:#888;font-size:12px;line-height:1.6;margin:24px 0 0">
+        Du har 14 dagars ångerrätt enligt distansavtalslagen, med undantag för
+        öppnade hygienförpackningar. Mer info på
+        <a href="${url}/villkor" style="color:#888">${url.replace(/^https?:\/\//, "")}/villkor</a>.
+      </p>
     `),
   };
 }

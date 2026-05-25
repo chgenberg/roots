@@ -80,6 +80,82 @@ export async function destroySession(id: string): Promise<void> {
   memoryStore.delete(id);
 }
 
+/**
+ * MASTERPLAN_01 KC2.6: invalidate every other session for a given user
+ * except `exceptSessionId`. Used by /v1/auth/change-password so that
+ * changing the password actually kicks every other device out, which
+ * matches what users expect from "Byt lösenord".
+ *
+ * Implementation note: Redis is single-key per session and we don't
+ * maintain a user→sessions index (yet). For now we SCAN every
+ * `sess:*` key, parse the JSON, and DEL the ones whose userId matches.
+ * That's O(active sessions) which is fine while we have hundreds, not
+ * millions. When we exceed ~10k active sessions, add a `sess-by-user:`
+ * Redis set or move sessions to Postgres.
+ */
+export async function destroyUserSessions(
+  userId: string,
+  exceptSessionId?: string
+): Promise<number> {
+  if (!userId) return 0;
+  let removed = 0;
+
+  if (await isRedisAvailable()) {
+    let cursor = "0";
+    do {
+      const [next, keys] = await redis.scan(
+        cursor,
+        "MATCH",
+        `${SESSION_PREFIX}*`,
+        "COUNT",
+        500
+      );
+      cursor = next;
+      for (const key of keys) {
+        const id = key.startsWith(SESSION_PREFIX)
+          ? key.slice(SESSION_PREFIX.length)
+          : key;
+        if (exceptSessionId && id === exceptSessionId) continue;
+        const raw = await redis.get(key);
+        if (!raw) continue;
+        try {
+          const data = JSON.parse(raw) as SessionData;
+          if (data.userId === userId) {
+            await redis.del(key);
+            removed += 1;
+          }
+        } catch {
+          // ignore corrupt entries
+        }
+      }
+    } while (cursor !== "0");
+    return removed;
+  }
+
+  for (const [id, entry] of memoryStore.entries()) {
+    if (exceptSessionId && id === exceptSessionId) continue;
+    try {
+      const data = JSON.parse(entry.data) as SessionData;
+      if (data.userId === userId) {
+        memoryStore.delete(id);
+        removed += 1;
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return removed;
+}
+
+/**
+ * MASTERPLAN_01 KC2.1: throw if `session` belongs to an in-memory demo
+ * account. Use on endpoints that perform real state mutations (payouts,
+ * Fortnox sync, settlement, account deletion, system settings).
+ */
+export function isDemoSession(session: SessionData | null | undefined): boolean {
+  return Boolean(session?.demoProfile);
+}
+
 export async function refreshSession(id: string): Promise<void> {
   if (await isRedisAvailable()) {
     await redis.expire(`${SESSION_PREFIX}${id}`, SESSION_TTL);

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter, useParams } from "next/navigation";
+import Link from "next/link";
+import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,12 +13,11 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
-import { Loader2, CheckCircle2, ShoppingBag } from "lucide-react";
+import { Loader2, CheckCircle2, ShoppingBag, ExternalLink, LayoutDashboard } from "lucide-react";
 
 import { apiFetch } from "@/lib/api";
 
 export default function SellerRegistrationPage() {
-  const router = useRouter();
   const params = useParams();
   const inviteToken = params.token as string;
 
@@ -59,7 +59,11 @@ export default function SellerRegistrationPage() {
 
       setShopSlug(res.data?.shopSlug || "");
       setSuccess(true);
-      setTimeout(() => router.push("/min-shop"), 2000);
+      // MASTERPLAN_01 KC3.8: tidigare auto-redirectade vi efter 2s till
+      // /min-shop utan att visa shop-länk. Användaren tappar control —
+      // särskilt på mobil där en hastig redirect känns som en bugg.
+      // Nu visar vi success-skärmen med två tydliga CTA:s och låter
+      // sellern välja själv.
     } catch {
       setError("Kunde inte nå servern. Försök igen.");
     } finally {
@@ -70,17 +74,38 @@ export default function SellerRegistrationPage() {
   if (success) {
     return (
       <Card className="w-full max-w-md shadow-lg">
-        <CardContent className="flex flex-col items-center gap-4 py-12">
+        <CardContent className="flex flex-col items-center gap-4 py-10">
           <CheckCircle2 className="h-12 w-12 text-success" />
-          <h2 className="text-xl font-semibold">Välkommen!</h2>
+          <h2 className="text-xl font-semibold">Välkommen, {displayName.split(" ")[0]}!</h2>
           <p className="text-sm text-muted-foreground text-center">
-            Din personliga shop är redo. Du skickas vidare...
+            Din personliga shop är redo att börja sälja.
           </p>
+
           {shopSlug && (
-            <p className="text-xs text-muted-foreground">
-              Din shop: /shop/{shopSlug}
-            </p>
+            <div className="w-full rounded-lg bg-brand-50 p-3 text-center">
+              <p className="text-xs text-muted-foreground">Din shop-länk</p>
+              <p className="mt-1 break-all font-mono text-xs text-foreground">
+                /shop/{shopSlug}
+              </p>
+            </div>
           )}
+
+          <div className="mt-2 flex w-full flex-col gap-2">
+            {shopSlug && (
+              <Link href={`/shop/${shopSlug}`} target="_blank" className="w-full">
+                <Button className="w-full">
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  Visa min shop
+                </Button>
+              </Link>
+            )}
+            <Link href="/min-shop" className="w-full">
+              <Button variant="outline" className="w-full">
+                <LayoutDashboard className="mr-2 h-4 w-4" />
+                Gå till min dashboard
+              </Button>
+            </Link>
+          </div>
         </CardContent>
       </Card>
     );

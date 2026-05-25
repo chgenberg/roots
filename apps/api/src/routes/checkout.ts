@@ -40,6 +40,73 @@ const KLARNA_ALLOWED_IPS = new Set(
 // so it can be unit-tested without touching the route.
 const KLARNA_WEBHOOK_SECRET = process.env.KLARNA_WEBHOOK_SECRET || "";
 
+/**
+ * MASTERPLAN_01 KC1.7: order-confirmation måste skickas oavsett om
+ * PAID-transitionen sker via Klarna-webhook eller /confirm-polling.
+ * Tidigare gick mailen bara från webhook → om webhook fail/CSRF/IP
+ * stoppade pushen, fick kunden ingen bekräftelse alls trots PAID order.
+ *
+ * Helpern är idempotent: vi UPDATE:ar ett `confirmationEmailSentAt`-
+ * flag på order-raden om vi kan, men för MVP gör vi enklare dedupe
+ * via en process-local set (per-instance) — `_sentOrderIds`. Om en
+ * order skulle få mail från båda paths inom 60s ses bara den första.
+ * Acceptabelt tradeoff tills vi har en mail-event-tabell.
+ */
+const _sentOrderIds = new Set<string>();
+function markSent(orderId: string) {
+  _sentOrderIds.add(orderId);
+  // bound the set to avoid memory growth in a long-lived process
+  if (_sentOrderIds.size > 2000) {
+    const first = _sentOrderIds.values().next().value;
+    if (first) _sentOrderIds.delete(first);
+  }
+}
+
+async function sendOrderConfirmationIfNeeded(orderId: string): Promise<void> {
+  if (_sentOrderIds.has(orderId)) return;
+  const [order] = await db
+    .select()
+    .from(customerOrders)
+    .where(eq(customerOrders.id, orderId))
+    .limit(1);
+  if (!order || !order.customerEmail) return;
+  if (order.status !== "PAID" && order.status !== "CONFIRMED") return;
+
+  const orderLines = await db
+    .select({
+      name: products.name,
+      qty: customerOrderLines.qty,
+      unitPriceOre: customerOrderLines.unitPriceOre,
+    })
+    .from(customerOrderLines)
+    .innerJoin(products, eq(customerOrderLines.productId, products.id))
+    .where(eq(customerOrderLines.orderId, order.id));
+
+  const [seller] = await db
+    .select()
+    .from(sellers)
+    .where(eq(sellers.id, order.sellerId))
+    .limit(1);
+
+  markSent(order.id);
+  try {
+    await getEmailSender().sendEmail({
+      to: order.customerEmail,
+      ...orderConfirmationEmail({
+        customerName: order.customerName,
+        orderId: order.id,
+        totalOre: order.totalOre,
+        shopSlug: seller?.shopSlug || "",
+        items: orderLines,
+      }),
+    });
+  } catch (err) {
+    // On send-failure, clear the dedupe so a retry can try again.
+    _sentOrderIds.delete(order.id);
+    log.error({ err, orderId }, "Order confirmation email failed");
+  }
+}
+
 checkout.post("/create", async (c) => {
   let body: any;
   try {
@@ -336,36 +403,8 @@ checkout.post("/webhook/:klarnaOrderId", async (c) => {
 
         await acknowledgeOrder(klarnaOrderId);
 
-        const orderLines = await db
-          .select({
-            name: products.name,
-            qty: customerOrderLines.qty,
-            unitPriceOre: customerOrderLines.unitPriceOre,
-          })
-          .from(customerOrderLines)
-          .innerJoin(products, eq(customerOrderLines.productId, products.id))
-          .where(eq(customerOrderLines.orderId, existingOrder.id));
-
-        const [seller] = await db
-          .select()
-          .from(sellers)
-          .where(eq(sellers.id, existingOrder.sellerId))
-          .limit(1);
-
-        if (existingOrder.customerEmail) {
-          getEmailSender()
-            .sendEmail({
-              to: existingOrder.customerEmail,
-              ...orderConfirmationEmail({
-                customerName: existingOrder.customerName,
-                orderId: existingOrder.id,
-                totalOre: existingOrder.totalOre,
-                shopSlug: seller?.shopSlug || "",
-                items: orderLines,
-              }),
-            })
-            .catch((e) => log.error({ err: e }, "Order confirmation email failed"));
-        }
+        // Fire-and-forget; helpern är idempotent och loggar internt.
+        sendOrderConfirmationIfNeeded(existingOrder.id).catch(() => {});
       }
     }
 
@@ -405,6 +444,13 @@ checkout.get("/confirm/:orderId", async (c) => {
       } catch (klarnaErr) {
         log.error({ err: klarnaErr }, "Klarna confirmation check failed");
       }
+    }
+
+    // MASTERPLAN_01 KC1.7: skicka bekräftelse även när PAID nås via
+    // polling-path (webhook kan ha blockats av nätverk/CSRF/IP-listan).
+    // Helpern är idempotent — dubbla mail vid race är förebyggda.
+    if (order.status === "PAID" || order.status === "CONFIRMED") {
+      sendOrderConfirmationIfNeeded(order.id).catch(() => {});
     }
 
     const maskedEmail = order.customerEmail

@@ -1563,6 +1563,32 @@ portal.get("/system", async (c) => {
     !String(process.env.OPENAI_API_KEY).includes("REPLACE-ME");
   pushService("AI / Open Claw", aiConfigured, 0);
 
+  // MASTERPLAN_01 KC8.2: surface email, payment & invoicing config so
+  // ops kan se vid en blick vad som är degraderat utan att läsa loggar.
+  // Vi pingar inte providers (skulle slå mot rate-limits) — bara
+  // env-konfiguration.
+  const emailConfigured = !!process.env.RESEND_API_KEY;
+  pushService("E-post (Resend)", emailConfigured, 0);
+
+  const klarnaConfigured =
+    !!process.env.KLARNA_USERNAME && !!process.env.KLARNA_PASSWORD;
+  pushService("Betalning (Klarna)", klarnaConfigured, 0);
+
+  const klarnaWebhookProtected =
+    !!process.env.KLARNA_WEBHOOK_SECRET ||
+    !!process.env.KLARNA_WEBHOOK_IPS;
+  pushService("Klarna webhook", klarnaWebhookProtected, 0);
+
+  const fortnoxEnabled = process.env.FORTNOX_ENABLED === "true";
+  const fortnoxConfigured =
+    !fortnoxEnabled ||
+    (!!process.env.FORTNOX_TOKEN && !!process.env.FORTNOX_CLIENT_SECRET);
+  pushService(
+    fortnoxEnabled ? "Fortnox (aktiv)" : "Fortnox (avstängd)",
+    fortnoxConfigured,
+    0
+  );
+
   // AI usage: best-effort, null-safe. UIs fall back to demo values when null.
   const aiUsage = {
     tokensToday: null,

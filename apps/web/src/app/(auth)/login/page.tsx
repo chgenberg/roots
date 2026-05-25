@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,8 +18,39 @@ import { Separator } from "@/components/ui/separator";
 import { Loader2 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 
+/**
+ * MASTERPLAN_01 KC2.3: middleware sätter `?next=/where-they-tried-to-go`
+ * när en oinloggad user landar på en skyddad route. Login måste honorera
+ * den — annars åker man alltid till role-home och tappar context. Vi
+ * tillåter bara safe relative paths (start med "/", ingen protokoll-prefix)
+ * för att undvika open-redirect.
+ */
+function pickSafeNext(raw: string | null): string | null {
+  if (!raw) return null;
+  if (!raw.startsWith("/") || raw.startsWith("//")) return null;
+  // disallow protocol smuggling like "/\\evil.com" or "/javascript:..."
+  if (/^\/[\\]/.test(raw)) return null;
+  if (/^\/+javascript:/i.test(raw)) return null;
+  return raw;
+}
+
+function roleHome(role: string | undefined): string {
+  switch (role) {
+    case "ASSOCIATION_ADMIN":
+      return "/forening";
+    case "TEAM_LEADER":
+      return "/lag";
+    case "SELLER":
+      return "/min-shop";
+    default:
+      return "/portal";
+  }
+}
+
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const safeNext = pickSafeNext(searchParams.get("next"));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -41,16 +72,9 @@ export default function LoginPage() {
         return;
       }
 
-      const role = data.user?.role;
-      if (role === "ASSOCIATION_ADMIN") {
-        router.push("/forening");
-      } else if (role === "TEAM_LEADER") {
-        router.push("/lag");
-      } else if (role === "SELLER") {
-        router.push("/min-shop");
-      } else {
-        router.push("/portal");
-      }
+      // Honour `?next=` only when provided. Fallback to role-home so
+      // a normal login (utan deep-link) lands rätt.
+      router.push(safeNext ?? roleHome(data.user?.role));
     } catch {
       setError("Kunde inte nå servern. Försök igen.");
     } finally {

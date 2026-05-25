@@ -9,11 +9,15 @@ import {
 } from "../lib/ai/openclaw-client";
 import { PUBLIC_CHAT_SYSTEM_PROMPT } from "../lib/ai/system-prompt";
 import { flags } from "../lib/flags";
+import { childLogger } from "../lib/logger";
+
+const log = childLogger("public-chat");
 
 export const publicChat = new Hono();
 
 const MAX_HISTORY = 10;
 const MAX_MESSAGE_LENGTH = 1000;
+const DISCLAIMER = "AI-genererat svar — verifiera viktig information";
 
 async function publicChatRateLimit(ip: string) {
   return checkRateLimit(`pub-chat:${ip}`, 30, 60 * 60);
@@ -69,10 +73,23 @@ publicChat.post("/public-chat", async (c) => {
     return c.json({ reply: fallbackReply, fallback: true });
   }
 
-  const history = (body.history || []).slice(-MAX_HISTORY).map((m) => ({
-    role: m.role === "assistant" ? ("assistant" as const) : ("user" as const),
-    content: String(m.content).slice(0, MAX_MESSAGE_LENGTH),
-  }));
+  // MASTERPLAN_01 KC5.4: client may supply earlier turns, but only
+  // user/assistant content is honoured. Any `role: "system"` injection
+  // would override PUBLIC_CHAT_SYSTEM_PROMPT and disable our guardrails.
+  const history = (Array.isArray(body.history) ? body.history : [])
+    .slice(-MAX_HISTORY)
+    .filter(
+      (m) =>
+        m &&
+        typeof m === "object" &&
+        (m.role === "user" || m.role === "assistant") &&
+        typeof m.content === "string" &&
+        m.content.length > 0
+    )
+    .map((m) => ({
+      role: m.role === "assistant" ? ("assistant" as const) : ("user" as const),
+      content: m.content.slice(0, MAX_MESSAGE_LENGTH),
+    }));
 
   const messages: ChatMessage[] = [
     { role: "system", content: PUBLIC_CHAT_SYSTEM_PROMPT },
@@ -87,7 +104,8 @@ publicChat.post("/public-chat", async (c) => {
           await stream.writeSSE({ data: JSON.stringify({ content: chunk }) });
         }
         await stream.writeSSE({ data: "[DONE]" });
-      } catch {
+      } catch (err) {
+        log.error({ err, ip }, "public-chat streaming error");
         await stream.writeSSE({
           data: JSON.stringify({
             error:
@@ -102,11 +120,17 @@ publicChat.post("/public-chat", async (c) => {
 
   try {
     const response = await chatCompletion(messages);
-    return c.json({ reply: response.content, model: response.model });
-  } catch {
+    return c.json({
+      reply: response.content,
+      disclaimer: DISCLAIMER,
+      model: response.model,
+    });
+  } catch (err) {
+    log.error({ err, ip }, "public-chat completion error");
     return c.json({
       reply:
         "Något gick fel. Försök igen eller kontakta oss på hej@roots.se.",
+      disclaimer: DISCLAIMER,
       fallback: true,
     });
   }

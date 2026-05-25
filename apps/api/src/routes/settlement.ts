@@ -7,7 +7,7 @@ import {
   customerOrders,
   payouts,
 } from "@roots/db/schema";
-import { getSession, SESSION_COOKIE_NAME } from "../lib/session";
+import { getSession, isDemoSession, SESSION_COOKIE_NAME } from "../lib/session";
 import { getInvoiceProvider } from "../lib/invoicing";
 import type { SessionData } from "../lib/session";
 import { childLogger } from "../lib/logger";
@@ -34,6 +34,10 @@ async function requireAdmin(c: any): Promise<SessionData | null> {
     ) {
       return null;
     }
+    // MASTERPLAN_01 KC2.1: settlement writes real payouts (and triggers
+    // Fortnox). Demo-sessions live in memory with `orgId: null` so they
+    // would either crash or — worse — settle an arbitrary org. Reject.
+    if (isDemoSession(session)) return null;
     return session;
   } catch {
     return null;
@@ -91,10 +95,12 @@ settlement.post("/generate/:campaignId", async (c) => {
           );
 
         const totalSalesOre = Number(salesResult[0]?.total || 0);
-        const marginPercent = campaign.marginPercent;
-        const teamShareOre = Math.round(totalSalesOre * (marginPercent / 100));
-        const rootsShareOre = totalSalesOre - teamShareOre;
 
+        // MASTERPLAN_01 KC1.8: don't manufacture payout-rows for teams
+        // that didn't sell anything. They clutter Fortnox, confuse the
+        // assoc-admin payout view, and skew settlement audit-meta. If
+        // an existing row is present (re-run on a corrected sale list)
+        // keep it so we never lose history.
         const [existing] = await tx
           .select()
           .from(payouts)
@@ -105,6 +111,22 @@ settlement.post("/generate/:campaignId", async (c) => {
             )
           )
           .limit(1);
+
+        if (totalSalesOre === 0 && !existing) {
+          txResults.push({
+            teamId: team.id,
+            teamName: team.name,
+            totalSalesOre: 0,
+            teamShareOre: 0,
+            rootsShareOre: 0,
+            skipped: true,
+          });
+          continue;
+        }
+
+        const marginPercent = campaign.marginPercent;
+        const teamShareOre = Math.round(totalSalesOre * (marginPercent / 100));
+        const rootsShareOre = totalSalesOre - teamShareOre;
 
         if (existing) {
           await tx
@@ -117,7 +139,15 @@ settlement.post("/generate/:campaignId", async (c) => {
             })
             .where(eq(payouts.id, existing.id));
 
-          txResults.push({ teamId: team.id, teamName: team.name, totalSalesOre, teamShareOre, rootsShareOre, updated: true });
+          txResults.push({
+            teamId: team.id,
+            teamName: team.name,
+            totalSalesOre,
+            teamShareOre,
+            rootsShareOre,
+            payoutId: existing.id,
+            updated: true,
+          });
         } else {
           const [payout] = await tx
             .insert(payouts)
@@ -132,7 +162,14 @@ settlement.post("/generate/:campaignId", async (c) => {
             })
             .returning();
 
-          txResults.push({ teamId: team.id, teamName: team.name, totalSalesOre, teamShareOre, rootsShareOre, payoutId: payout.id });
+          txResults.push({
+            teamId: team.id,
+            teamName: team.name,
+            totalSalesOre,
+            teamShareOre,
+            rootsShareOre,
+            payoutId: payout.id,
+          });
         }
       }
 
@@ -144,6 +181,35 @@ settlement.post("/generate/:campaignId", async (c) => {
       return txResults;
     });
 
+    // MASTERPLAN_01 KC1.3: invariant check + audit-meta enrichment. We
+    // want a single line in `audit_logs` that lets ops verify that
+    // team_share + roots_share == total_sales for every payout row in
+    // this run, and recover the exact payout-IDs if Fortnox needs a
+    // sanity-cross-check later.
+    const settledRows = results.filter((r) => !r.skipped);
+    const totalSales = settledRows.reduce(
+      (s, r) => s + Number(r.totalSalesOre ?? 0),
+      0
+    );
+    const totalTeamShare = settledRows.reduce(
+      (s, r) => s + Number(r.teamShareOre ?? 0),
+      0
+    );
+    const totalRootsShare = settledRows.reduce(
+      (s, r) => s + Number(r.rootsShareOre ?? 0),
+      0
+    );
+    const checksumOk = totalTeamShare + totalRootsShare === totalSales;
+    if (!checksumOk) {
+      log.error(
+        { campaignId, totalSales, totalTeamShare, totalRootsShare },
+        "settlement checksum mismatch"
+      );
+    }
+    const payoutIds = settledRows
+      .map((r) => r.payoutId)
+      .filter((id): id is string => typeof id === "string");
+
     void auditLog({
       userId: session.userId,
       action: "campaign.status.changed",
@@ -153,7 +219,13 @@ settlement.post("/generate/:campaignId", async (c) => {
         ...requestContext((n) => c.req.header(n)),
         from: campaign.status,
         to: "SETTLED",
-        settlementCount: results.length,
+        settlementCount: settledRows.length,
+        skippedCount: results.length - settledRows.length,
+        totalSalesOre: totalSales,
+        totalTeamShareOre: totalTeamShare,
+        totalRootsShareOre: totalRootsShare,
+        checksumOk,
+        payoutIds,
       },
     });
 

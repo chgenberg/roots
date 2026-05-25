@@ -13,6 +13,7 @@ import {
 import {
   createSession,
   destroySession,
+  destroyUserSessions,
   getSession,
   SESSION_COOKIE_NAME,
   SESSION_COOKIE_OPTIONS,
@@ -24,6 +25,7 @@ import { loginRateLimit } from "../lib/rate-limit";
 import { childLogger } from "../lib/logger";
 import { auditLog, requestContext } from "../lib/audit";
 import { scheduleOrgNormalize } from "../lib/jobs/schedule-org-normalize";
+import { shopSlug as makeShopSlug } from "../lib/slug";
 
 const log = childLogger("auth");
 
@@ -263,9 +265,10 @@ auth.post("/change-password", async (c) => {
   const match = cookie.match(new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`));
   if (!match) return c.json({ error: "Ej inloggad" }, 401);
 
+  const currentSessionId = match[1];
   let session: SessionData | null = null;
   try {
-    session = await getSession(match[1]);
+    session = await getSession(currentSessionId);
   } catch {
     return c.json({ error: "Ej inloggad" }, 401);
   }
@@ -347,13 +350,26 @@ auth.post("/change-password", async (c) => {
       .set({ passwordHash: newHash, updatedAt: new Date() })
       .where(eq(users.id, user.id));
 
+    // MASTERPLAN_01 KC2.6: a password rotation must kick every other
+    // device. Best-effort — a Redis hiccup here MUST NOT fail the
+    // rotation since the hash has already been updated.
+    let revokedCount = 0;
+    try {
+      revokedCount = await destroyUserSessions(user.id, currentSessionId);
+    } catch (err) {
+      log.warn({ err, userId: user.id }, "failed to revoke other sessions after password change");
+    }
+
     void auditLog({
       userId: user.id,
       action: "auth.change_password.ok",
-      meta: { ...requestContext((n) => c.req.header(n)) },
+      meta: {
+        ...requestContext((n) => c.req.header(n)),
+        revokedOtherSessions: revokedCount,
+      },
     });
 
-    return c.json({ ok: true });
+    return c.json({ ok: true, revokedOtherSessions: revokedCount });
   } catch (err) {
     log.error({ err, userId: session.userId }, "change-password failed");
     return c.json({ error: "Kunde inte byta lösenord just nu." }, 500);
@@ -753,10 +769,9 @@ auth.post("/register/seller", async (c) => {
 
     const passwordHash = await hash(password, ARGON2_OPTIONS);
 
-    const shopSlug =
-      displayName.toLowerCase().replace(/[^a-z0-9]/g, "-") +
-      "-" +
-      crypto.randomUUID().slice(0, 6);
+    // MASTERPLAN_01 KC3.5: swedish-aware slug. The previous regex stripped
+    // every å/ä/ö which left e.g. "Åsa Söderström" with the slug "------".
+    const shopSlug = makeShopSlug(displayName);
 
     const user = await db.transaction(async (tx) => {
       const [user] = await tx

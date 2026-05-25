@@ -43,7 +43,11 @@ export default function VillkorPage() {
             <li>
               Betalning sker via de betalningsmetoder som erbjuds i kassan.
             </li>
-            <li>Vi förbehåller oss rätten att ändra priser utan föregående meddelande. Pris som gäller vid beställningstillfället är det pris som faktureras.</li>
+            <li>
+              Det pris som visas vid beställningstillfället är det pris som
+              faktureras. Eventuella prisändringar tillämpas endast för
+              framtida beställningar och påverkar inte redan lagda order.
+            </li>
           </ul>
         </section>
 
@@ -72,7 +76,16 @@ export default function VillkorPage() {
             <a href="mailto:hej@roots.se" className="underline hover:text-foreground">
               hej@roots.se
             </a>{" "}
-            inom 14 dagar. Du ansvarar själv för fraktkostnaden vid retur.
+            inom 14 dagar. Du kan också använda{" "}
+            <a
+              href="https://publikationer.konsumentverket.se/kontrakt-och-mallar/standardformular-for-utovande-av-angerratten"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-foreground"
+            >
+              Konsumentverkets standardformulär för utövande av ångerrätten
+            </a>
+            . Du ansvarar själv för fraktkostnaden vid retur.
           </p>
           <p className="mt-2">
             <strong className="text-foreground">Undantag:</strong> Ångerrätten
