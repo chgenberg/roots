@@ -1,0 +1,232 @@
+================================================================
+SCOUT 1 — Public landing page
+================================================================
+Date: 2026-05-25 22:17
+Scope: Marketing homepage shell — page.tsx, layout.tsx, root layout, hero*, header (nav), footer
+
+SUMMARY
+-------
+The public landing page renders without broken routes and now includes proper legal identity in the footer and enriched Organization JSON-LD — improvements since the April 2026 flow audits. However, the above-the-fold story still reads as a D2C hair-care / håranalys funnel, not a föreningsfundraising platform; the hero loads ~5 MB unoptimized images as dual LCP candidates; and the primary CTA opens a lead dialog that silently opts users into newsletter consent. These three issues block MVP-ready quality for the stated B2B2C product.
+Findings: 22 total (P1: 2, P2: 9, P3: 7, P4: 4)
+MVP readiness: 58/100
+
+================================================================
+P1 — CRITICAL (blocks MVP)
+================================================================
+
+[1.1] Hero primary CTA silently opts users into newsletter marketing
+  File: apps/web/src/components/sections/hero-lead.tsx:10-21 → apps/web/src/components/hair-analysis-lead-dialog.tsx:164,193,210,305
+  Symptom: Visitor clicks “Starta din håranalys” (the only pulsing primary CTA above the fold). After GDPR consent checkbox, the API payload always includes `newsletterConsent: true` with no visible marketing opt-in control.
+  Root cause: `const [newsletterConsent] = useState(true)` is hard-coded; comment says consent is “included in privacy policy” but e-postmarknadsföring requires explicit opt-in under GDPR/ePrivacy.
+  Fix: Add a separate unchecked checkbox (“Ja, skicka mig tips och erbjudanden via e-post”) bound to `newsletterConsent`; default `false`; only send `true` when checked. Wire through draft save/load.
+  Effort: S
+  Ref audit: PUBLIC [1.2] — STILL UNRESOLVED
+
+[1.2] Hero LCP images are ~5 MB each, mislabeled PNG-as-JPG, both marked `priority`
+  File: apps/web/src/components/sections/hero.tsx:10-30
+  Symptom: On mobile (360px), first paint waits on `h1mobile.jpg` (~5.2 MB, actually PNG data). Desktop branch also loads ~4.8 MB with `priority`. Slow 3G/4G first visit shows blank hero for multiple seconds; Lighthouse LCP likely fails.
+  Root cause: Source assets in `public/images/h1desktop.jpg` / `h1mobile.jpg` are uncompressed PNGs (2528×1696) saved with `.jpg` extension. Both `<Image>` branches use `priority`, so mobile may download two large candidates depending on hydration/CSS breakpoint.
+  Fix: Re-export as WebP/AVIF at ≤200 KB mobile / ≤400 KB desktop; use `<picture>` or single responsive srcset; keep `priority` on one visible branch only; add explicit `width`/`height` or `placeholder="blur"`.
+  Effort: M
+  Ref audit: PUBLIC [3.1] — STILL UNRESOLVED (worsened by file size discovery)
+
+================================================================
+P2 — HIGH (must fix before MVP launch)
+================================================================
+
+[2.1] Above-the-fold value prop is D2C hair analysis, not föreningsfundraising
+  File: apps/web/src/components/sections/hero.tsx:38-45; apps/web/src/components/sections/hero-lead.tsx:9-28
+  Symptom: In ~5 seconds a föreningsordförande sees “Naturlig hårvård. Ren känsla.” and a pulsing “Starta din håranalys” button. No mention of kampanj, intäkter, lag, or “anslut förening”.
+  Root cause: Hero copy and primary CTA target PUBLIC consumer lead magnet; B2B2C platform story lives in sections 3–6 below the fold.
+  Fix: Reframe h1/subhead to dual-audience (“Fundraising för föreningar” + product quality); swap primary CTA to “Anslut din förening” → `/registrera`; demote håranalys to secondary/text link.
+  Effort: M
+  Ref audit: PUBLIC [2.1] — STILL UNRESOLVED
+
+[2.2] Brand narrative split: hudvård vs hårvård across metadata, hero, and sections
+  File: apps/web/src/app/layout.tsx:11-14,39; apps/web/src/components/sections/hero.tsx:39-44; apps/web/src/components/sections/for-foreningar.tsx:40-41; apps/web/src/components/header.tsx:273
+  Symptom: Browser tab/OG default says “Föreningsnära hudvård”; hero h1 says “Naturlig hårvård”; subhead mentions “Tre produkter”; ForForeningar says “naturlig hudvård”; mobile drawer tagline says “Naturlig hudvård för föreningslivet”.
+  Root cause: No single canonical product category string enforced across root metadata, hero, and section copy.
+  Fix: Pick one umbrella (“Naturlig hårvård & hudvård för föreningslivet” or commit to hår-only) and sync `layout.tsx` metadata, OG alt, hero h1, section bodies, header drawer copy.
+  Effort: S
+  Ref audit: PUBLIC [2.2] — STILL UNRESOLVED
+
+[2.3] “Boka demo” implies scheduling but routes to marketing page
+  File: apps/web/src/components/header.tsx:168-174,243-249
+  Symptom: Desktop calendar icon aria-label “Boka demo” and mobile menu item “Boka demo →” both link to `/foreningsliv` — a static explainer page with no calendar, time picker, or booking confirmation.
+  Root cause: CTA label promises an action the destination cannot fulfill.
+  Fix: Rename to “För föreningar” / “Läs om föreningslösningen” OR embed Cal.com/HubSpot scheduler on `/foreningsliv` or `/kontakt`.
+  Effort: S
+  Ref audit: PUBLIC [2.7] — STILL UNRESOLVED; hair dialog “Boka samtal” → `/foreningsliv` same issue (hero-lead dialog scope)
+
+[2.4] Association onboarding not discoverable from homepage chrome
+  File: apps/web/src/components/header.tsx:12-16; apps/web/src/app/(marketing)/page.tsx:1-18
+  Symptom: Top nav lists Produkter / Föreningsliv / Om oss. No “Anslut förening”, “Starta kampanj”, or `/registrera` link. ASSOCIATION_ADMIN must infer path: Föreningsliv → secondary page → “Anslut din förening”.
+  Root cause: NAV_ITEMS omit registration; homepage section CTAs also point to `/foreningsliv` not `/registrera` (for-foreningar.tsx:63, gamification.tsx:60).
+  Fix: Add nav item or highlighted header button “Anslut förening” → `/registrera`; align ForForeningar + Gamification CTAs to `/registrera` directly.
+  Effort: S
+  Ref audit: PUBLIC [3.2], [3.3] — STILL UNRESOLVED
+
+[2.5] No homepage-specific SEO metadata or canonical URL
+  File: apps/web/src/app/(marketing)/page.tsx (no metadata export); apps/web/src/app/layout.tsx:8-47
+  Symptom: Homepage inherits generic root title/description/OG image only. No `openGraph.title`, `openGraph.description`, or `alternates.canonical` for `/`. Share previews and crawlers get site-wide defaults, not homepage-specific copy.
+  Root cause: `(marketing)/page.tsx` exports only JSX sections; no `export const metadata`.
+  Fix: Add `export const metadata: Metadata = { title: { absolute: "…" }, description: "…", openGraph: { url: "/", title, description, images }, alternates: { canonical: "/" } }`.
+  Effort: S
+  Ref audit: PUBLIC [2.9], [2.10] — STILL UNRESOLVED for homepage
+
+[2.6] No customer/association social proof near hero
+  File: apps/web/src/app/(marketing)/page.tsx:11-14; apps/web/src/components/sections/social-proof.tsx:1-28
+  Symptom: Fourth section shows ingredient principles (“100% naturliga ingredienser”, “0 sulfater…”, “Norden”) — not logos, quotes, or “X föreningar”. No testimonial, case study, or trust strip under hero.
+  Root cause: SocialProof redesigned from hardcoded stats (good) to product principles (not social proof). Nothing above fold or adjacent to hero validates platform usage.
+  Fix: Add compact proof row under hero (anonymised föreningsloggor, one quote with role, or honest “Pilot med N föreningar — uppdaterad YYYY-MM” if live data unavailable).
+  Effort: M
+  Ref audit: PUBLIC [2.3], [2.4] — PARTIALLY IMPROVED (fake stats removed) but trust gap remains
+
+[2.7] Mobile nav burger tap target below 44×44 px
+  File: apps/web/src/components/header.tsx:179-185
+  Symptom: Hamburger button uses `p-2` around a 24×20 px icon → ~40×36 px hit area. Hard to tap on 360px devices; fails WCAG 2.5.5 target size.
+  Root cause: Padding insufficient for minimum touch target.
+  Fix: Change to `min-h-11 min-w-11 flex items-center justify-center` (44px) while keeping icon centered.
+  Effort: S
+  Ref audit: PUBLIC [2.12] — STILL UNRESOLVED
+
+[2.8] Dual `priority` hero images — redundant LCP bandwidth
+  File: apps/web/src/components/sections/hero.tsx:16,28
+  Symptom: Both desktop and mobile `<Image>` nodes mount in DOM (one hidden via CSS). Both carry `priority`, instructing Next.js to preload both.
+  Root cause: Responsive split implemented as two absolute layers instead of one responsive asset.
+  Fix: After asset optimization, use single image with `sizes` + srcset, or `priority` only on the visible breakpoint’s image via CSS media query component split without dual preload.
+  Effort: S
+  Ref audit: PUBLIC [3.1] — STILL UNRESOLVED
+
+[2.9] Footer omits social links present in JSON-LD
+  File: apps/web/src/components/footer.tsx:35-83; apps/web/src/components/json-ld.tsx:36
+  Symptom: Organization JSON-LD advertises Instagram + LinkedIn `sameAs`, but footer shows logo, link columns, copyright, legal block — no social icons/links for visitors to verify brand activity.
+  Root cause: Social URLs live in `LEGAL_IDENTITY.social` and JSON-LD only, not footer UI.
+  Fix: Add Instagram/LinkedIn icon links in footer brand column using `LEGAL_IDENTITY.social`.
+  Effort: S
+  Ref audit: PUBLIC [2.6] — STILL UNRESOLVED
+
+================================================================
+P3 — MEDIUM (quality / soft launch)
+================================================================
+
+[3.1] Static “399 kr — Komplett paket” block is not clickable or wired to cart
+  File: apps/web/src/components/sections/products-preview.tsx:84-90
+  Symptom: Homepage shows bundle price card with no link, no add-to-cart, no anchor to product bundle page.
+  Root cause: Decorative pricing div, not connected to shop/commerce API.
+  Fix: Link to `/produkter` with bundle anchor, or remove until bundle checkout exists; cross-ref Scout for supporter checkout (CONVERSION [1.9]).
+  Effort: S
+
+[3.2] Header uses light sand backdrop while hero is full-bleed dark photo
+  File: apps/web/src/components/header.tsx:91-101,43-51
+  Symptom: At scroll position 0, semi-transparent `bg-brand-50/70` header sits over dark hero photo. Black logo is readable, but nav links are `text-muted-foreground` on a light blur over dark imagery — contrast varies by photo region.
+  Root cause: E14 removed dark-hero header variant; comment at lines 43-51 is stale (claims hero is “cream/sand”).
+  Fix: On `/` at top, switch header to transparent-dark variant (white nav text) until scroll passes hero; or add consistent scrim under header.
+  Effort: M
+
+[3.3] Alan Sans loads six weights site-wide for marketing shell
+  File: apps/web/src/lib/fonts.ts:54-91; apps/web/src/app/layout.tsx:61
+  Symptom: Root layout applies both Inter (5 files) and Alan Sans (6 files) on every page including homepage — ~11 font files in critical path.
+  Root cause: Full brandbook weight range loaded globally.
+  Fix: Subset to weights actually used on homepage (400, 700, 800); defer italic/extra weights; consider `preload` only for hero h1 weight.
+  Effort: M
+
+[3.4] ChatWidget + SearchDialog mount on every marketing page load
+  File: apps/web/src/app/(marketing)/layout.tsx:16-17
+  Symptom: Floating chat and search overlay JS hydrate on homepage even if user never opens them; chat hits `/v1/ai/public-chat` infrastructure.
+  Root cause: Eager inclusion in marketing layout.
+  Fix: Dynamic import ChatWidget/SearchDialog with `ssr: false` and interaction-based load; acceptable for soft launch if API stable.
+  Effort: S
+
+[3.5] Founders section uses lifestyle copy, not identifiable trust anchors
+  File: apps/web/src/components/sections/founders.tsx:17-38
+  Symptom: “Tre män med ett mål” + humour badge “Grundare över 1,95 m” — no names, photos of founders, or LinkedIn links for B2B buyers verifying team.
+  Root cause: Anonymous brand storytelling choice.
+  Fix: Add founder first names + roles, or real team photo with alt text; link to `/om-oss`.
+  Effort: S
+  Ref audit: CONVERSION [Trust gaps #5] — STILL UNRESOLVED
+
+[3.6] Gamification milestones are aspirational, not tied to live platform data
+  File: apps/web/src/components/sections/gamification.tsx:7-22
+  Symptom: “Första beställningen / 10 beställningar / 1 års medlem” cards read as product features but show no live counts or enrolled föreningar.
+  Root cause: Static marketing cards (improved from April’s fake “12 föreningar har nått detta” copy).
+  Fix: Either wire to real milestone API or label clearly as “Så fungerar milstolpar” future-state; avoid implying existing user base.
+  Effort: M
+  Ref audit: CONVERSION [1.2] — IMPROVED (fake counts removed) but still aspirational
+
+[3.7] Placeholder phone in structured data
+  File: apps/web/src/lib/legal-identity.ts:27; apps/web/src/components/json-ld.tsx:28
+  Symptom: JSON-LD includes `telephone: "+46 8 000 000 00"` — obviously placeholder if surfaced in Google knowledge panel.
+  Root cause: Static placeholder in LEGAL_IDENTITY.
+  Fix: Replace with real support number or omit `telephone` until available.
+  Effort: S
+
+================================================================
+P4 — LOW / POLISH (v1.1 backlog)
+================================================================
+
+[4.1] Hero h1 uses `font-bold` (700) but brand spec sets h1 to ExtraBold (800)
+  File: apps/web/src/components/sections/hero.tsx:38; apps/web/src/app/globals.css:213
+  Symptom: Utility class `font-bold` on h1 may override global h1 weight 800 depending on Tailwind cascade.
+  Root cause: Redundant/conflicting weight class on h1.
+  Fix: Remove `font-bold` from hero h1; rely on global h1 rule.
+  Effort: S
+
+[4.2] OG image alt text disagrees with site description category
+  File: apps/web/src/app/layout.tsx:39
+  Symptom: `openGraph.images[0].alt` = “Roots — Naturlig hårvård” while default description says “hudvård”.
+  Root cause: Copy not synced during brand iteration.
+  Fix: Align alt with chosen canonical narrative (see [2.2]).
+  Effort: S
+
+[4.3] Skip link targets `#main-content` correctly but header is fixed over hero
+  File: apps/web/src/app/layout.tsx:79-84; apps/web/src/app/(marketing)/layout.tsx:14
+  Symptom: Skip link works structurally; focus lands under fixed header which may obscure first focusable hero content on keyboard nav.
+  Root cause: Fixed header + full-viewport hero without scroll-margin on main.
+  Fix: Add `scroll-mt-20` to `#main-content` or first section.
+  Effort: S
+
+[4.4] No WebSite / SearchAction JSON-LD on homepage
+  File: apps/web/src/app/layout.tsx:64-65
+  Symptom: Only Organization schema present; no sitelinks search box structured data despite SearchDialog in shell.
+  Root cause: OrganizationJsonLd only schema implemented.
+  Fix: Add `WebSite` JSON-LD with `potentialAction` pointing to site search if search is public-facing.
+  Effort: S
+
+================================================================
+ROLE CONNECTIONS CHECKED
+================================================================
+- PUBLIC → ASSOCIATION_ADMIN (discover → register): ⚠ — Login/registrera not in hero or nav; path is Föreningsliv → `/registrera` (2 hops). Homepage CTAs point to `/foreningsliv` only.
+- PUBLIC → CLUB_ADMIN / CLUB_MEMBER (login): ✓ — `/login` reachable from header (desktop icon + mobile menu item).
+- PUBLIC → SALES_REP / SALES_ADMIN: ⚠ — No landing-page entry; expected to use direct `/login` or internal invite (not marketed on homepage).
+- PUBLIC → TEAM_LEADER / SELLER: ✗ — No homepage path; roles enter via invite tokens (`/registrera/lagansvarig/[token]`, `/registrera/saljare/[token]`) not linked from marketing shell.
+- PUBLIC → SUPPORTER (browse/buy): ✓ — Secondary hero link “Se produkterna” → `/produkter`; footer product links live (`/produkter/shampoo` etc.).
+- PUBLIC → hair-analysis lead (consumer): ⚠ — Primary CTA opens dialog; flow works but newsletter consent is silent opt-in ([1.1]).
+- PUBLIC → AI assistant: ✓ — ChatWidget in marketing layout; welcome message mentions produkter + föreningssamarbeten.
+- INTERNAL_ADMIN: N/A — No public landing entry (correct).
+
+Cross-scout notes:
+- Scout for `/registrera` (association onboarding) should verify ASSOCIATION_ADMIN handoff from `/foreningsliv`.
+- Scout for supporter checkout should verify static 399 kr bundle ([3.1]) vs shop pricing.
+- Scout for `/haranalys` page still has unsourced “500+ analyser” counter (out of homepage scope but linked from hero CTA funnel).
+
+================================================================
+MVP READINESS BREAKDOWN
+================================================================
+- Functionality:         17/25  (routes live, layout complete; wrong primary funnel for core B2B2C role)
+- Reliability:           13/25  (~5 MB LCP assets; GDPR consent gap in hero CTA path)
+- Polish/UX:             14/25  (visual quality good; messaging split; mobile tap targets; no hero trust strip)
+- Cross-role integration: 14/25  (login + products work; association/seller paths buried or invite-only)
+
+NOTES FOR THE TEAM
+------------------
+Resolved since April 2026 reference audits (verify, do not re-fix):
+- Footer legal identity: `LegalIdentityBlock` now shows org.nr, VAT, address, email (footer.tsx:79) — PUBLIC [2.5] CLOSED.
+- Organization JSON-LD enriched with legalName, vatID, taxID, address, sameAs (json-ld.tsx:17-36) — CONVERSION [2.2] CLOSED.
+- Hair-analysis privacy link uses `/integritet` (hair-analysis-lead-dialog.tsx:410) — PUBLIC [1.1] CLOSED.
+- Homepage SocialProof no longer shows fake “500+ / 23 föreningar” counters — CONVERSION [1.1] CLOSED for homepage (still on `/haranalys`).
+- Gamification no longer claims “12 föreningar har nått detta” — CONVERSION [1.2] CLOSED for homepage.
+
+Highest-impact sprint for this scout’s scope: (1) fix hero image weight + single priority, (2) GDPR newsletter checkbox in hair dialog, (3) reframe hero + add `/registrera` CTA in nav — three changes that unblock both legal and commercial MVP narrative without touching portal code.
+
+--- END SCOUT 1 ---

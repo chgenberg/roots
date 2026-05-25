@@ -1,0 +1,246 @@
+================================================================
+SCOUT 14 — SALES_REP / SALES_ADMIN pipeline (offerter, säljare, kunder)
+================================================================
+Date: 2026-05-25
+Scope: apps/web/src/app/(portal)/portal/page.tsx (sales branch),
+       apps/web/src/app/(portal)/portal/saljare/page.tsx,
+       apps/web/src/app/(portal)/portal/offerter/page.tsx,
+       apps/web/src/app/(portal)/portal/pipeline/page.tsx,
+       apps/web/src/app/(portal)/portal/klubbar/page.tsx (kunder substitute),
+       apps/api/src/routes/portal.ts (/pipeline, /quotes, /sellers, /dashboard, /clubs),
+       apps/api/src/routes/sales.ts (POST /leads),
+       packages/db/src/schema/quotes.ts,
+       packages/db/src/schema/leads.ts (hair-analysis only — CRM leads live on organizations)
+
+Ref audits: docs/flow-audits/SALES_REP_2026-04-18_1252.txt,
+            docs/flow-audits/MASTER_PLAN_2026-04-18.md (Fas 1 + Fas 8 CRM)
+
+SUMMARY
+-------
+Since the April 2026 sales-rep audit, Sprint C/E12 fixed the worst contract breaks: pipeline API now returns `stages` + `deals[]`, quote list/create use `salesRepId` correctly, portal offerter persist via `POST /v1/portal/quotes`, and hardcoded pipeline totals are gone. MVP-blocking gaps remain for the core rep loop: no quote lifecycle after create (no PATCH, no email on SENT, EXPIRED invisible), sales dashboard mini-pipeline and top-clubs never hydrate from API, KPI labels mis-count quotes and closed deals, and there is no kund-detalj or unified account view. SALES_ADMIN lacks nav to `/portal/saljare` despite API access.
+Findings: 24 (P1:4 P2:9 P3:7 P4:4)
+MVP readiness: 62/100
+
+CHECKLIST (pass / partial / fail)
+---------------------------------
+| Item                              | Status  | Notes |
+|-----------------------------------|---------|-------|
+| Pipeline stages render            | PASS    | 5 stages + Swedish labels; LEAD from orgs |
+| Pipeline deals[] alignment        | PASS    | FE filters `data.deals` by status (fixed) |
+| Stage counts + values             | PARTIAL | Header total sums all stages; LEAD value always 0 |
+| Drag-drop stage change            | FAIL    | `cursor-grab` cosmetic only |
+| Quote create form + validation    | PASS    | Dialog → POST with server-side pricing |
+| Quote save to DB                  | PASS    | Transaction inserts quote + quote_lines |
+| Quote send-email                  | FAIL    | SENT status only; no email/PDF |
+| Status transitions post-create    | FAIL    | No PATCH; ACCEPTED/REJECTED/EXPIRED unreachable in UI |
+| Deal attribution (owner)          | PASS    | `salesRepId = session.userId`; rep-scoped pipeline |
+| Filter/search quotes              | FAIL    | List has no status/org filter |
+| Filter/search pipeline            | FAIL    | No filters |
+| Kunder / account list             | PARTIAL | `/portal/klubbar` replaces kunder; no detail route |
+| Säljare list (SALES_ADMIN)        | PARTIAL | API + page work; missing from SALES_NAV |
+| Empty states                      | PASS    | Pipeline, offerter, klubbar, saljare all have copy |
+| Pagination (many rows)            | FAIL    | API limit 50 clubs / 100 quotes / 25 pipeline deals |
+| Mobile UX                         | PARTIAL | Offerter dialog stacks OK; pipeline 5 cols in 4-col grid |
+| Hardcoded demo cleanup            | PARTIAL | No fake kr totals; dashboard funnel stays zeros |
+
+RESOLVED SINCE APRIL 2026 AUDIT
+--------------------------------
+- [1.1] Pipeline API `deals[]` — FIXED (portal.ts ~1494–1499; pipeline/page.tsx ~198–209)
+- [1.2] Hardcoded "45 000 kr" pipeline total — FIXED (dynamic `totalValueOre`)
+- [1.3] Quotes filtered on nonexistent `userId` — FIXED (`salesRepId`)
+- [1.4]/[2.7] Portal offerter simulated save — FIXED (NyOffertDialog → POST /quotes)
+- [2.3] Dashboard KPI key mismatch — FIXED (API aliases `activeClubs`, `openQuotes`, `pipelineValue`)
+- `(sales)/*` duplicate shell — REMOVED (no `apps/web/src/app/(sales)/` tree)
+
+P1 — CRITICAL (blocks MVP for sales reps)
+
+[1.1] No quote status lifecycle after create — reps cannot advance or close deals
+  File: apps/api/src/routes/portal.ts (POST /quotes only; no PATCH)
+        apps/web/src/app/(portal)/portal/offerter/page.tsx (read-only table)
+  Symptom: Rep can create DRAFT or SENT at submit time only. Cannot later send a draft, mark accepted/rejected, or expire. Pipeline kanban is read-only; no UI action on quote rows.
+  Root cause: No `PATCH /v1/portal/quotes/:id` (or equivalent) and no row actions in offerter table.
+  Fix: Add PATCH with role + ownership guard; wire row actions (Skicka, Acceptera, Neka); on ACCEPTED optionally set org `crmStatus=CUSTOMER`.
+  Effort: M
+  Ref audit: [1.4]/[2.2] — partially fixed (create only)
+
+[1.2] "Skicka offert" / status SENT does not deliver email or PDF
+  File: apps/api/src/routes/portal.ts:1019–1106 (POST sets status, no mailer)
+        apps/web/src/app/(portal)/portal/offerter/page.tsx:324–350
+  Symptom: Checkbox "Skicka direkt" persists `status: SENT` in DB but customer receives nothing; rep believes quote was sent.
+  Root cause: Send path never calls email template or attachment pipeline.
+  Fix: On SENT transition, enqueue transactional email with quote summary/PDF link; surface send failure in UI.
+  Effort: M–L
+  Ref audit: [1.4] — STILL UNRESOLVED for actual delivery
+
+[1.3] Sales dashboard pipeline funnel + top clubs never populate
+  File: apps/web/src/app/(portal)/portal/page.tsx:54–59,212–231,270–323
+        apps/api/src/routes/portal.ts:165–177 (dashboard stats omit `pipeline`, `topClubs`)
+  Symptom: After successful `/dashboard` fetch, KPI cards show live numbers but the four-step funnel stays at 0/Lead–Stängd and "Toppklubbar" stays empty dashed box — even when `/portal/pipeline` has deals.
+  Root cause: UI expects `stats.pipeline[]` and `stats.topClubs[]`; API never returns them (only scalar KPIs).
+  Fix: Extend dashboard response with stage counts from `/pipeline` aggregates + top N orgs by revenue/quote value; or remove funnel until wired.
+  Effort: S–M
+  Ref audit: [2.3] KPI keys fixed; funnel data still missing
+
+[1.4] Dashboard "Offerter ute" and "Stängda denna månad" use wrong counts
+  File: apps/api/src/routes/portal.ts:131–144,158–171
+        apps/web/src/app/(portal)/portal/page.tsx:225–226
+  Symptom: "Offerter ute" counts **all** quotes for rep (includes ACCEPTED/REJECTED). "Stängda denna månad" counts **all-time** ACCEPTED with no month filter despite label.
+  Root cause: `quoteCount` has no `status IN ('DRAFT','SENT')`; `closedCount` has no `created_at`/`updated_at` month window.
+  Fix: Filter open quotes to non-terminal statuses; add `date_trunc('month', …)` filter for closed metric or rename label.
+  Effort: S
+  Ref audit: [2.4] — STILL UNRESOLVED
+
+P2 — HIGH (must fix before MVP launch)
+
+[2.1] EXPIRED quote status exists in DB but invisible in API contracts and UI
+  File: packages/db/src/schema/quotes.ts:13–18
+        packages/contracts/src/portal.ts:173–178 (enum omits EXPIRED)
+        apps/web/src/app/(portal)/portal/offerter/page.tsx:32–37
+        apps/api/src/routes/portal.ts:1404 (pipeline stages omit EXPIRED)
+  Symptom: Expired quotes cannot be listed, labeled, or columned; cron/manual expiry would create orphan rows.
+  Fix: Add EXPIRED to contract enum, QUOTE_STATUS_LABELS, pipeline stage (or map to Nekad with badge), and list filters.
+  Effort: S
+
+[2.2] No kund-detalj route — quotes/orders/contacts not unified per org
+  File: (missing) apps/web/src/app/(portal)/portal/kunder/
+        apps/web/src/app/(portal)/portal/klubbar/page.tsx (list only, no `[id]`)
+  Symptom: Rep sees klubb name in pipeline/offerter but cannot open account timeline, contacts, or order history.
+  Root cause: MASTER_PLAN Fas 8 CRM shell not started; klubbar is flat table.
+  Fix: Add `/portal/klubbar/[id]` (or `/portal/kunder/[id]`) with org header, quotes, orders, assigned rep, notes placeholder.
+  Effort: L
+  Ref audit: [1.7] — STILL UNRESOLVED (kunder path absent)
+
+[2.3] SALES_ADMIN cannot reach säljare page from navigation
+  File: apps/web/src/app/(portal)/portal/layout.tsx:49–57 vs 59–68
+        apps/api/src/routes/portal.ts:797–798 (API allows SALES_ADMIN)
+  Symptom: `SALES_ADMIN` uses `SALES_NAV` (no "Säljare" link) but `/sellers` returns 403 for `SALES_REP` only — admin role is blocked from discovering team view.
+  Fix: Add `{ href: "/portal/saljare", label: "Säljare", icon: Users }` to SALES_NAV when role is SALES_ADMIN, or merge admin sales items.
+  Effort: S
+
+[2.4] `/portal/klubbar` returns global org catalog — no territory filter for SALES_REP
+  File: apps/api/src/routes/portal.ts:531–535
+        apps/web/src/app/(portal)/portal/klubbar/page.tsx:94–96 ("ditt säljterritorium")
+  Symptom: Copy promises territory-scoped list; API returns first 50 orgs platform-wide (only pipeline leads filter by `assignedAsmUserId`).
+  Root cause: `/clubs` discovery intentionally unscoped; contradicts UI copy and lead assignment model.
+  Fix: For SALES_REP filter `assigned_asm_user_id = session.userId OR crm_status = 'LEAD'`; admins see all.
+  Effort: M
+
+[2.5] Pipeline kanban capped at 25 deals — silent truncation
+  File: apps/api/src/routes/portal.ts:1456,1472,1498
+  Symptom: Rep with 30+ active quotes/leads sees incomplete board with no "visa fler" indicator.
+  Fix: Raise cap with pagination query params or per-column fetch; show truncation banner.
+  Effort: M
+
+[2.6] No drag-and-drop or click-to-move between pipeline stages
+  File: apps/web/src/app/(portal)/portal/pipeline/page.tsx:104–118,272–274
+  Symptom: Cards look draggable (`cursor-grab`) but dropping does nothing; stage change requires offerter flow that doesn't exist post-create.
+  Ref audit: [2.2] — STILL UNRESOLVED
+
+[2.7] Offerter list: no search/filter by status, org, or rep (admin)
+  File: apps/web/src/app/(portal)/portal/offerter/page.tsx:358–492
+  Symptom: Table grows unfiltered; SALES_ADMIN cannot slice by säljare or status.
+  Fix: Client filters minimum; API query params `?status=&orgId=&salesRepId=` for admin.
+  Effort: M
+
+[2.8] Kontaktperson column always empty
+  File: apps/web/src/app/(portal)/portal/offerter/page.tsx:371,466
+        apps/web/src/app/(portal)/portal/pipeline/page.tsx:203
+  Symptom: "Kontaktperson" and deal `contact` show "—" for every row.
+  Root cause: API joins org name only; no primary contact user/email on quote or org fetch.
+  Fix: Join club admin user or store `contactEmail` on quote create.
+  Effort: M
+
+[2.9] Quote picker in Ny offert limited to 20 clubs from client-side slice
+  File: apps/web/src/app/(portal)/portal/offerter/page.tsx:154–159
+        apps/api/src/routes/portal.ts:531–535 (/clubs limit 50, no server search in dialog)
+  Symptom: Rep typing a club name only filters already-fetched 50 orgs; large catalog clubs may be unselectable.
+  Fix: Debounced `GET /clubs?q=` from search input instead of prefetch slice.
+  Effort: S
+
+P3 — MEDIUM
+
+[3.1] Pipeline layout: 5 stages in `lg:grid-cols-4` — REJECTED wraps alone
+  File: apps/web/src/app/(portal)/portal/pipeline/page.tsx:257–283
+  Symptom: Desktop shows 4+1 column wrap; mobile stacks five full-height columns (long scroll).
+  Fix: `lg:grid-cols-5` or horizontal scroll kanban on md breakpoints.
+  Effort: S
+  Ref audit: [3.16]
+
+[3.2] `packages/db/src/schema/leads.ts` is hair-analysis leads only — not sales CRM
+  File: packages/db/src/schema/leads.ts (hair_analysis_leads table)
+  Symptom: Scout scope file name suggests CRM leads; actual CRM lead = `organizations.crm_status='LEAD'`.
+  Fix: Document in schema or add alias comment; future `crm_leads` view optional.
+  Effort: S
+
+[3.3] Pipeline total value definition inconsistent with dashboard
+  File: apps/web/src/app/(portal)/portal/pipeline/page.tsx:220
+        apps/api/src/routes/portal.ts:146–155 (dashboard pipeline = SENT only)
+  Symptom: Pipeline page sums DRAFT+SENT+ACCEPTED+REJECTED ore; dashboard "Pipeline-värde" is SENT-only.
+  Fix: Align on open pipeline (DRAFT+SENT) everywhere.
+  Effort: S
+
+[3.4] SALES_REP blocked from `/portal/statistik` (403) but nav link visible
+  File: apps/web/src/app/(portal)/portal/layout.tsx:54
+        apps/api/src/routes/portal.ts:1126–1127
+  Symptom: Sales rep clicks Statistik → error/empty; nav promises analytics they cannot access.
+  Fix: Hide statistik for SALES_REP or provide rep-scoped stats endpoint.
+  Effort: S
+
+[3.5] Säljare conversion badge uses `destructive` for <25% — harsh UX
+  File: apps/web/src/app/(portal)/portal/saljare/page.tsx:169–177
+  Ref audit: [3.9]
+
+[3.6] No commission / MTD earnings surface for reps
+  File: (entire capability absent in scoped pages)
+  Ref audit: [1.10] — STILL UNRESOLVED (post-MVP per MASTER_PLAN Fas 8)
+
+[3.7] Klubbar table has no row navigation to create quote for that org
+  File: apps/web/src/app/(portal)/portal/klubbar/page.tsx:173–182
+  Symptom: Rep finds club in list but must manually open Offerter → Ny offert → search again.
+  Fix: Row action "Skapa offert" deep-linking dialog with `orgId` preset.
+  Effort: S
+
+P4 — LOW
+
+[4.1] Offerter API `limit(100)` with no pagination UI
+  File: apps/api/src/routes/portal.ts:935,944
+
+[4.2] No PDF preview / download for quotes
+  Ref audit: [2.10]
+
+[4.3] No duplicate-from-quote action
+  Ref audit: [3.7]
+
+[4.4] Wide tables on saljare/offerter/klubbar rely on horizontal scroll on small screens
+  File: apps/web/src/components/ui/table.tsx (overflow-auto wrapper)
+
+TIME-TO-QUOTE — TOP FIXES (ordered)
+------------------------------------
+1. PATCH quote status + row actions (draft→sent→accepted/rejected) — unblocks pipeline meaning.
+2. Wire SENT to email/PDF (or disable "Skicka direkt" until ready with honest copy).
+3. Fix dashboard open/closed KPI queries + hydrate funnel from pipeline aggregates.
+4. SALES_ADMIN nav → säljare; SALES_REP territory filter on `/clubs`.
+5. Debounced club search in offert dialog; EXPIRED in contracts/UI.
+
+MVP READINESS NOTES
+-------------------
+- **SALES_REP happy path today:** log in → portal overview (partial KPIs) → pipeline (see leads/quotes) → create lead → create offert (persists) → stuck (cannot send follow-up email or close won/lost in UI).
+- **SALES_ADMIN happy path today:** same plus global pipeline/quotes; säljare page works at `/portal/saljare` if URL known; team KPIs live from SQL aggregates.
+- **Demo cleanup:** No fake currency in pipeline; `DataSourceBadge` on sales dashboard when all counts zero; empty scaffolds use em-dash not fabricated numbers.
+- **MASTER_PLAN alignment:** Fas 1 contract repairs largely done for pipeline/quotes; Fas 8 CRM (kund-detalj, activity, commission) still future.
+
+FILES REVIEWED
+--------------
+apps/web/src/app/(portal)/portal/page.tsx
+apps/web/src/app/(portal)/portal/saljare/page.tsx
+apps/web/src/app/(portal)/portal/offerter/page.tsx
+apps/web/src/app/(portal)/portal/pipeline/page.tsx
+apps/web/src/app/(portal)/portal/klubbar/page.tsx
+apps/web/src/app/(portal)/portal/layout.tsx
+apps/api/src/routes/portal.ts
+apps/api/src/routes/sales.ts
+packages/db/src/schema/quotes.ts
+packages/db/src/schema/leads.ts
+packages/contracts/src/portal.ts
+
+--- END SCOUT 14 ---

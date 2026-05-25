@@ -1,0 +1,156 @@
+================================================================
+SCOUT 35 — End-to-end role-to-role integration
+================================================================
+Date: 2026-05-25 14:30
+Scope: Full flywheel from INTERNAL_ADMIN → ASSOCIATION_ADMIN → TEAM_LEADER → SELLER → SUPPORTER → settlement → payout
+Ref: docs/flow-audits/PUBLIC_2026-04-18_1238.txt, ASSOCIATION_ONBOARDING_2026-04-18_1241.txt, TEAM_LEADER_2026-04-18_1243.txt, SELLER_2026-04-18_1245.txt, SUPPORTER_2026-04-18_1247.txt, INTERNAL_ADMIN_2026-04-18_1310.txt, MASTER_PLAN_2026-04-18.md; mvp-scout 08–10, 13, 15, 22–28
+
+SUMMARY
+-------
+The fundraising money loop is **partially wired in the API** but **not coherent as a product story**. Registration → campaign → team invite → seller shop → checkout → PAID attribution works in dev when Klarna credentials are absent (mock “Simulera betalning” + `/confirm` marks PAID). Seller, team-leader, and association dashboards all read `customer_orders` correctly. The flywheel **breaks at the top and the tail**: INTERNAL_ADMIN KPIs and `/portal/statistik` aggregate the B2B `orders` table, not supporter `customer_orders`, so platform-wide fundraising revenue never surfaces; settlement requires `ENDED` status but no UI sets it and no UI calls settlement APIs; Fortnox invoice + `PAID` payout states are backend-only. Cross-role handoffs lack live refresh, several route names differ from the spec, and confirmation email fires only from the Klarna webhook path (not the dev/mock confirm path).
+Findings: 32 (P1:8 P2:12 P3:8 P4:4)
+End-to-end MVP readiness: 44/100
+
+STEP-BY-STEP STATUS
+-------------------
+STEP A — INTERNAL_ADMIN setup: ⚠ partial
+  Sign-in + `/portal` shell works for INTERNAL_ADMIN (portal.ts:227-263, portal/page.tsx:395-454).
+  System health: real Postgres/Redis probes on `/portal/system` (portal.ts:1537-1557) but admin dashboard card uses `FALLBACK_ADMIN_SYSTEM_HEALTH` with `ok: true` before fetch (portal/page.tsx:79-83, 398, 546-560) — false-green on first paint.
+  Org search/manage: `/portal/klubbar` calls `GET /portal/clubs?q=` with ILIKE search (portal.ts:519-536, klubbar/page.tsx:63) — works for SALES_REP + INTERNAL_ADMIN.
+  Gap: dashboard KPIs query B2B `orders` + all `organizations`, not fundraising `customer_orders` (portal.ts:233-259) — admin cannot see supporter-sales flywheel metrics. Leaderboard/recentActivity never returned by API (portal.ts:251-262 vs portal/page.tsx:434-436). `/portal/saljare` lists SALES_REP staff, not fundraising sellers (portal.ts:790-812).
+
+STEP B — Föreningsregistrering & ASSOCIATION_ADMIN: ⚠ partial
+  Registration: `POST /v1/auth/register/association` creates org + ASSOCIATION_ADMIN + session + audit + welcome email (auth.ts:423-533). UI at `/registrera` (not `/registrera/forening`) redirects to `/forening` (registrera/page.tsx:122-140).
+  Welcome email: fire-and-forget `welcomeEmail(..., "ASSOCIATION_ADMIN")` (auth.ts:517-522); CTA links to `/logga-in` which 404s — live login is `/login` (scout 28).
+  Campaign: modal on `/forening` POSTs `/v1/association/campaigns` (forening/page.tsx:113-133, association.ts:405-498). **Skips DRAFT** — inserted directly as `status: "ACTIVE"` (association.ts:470); spec DRAFT→ACTIVE not implemented.
+  Team-leader invite: `/forening/lag` POST `/v1/association/team-invites` → link `/registrera/lagansvarig/{token}` (forening/lag/page.tsx:99-102, association.ts:117-193). No email sent — operator copies URL manually (association.ts comment ~115).
+  Gap: parallel `/registrera` team-leader path still requires authenticated org search (auth.ts:831-835) — unusable pre-login. No “end campaign” control anywhere in web.
+
+STEP C — Team Leader chain: ✓ working (with route naming caveat)
+  Invite claim: `/registrera/lagansvarig/[token]` previews via GET `/v1/association/team-invites/:token`, claims via POST claim (lagansvarig/[token]/page.tsx:6-15, association.ts:268-370). Creates user TEAM_LEADER + team row + seller `inviteToken` in one tx (association.ts:327-353). Session set; redirects to `/lag` (lagansvarig page success handler).
+  Dashboard: `/lag` loads `/v1/dashboard/my-team` → `/v1/dashboard/team/:id` with campaign context, seller ranking, orders (lag/page.tsx:37-54, dashboard.ts:225-349).
+  Seller invite: TL copies `/registrera/saljare/{team.inviteToken}` (lag/page.tsx:67-69).
+  Gap: spec says `/registrera/lagledare` — actual path is `/registrera/lagansvarig/[token]`. Legacy `/v1/auth/register/team-leader` still exists but is not the assoc-invite path.
+
+STEP D — Seller chain: ⚠ partial
+  Registration: `/registrera/saljare/[token]` POST `/v1/auth/register/seller` (saljare/[token]/page.tsx:41-62, auth.ts:719-788). Atomic user+seller insert; `teamId`/`campaignId` copied from team (auth.ts:774-778); `memberCount++` (auth.ts:782-785); welcome email + audit (auth.ts:800-813).
+  Post-signup: redirects to `/min-shop` after 2s — **not** `/portal/saljare` (saljare/[token]/page.tsx:62). `/portal/saljare` is INTERNAL_ADMIN/SALES_REP CRM view (portal/saljare/page.tsx, portal.ts:790+).
+  Shop slug: generated at registration (auth.ts:756-759); share link + QR on `/min-shop` (min-shop/page.tsx:51-58, 72-75).
+  Gap: no invite preview on seller page (unlike TL page). No campaign-status gate on seller registration. Swedish chars in displayName produce awkward slugs (auth.ts:756-759).
+
+STEP E — Supporter purchase: ⚠ partial
+  Shop: `/shop/[slug]` resolves seller via `GET /v1/shop/by-slug/:slug` (shop routes). Campaign gate shown when not ACTIVE (shop/[slug]/page.tsx:108-113).
+  Cart: `useCart(slug)` persists to sessionStorage on shop page only (scout 22); `/kassa` reads URL query params, not storage (kassa/page.tsx:54-60) — reload on checkout loses cart.
+  Checkout: POST `/v1/checkout/create` validates seller, ACTIVE campaign, writes order with full attribution chain `orgId/campaignId/teamId/sellerId` (checkout.ts:82-216), DRAFT→PENDING after Klarna session (checkout.ts:212-266).
+  Payment stub: when Klarna creds missing, mock HTML includes “Simulera betalning” button redirecting to confirmation URL (klarna.ts:75-85). `/v1/checkout/confirm/:orderId` polls Klarna; mock returns `checkout_complete` → sets PAID (klarna.ts:121-125, checkout.ts:393-404).
+  Gap: production Klarna webhook path not CSRF-exempt (app.ts:44-57 vs checkout.ts:279) — webhook POST gets 403 in prod. Order confirmation email only in webhook handler (checkout.ts:355-367), **not** in `/confirm` — mock/dev path leaves supporter without email. No audit log on PAID transition.
+
+STEP F — Attribution & live tracking: ⚠ partial
+  Seller: `/v1/dashboard/seller` sums PAID orders by `sellerId` (dashboard.ts:599-656); `/min-shop` displays stats + order list — **manual refresh only**, no websocket/polling.
+  TL: `/v1/dashboard/team/:teamId` aggregates PAID by team + per-seller breakdown (dashboard.ts:274-348); RBAC enforced (dashboard.ts:260-267).
+  ASSOC: `/v1/dashboard/association` rolls up org-wide PAID sales by team (dashboard.ts:85-127) — **not filtered by active campaign** (cross-campaign mix).
+  INTERNAL_ADMIN: `/portal/dashboard` counts B2B `orders` table (portal.ts:233-244), **not** `customer_orders` — fundraising sales invisible in admin overview. `/portal/statistik` also uses B2B `orders` (portal.ts:1189-1196).
+  Gap: no real-time “live tracking” layer; assoc progress bar can include sales from other campaigns (forening/page.tsx:166-178 + dashboard.ts:85-97).
+
+STEP G — Settlement & payouts: ✗ broken (product path)
+  Backend: `POST /v1/settlement/generate/:campaignId` requires `campaign.status === "ENDED"` (settlement.ts:67-69), aggregates PAID `customer_orders` per team, upserts `payouts` PENDING, sets campaign SETTLED (settlement.ts:76-142), audit log (settlement.ts:147-158). `GET /by-campaign/:id` and `POST /create-invoice/:payoutId` exist (settlement.ts:167-285).
+  UI: **none**. `/forening/avrakning` only shows live estimates from `/dashboard/association`, never calls settlement API (scout 26 [1.1]). No “Avsluta kampanj” → ENDED anywhere (scout 15 [1.4], settlement.ts:67-69).
+  Fortnox: `create-invoice` passes empty orgNumber/email stub (settlement.ts:249-267); NullProvider → 502 in dev (scout 26 [1.3-1.4]). `PAID` payout status enum exists but no mark-paid API (payouts.ts, scout 26).
+  Gap: money loop cannot close in product without curl/DB; assoc admin never sees payout PENDING/INVOICED/PAID.
+
+P1 — CRITICAL flywheel-breakers
+--------------------------------
+[1.1] INTERNAL_ADMIN metrics blind to fundraising sales — uses B2B `orders`, not `customer_orders` (portal.ts:233-259, 1189-1196). Flywheel revenue invisible at top.
+[1.2] Settlement unreachable from UI — no END campaign, no generate avräkning, no payout status (settlement.ts:67-69; forening/avrakning/page.tsx; scout 26 [1.1-1.2]).
+[1.3] Klarna webhook blocked by CSRF in production — `/v1/checkout/webhook` not in CSRF_EXEMPT_PATHS (app.ts:44-57; scout 25). Real payments may never reach PAID.
+[1.4] Order confirmation email only on webhook — mock/dev `/confirm` path marks PAID without email (checkout.ts:355-367 vs 393-404; scout 25, 28).
+[1.5] Admin dashboard false-green system health on load (portal/page.tsx:79-83, 398).
+[1.6] Association sales rollup crosses all campaigns — dashboard association endpoint has no campaignId filter (dashboard.ts:85-97; forening/page.tsx:166-178).
+[1.7] Cart lost on checkout reload — kassa ignores sessionStorage cart (kassa/page.tsx:54-60; scout 22 [1.1]).
+[1.8] Fortnox invoice path broken/stub — empty customer + NullProvider 502 (settlement.ts:249-274; scout 26 [1.3-1.4]).
+
+P2 — HIGH
+---------
+[2.1] Route naming drift vs spec: `/registrera` not `/registrera/forening`; `/registrera/lagansvarig` not `/registrera/lagledare`; seller lands `/min-shop` not `/portal/saljare`.
+[2.2] Campaign skips DRAFT lifecycle — created ACTIVE immediately (association.ts:470); no draft/edit/publish UX.
+[2.3] Team-leader invite not emailed — manual copy only (association.ts:117-193); no in-portal toast to assoc admin when TL claims.
+[2.4] Welcome emails link `/logga-in` (404) — all roles (scout 28; auth.ts:517-522).
+[2.5] No audit log on order status transitions (checkout.ts — PAID set with no auditLog call).
+[2.6] No live refresh on seller/TL/assoc dashboards — sale visible only after page reload.
+[2.7] `/portal/saljare` naming collision — CRM sales reps, not fundraising sellers (portal.ts:790-812).
+[2.8] Team registration org search requires session (auth.ts:831-835) — breaks alternate onboarding path.
+[2.9] Seller invite multi-use forever — no TTL/rotation for assoc admin (teams.inviteToken; scout 10).
+[2.10] Admin leaderboard/recentActivity UI blocks never hydrate (portal/page.tsx:434-436, 474-537).
+[2.11] Concurrent settlement generate race — status check outside tx (settlement.ts:67-69, 76-145; scout 26 [1.5]).
+[2.12] Production can boot without RESEND_API_KEY — silent email drop (scout 28).
+
+P3 — MEDIUM
+-----------
+[3.1] Seller registration lacks invite preview/context (saljare/[token]/page.tsx vs lagansvarig preview).
+[3.2] Shop catalog not campaign-scoped — all active products (checkout.ts:112; scout 15).
+[3.3] No in-portal notification when supporter completes order (no toast/email to seller/TL).
+[3.4] `GET /portal/clubs` label “klubbar” includes association orgs — type filter inconsistent with KPI labels.
+[3.5] Settlement audit meta `from: campaign.status` may read ENDED while narrative says ACTIVE→SETTLED (settlement.ts:154-155).
+[3.6] Cart not cleared after successful order (scout 22).
+[3.7] `/portal/statistik` ignores `customer_orders` — admin charts miss fundraising channel.
+[3.8] No milestone/campaign-start emails despite templates existing (scout 28; MASTER_PLAN T6).
+
+P4 — LOW
+--------
+[4.1] Swedish displayName → awkward shop slugs (auth.ts:756-759).
+[4.2] Preview gate middleware adds friction to E2E demos (middleware.ts:17-21).
+[4.3] `hideFromLeaderboard` schema exists but leaderboard UIs may still show names (sellers.ts:44).
+[4.4] Double POST `/checkout/create` can duplicate orders — no idempotency key (scout 25).
+
+ROLE HANDOFFS CHECKED
+- ADMIN→ASSOC: ⚠ Admin can search orgs via `/portal/klubbar` but cannot see assoc fundraising KPIs or campaigns; no handoff UX (“open this org’s /forening”).
+- ASSOC→TL: ✓ team_invites token → lagansvarig claim → `/lag` with campaign context (association.ts:117-370, lag/page.tsx:37-54). No email automation.
+- TL→SELLER: ✓ team.inviteToken → `/registrera/saljare/[token]` → `/min-shop` (lag/page.tsx:67-69, auth.ts:719-788).
+- SELLER→SUPPORTER (shop): ✓ `/shop/{shopSlug}` from min-shop QR/link (min-shop/page.tsx:51-75, shop routes).
+- SUPPORTER→SELLER (attribution): ✓ checkout writes sellerId/teamId/campaignId/orgId on order (checkout.ts:196-216); seller dashboard reads PAID by sellerId (dashboard.ts:599-610).
+- SELLER→TL→ASSOC (rollup): ⚠ API rollup works on refresh (dashboard.ts:274-348, 85-127) but assoc totals mix campaigns; no live updates.
+- ASSOC→ADMIN (system view): ✗ Admin portal does not surface `customer_orders` — fundraising loop invisible (portal.ts:233-259).
+
+DATA INTEGRITY CHECKS
+- seller.team_id → team.campaign_id consistency: ✓ Set atomically at registration from same team row (auth.ts:774-778). FKs on sellers.teamId + sellers.campaignId (sellers.ts:28-33).
+- customer_orders.shop_slug → seller.shop_slug: N/A — orders store `sellerId`, not slug; slug resolved at checkout via `sellers.shopSlug` lookup (checkout.ts:82-86). Integrity holds via sellerId FK (customer-orders.ts:52-54).
+- payout.team_id correctness: ✓ Settlement loops teams for campaign, aggregates orders by teamId+campaignId+PAID (settlement.ts:79-91, 127).
+- audit_log entries at each transition:
+  ✓ auth.register.association (auth.ts:509-515)
+  ✓ association.campaign.created (association.ts:480-489)
+  ✓ association.team_invite.created (association.ts:183-193)
+  ✓ auth.register.seller (auth.ts:800-806)
+  ✓ campaign.status.changed on settlement (settlement.ts:147-158)
+  ✗ order PAID transition — no audit
+  ✗ payout INVOICED/PAID — no audit
+
+NOTIFICATIONS THAT SHOULD FIRE
+- Association welcome email: ✓ sent (auth.ts:517-522) — ⚠ broken CTA `/logga-in`
+- Team-leader invite email: ✗ not sent — copy-link only
+- Team-leader welcome on claim: ✗ no email in claim handler (association.ts:327-370)
+- Seller welcome email: ✓ sent (auth.ts:808-813) — ⚠ broken CTA
+- Supporter order confirmation: ⚠ webhook path only (checkout.ts:355-367); ✗ missing on `/confirm` mock path
+- Seller/TL “new sale” in-app or email: ✗ none
+- Campaign milestone / start templates: ✗ defined, never invoked (MASTER_PLAN T6)
+- Settlement / payout ready email: ✗ none (scout 28)
+- Assoc admin payout INVOICED/PAID: ✗ none
+
+MVP READINESS BREAKDOWN
+- Functionality:         12/25  (core register→shop→PAID works in dev; settlement + admin visibility missing)
+- Reliability:           10/25  (CSRF webhook risk, cart/kassa split, email gaps, no idempotency)
+- Polish/UX:             10/25  (route naming, false-green health, no live refresh, no handoff CTAs)
+- Cross-role integration: 12/25  (seller↔TL↔assoc API chain OK; admin + settlement break the loop)
+
+NOTES FOR THE TEAM
+------------------
+1. **Two order universes** — Fundraising (`customer_orders`) and B2B club wholesale (`orders`) are separate. The fundraising flywheel is wired through `dashboard/*` for assoc/TL/seller, but `/portal/*` admin surfaces still read B2B `orders`. Fixing admin KPIs + statistik to union or prioritize `customer_orders` is the single highest-leverage integration fix.
+
+2. **Dev happy path that works today** — Seed or manual flow: assoc registers → creates campaign on `/forening` → `/forening/lag` invite → TL claims at `/registrera/lagansvarig/{token}` → TL copies seller link → seller registers → supporter buys on `/shop/{slug}` → click mock “Simulera betalning” → `/bekraftelse` calls `/confirm` → PAID → refresh `/min-shop`, `/lag`, `/forening` to see sale. Email and admin views still fail in this path.
+
+3. **Money loop tail is UI-empty** — Settlement backend is ~80% there but the product stops at “campaign still ACTIVE forever.” Ship: (a) REST PATCH campaign→ENDED, (b) wire `/forening/avrakning` to settlement API, (c) honest Fortnox stub for dev, (d) mark payout PAID — before calling the flywheel “complete.”
+
+4. **Spec vs code route map** — Document for QA: förening=`/registrera?type=association`, lagledare=`/registrera/lagansvarig/[token]`, säljare=`/registrera/saljare/[token]`, seller home=`/min-shop`, internal sales CRM=`/portal/saljare`.
+
+5. **Regression gate suggestion** — One Playwright script: assoc signup → campaign → TL invite claim → seller signup → add to cart → checkout mock pay → assert PAID on seller + team + assoc dashboards + `customer_orders` row with matching teamId/campaignId/sellerId → assert admin dashboard includes order count from `customer_orders` (after fix).
+
+--- END SCOUT 35 ---

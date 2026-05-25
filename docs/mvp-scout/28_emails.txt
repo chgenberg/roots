@@ -1,0 +1,293 @@
+================================================================
+SCOUT 28 — Email templates + sending
+================================================================
+Date: 2026-05-25
+Scope: apps/api/src/lib/email/*, apps/api/src/lib/communication-templates.ts,
+       email triggers in auth.ts, checkout.ts, dashboard.ts, contact.ts, sharing.ts
+Roles: ALL recipients (registration, supporters, internal contact relay)
+Ref: docs/flow-audits/MASTER_PLAN_2026-04-18.md (Fas 4), CONVERSION_TRUST_2026-04-18_1313.txt,
+     docs/mvp-scout/07_login.txt [1.1], docs/mvp-scout/10_register-seller.txt
+
+SUMMARY
+-------
+Fas 4 domain/sender unification is largely done in code: transactional HTML templates use
+`NEXT_PUBLIC_SITE_URL`/`SITE_URL` (default `https://roots.se`), and Resend defaults to
+`Roots <hej@roots.se>`. MVP-blocking gaps remain: every welcome email CTA links to
+non-existent `/logga-in` (live login is `/login`), milestone and campaign-start templates are
+defined but never sent, settlement has no email path, and email footers omit full LegalIdentity
+(org.nr, postal address) required for trust and deliverability. Production can also boot without
+`RESEND_API_KEY` and silently drop all transactional mail via MockEmailSender.
+Findings: 20 total (P1: 4, P2: 8, P3: 5, P4: 3)
+MVP readiness: 58/100
+
+================================================================
+FOCUS CHECKLIST (scope verification)
+================================================================
+SITE_URL substitution (no rootshaircare.se)
+  templates.ts siteUrl()              ✓ `NEXT_PUBLIC_SITE_URL || SITE_URL || "https://roots.se"` (`templates.ts:3-8`)
+  rootshaircare.se in email code      ✓ None found (Fas 4 applied)
+  communication-templates.ts          ⚠ Default `http://localhost:3000` if env unset (`communication-templates.ts:1`) — diverges from templates.ts; prod requires NEXT_PUBLIC_SITE_URL at API boot so usually OK
+
+From address consistency (hej@roots.se after Fas 4)
+  index.ts factory default            ✓ `RESEND_FROM_ADDRESS || "Roots <hej@roots.se>"` (`index.ts:18`)
+  resend-sender.ts constructor        ✓ Same default (`resend-sender.ts:10`)
+  .env.example                        ✓ `RESEND_FROM_ADDRESS=Roots <hej@roots.se>`
+
+HTML structure (Outlook tables, inline styles)
+  Layout                              ✓ Outer/inner `<table>` + inline styles (`templates.ts:26-38`)
+  Buttons                             ⚠ `<a display:inline-block>` + `border-radius` — degrades in Outlook but readable
+  Logo                                ⚠ Text wordmark only — no `<img>` logo URL
+
+Mobile rendering
+  viewport meta                       ✓ (`templates.ts:24`)
+  max-width 560px                     ✓ Centered single column
+
+Links absolute and functional
+  welcomeEmail CTA                    ✗ `${siteUrl()}/logga-in` — route does not exist; app uses `/login` only (see Scout 7 [1.1])
+  orderConfirmation CTA               ✓ `${url}/shop/${shopSlug}/order/${orderId}` — page exists (`shop/[slug]/order/[orderId]/page.tsx`)
+  orderConfirmation empty shopSlug    ⚠ Webhook passes `seller?.shopSlug || ""` — broken `/shop//order/…` if seller row missing (`checkout.ts:363`)
+  Footer site link                    ✓ Absolute `${url}` from siteUrl()
+
+Branding consistency
+  Colour                              ✓ `#1C1410` brand bar matches site dark tone
+  Copy tone                           ✓ Swedish, Roots Nordic AB naming
+  Logo asset                          ✗ No hosted logo in header — text-only
+
+Sender errors handled (non-blocking, logged)
+  Registration sends                  ✓ `.catch((e) => log.error(...))` fire-and-forget (`auth.ts:522,698,813`; `dashboard.ts:554`)
+  Order confirm                       ✓ Same pattern (`checkout.ts:367`)
+  Resend 4xx/timeout                  ✓ Returns `{ success: false }`, logs error (`resend-sender.ts:37-47`)
+  Contact form                        ✓ Awaits result; returns 502 on failure (`contact.ts:46-65`) — correct for user-facing form
+  Mock provider in prod               ✗ RESEND_API_KEY only RECOMMENDED — boot succeeds, all mail logged not delivered (`validate-env.ts:66-68`, `index.ts:21-23`)
+
+Triggers verified
+  Registration — association admin    ✓ `welcomeEmail(contactName, "ASSOCIATION_ADMIN")` (`auth.ts:517-522`)
+  Registration — team leader          ✓ `welcomeEmail(contactName, "TEAM_LEADER")` (`auth.ts:693-698`)
+  Registration — seller (invite)      ✓ `welcomeEmail(displayName, "SELLER")` (`auth.ts:808-813`)
+  Registration — seller (leader add)  ✓ Same template via dashboard (`dashboard.ts:549-554`)
+  Order confirmation                  ⚠ Klarna webhook only when `customerEmail` set and status → PAID (`checkout.ts:355-368`); `/confirm/:orderId` does NOT resend
+  Settlement / payout                 ✗ No email template or sendEmail call in `settlement.ts`
+  Milestones                          ✗ `milestoneEmail()` exported (`templates.ts:113-132`) — zero callers in repo
+  Campaign start                      ✗ `getCampaignStartTemplate()` (`communication-templates.ts:64-86`) — never sent; `campaigns.activate` tRPC has no mail hook
+
+Multilingual (sv only)
+  Template copy                       ✓ All subjects/bodies Swedish
+  English leakage                     ✓ None in user-facing template strings (internal Resend log messages English — OK)
+
+Spam / legal footer
+  Physical address                    ✗ Footer: "Roots Nordic AB · roots.se · hej@roots.se" only — no street/postal (`templates.ts:33-35`)
+  Org number                          ✗ Not in email footer (web `legal-identity.ts` has `559517-3210`)
+  Unsubscribe                         ✗ No List-Unsubscribe / preference link (acceptable for pure transactional; invite/share copy used manually is gray area)
+  LegalIdentity parity                ✗ API templates do not import/share `apps/web/src/lib/legal-identity.ts` constants
+
+================================================================
+P1 — CRITICAL (MVP-blocking)
+================================================================
+
+[1.1] Welcome email login CTA points to `/logga-in` — 404
+  File: apps/api/src/lib/email/templates.ts:61
+        apps/web/src/app/(auth)/login/page.tsx (route is `/login`)
+  Symptom: All four welcome-email triggers (association, team leader, seller×2) send button "Logga in" → `{siteUrl}/logga-in`. No `/logga-in` route or redirect in web app.
+  Root cause: Swedish slug never wired; cross-referenced unresolved in Scout 7 [1.1] and Scout 10.
+  Fix: Change href to `/login` OR add permanent redirect `/logga-in` → `/login` in next.config.
+  Effort: S
+
+[1.2] Production can run without real email delivery
+  File: apps/api/src/lib/email/index.ts:15-24
+        apps/api/src/lib/validate-env.ts:66-68
+  Symptom: Missing `RESEND_API_KEY` selects MockEmailSender; returns `{ success: true }` locally. Prod only logs a startup warning — registration and order confirmations appear to succeed in API but never reach recipients.
+  Root cause: RESEND listed as RECOMMENDED not REQUIRED.
+  Fix: Fail boot in production if RESEND_API_KEY unset (or if transactional email flag enabled); alert in ops runbook.
+  Effort: S
+
+[1.3] Email footer missing mandatory LegalIdentity fields
+  File: apps/api/src/lib/email/templates.ts:33-35
+        apps/web/src/lib/legal-identity.ts:13-33
+  Symptom: Footer shows company name + site + email only. Web checkout/footer/JSON-LD use full address, org.nr, VAT. Email recipients (especially order confirmation = contract receipt) see incomplete sender identity — trust fracture + EU marketing/company-ID expectations.
+  Root cause: `wrap()` hardcodes minimal footer; no shared legal module in API package.
+  Fix: Extract legal constants to `@roots/shared` or duplicate minimal block in API; footer = legalName, orgNumber, formatAddressSingleLine(), hej@roots.se, roots.se link.
+  Effort: S
+  Ref audit: CONVERSION_TRUST [1.15] partial fix (domain OK; footer still thin)
+
+[1.4] Milestone emails never sent — gamification loop broken
+  File: apps/api/src/lib/email/templates.ts:113-132
+        apps/api/src/lib/communication-templates.ts:88-105
+  Symptom: HTML `milestoneEmail` and plain `getMilestoneTemplate` exist; no route/job calls `getEmailSender()` for milestones after checkout or campaign progress.
+  Root cause: MASTER_PLAN Fas 5 item never implemented; CONVERSION_TRUST [2.12] still open.
+  Fix: On checkout webhook after PAID, compute team cumulative sales vs thresholds; fan-out to team leader + sellers via `milestoneEmail` (dedupe per threshold).
+  Effort: M
+  Note: Defer only if product explicitly drops milestone email for MVP; currently templates imply committed feature.
+
+================================================================
+P2 — HIGH
+================================================================
+
+[2.1] Order confirmation email only on Klarna webhook — no fallback
+  File: apps/api/src/routes/checkout.ts:331-368,379-425
+  Symptom: Email fires inside webhook when order transitions to PAID. Polling endpoint `/confirm/:orderId` can also mark PAID but never sends confirmation. Missed/delayed webhook = supporter gets no receipt email.
+  Fix: Extract `sendOrderConfirmation(orderId)`; call from webhook and from confirm path when status flips to PAID (idempotent flag on order row e.g. `confirmationEmailSentAt`).
+  Effort: M
+
+[2.2] Settlement / payout notifications absent
+  File: apps/api/src/routes/settlement.ts (no email imports)
+  Symptom: Campaign settlement creates payout rows and Fortnox invoices but no email to association admin or team leader when payout is ready/paid.
+  Fix: Add `settlementCompleteEmail()` template; trigger after successful settlement transaction with summary + link to `/forening/avrakning` or portal intäkter.
+  Effort: M
+
+[2.3] Campaign-start template never wired to outbound mail
+  File: apps/api/src/lib/communication-templates.ts:64-86
+        apps/api/src/trpc/routers/campaigns.ts:160-176
+        apps/api/src/routes/association.ts:462-496
+  Symptom: Creating or activating a campaign does not email association admin with dates/goals despite ready plain-text template.
+  Fix: On `POST /association/campaigns` or `campaigns.activate`, send HTML version via `getEmailSender()` to org admin contact emails.
+  Effort: M
+
+[2.4] communication-templates SITE_URL default inconsistent with transactional templates
+  File: apps/api/src/lib/communication-templates.ts:1
+  Symptom: Invite/share URLs default to `http://localhost:3000` when env missing; `templates.ts` defaults to `https://roots.se`. Staging misconfig yields wrong links in SMS/email copy returned by `/v1/sharing/*`.
+  Fix: Align default to `https://roots.se`; reuse shared `siteUrl()` helper from email module.
+  Effort: S
+
+[2.5] Invite/share templates are plain text only — never sent via Resend
+  File: apps/api/src/routes/sharing.ts:30-94
+  Symptom: API returns JSON `{ email: { subject, body } }` for manual copy-paste; no automatic send, no HTML wrapper/branding. Coaches must paste into own mail client — inconsistent with welcome/order transactional quality.
+  Fix: Optional `POST /sharing/send-invite` with rate limit + HTML template; or document as intentional MVP manual flow.
+  Effort: M
+
+[2.6] Transactional emails lack plain-text multipart
+  File: apps/api/src/lib/email/templates.ts (html only)
+        apps/api/src/lib/email/resend-sender.ts:31-32
+  Symptom: Resend accepts `text` but welcome/order/milestone never set it. Hurts spam scoring and some clients that prefer text/plain.
+  Fix: Generate stripped text alongside `wrap()` HTML for each template.
+  Effort: S
+
+[2.7] Unescaped user names in HTML templates
+  File: apps/api/src/lib/email/templates.ts:52-54,91
+  Symptom: `${name}`, `${params.customerName}` interpolated raw into HTML. Malicious or accidental `<>` in display name breaks layout or enables HTML injection in email clients.
+  Fix: HTML-escape helper for all dynamic fields.
+  Effort: S
+
+[2.8] Order confirmation with missing seller slug
+  File: apps/api/src/routes/checkout.ts:349-364
+  Symptom: `shopSlug: seller?.shopSlug || ""` produces broken order-status URL if seller join fails.
+  Fix: Guard send — skip CTA or use order-status API link `/shop/_/${orderId}` fallback; log warning.
+  Effort: S
+
+================================================================
+P3 — MEDIUM
+================================================================
+
+[3.1] No logo image in email header — text wordmark only
+  File: apps/api/src/lib/email/templates.ts:29-30
+  Symptom: Brand recognition lower vs site; some clients show blank if custom font fails.
+  Fix: Host PNG on roots.se CDN; `<img alt="Roots" width="120">` in header table cell.
+  Effort: S
+
+[3.2] Outlook-incompatible CSS on CTA buttons
+  File: apps/api/src/lib/email/templates.ts:61,106
+  Symptom: `border-radius`, `box-shadow` on wrapper table ignored in Outlook desktop.
+  Fix: Use bulletproof button pattern (nested table + bgcolor on `<td>`).
+  Effort: S
+
+[3.3] sharing invite template hardcodes leaderName "Lagansvarig"
+  File: apps/api/src/routes/sharing.ts:56
+  Symptom: Personalized invite email/SMS never uses real team leader name from DB.
+  Fix: Join `users` on `team.leaderId` for `contactName`.
+  Effort: S
+
+[3.4] welcomeEmail role string not validated — unknown role falls through to "säljare"
+  File: apps/api/src/lib/email/templates.ts:44-49
+  Symptom: Dashboard inline create passes `"SELLER"` correctly; future callers with typo get wrong label silently.
+  Fix: Exhaustive switch + default log warn.
+  Effort: S
+
+[3.5] No automated tests for email templates or sender factory
+  File: apps/api/src/lib/email/*
+  Symptom: Regressions (broken links, footer, subject) undetected in CI.
+  Fix: Snapshot tests for `welcomeEmail`, `orderConfirmationEmail`, `getEmailSender()` mock vs resend selection.
+  Effort: M
+
+================================================================
+P4 — LOW
+================================================================
+
+[4.1] Contact form HTML lacks branded wrapper and legal footer
+  File: apps/api/src/routes/contact.ts:49-56
+  Symptom: Internal relay email is unstyled fragment — ops inbox only, not customer-facing.
+  Effort: S
+
+[4.2] MockEmailSender logs HTML slice in English
+  File: apps/api/src/lib/email/mock-sender.ts:11-14
+  Symptom: Dev noise only; no user impact.
+  Effort: —
+
+[4.3] milestoneEmail has no CTA link back to portal/team dashboard
+  File: apps/api/src/lib/email/templates.ts:113-131
+  Symptom: Celebration email dead-ends; missed engagement opportunity when wired.
+  Fix: Add "Se lagets framsteg" → `${siteUrl()}/lag` or team stats.
+  Effort: S
+
+================================================================
+TRIGGER MAP (verified in code)
+================================================================
+
+| Event                         | Template                    | Send path                          | Status        |
+|-------------------------------|-----------------------------|------------------------------------|---------------|
+| Register association admin    | welcomeEmail                | auth.ts POST /register/association | ✓ sent        |
+| Register team leader          | welcomeEmail                | auth.ts POST /register/team-leader | ✓ sent        |
+| Register seller (invite)      | welcomeEmail                | auth.ts POST /register/seller      | ✓ sent        |
+| Leader creates seller inline  | welcomeEmail                | dashboard.ts POST …/sellers        | ✓ sent        |
+| Order paid (Klarna webhook)   | orderConfirmationEmail      | checkout.ts webhook                | ⚠ partial     |
+| Order paid (confirm poll)     | —                           | checkout.ts GET /confirm           | ✗ no send     |
+| Campaign created/activated    | getCampaignStartTemplate    | —                                  | ✗ not wired   |
+| Sales milestone               | milestoneEmail              | —                                  | ✗ not wired   |
+| Settlement complete           | —                           | settlement.ts                      | ✗ not wired   |
+| Contact form                  | ad-hoc HTML                 | contact.ts POST /                  | ✓ sent        |
+| Invite/share copy             | getInvite/ShopShareTemplate | sharing.ts GET (JSON only)         | ✗ manual copy |
+
+================================================================
+FAS 4 STATUS vs REFERENCE AUDITS
+================================================================
+
+Resolved since CONVERSION_TRUST_2026-04-18:
+  • rootshaircare.se links removed from templates — DONE
+  • noreply@rootshaircare.se default sender — DONE (hej@roots.se)
+  • SITE_URL env-driven links in templates.ts — DONE
+
+Still open from CONVERSION_TRUST / MASTER_PLAN:
+  • Full legal footer in emails — NOT DONE ([1.3])
+  • milestoneEmail wired — NOT DONE ([1.4])
+  • getCampaignStartTemplate wired — NOT DONE ([2.3])
+  • /logga-in vs /login — NOT DONE ([1.1])
+
+================================================================
+MVP READINESS BREAKDOWN
+================================================================
+
+Domain/sender identity (Fas 4)     90%  — roots.se + hej@ in code; env override supported
+Template HTML quality              75%  — table layout OK; bulletproof buttons + logo missing
+Link correctness                   55%  — order OK; welcome CTA broken
+Trigger coverage                   50%  — 4/4 registration + partial order; milestone/settlement/campaign missing
+Legal/compliance footer            40%  — company name only
+Production delivery guarantee      45%  — Resend optional at boot
+Observability / tests              35%  — logs on failure; no template tests
+
+Overall email MVP readiness: **58/100 — ship after P1 fixes; P2.1–P2.3 for complete transactional story**
+
+Recommended pre-launch sequence:
+  1. Fix `/logga-in` → `/login` in welcomeEmail ([1.1])
+  2. Require RESEND_API_KEY in production ([1.2])
+  3. Add LegalIdentity footer block to wrap() ([1.3])
+  4. Idempotent order confirmation send on confirm path ([2.1])
+  5. Wire milestoneEmail on checkout webhook ([1.4]) OR explicitly descope for MVP
+  6. Align communication-templates siteUrl + HTML escape ([2.4], [2.7])
+
+NOTES
+-----
+• April 2026 audits referencing rootshaircare.se are stale for current `templates.ts` / `index.ts`.
+• Scout 4 noted email legal footer as cross-scout dependency — still applies here.
+• `legal-identity.ts` lives in web app only; email layer needs shared copy to stay in sync.
+• Transactional emails correctly omit marketing unsubscribe; adding physical address + org.nr is higher priority than List-Unsubscribe for MVP.
+• Contact form correctly blocks on send failure (unlike fire-and-forget registration) — good pattern to extend to optional admin alert when registration email fails.
+
+--- END SCOUT 28 ---

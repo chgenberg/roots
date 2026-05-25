@@ -1,0 +1,293 @@
+================================================================
+SCOUT 31 — API contract consistency (request/response, errors, status)
+================================================================
+Date: 2026-05-25
+Scope: apps/api/src/routes/*.ts (19 route modules + 2 snapshot/contract tests),
+       apps/api/src/app.ts (mount, health, CSRF, onError),
+       apps/api/src/lib/rate-limit.ts, apps/api/src/middleware/security-headers.ts,
+       apps/api/src/trpc/* (handler + routers — dual surface),
+       packages/contracts/src/*,
+       apps/web/src/lib/api.ts, apps/web/src/lib/portal-api.ts,
+       docs/flow-audits/INTERNAL_ADMIN_2026-04-18_1310.txt,
+       docs/flow-audits/MASTER_PLAN_2026-04-18.md
+
+SUMMARY
+-------
+REST `/v1/*` errors are mostly consistent (`{ error: string }`, Swedish copy, sensible
+401/403/404/409/429/500). Gaps are MVP-blocking for **multi-client correctness**: settlement
+maps missing sessions to **403** (not 401), success envelopes mix `{ ok: true }` with bare
+objects, **no machine-readable `code`**, **no `X-RateLimit-*` headers**, and **only portal
+subset** is locked via `@roots/contracts` (offline Vitest — not runtime-validated on emit).
+A parallel **tRPC** surface (`/trpc/*`) uses TRPCError codes + English messages; web
+middleware still calls `trpc/auth.me` while product UI uses REST `/v1/auth/me`. `apiFetch`
+swallows non-JSON error bodies to `{}`, so clients lose `error` text on proxy/HTML failures.
+
+Findings: 24 (P1:5 P2:9 P3:6 P4:4)
+MVP readiness: 61/100
+
+CHECKLIST (pass / partial / fail)
+---------------------------------
+| Item                                      | Status  | Notes |
+|-------------------------------------------|---------|-------|
+| Error shape `{ error, code? }`            | PARTIAL | `error` yes; `code` never on REST [1.1] |
+| Status code accuracy                      | PARTIAL | Settlement 403≠401 [1.2]; 413 hair only |
+| Auth 401 vs 403                           | PARTIAL | Portal/dashboard OK; settlement FAIL |
+| Validation at boundary (Zod)              | PARTIAL | tRPC + contracts pkg; REST manual [1.3] |
+| JSON parse error handling                 | PASS    | Most routes try/catch → 400 Swedish |
+| CORS                                      | PASS    | Single origin + credentials (app.ts) |
+| Content-Type on JSON                      | PASS    | Hono `c.json` → application/json |
+| Rate limit response headers               | FAIL    | Body `retryAfter` only on some 429 [1.4] |
+| Pagination convention                     | PARTIAL | Admin audit-log only; else hard caps [1.5] |
+| Dates ISO 8601                            | PARTIAL | Many `toISOString()`; order detail mixed [1.6] |
+| Money in öre integers                     | PASS    | `*Ore` in portal/checkout/shop stats |
+| snake_case vs camelCase                   | PASS    | camelCase API; DB spread rare (`...b`) |
+| `/v1` prefix consistency                  | PASS    | Business routes under `/v1`; health at root |
+| Health check endpoints                    | PASS    | `/health`, `/healthz`, `/readyz` |
+| Shared contracts package                  | PARTIAL | Portal + orders/auth schemas; thin coverage [1.7] |
+| Client helper contract                    | PARTIAL | `portalFetch` validates; `apiFetch` does not [1.8] |
+
+P1 — CRITICAL (MVP-blocking)
+
+[1.1] No stable machine-readable error `code` on REST surface
+  Files: all `apps/api/src/routes/*.ts`; `app.ts` onError (154-163)
+  Symptom: Every failure is `{ error: "…" }` (Swedish prose only). Clients cannot branch on
+  `CSRF_INVALID`, `RATE_LIMITED`, `ORG_MISSING` without string matching.
+  Root cause: No shared `ApiError` helper or Zod error envelope in `@roots/contracts`.
+  Fix: Add optional `code: z.string()` to a `apiErrorSchema`; map known cases in a small
+  `jsonError(c, { error, code, status })` used by all routes + onError.
+  Effort: M
+
+[1.2] `settlement/*` returns 403 for unauthenticated callers (should be 401)
+  File: apps/api/src/routes/settlement.ts:26-45,168-169,226-227
+  Symptom: `requireAdmin()` returns `null` for missing cookie, expired session, OR wrong role;
+  handler always `c.json({ error: "Behörighet saknas" }, 403)`.
+  Root cause: Single null check conflates authn vs authz (same anti-pattern as pre-fix RBAC
+  elsewhere).
+  Fix: Split `requireSession` → 401 `"Ej inloggad"`, then role/org check → 403.
+  Effort: S
+
+[1.3] `@roots/contracts` not enforced at REST emit boundary (only offline tests)
+  Files: packages/contracts/src/portal.ts; portal.contract.test.ts; portal.ts (no `.parse()`)
+  Symptom: MASTER_PLAN T1 drift (UI keys vs API keys) can ship despite contracts existing;
+  server never rejects its own malformed JSON before send.
+  Root cause: Contract tests parse fixtures, not live handler output.
+  Fix: In portal handlers (and shop snapshot paths), `dashboardResponseSchema.parse(payload)`
+  before `c.json`, or shared `emitContract(c, schema, data)`.
+  Effort: M
+
+[1.4] Rate limits omit standard `X-RateLimit-*` / `Retry-After` headers
+  Files: lib/rate-limit.ts; auth.ts:106-111; ai-chat.ts:86-91; public-chat.ts:30-35;
+        hair-analysis.ts:84-87; contact.ts:35
+  Symptom: 429 bodies sometimes include `retryAfter` (seconds) but no response headers;
+  login/contact limits give only `{ error }`.
+  Root cause: Rate limit helper returns in-memory counts, never sets Hono headers.
+  Fix: Middleware or helper `applyRateLimitHeaders(c, result)` setting
+  `Retry-After`, `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`.
+  Effort: S
+
+[1.5] List endpoints use hardcoded caps without query pagination (except audit-log)
+  Files: portal.ts (orders/quotes/clubs/pipeline limits 25–100); notifications.ts FEED_LIMIT;
+        admin.ts:68-69 (GOOD: limit/offset/hasMore)
+  Symptom: Sales/club portals silently truncate; no `?limit=&offset=` contract for integrators.
+  Root cause: Performance guardrails baked in SQL `.limit(N)` without API params.
+  Fix: Document defaults; accept `limit` (max cap) + `offset` on high-volume GETs; return
+  `{ items, total, limit, offset, hasMore }` matching admin audit-log shape.
+  Effort: M
+
+P2 — HIGH
+
+[2.1] Dual API: REST `/v1/*` + tRPC `/trpc/*` with incompatible error shapes
+  Files: app.ts:131; trpc/handler.ts; trpc/routers/auth.ts:17-20 (English TOO_MANY_REQUESTS);
+        web middleware.ts:119 (`/trpc/auth.me`)
+  Symptom: Same domain (auth) exposes Swedish `{ error }` on REST and TRPC `{ code, message }`
+  on tRPC; middleware uses tRPC while login page uses REST.
+  Fix: Deprecate duplicate tRPC auth for web OR proxy tRPC errors to REST envelope at handler.
+  Effort: L
+
+[2.2] Success response envelope inconsistency (`ok` vs bare data)
+  Files: auth.ts login `{ ok, user }`; portal create order `{ ok, order }`; contact/preview
+        `{ ok: true }`; bankid `{ ok: false, error }`; most GETs return raw objects
+  Symptom: Clients cannot assume `response.ok` or uniform success discriminator.
+  Fix: Pick one pattern per API class (mutations → `{ ok: true, data }`, reads → resource) and
+  document in contracts.
+  Effort: M
+
+[2.3] `apiFetch` masks failures when body is not JSON
+  File: apps/web/src/lib/api.ts:39
+  Symptom: `res.json().catch(() => ({}))` → `data.error` undefined; UI shows generic copy.
+  Root cause: Defensive parse without `Content-Type` check or text fallback.
+  Fix: If `!res.ok`, read `text()` when JSON parse fails; surface status in thrown Error.
+  Effort: S
+
+[2.4] `portalFetch` validates only `/v1/portal/*`; rest of app uses untyped `apiFetch`
+  File: apps/web/src/lib/portal-api.ts
+  Symptom: Dashboard fundraising (`/v1/dashboard/*`), shop, checkout, auth bypass contract
+  validation — MASTER_PLAN field renames regress silently.
+  Fix: Extend schema wrappers per domain package or OpenAPI-generated client.
+  Effort: M
+
+[2.5] AI streaming endpoints use a third contract (SSE JSON chunks, not `{ error }`)
+  Files: ai-chat.ts, public-chat.ts; chat-widget.tsx / portal/ai/page.tsx
+  Symptom: Non-stream errors use `{ error }`; stream uses `{ content }`, `[DONE]`, inline
+  `parsed.error` — no shared type with REST.
+  Fix: Document SSE event schema in contracts; align error event to `{ error, code? }`.
+  Effort: M
+
+[2.6] `GET /v1/shop/products` fail-open returns 200 with empty arrays on DB error
+  File: apps/api/src/routes/shop.ts:125-137
+  Symptom: Monitoring sees success; storefront shows empty catalog instead of 503.
+  Fix: Log + return 500 `{ error }` (or degraded flag) like `by-slug`.
+  Effort: S
+
+[2.7] 401 copy inconsistent (`Ej inloggad` vs `Inte inloggad.`)
+  Files: portal.ts, dashboard.ts, auth patterns vs ai-chat.ts:70
+  Symptom: i18n/telemetry grouping harder; minor UX inconsistency.
+  Fix: Single constant `AUTH_ERRORS.NOT_LOGGED_IN`.
+  Effort: S
+
+[2.8] `403` used for missing `orgId` (session valid, org null)
+  Files: dashboard.ts:52; portal club guards
+  Symptom: Demo/staging users hit "Behörighet" / "Ingen organisation" — clients treating 403 as
+  role denial may mis-route (MASTER_PLAN demo orgId issue).
+  Fix: Prefer 400 + `code: ORG_CONTEXT_REQUIRED` or 422; keep 403 strictly for role mismatch.
+  Effort: S
+
+[2.9] Validation never returns 422 — all semantic errors are 400
+  Files: all routes (grep: no 422 in apps/api)
+  Symptom: HTTP clients expecting RFC-style 422 for field validation cannot distinguish from
+  malformed JSON (also 400).
+  Fix: Optional: map Zod failures → 422 with `details[]` (additive to `error`).
+  Effort: M
+
+[2.10] Registration/auth REST ignores `@roots/contracts` Zod input schemas
+  Files: packages/contracts/src/auth.ts; auth.ts manual checks
+  Symptom: `RegisterAssociationSchema` etc. exist but routes duplicate ad-hoc validation →
+  drift risk (min password rules, email format).
+  Fix: `RegisterXxxSchema.safeParse(body)` at top of each POST.
+  Effort: M
+
+P3 — MEDIUM
+
+[3.1] `GET /v1/portal/orders/:id` may emit Drizzle `Date` objects for `createdAt`/`updatedAt`
+  File: portal.ts:401-402 (other handlers call `toISOString()`)
+  Symptom: JSON serialization usually ISO strings, but inconsistent with explicit routes;
+  contract tests do not cover order detail.
+  Fix: Normalize dates in a shared serializer before `c.json`.
+  Effort: S
+
+[3.2] Fortnox webhook success shape `{ received, duplicate }` — not `{ ok }` or `{ error }`
+  File: fortnox-webhook.ts:53
+  Symptom: Integration-specific; fine for Fortnox but breaks global envelope goal.
+  Effort: S (document exception)
+
+[3.3] CSRF 403 in production vs pass-through in dev
+  File: app.ts:67-70
+  Symptom: Local dev can POST without token; staging must match prod or false negatives.
+  Fix: Document; consider always-on CSRF with test helper header.
+  Effort: S
+
+[3.4] `checkout/post /create` uses `let body: any` — weakest validation boundary
+  File: checkout.ts:44-64
+  Symptom: Typos in `items` shape fail late or with generic 400.
+  Fix: Zod schema in contracts (money öre, qty bounds) shared with web kassa.
+  Effort: M
+
+[3.5] Snapshot tests cover shop + portal paths only — 15+ route modules untested
+  Files: shop.snapshot.test.ts, portal.snapshot.test.ts, portal.contract.test.ts
+  Symptom: dashboard, association, settlement, notifications JSON can drift freely.
+  Fix: Expand snapshot suite per MASTER_PLAN §105-106 list.
+  Effort: M
+
+[3.6] tRPC `auth.login` still stub (`demoUsers` empty) — dead code path if invoked
+  File: trpc/routers/auth.ts:25-36
+  Symptom: Confusing for SDK consumers; always UNAUTHORIZED unless revived.
+  Fix: Remove or wire to same service as REST login.
+  Effort: S
+
+P4 — LOW / OK
+
+[4.1] Health probes well-designed (liveness vs readiness)
+  Files: app.ts:82-103; lib/health-checks.ts
+  Note: `/readyz` 503 when DB/Redis down — correct for load balancers.
+
+[4.2] Global `onError` returns stable `{ error }` in production (no stack leak)
+  File: app.ts:142-163
+
+[4.3] Monetary fields consistently suffixed `*Ore` in portal/checkout/shop stats
+  Aligns with packages/contracts portal.ts rules.
+
+[4.4] camelCase JSON throughout; no systematic snake_case leakage
+
+ROUTE INVENTORY (REST `/v1` mount — app.ts)
+--------------------------------------------
+| Mount                         | Module           | Auth pattern        |
+|-------------------------------|------------------|---------------------|
+| /v1/auth                      | auth.ts          | Public + session    |
+| /v1/shop                      | shop.ts          | Public              |
+| /v1/checkout                  | checkout.ts      | Public + webhook    |
+| /v1/dashboard                 | dashboard.ts     | Session 401/403     |
+| /v1/settlement                | settlement.ts    | Admin (403 conflate)|
+| /v1/sharing                   | sharing.ts       | Session 401         |
+| /v1/bankid                    | bankid.ts        | Mixed `{ok}`        |
+| /v1/contact                   | contact.ts       | Public + RL         |
+| /v1/portal                    | portal.ts        | Session 401/403     |
+| /v1/association               | association.ts   | Session             |
+| /v1/sales                     | sales.ts         | Session 401/403     |
+| /v1/admin                     | admin.ts         | INTERNAL_ADMIN      |
+| /v1/notifications             | notifications.ts | Session 401         |
+| /v1/preview                   | preview.ts       | Public + RL         |
+| /v1/integrations/fortnox      | fortnox-webhook  | HMAC (exempt CSRF)  |
+| /v1/ai                        | ai-chat, hair, public-chat | Mixed   |
+
+Non-v1: `/`, `/health`, `/healthz`, `/readyz`, `/v1/csrf-token`, `/trpc/*`
+
+CONTRACTS PACKAGE COVERAGE
+--------------------------
+| Module            | Schemas                         | Used at REST boundary |
+|-------------------|---------------------------------|------------------------|
+| portal.ts         | dashboard, statistics, pipeline, income | Tests only      |
+| auth.ts           | Login, Register*, ChangePassword | Not wired in routes   |
+| orders.ts         | CreateOrder, status enums       | tRPC sales only        |
+| products.ts       | Product types                   | tRPC                   |
+| campaigns.ts      | Campaign types                  | tRPC                   |
+| invoicing.ts      | Invoice enums                   | Partial                |
+
+CLIENT CONSUMPTION
+------------------
+- `apiFetch`: all paths; returns `{ ok, status, data }`; expects `data.error` on failure.
+- `portalFetch`: `/v1/portal` + optional Zod safeParse (client-side only).
+- `trpc` client: `apps/web/src/lib/trpc.ts` — middleware `auth.me` only.
+- Streaming AI: raw `fetch` + CSRF helper, not `apiFetch`.
+
+REFERENCE AUDIT ALIGNMENT
+---------------------------
+- MASTER_PLAN T1 (API ↔ UI contract): partially mitigated by portal contracts + portalFetch;
+  still open for dashboard, statistics keys, system health (`uptime` vs `latencyMs`).
+- INTERNAL_ADMIN §1.2, §1.5, §1.11: KPI/key mismatches are **contract + client** issues;
+  server emits `mrrOre`/`orderCount` while some UI still maps old keys (outside this scout’s
+  code changes — documented as consumer drift risk).
+
+RECOMMENDED MVP SEQUENCE
+------------------------
+1. [1.2] Settlement 401/403 split (S, unblocks correct login redirect).
+2. [1.1] + [2.7] Shared error helper with `code` + unified 401 string (M).
+3. [1.3] Runtime Zod emit on portal GETs (M).
+4. [2.3] Harden `apiFetch` non-JSON error path (S).
+5. [1.4] Rate-limit headers on 429 (S).
+6. [1.5] Pagination params on portal lists (M).
+7. [2.1] tRPC/REST convergence plan (L, post-MVP if web stays REST-only).
+
+MVP READINESS BREAKDOWN
+- Contract consistency:  14/25  (portal partial; dual stack; no codes)
+- Status / auth HTTP:    16/25  (mostly right; settlement + orgId edge cases)
+- Validation:            12/25  (manual REST; Zod unused at boundary)
+- Client ergonomics:     11/25  (apiFetch gaps; portalFetch island)
+- Ops / observability:   18/25  (health good; RL headers missing; shop fail-open)
+
+REFERENCES
+- docs/flow-audits/MASTER_PLAN_2026-04-18.md — T1 API↔UI, snapshot suite §105-106
+- docs/flow-audits/INTERNAL_ADMIN_2026-04-18_1310.txt — KPI key mismatches, health fields
+- docs/mvp-scout/12_portal-rbac.txt — 401/403 portal patterns (improved)
+- docs/mvp-scout/14_sales-pipeline.txt — hard list limits 50/100/25
+
+--- END SCOUT 31 ---

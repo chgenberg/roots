@@ -1,0 +1,266 @@
+================================================================
+SCOUT 5 — Hair analysis lead flow (/haranalys, dialog, API)
+================================================================
+Date: 2026-05-25
+Scope: PUBLIC — visitors becoming leads via håranalys wizard
+Files: haranalys/page.tsx, hair-analysis-lead-dialog.tsx, hair-analysis.ts,
+        hair-analysis-run.ts, packages/db/src/schema/leads.ts
+
+SUMMARY
+-------
+End-to-end flow is largely wired: 8-step wizard, CSRF-protected POST
+`/v1/ai/hair-analysis`, OpenAI vision with 120s abort, IP rate limit (15/24h),
+lead rows in `hair_analysis_leads`, and structured results UI when JSON parses.
+Images are not persisted server-side (in-memory → OpenAI only) — aligned with
+integritet copy. Main MVP blockers: hidden `newsletterConsent: true` (GDPR),
+weak lead dedupe (fresh idempotency UUID per submit, no email uniqueness),
+generic product CTA (no mapping from AI package names to `/produkter` slugs),
+and no handling for `imageValidationFailed` / `fallback` API flags.
+Findings: 22 (P1:2 P2:8 P3:8 P4:4)
+MVP readiness: 68/100
+
+CHECKLIST (FOCUS)
+-----------------
+| Area                         | Status | Notes |
+|------------------------------|--------|-------|
+| Wizard forward/back          | OK     | STEPS chain + Tillbaka; gate has no back (expected) |
+| Per-step validation          | PARTIAL| Gate email+consent; photos require file; questions all defaulted |
+| Consent + /integritet link   | OK     | href `/integritet` (prior audit `/integritetspolicy` fixed) |
+| Image size/format            | PARTIAL| Client 4 MB; server MIME prefix; no HEIC; no drag-drop |
+| AI timeout/retry             | PARTIAL| Server 120s abort; no client retry UI; 502 returns to confirm |
+| AI not configured fallback   | OK     | `flags.aiEnabled` + `isAiConfigured()` → 200 JSON fallback |
+| Results structured UI        | PARTIAL| Rich when JSON parses; else raw `<pre>`; validation fail unhandled |
+| Lead capture + dedupe        | FAIL   | Email saved; idempotency per request only; duplicate emails allowed |
+| Mobile camera upload           | OK     | `capture="environment"` / `capture="user"`; modal `max-h 92vh` |
+| Privacy (images deleted)     | OK     | No image columns in DB/S3; policy matches implementation |
+| Recommendation → product     | FAIL   | CTA always `/produkter`; AI packages ≠ DB slugs (only `complete-kit`) |
+
+P1 — CRITICAL (MVP-blocking)
+
+[1.1] Newsletter consent sent as opted-in without visible control
+  File: apps/web/src/components/hair-analysis-lead-dialog.tsx:164,193,305-306
+  API: apps/api/src/routes/hair-analysis.ts:102
+  Schema: packages/db/src/schema/leads.ts:7 (newsletter_consent)
+  Symptom: `const [newsletterConsent] = useState(true)` — fixed true, no checkbox;
+  payload always `newsletterConsent: true` while integritet §3 requires explicit
+  consent for marketing (Art. 6.1 a).
+  Root cause: Comment “included in privacy policy” conflates analysis consent with
+  newsletter opt-in.
+  Fix: Separate checkbox + copy, default false; persist in draft; only send true
+  when checked. Align integritet if bundled consent is intentional (legal review).
+  Effort: S
+  Ref: PUBLIC audit [1.2], CONVERSION_TRUST [1.2]
+
+[1.2] `ageConfirmed: true` sent without any age gate in UI
+  File: hair-analysis-lead-dialog.tsx:306; hair-analysis.ts:103
+  Symptom: Client hardcodes `ageConfirmed: true`; DB stores it; no 18+ checkbox
+  or copy despite composer agent 01 UX spec.
+  Root cause: Field added for API/schema completeness, not wired to wizard.
+  Fix: Add explicit age confirmation on gate step or remove field from contract.
+  Effort: S
+
+P2 — HIGH
+
+[2.1] Idempotency key regenerated on every analysis attempt — weak dedupe
+  File: hair-analysis-lead-dialog.tsx:290
+  Symptom: `crypto.randomUUID()` inside `submitAnalysis()` — double-click or
+  retry after error inserts another `hair_analysis_leads` row (email not unique).
+  Root cause: Idempotency tied to submit event, not session/email.
+  Fix: Stable key per wizard open (ref/state) or derive from email+day; use
+  `onConflictDoNothing` / upsert on email with consent audit.
+  Effort: S
+
+[2.2] Product recommendation CTA not mapped to packages or bundle slug
+  File: hair-analysis-lead-dialog.tsx:833-837; hair-analysis-run.ts:66-81
+  Symptom: “Se produkterna” → `/produkter` only. AI returns “Roots Underhåll” /
+  “Roots Extra Fukt” / “Roots Balanserad Rutin”; DB seed has bundle
+  `complete-kit` (“Roots Complete Kit”) — no slugs for the three AI packages.
+  Root cause: Marketing package names are prompt-only; produkter page lists SKUs
+  (shampoo, conditioner, body-wash).
+  Fix: Map `packageName` → `/produkter/complete-kit` or anchor section; or add
+  three bundle records + deep links; surface recommended name in CTA query/hash.
+  Effort: M
+
+[2.3] `imageValidationFailed` from model not handled in client
+  File: hair-analysis-run.ts:59-60; hair-analysis-lead-dialog.tsx:329-335
+  Symptom: Model can return `{"imageValidationFailed":true,"message":"..."}` per
+  prompt; client parses as ParsedAnalysis, shows empty/partial result instead of
+  sending user back to photo steps with message.
+  Root cause: No branch on validation flag after JSON.parse.
+  Fix: Detect flag; show error; `setStep("photo-back")` with preserved email/consent.
+  Effort: S
+
+[2.4] API `fallback: true` (AI off) indistinguishable from real vision result
+  File: hair-analysis.ts:115-133; hair-analysis-lead-dialog.tsx:322-335
+  Symptom: 200 + static JSON when `AI_ENABLED=false` or missing key; UI shows
+  same success checkmark and “Din håranalys är klar” as live analysis.
+  Root cause: Client ignores `data.fallback`.
+  Fix: Banner: “Förhandsgranskning — full AI-analys aktiveras snart”; optional
+  disable product recommendation specificity.
+  Effort: S
+
+[2.5] No retry affordance after vision failure; 502 may leak provider text
+  File: hair-analysis.ts:148-150; hair-analysis-lead-dialog.tsx:337-339
+  Symptom: Error returns user to confirm with message; `throw new Error(data.error)`
+  may surface `OpenAI API error: 429 ...` from server. No “Försök igen” distinct
+  from re-clicking submit; no exponential backoff.
+  Root cause: Single attempt; server forwards `e.message` to client.
+  Fix: Sanitize 502 body for public; add retry button with same idempotency key.
+  Effort: S
+  Ref: AI_COACH audit [4.6]
+
+[2.6] Session draft restores answers but not photos — confusing resume
+  File: hair-analysis-lead-dialog.tsx:102-125,187-224
+  Symptom: sessionStorage saves email/answers for 30 min; File objects not stored.
+  User returning mid-funnel sees questions prefilled but must re-upload both images
+  without explanation.
+  Root cause: By design (no base64 in storage — good for privacy) but no UX copy.
+  Fix: On resume, toast or step banner: “Ladda upp bilderna igen”; or reset step
+  to photo-back when files missing.
+  Effort: S
+
+[2.7] “Boka samtal” on result step implies scheduling; links to `/foreningsliv`
+  File: hair-analysis-lead-dialog.tsx:839-843
+  Symptom: Secondary CTA after D2C hair analysis routes to association marketing,
+  not booking or hair-specific contact.
+  Root cause: Reused foreningsliv CTA pattern from header.
+  Fix: Rename (“Läs om föreningsförsäljning”) or link `/kontakt` with subject;
+  add Calendly when available.
+  Effort: S
+  Ref: PUBLIC [2.7]
+
+[2.8] Lead save failure is silent — analysis still runs, no lead in CRM
+  File: hair-analysis.ts:96-110
+  Symptom: `catch` logs `Lead save failed` and continues to OpenAI; visitor gets
+  result but ops may have no row (DB down, duplicate idempotency, etc.).
+  Root cause: Best-effort insert by design.
+  Fix: If insert fails on non-duplicate error, return 503 or queue lead retry;
+  surface “Vi sparade din e-post för uppföljning” only when insert OK.
+  Effort: M
+
+P3 — MEDIUM
+
+[3.1] No drag-and-drop on photo steps — label-only upload
+  File: hair-analysis-lead-dialog.tsx:470-486,522-538
+  Symptom: Dashed drop zone is visual only; no `onDrop` / `onDragOver`.
+  Root cause: Click-to-file input only.
+  Fix: Wire drag-drop to same `handlePhoto` validation path.
+  Effort: S
+  Ref: composer 03_FRONTEND_WIZARD_UPLOAD
+
+[3.2] Client lacks MIME sniff — relies on `accept` and server prefix
+  File: hair-analysis-lead-dialog.tsx:481; hair-analysis.ts:26-28
+  Symptom: iOS HEIC / `image/*` may pass file picker then fail at API with
+  “Ogiltigt bildformat”; error only after full upload on submit.
+  Root cause: No client-side `file.type` check before confirm.
+  Fix: Validate type on select; show inline error; optional client resize.
+  Effort: S
+
+[3.3] JSON parse fragility — markdown-wrapped model output falls back to `<pre>`
+  File: hair-analysis-lead-dialog.tsx:329-334
+  Symptom: If model wraps JSON in ``` fences, `JSON.parse` fails → raw text UI.
+  Root cause: No strip/normalize helper on `data.analysis`.
+  Fix: Extract JSON substring server-side or in client before parse.
+  Effort: S
+
+[3.4] Unsourced “500+ analyser gjorda” on marketing page
+  File: apps/web/src/app/(marketing)/haranalys/page.tsx:168-174
+  Symptom: Static counter with no date/source; trust risk if inflated.
+  Root cause: Marketing placeholder.
+  Fix: Wire to `COUNT(*)` from `hair_analysis_leads` or remove until real.
+  Effort: S
+  Ref: CONVERSION_TRUST [1.3]
+
+[3.5] Fallback copy mixes package names (“Roots Underhåll” + “Complete Kit”)
+  File: hair-analysis.ts:125-128; hair-analysis-lead-dialog.tsx:827
+  Symptom: Server fallback `packageName: "Roots Underhåll"` but description
+  mentions “Roots Complete Kit”; UI default `"Roots Complete Kit"` when missing.
+  Root cause: Inconsistent product taxonomy between prompt, fallback, and seed.
+  Fix: Single canonical names; match seed bundle or dokumentera tre konceptpaket.
+  Effort: S
+
+[3.6] No confirmation email to lead after analysis
+  File: hair-analysis.ts (no mailer)
+  Symptom: Email captured; user gets in-modal result only; no audit trail in inbox.
+  Root cause: Out of scope for API route.
+  Fix: Optional Resend template with summary link + integritet footer.
+  Effort: M
+  Ref: PUBLIC [2.8]
+
+[3.7] CSRF fetch failure unhandled in wizard
+  File: hair-analysis-lead-dialog.tsx:54-59,292
+  Symptom: `getHairCsrf()` throws if `/v1/csrf-token` fails → generic catch message.
+  Root cause: No try/catch around CSRF prefetch.
+  Fix: Dedicated “Kunde inte ansluta” + retry CSRF.
+  Effort: S
+
+[3.8] Håranalys page FAQ accordion a11y incomplete
+  File: haranalys/page.tsx:194-208
+  Symptom: `aria-expanded` on button but no `aria-controls` / panel `id` pairing.
+  Root cause: Simple toggle implementation.
+  Fix: Wire ids; mark chevron `aria-hidden`.
+  Effort: S
+  Ref: PUBLIC [3.13]
+
+P4 — LOW
+
+[4.1] “Powered by AI” English on Swedish marketing page
+  File: haranalys/page.tsx:38
+  Effort: S — “Drivs av AI” or remove.
+
+[4.2] Title template may duplicate “| Roots”
+  File: haranalys/layout.tsx:4 (`title` already includes suffix)
+  Effort: S
+  Ref: PUBLIC [2.9]
+
+[4.3] `newsletterConsent` DB default false but API receives true from client
+  File: leads.ts:7 vs dialog — documentation drift for BI.
+  Effort: S (fixed by [1.1])
+
+[4.4] Rate limit bypass when Redis unavailable
+  File: hair-analysis.ts:89-91
+  Symptom: Empty catch allows unlimited analyses if Redis down.
+  Fix: Fail closed in production or in-memory fallback counter.
+  Effort: S
+
+ROLE CONNECTIONS (PUBLIC)
+-------------------------
+- Entry: `/haranalys` (3× HairAnalysisLeadDialog), homepage `hero-lead.tsx`.
+- Lead outcome: row in `hair_analysis_leads` (email, consent_version, IP,
+  optional newsletter flag) — no auto-link to `organizations` / CRM pipeline.
+- Downstream: “Se produkterna” → PUBLIC shop marketing; “Boka samtal” →
+  ASSOCIATION_ADMIN path (`/foreningsliv`) — weak fit for hair-only visitor.
+- No portal role created; correct for lead magnet.
+- Internal admin: dashboard `hairConversion` KPI depends on separate tracking
+  (not in this route) — verify portal metrics consume lead table.
+
+PRIVACY & LOGGING (verified read-only)
+--------------------------------------
+- Images: base64 in POST body only; not inserted in DB; no S3 write in route.
+- OpenAI: images sent as `image_url` data URLs; discarded after request completes.
+- Logs: `log.warn({ err: dbErr }, "Lead save failed")` — no image/email in log line.
+- sessionStorage: text fields only (no image persistence) — good.
+- Integritet §2/§4 documents ephemeral images — consistent with code.
+
+MVP READINESS BREAKDOWN
+- Functionality:         17/25  (wizard + API work; package links & validation gaps)
+- Reliability:           16/25  (timeout OK; dedupe/retry/lead-save weak)
+- Compliance/trust:      14/25  (newsletter consent; age gate; unsourced stats)
+- Conversion polish:     21/25  (strong results UI when JSON OK; CTA mapping weak)
+
+QUICK WINS (ship before MVP)
+1. Fix newsletter + age consent UI on gate ([1.1], [1.2]).
+2. Stable idempotency key per dialog session ([2.1]).
+3. Handle `imageValidationFailed` + show `fallback` banner ([2.3], [2.4]).
+4. Map product CTA to `complete-kit` or produkter anchor ([2.2]).
+5. Sanitize 502 errors + add “Försök igen” ([2.5]).
+
+NOTES
+- Prior PUBLIC audit P1 privacy link (`/integritetspolicy`) is FIXED in current
+  dialog (lines 410, 851 → `/integritet`). Page exists at integritet/page.tsx.
+- Composer agents under docs/composer-agents/hair-analysis/ align with
+  implementation; gaps mainly package commerce mapping and explicit consent UI.
+- AI vision model default `gpt-5.4-mini` (env-overridable) — ops must set
+  `OPENAI_API_KEY` in prod for real analyses.
+
+--- END SCOUT 5 ---

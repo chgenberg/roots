@@ -1,0 +1,248 @@
+MVP SCOUT 22/35 — SHOP CART SYSTEM (useCart + persistence)
+==========================================================
+Date: 2026-05-25
+Scout: MVP Scout 22 — Shop cart system
+Scope (read-only):
+  - apps/web/src/lib/use-cart.ts
+  - apps/web/src/app/(shop)/shop/[slug]/page.tsx
+  - apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx
+  - apps/web/src/lib/flags.ts
+Roles: PUBLIC (supporters)
+References: docs/flow-audits/SUPPORTER_2026-04-18_1247.txt,
+            docs/flow-audits/MASTER_PLAN_2026-04-18.md (Fas 2)
+
+SUMMARY
+-------
+Total findings: 18
+  Priority 1 (MVP-blocking):  3
+  Priority 2 (High):          7
+  Priority 3 (Medium):        5
+  Priority 4 (Low):           3
+
+Verdict: `useCart` adds sessionStorage persistence and SSR-safe hydration on the **shop page only**, but checkout (`kassa`) still reads cart exclusively from URL query params and never calls `useCart`. That split means reload/bookmark/direct-navigation to `/kassa` shows an empty cart even when persistence is on, and a completed order never clears stored cart — supporters can accidentally re-order the same basket. Core add/remove math is sound; API enforces qty 1–100 but the UI does not.
+
+MVP readiness (cart subsystem): 52/100
+
+Top quick wins:
+1. Wire `useCart(slug)` into `kassa/page.tsx`; hydrate from sessionStorage when query params empty; prefer URL when both present (shared-link contract).
+2. Call `clear()` on successful payment confirmation (`bekraftelse` or Klarna complete redirect).
+3. Cap `update()` at 100 to match API validation; surface stale-cart cleanup when product IDs missing from catalog.
+
+=====================================================
+CHECKLIST — FOCUS AREAS
+=====================================================
+
+sessionStorage persistence (namespaced per slug)
+  ✓ Key `roots.cart:${slug}`; read/write gated by `webFlags.cartPersistence()` (default on).
+  ✗ Only shop page consumes hook; kassa ignores storage entirely.
+  ⚠ Key differs from MASTER_PLAN draft (`roots-cart:${slug}`) — harmless unless docs/tools assume old name.
+
+Hydration / SSR safety
+  ✓ All storage access deferred to `useEffect`; initial state `{}` — no SSR/client HTML mismatch.
+  ⚠ `hydrated` exported but unused on shop — sticky bar can flash hidden→visible after mount.
+  ✗ kassa has no hydration path from storage.
+
+Add / remove / update qty
+  ✓ `update(id, delta)` clamps with `Math.max(0, …)`; removes key at qty 0.
+  ✓ `readStorage` rejects non-finite, ≤0, non-integer values (`Math.floor`).
+  ✗ No upper bound — user can exceed API max (100) and fail at checkout POST.
+
+Total items / total cost
+  ✓ `totalItems` sums all cart values.
+  ✓ Shop `totalOre` multiplies only resolved products from API.
+  ✗ **Mismatch:** stale/removed product IDs still inflate `totalItems` while contributing 0 kr to `totalOre` (misleading sticky bar).
+
+Edge cases
+  ✓ Negative qty via repeated minus → 0, key deleted.
+  ✗ qty > 100 allowed in UI; API returns 400 `"Ogiltig vara: qty måste vara ett heltal mellan 1 och 100."`
+  ⚠ Product removed mid-session: ghost lines invisible on product cards but counted in sticky bar; kassa silently drops unknown IDs from summary (POST may still fail if URL has bad UUID).
+
+Cross-tab consistency
+  ✗ No `window.storage` listener — two tabs on same shop diverge until manual reload.
+
+Clear cart after successful order
+  ✗ `clear()` exists in hook but is never imported/called in shop, kassa, or bekraftelse flow.
+
+Persist shop ↔ kassa navigation
+  ✓ Happy path: shop Link → `/kassa?${toQueryString()}` works.
+  ✗ kassa refresh without query string → empty cart (persistence ineffective on checkout).
+  ✗ "Tillbaka" link is `/shop/${slug}` only — relies on sessionStorage on shop, not URL sync.
+
+toQueryString serialization
+  ✓ Uses `URLSearchParams` — encodes special chars; UUID product IDs safe.
+  ✓ Omits zero-qty entries.
+  ⚠ No URL-length guard (~3 products fine; large carts or future long IDs could hit browser limits ~2k–8k).
+
+Migration cartPersistence on/off
+  ⚠ Flag off: reads/writes no-op but **old sessionStorage entries remain** (re-enable resurrects stale cart).
+  ⚠ Flag off: shop loses reload persistence; kassa still depends on URL only — behaviour inconsistent with flag name.
+
+=====================================================
+PRIORITY 1 — MVP-BLOCKING
+=====================================================
+
+[1.1] **kassa ignores sessionStorage — cart persistence half-implemented**
+  Files: apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx:54–60
+         apps/web/src/lib/use-cart.ts:52–91
+  Symptom: Supporter adds items on shop (persisted to `roots.cart:${slug}`), then refreshes `/kassa`, bookmarks checkout, or lands via back/forward without query string → "Din varukorg är tom" despite items in storage. Persistence flag gives false confidence.
+  Root cause: Checkout builds `items` only from `useSearchParams()` (`item_*` keys). `useCart` is not imported on kassa.
+  Fix: Import `useCart(slug)`; derive items from URL params when present, else from `cart` after `hydrated`; keep URL as override for shared links. Optionally `router.replace` to sync URL once hydrated.
+  Effort: M
+  Ref audit: SUPPORTER [2.2], [2.3] — PARTIALLY RESOLVED (storage on shop only)
+
+[1.2] **Cart never cleared after successful order**
+  Files: apps/web/src/lib/use-cart.ts:79
+         apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx:98–137
+         apps/web/src/app/(shop)/shop/[slug]/bekraftelse/page.tsx (no cart touch)
+  Symptom: After Klarna payment and "Tack för din beställning!", returning to `/shop/${slug}` still shows previous quantities in sticky bar — risk of duplicate order and wrong totals.
+  Root cause: `clear()` exported but unused anywhere in `(shop)` routes; sessionStorage write effect keeps stale JSON until tab close.
+  Fix: On bekraftelse success (or Klarna `checkout_complete` redirect), call `clear()` and `sessionStorage.removeItem(storageKey(slug))`; optionally clear on `checkout/create` success before Klarna embed.
+  Effort: S
+  Ref audit: SUPPORTER cart abandonment / trust — NEW
+
+[1.3] **Sticky bar item count can disagree with displayed total (stale product IDs)**
+  Files: apps/web/src/app/(shop)/shop/[slug]/page.tsx:101–106, 339–344
+         apps/web/src/lib/use-cart.ts:81
+  Symptom: If catalog changes (product deactivated/removed) while cart persisted, sticky bar shows "3 produkter" but total might be "0 kr" or partial — supporter loses trust before kassa.
+  Root cause: `totalItems` counts all cart keys; `totalOre` only sums IDs found in `shop.products`. No prune pass on load.
+  Fix: After shop fetch, filter cart to active product IDs (or prune in `readStorage` merge); re-sync storage; if count drops, show brief notice.
+  Effort: S
+  Ref audit: SUPPORTER [2.13] stale URL cart — RELATED
+
+=====================================================
+PRIORITY 2 — HIGH
+=====================================================
+
+[2.1] **No max quantity in UI — API rejects qty > 100 at checkout**
+  Files: apps/web/src/lib/use-cart.ts:66–76
+         apps/web/src/app/(shop)/shop/[slug]/page.tsx:278
+         apps/api/src/routes/checkout.ts:70–79
+  Symptom: Rapid "+" taps allow qty 101+; "Gå till betalning" fails with generic API error after form fill.
+  Root cause: `update()` only floors at 0; no `Math.min(100, …)`; plus button never disabled at cap.
+  Fix: Cap in `update()`; disable Plus at qty 100; mirror cap when parsing URL on kassa.
+  Effort: S
+
+[2.2] **useCart does not merge URL query params on hydrate**
+  Files: apps/web/src/lib/use-cart.ts:56–59
+         docs/flow-audits/MASTER_PLAN_2026-04-18.md:172–173
+  Symptom: Shared checkout link with `?item_<id>=2` opened on shop page ignores URL — shows sessionStorage cart or empty instead of link contents.
+  Root cause: Hydration effect reads storage only; master plan said URL remains sharing format alongside storage.
+  Fix: Accept optional initial query snapshot; on hydrate, merge URL over storage (or union with max qty).
+  Effort: M
+  Ref audit: MASTER_PLAN Fas 2 — GAP
+
+[2.3] **Dual cart sources desync (sessionStorage vs URL)**
+  Files: shop page (storage + Link query) vs kassa (query only)
+  Symptom: Edit cart on shop tab A; tab B on kassa still shows old URL lines. Or: shop storage has items A,B; shared kassa URL has only A — back to shop shows A,B.
+  Root cause: No single source of truth; no sync on navigation except explicit Link query at checkout CTA.
+  Fix: Single hook instance or storage-first with URL sync on every cart mutation and kassa mount.
+  Effort: M
+
+[2.4] **No cross-tab storage sync**
+  Files: apps/web/src/lib/use-cart.ts
+  Symptom: Two browser tabs on same seller shop show different quantities; last write wins on storage but other tab UI stale until reload.
+  Root cause: Missing `window.addEventListener("storage", …)` to reload cart when key changes.
+  Fix: Listen for `roots.cart:${slug}` changes; call `setCart(readStorage(slug))`.
+  Effort: S
+
+[2.5] **`hydrated` flag unused — cart UI flash**
+  Files: apps/web/src/app/(shop)/shop/[slug]/page.tsx:80
+         apps/web/src/lib/use-cart.ts:54, 91
+  Symptom: Brief moment after paint where qty controls show 0 and sticky bar hidden, then pop in — noticeable on slow devices.
+  Root cause: Shop destructures cart but not `hydrated`; renders empty cart before effect runs.
+  Fix: Gate sticky bar and qty display on `hydrated`, or suppress animations until true.
+  Effort: S
+
+[2.6] **kassa order summary empty while URL has unknown product IDs**
+  Files: apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx:76–90, 200–210, 426
+  Symptom: URL contains valid-format but unknown UUIDs → `resolvedLines.length === 0` shows empty cart message, yet submit disabled check uses raw `items.length` which may be > 0 — confusing state if campaign gate passes.
+  Root cause: `resolvedLines` filters missing products; footer still uses `items` from URL; POST sends bad IDs → API 400.
+  Fix: Align empty state with `items` vs `resolvedLines`; strip invalid lines client-side; link back to shop with repair message.
+  Effort: S
+  Ref audit: SUPPORTER [2.13] — STILL OPEN
+
+[2.7] **Shop page ignores `hydrated` when linking to kassa with empty query**
+  Files: apps/web/src/app/(shop)/shop/[slug]/page.tsx:347
+  Symptom: If user navigates to kassa before hydration completes (edge: very fast click), `toQueryString()` is empty → empty checkout despite storage pending write.
+  Root cause: Link uses synchronous `toQueryString()` from possibly pre-hydration `{}` state; first write effect runs after hydration+ cart state.
+  Fix: Disable "Till kassan" until `hydrated`; or navigate with storage-only kassa that reads hook.
+  Effort: S
+
+=====================================================
+PRIORITY 3 — MEDIUM
+=====================================================
+
+[3.1] **cartPersistence flag off leaves orphan sessionStorage**
+  Files: apps/web/src/lib/flags.ts:19–21
+         apps/web/src/lib/use-cart.ts:23–24, 44–45
+  Symptom: Toggle `NEXT_PUBLIC_FEATURE_CART_PERSISTENCE=0` — cart appears ephemeral but old JSON remains; re-enabling flag resurrects abandoned carts from prior sessions.
+  Fix: On flag off, optionally migrate/clear keys prefixed `roots.cart:` or document ops behaviour.
+  Effort: S
+
+[3.2] **API vs web flag env var naming asymmetry**
+  Files: apps/web/src/lib/flags.ts (`NEXT_PUBLIC_FEATURE_CART_PERSISTENCE`)
+         apps/api/src/lib/flags.ts (`FEATURE_CART_PERSISTENCE`)
+  Symptom: Ops can disable persistence on web while API docs reference server flag — no server cart today, but rollout confusion.
+  Fix: Document that only web flag matters for supporter cart; align naming in deploy checklist.
+  Effort: S
+
+[3.3] **No deduplication if URL repeats same item_* key**
+  Files: kassa/page.tsx:54–60
+  Symptom: Malformed URL with duplicate keys — `URLSearchParams` / Next may last-win; behaviour undocumented.
+  Fix: Reduce params to Map by productId when parsing.
+  Effort: S
+
+[3.4] **Integer overflow unlikely but float qty in storage handled**
+  Files: use-cart.ts:31–32
+  Note: `Math.floor` on read handles `2.7` → 2; good. Writing always integers from update. OK.
+
+[3.5] **Checkout POST sends URL-derived items without re-validating against live catalog server-side in UI**
+  Files: kassa/page.tsx:121
+  Note: Server validates — OK for security; client should match resolvedLines only to avoid user surprise (ties to [2.6]).
+  Effort: S (client-side filter POST payload to resolvedLines)
+
+=====================================================
+PRIORITY 4 — LOW
+=====================================================
+
+[4.1] **Storage key naming differs from MASTER_PLAN draft**
+  Plan: `roots-cart:${slug}` — Code: `roots.cart:${slug}`
+  Impact: None unless external tooling assumed hyphen form.
+  Effort: S (align docs or alias read)
+
+[4.2] **No unit tests for useCart**
+  File: apps/web/src/lib/use-cart.ts
+  Impact: Regression risk on persistence/merge/cap logic.
+  Effort: M
+
+[4.3] **Silent storage quota failure**
+  File: use-cart.ts:47–48
+  Impact: Private mode / quota full → cart works in-memory until tab close with no user feedback.
+  Effort: S (optional toast)
+
+=====================================================
+RESOLVED SINCE APRIL 2026 AUDITS
+=====================================================
+
+- SUPPORTER [2.2] Cart not persisted — **PARTIAL**: `useCart` + sessionStorage on shop; kassa still URL-only.
+- SUPPORTER [2.1] Empty cart on kassa — **PARTIAL**: empty-state copy + link back added; root cause (no storage hydrate) remains.
+- SUPPORTER [3.3] Sticky cart safe-area — **CLOSED**: shop sticky bar uses `paddingBottom: env(safe-area-inset-bottom)` (page.tsx:335).
+- SUPPORTER [1.4] Campaign gate on shop add-to-cart — **CLOSED**: buttons disabled when status !== ACTIVE; sticky bar hidden when not accepting orders.
+- MASTER_PLAN Fas 2 order summary on kassa — **CLOSED** (out of cart scope but affects trust): line items, moms, total shown when URL valid.
+
+=====================================================
+ROLE / FLOW NOTES
+=====================================================
+
+- PUBLIC supporter happy path (shop → Link with query → kassa → pay): **works** if no refresh on kassa and no post-order return.
+- PUBLIC direct `/kassa` bookmark or reload: **broken** with persistence enabled.
+- PUBLIC post-order re-shop: **duplicate cart risk** ([1.2]).
+- Cross-role: cart is slug-scoped; switching seller slugs uses separate storage keys — **correct**.
+
+Suggested Fas 2 implementation batch (aligns MASTER_PLAN):
+1. Unify kassa on `useCart` + URL fallback ([1.1], [2.2], [2.3])
+2. Clear on confirmation ([1.2])
+3. Prune stale IDs + qty cap ([1.3], [2.1])
+4. Cross-tab + hydrated gating ([2.4], [2.5], [2.7])
+
+--- END SCOUT 22 ---

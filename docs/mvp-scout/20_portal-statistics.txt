@@ -1,0 +1,258 @@
+================================================================
+SCOUT 20 — Portal statistik & reports (across roles)
+================================================================
+Date: 2026-05-25
+Scope: apps/web/src/app/(portal)/portal/statistik/page.tsx,
+       apps/api/src/routes/portal.ts (/statistics),
+       packages/db/src/schema/orders.ts, customer-orders.ts, payouts.ts
+
+NOTE: Scout brief referenced ASSOCIATION_ADMIN on /portal/statistik. Fundraising roles
+(ASSOCIATION_ADMIN, TEAM_LEADER, SELLER) are intentionally blocked from /v1/portal/* via
+isPortalRole — their stats live on /forening, /lag, /min-shop (customer_orders), not here.
+CLUB_ADMIN uses /portal/intakter (PAID B2B) instead; /portal/statistik is not in CLUB_NAV.
+
+SUMMARY
+-------
+Sprint E4 largely fixed the April audit’s broken field mapping and removed hardcoded demo KPIs
+from statistik/page.tsx — empty states and real API wiring now work for INTERNAL_ADMIN and
+SALES_ADMIN. MVP-blocking gaps remain: /statistics aggregates only B2B `orders` while
+platform fundraising revenue lives in `customer_orders` (clubs list already unions both);
+SALES_REP sees a nav link but gets API 403 with a silent empty-state masquerading as “no data”;
+API returns `isDemo` but the UI never reads it or renders DataSourceBadge; monthly buckets
+use ASC+LIMIT 12 (oldest months) despite “Senaste 12 mån” copy; and revenue definitions
+differ from /income (all statuses vs PAID-only) with no in-app explanation.
+Findings: 18 (P1:3 P2:7 P3:5 P4:3)
+MVP readiness: 62/100
+
+CHECKLIST (pass / partial / fail)
+---------------------------------
+| Item                              | Status  | Notes |
+|-----------------------------------|---------|-------|
+| monthlyData empty vs hardcoded    | PASS    | Em-dash KPI template; dashed empty states; no synthetic numbers |
+| KPI cards real data               | PARTIAL | Wired to kpis block; “Aktiva medlemmar” = distinct order.userId, not members |
+| Charts safe on empty array        | PASS    | hasData guard; maxRevenue/maxOrders floored at 1 |
+| Top products link to product page | PASS    | Link href={publicProductHref(p.slug)} → /produkter/[slug] |
+| isDemo + DataSourceBadge          | FAIL    | API sets isDemo; page ignores; no DataSourceBadge import |
+| Role filtering org vs platform    | PARTIAL | INTERNAL_ADMIN/SALES_ADMIN → platform; CLUB_* → orgId; ASSOCIATION_ADMIN → 403 |
+| Date range picker                 | FAIL    | Fixed windows only (12mo / 30d / 90d); no UI control |
+| Export CSV/PDF                    | FAIL    | No export on statistik; generateOrdersCsv exists but unwired |
+| Pagination long lists             | N/A     | topProducts server-limited to 5; monthly capped at 12 |
+| Mobile chart sizing               | PARTIAL | flex-1 × 12 bars on narrow viewports; no horizontal scroll |
+
+ROLES WITH /portal/statistik NAV ACCESS
+---------------------------------------
+| Role            | Nav link | API /statistics | Effective scope |
+|-----------------|----------|-----------------|-----------------|
+| INTERNAL_ADMIN  | Yes      | 200             | Platform-wide (all orgs), B2B orders only |
+| SALES_ADMIN     | Yes      | 200             | Platform-wide, B2B orders only |
+| SALES_REP       | Yes      | 403             | Broken — nav promises page that API denies |
+| CLUB_ADMIN      | No*      | 200             | Org-scoped B2B if URL visited; nav uses /intakter |
+| CLUB_MEMBER     | No*      | 200             | Same as CLUB_ADMIN |
+| ASSOCIATION_ADMIN | No     | 403             | Blocked by isPortalRole (by design) |
+
+*Not in CLUB_NAV; direct URL still loads page.
+
+P1 — CRITICAL (blocks MVP)
+
+[1.1] /statistics ignores customer_orders — platform KPIs miss fundraising revenue
+  File: apps/api/src/routes/portal.ts:1143-1271
+        packages/db/src/schema/customer-orders.ts (customerOrders, customerOrderLines)
+        apps/api/src/routes/portal.ts:564-609 (clubs endpoint unions B2C+B2B)
+        packages/db/src/seed-demo.ts:695 (comment: association dashboard reads customer_orders)
+  Symptom: INTERNAL_ADMIN “KPI & Statistik” shows near-zero revenue on a seeded/demo platform
+  where supporter checkout (customer_orders PAID) is the primary revenue stream. Top products,
+  monthly charts, and 30-day KPIs all query `orders` + `order_lines` only.
+  Root cause: Statistics endpoint predates B2C fundraising schema; /clubs was later patched to
+  union both tables but /statistics was not.
+  Fix: Mirror clubs aggregate pattern — union PAID customer_orders with orders (respect
+  orderScope), join customer_order_lines for top products; or expose separate B2C/B2B series
+  with clear labels. Align seed so demo statistik page shows non-empty charts after db:seed:demo.
+  Effort: L
+  Ref audit: INTERNAL_ADMIN [1.9]/[3.12]; MASTER_PLAN Fas 1 statistics
+
+[1.2] SALES_REP nav links to /portal/statistik but API returns 403 — silent failure
+  File: apps/web/src/app/(portal)/portal/layout.tsx:49-56 (SALES_NAV includes statistik)
+        apps/api/src/routes/portal.ts:1124-1128 (SALES_REP → 403)
+        apps/web/src/app/(portal)/portal/statistik/page.tsx:140-143 (catch swallows error)
+  Symptom: Sales rep opens “Statistik” from sidebar; page renders with em-dash KPIs and
+  “Ingen omsättningshistorik ännu” / “Inga ordrar registrerade ännu” — reads as empty tenant,
+  not “you lack permission”. Comment in API says stats live on /pipeline but nav still points here.
+  Root cause: Intentional API guard without matching nav removal or dedicated sales stats view.
+  Fix: Remove statistik from SALES_NAV and link to /portal/pipeline (or build rep-scoped stats
+  endpoint); on 403 show explicit “Statistik finns under Pipeline” CTA instead of empty-state copy.
+  Effort: S
+  Ref audit: SALES_REP [2.5]; AI_COACH [1.10] (SELLER misrouted to admin nav — related pattern)
+
+[1.3] isDemo returned by API but never surfaced — trust gap on empty vs live data
+  File: apps/api/src/routes/portal.ts:1300 (isDemo: enriched.length === 0)
+        apps/web/src/app/(portal)/portal/statistik/page.tsx (no isDemo state, no DataSourceBadge)
+        apps/web/src/app/(portal)/portal/page.tsx:214-248 (dashboard pattern to copy)
+        apps/web/src/components/data-source-badge.tsx
+  Symptom: Brand-new org and INTERNAL_ADMIN with zero B2B orders both show identical empty UI;
+  no “Demo-data” / “Live” badge despite Fas 1 master plan requiring isDemo visibility.
+  Root cause: E4 wired KPIs but skipped isDemo consumer; statistik page never imported
+  DataSourceBadge or statisticsResponseSchema.
+  Fix: Parse isDemo from response; render DataSourceBadge next to h1 (match dashboard); when
+  isDemo && !loading show helper copy “Siffror uppdateras när första ordern registreras”.
+  Effort: S
+  Ref audit: MASTER_PLAN Fas 1; CONVERSION_TRUST [1.7] (partially resolved — fallbacks removed)
+
+P2 — HIGH (must fix before MVP launch)
+
+[2.1] “Senaste 12 mån” chart shows oldest 12 months, not latest
+  File: apps/api/src/routes/portal.ts:1151-1153
+        apps/web/src/app/(portal)/portal/statistik/page.tsx:204-206
+  Symptom: Org with >12 months of orders sees ancient months in chart while recent months drop
+  off; badge text contradicts data.
+  Root cause: orderBy month ASC + limit 12 without DESC subquery or date floor.
+  Fix: Filter createdAt >= now()-12 months, orderBy DESC, reverse for chart left-to-right; or
+  generate zero-filled last-12-month series in SQL.
+  Effort: S
+
+[2.2] /statistics counts all order statuses; /income counts PAID only — conflicting numbers
+  File: apps/api/src/routes/portal.ts:1147-1148 vs 1335-1337
+        apps/web/src/app/(portal)/portal/intakter/page.tsx (club-facing PAID view)
+  Symptom: Same org sees higher “Total omsättning (30d)” on statistik than “Intäkter” on
+  intakter; INTERNAL_ADMIN cannot reconcile without reading source code.
+  Root cause: statistics includes PENDING/CANCELLED B2B orders; income filters invoiceStatus=PAID.
+  Fix: Document in UI tooltips; align statistics KPI to PAID (or split “Bokfört” vs “Totalt”);
+  consider filtering customer_orders to status=PAID when B2C is added.
+  Effort: M
+  Ref audit: INTERNAL_ADMIN [3.12]
+
+[2.3] No statisticsResponseSchema validation on client — drift fails silently
+  File: apps/web/src/app/(portal)/portal/statistik/page.tsx:72-95 (inline type, no schema)
+        apps/web/src/app/(portal)/portal/intakter/page.tsx:48 (uses incomeResponseSchema)
+        packages/contracts/src/portal.ts:113-126
+  Symptom: API shape regression (e.g. rename kpis field) renders empty charts without console
+  error in production; intakter page would throw on drift.
+  Root cause: statistik fetch predates portalFetch schema option adoption.
+  Fix: portalFetch("/statistics", { schema: statisticsResponseSchema }).
+  Effort: S
+  Ref audit: MASTER_PLAN Fas 0 snapshot tests (API side covered; UI not)
+
+[2.4] KPI “Aktiva medlemmar (30d)” mislabeled — counts order-placing users, not members
+  File: apps/api/src/routes/portal.ts:1193 (count(distinct orders.userId))
+        apps/web/src/app/(portal)/portal/statistik/page.tsx:57-60,128-131
+  Symptom: Card label implies org membership activity; value is distinct B2B order authors in
+  30 days (often 1 club admin). Misleading for ops and club admins.
+  Root cause: Reused order aggregate for a member metric; no sellers/customer_orders activity.
+  Fix: Rename to “Unika beställare (30d)” or compute from users.lastLoginAt / customer_orders
+  buyer count when B2C wired.
+  Effort: S
+
+[2.5] payouts schema unused in statistics — no payout/settlement reporting
+  File: packages/db/src/schema/payouts.ts (teamShareOre, rootsShareOre, status)
+        apps/api/src/routes/portal.ts (/statistics — no payouts import)
+  Symptom: Fundraising teams cannot see team share / payout status in statistik; data model
+  exists but no API surface.
+  Root cause: Out of scope for E4 KPI sprint; not MVP-critical for INTERNAL_ADMIN but gap for
+  association financial reporting.
+  Fix: Post-MVP — add payout summary card or link statistik → /portal/intakter with payout flags
+  backed by payouts.status.
+  Effort: M
+
+[2.6] API error states indistinguishable from empty tenant
+  File: apps/web/src/app/(portal)/portal/statistik/page.tsx:140-143
+  Symptom: 500/403/network errors leave em-dash KPIs + “Ingen omsättningshistorik ännu” —
+  same as legitimate zero-data org.
+  Root cause: Empty catch block with comment only.
+  Fix: Track error state; show role="alert" retry banner for failures; reserve dashed empty
+  copy for 200 + isDemo/empty arrays only.
+  Effort: S
+
+[2.7] Mobile chart layout — 12 equal flex columns without min-width or scroll
+  File: apps/web/src/app/(portal)/portal/statistik/page.tsx:210-233,296-321
+  Symptom: On ~360px viewport each bar ~25px wide; month labels (“2026-03”) wrap/truncate;
+  revenue “X.Xk” labels crowd above bars.
+  Root cause: Pure CSS flex bar chart with flex-1 per bucket, no responsive breakpoint.
+  Fix: overflow-x-auto wrapper with min-w-[480px] chart area; or reduce to 6 months on sm;
+  consider accessible table fallback.
+  Effort: S
+
+P3 — MEDIUM
+
+[3.1] No date range picker — fixed 30d/90d/12mo windows only
+  File: apps/api/src/routes/portal.ts (hard-coded Date offsets)
+        apps/web/src/app/(portal)/portal/statistik/page.tsx (no picker component)
+  Symptom: Ops cannot inspect Q1 vs Q2 or campaign window; badge “Senaste 12 mån” is not user-adjustable.
+  Fix: Query params ?from=&to= on /statistics with validated range; shadcn date range on page.
+  Effort: M
+  Ref audit: INTERNAL_ADMIN [3.7]
+
+[3.2] No CSV/PDF export on statistik page
+  File: apps/api/src/lib/invoicing/csv-export.ts (generateOrdersCsv — unused here)
+  Symptom: INTERNAL_ADMIN cannot export KPI/monthly series for board reports; MASTER_PLAN
+  mentions SAR/export elsewhere but not wired.
+  Fix: Add “Exportera CSV” button posting to new /statistics/export or client-side CSV from payload.
+  Effort: M
+  Ref audit: INTERNAL_ADMIN [4.2]
+
+[3.3] totals object from API unused in UI
+  File: apps/api/src/routes/portal.ts:1301-1305
+        packages/contracts/src/portal.ts:116-120
+  Symptom: Response includes totals.orders / totals.revenue but page never displays all-time summary.
+  Fix: Optional footer row or subtitle under KPI grid.
+  Effort: S
+
+[3.4] Top products sharePercent relative to top-5 only, not org total
+  File: apps/api/src/routes/portal.ts:1273-1289
+  Symptom: Bars always sum to ~100% among five SKUs even if other products account for 40% revenue.
+  Root cause: sharePercent denominator is topTotalOre among limited rows.
+  Fix: Compute share against full-period revenue or label “Andel av topplistan”.
+  Effort: S
+
+[3.5] Copy claims “realtid” while data is query-on-mount only
+  File: apps/web/src/app/(portal)/portal/statistik/page.tsx:159-161
+  Symptom: Subhead “Följ försäljning och intäkter i realtid” — no polling, websockets, or refresh.
+  Fix: Soften to “Uppdateras vid sidladdning” or add manual refresh + stale timestamp.
+  Effort: S
+  Ref audit: CONVERSION_TRUST [1.7] (realtid tone)
+
+P4 — LOW / NICE
+
+[4.1] TrendingDown icon on “Aktiva medlemmar” KPI — semantically odd for a count metric
+  File: apps/web/src/app/(portal)/portal/statistik/page.tsx:57-60
+  Fix: Use Users or Activity icon.
+  Effort: S
+
+[4.2] Revenue chart displays SEK/1000 as “k” without locale or öre precision for small orgs
+  File: apps/web/src/app/(portal)/portal/statistik/page.tsx:221-222
+  Symptom: 500 kr revenue shows “0.5k”; acceptable but coarse for low-volume clubs.
+  Effort: S
+
+[4.3] No org-type / segment filter for INTERNAL_ADMIN platform view
+  File: apps/api/src/routes/portal.ts:1136-1140 (sql`1=1` for platform admins)
+  Ref audit: INTERNAL_ADMIN [3.9]
+  Effort: L
+
+POSITIVE FINDINGS (since April audits)
+--------------------------------------
+- Hardcoded FALLBACK_KPI / demo monthly arrays removed; KPI_CARD_TEMPLATE uses em-dashes (E4).
+- Client maps orders + revenueOre correctly; enriched API aliases present (Fas 1 contract).
+- Empty chart states with loading vs empty copy; Math.max(1,…) prevents divide-by-zero.
+- Top products link to marketing product pages via publicProductHref.
+- Role scoping regression tests: SELLER 403, CLUB without orgId 400, fundraising roles blocked
+  from /portal/dashboard (portal.snapshot.test.ts P0 #1).
+- isPlatformAdmin check prevents INTERNAL_ADMIN with orgId from being scoped to single org.
+
+DATA MODEL NOTES (schema scope)
+-------------------------------
+- orders + order_lines: B2B club wholesale (orgId, userId, invoiceStatus) — sole source for /statistics today.
+- customer_orders + customer_order_lines: B2C supporter checkout (sellerId, campaignId, status PAID) — primary fundraising revenue; NOT in /statistics.
+- payouts: per campaign+team settlement (totalSalesOre, teamShareOre, status) — NOT queried by /statistics.
+
+MVP READINESS BREAKDOWN
+- Functionality:         14/25  (real KPI wiring; wrong revenue table; SALES_REP broken nav)
+- Data accuracy:         11/25  (B2B-only; month window bug; status mismatch vs /income)
+- UX / trust:            16/25  (good empty states; missing isDemo badge; error/403 confusion)
+- Ops / export:          12/25  (no export; no date filter; no payout tie-in)
+- Mobile / a11y:         14/25  (usable but cramped charts; no chart aria labels)
+
+REFERENCES
+- docs/flow-audits/INTERNAL_ADMIN_2026-04-18_1310.txt — [1.9]–[1.11], [3.7]–[3.12]
+- docs/flow-audits/MASTER_PLAN_2026-04-18.md — Fas 0 snapshots, Fas 1 isDemo + contract aliases
+- docs/flow-audits/SALES_REP_2026-04-18_1252.txt — [2.5] field mapping (resolved)
+- docs/flow-audits/CONVERSION_TRUST_2026-04-18_1313.txt — [1.7] statistik trust (partially resolved)
+
+--- END SCOUT 20 ---

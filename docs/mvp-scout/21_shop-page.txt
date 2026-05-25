@@ -1,0 +1,262 @@
+MVP SCOUT 21/35 — SELLER SHOP PAGE (/shop/[slug])
+==================================================
+Date: 2026-05-25
+Scout: MVP Scout 21 — Seller personal shop (supporter-facing)
+Scope (read-only):
+  - apps/web/src/app/(shop)/shop/[slug]/page.tsx
+  - apps/web/src/app/(shop)/shop/[slug]/layout.tsx (generateMetadata)
+  - apps/web/src/app/(shop)/layout.tsx (footer)
+  - apps/api/src/routes/shop.ts
+Role: PUBLIC (supporter visiting seller's shop)
+References: docs/flow-audits/SELLER_2026-04-18_1245.txt,
+            docs/flow-audits/SUPPORTER_2026-04-18_1247.txt,
+            docs/flow-audits/CONVERSION_TRUST_2026-04-18_1313.txt,
+            docs/flow-audits/MASTER_PLAN_2026-04-18.md (Fas 2 commerce)
+
+SUMMARY
+-------
+Total findings: 24
+  Priority 1 (MVP-blocking):  6
+  Priority 2 (High):          9
+  Priority 3 (Medium):      6
+  Priority 4 (Low):           3
+
+Verdict: Core shop shell is **much improved** since April audits — slug 404 is graceful, campaign gating blocks add-to-cart, sticky cart bar + iOS safe-area work, cart persists in sessionStorage, and `generateMetadata` serves per-seller title/description. **Still not MVP-ready** for commerce: bundle is a dead-end promo card, API catalog ignores `campaign_products`, seller profile fields (`publicAlias`, `personalMessage`) exist in DB but never reach the UI, social-proof copy and gift toggle from the checklist are **absent**, and OG shares still use the generic site hero — not seller/campaign context.
+
+Top quick wins:
+1. Return `publicAlias`, `personalMessage` from `GET /v1/shop/by-slug/:slug` and render alias + message on shop header.
+2. Wire API `bundles[]` into product grid with real add-to-cart; remove static “399 kr” card when bundles exist.
+3. Filter products via `campaign_products` when rows exist (MASTER_PLAN Fas 2).
+4. Add lightweight social proof from existing `stats.orderCount` (“{n} personer har redan stöttat”) + optional team rank API.
+5. Add `openGraph.images` (campaign/seller placeholder) in `layout.tsx` generateMetadata.
+6. Add `pb-24` on shop `<main>` when sticky bar visible.
+
+=====================================================
+FOCUS CHECKLIST (SCOUT 21)
+=====================================================
+
+| Checklist item                         | Status   | Notes |
+|----------------------------------------|----------|-------|
+| Slug 404 — clean error, no crash       | OK       | Spinner → icon + message; no throw |
+| Campaign status gating + banner        | OK       | Amber banner; +/- disabled when not ACTIVE |
+| Seller photo / name / alias / message  | FAIL     | Text `displayName` only; no photo; alias/message not in API/UI |
+| Team / org context visible             | PARTIAL  | Header line `{team} · {org}`; muted styling |
+| Product cards (img/name/price/qty)   | PARTIAL  | Cards OK; images hardcoded `PRODUCT_IMAGES` map |
+| Disabled add-to-cart when inactive     | OK       | `disabled={!campaignAcceptsOrders}` on controls |
+| Sticky cart bar (mobile + desktop)     | OK       | Fixed bottom bar when `totalItems > 0` && ACTIVE |
+| safe-area-inset-bottom (iOS)           | OK       | `paddingBottom: env(safe-area-inset-bottom)` |
+| OG/Twitter metadata in generateMetadata| PARTIAL  | Title + description fetched; **no per-shop images** |
+| Empty cart UX                          | PARTIAL  | No sticky bar (correct); no on-page “lägg till produkter” hint |
+| Social proof (“X andra…”, “topp 5…”)   | FAIL     | Only `{orderCount} beställningar` in progress block |
+| “Skicka som present” toggle             | FAIL     | Not in shop, kassa, or checkout API (repo grep) |
+| User flow: first-time visitor          | PARTIAL  | See USER FLOWS below |
+| User flow: return visitor              | PARTIAL  | Cart persists; stale cart + ended campaign confusing |
+| User flow: mobile                      | PARTIAL  | Safe-area OK; content may sit under sticky bar |
+
+=====================================================
+PRIORITY 1 — MVP-BLOCKING
+=====================================================
+
+[1.1] **Static bundle card is not purchasable — price can drift from DB**
+  Files: apps/web/src/app/(shop)/shop/[slug]/page.tsx (~297–310)
+        apps/api/src/routes/shop.ts (~108–113)
+  Symptom: “Komplett paket — 399 kr” is hardcoded copy with **no** +/- controls, **no** link to checkout, **no** use of API `bundles[]` (returned in snapshot contract). Supporter cannot buy the promoted bundle; if DB bundle price ≠ 399 kr, UI lies (CONVERSION_TRUST [1.9], SUPPORTER [1.3]).
+  Fix: Map `shop.bundles` into add-to-cart rows (bundle id in cart contract or expand to line items at checkout); delete static card when `bundles.length > 0` (MASTER_PLAN Fas 2).
+
+[1.2] **Shop catalog ignores `campaign_products` — returns all active SKUs**
+  File: apps/api/src/routes/shop.ts (~54)
+  Symptom: `db.select().from(products).where(eq(products.active, true))` with no join on `campaign_products`. Campaigns with restricted assortment show the full global catalog; wrong prices/availability for supporter intent (SUPPORTER [1.2], MASTER_PLAN Fas 2).
+  Fix: When `campaign_products` rows exist for `seller.campaignId`, filter to those product IDs; else keep current fallback.
+
+[1.3] **`publicAlias` and `personalMessage` in schema but omitted from API + UI**
+  Files: packages/db/src/schema/sellers.ts (~43–45)
+        apps/api/src/routes/shop.ts (~82–88) — only `displayName`, not alias/message
+        apps/web/src/app/(shop)/shop/[slug]/page.tsx (~39–45, ~156–158)
+  Symptom: Snapshot test seeds `personalMessage: "Vi springer för en bra sak!"` on seller row but response snapshot excludes it. Shop header always shows legal `displayName`; minors cannot use pseudonym; seller voice beyond campaign `story` is impossible (SELLER [1.9], MASTER_PLAN Fas 5 `publicAlias`).
+  Fix: Extend seller JSON; UI: `(publicAlias ?? displayName)` + optional `personalMessage` block under header.
+
+[1.4] **Social proof checklist items missing — no peer / team ranking copy**
+  File: apps/web/src/app/(shop)/shop/[slug]/page.tsx (entire file — absent)
+  Symptom: MVP checklist expects “X andra har köpt” and “topp 5 i lag”. Page only shows `{orderCount} beställningar hittills` inside individual goal progress (hidden when `individualGoal` falsy). No team leaderboard snippet for supporters, no “others bought” nudge at product level.
+  Fix: Surface `stats.orderCount` as hero social proof; optional `GET` team rank for seller (respect `hideFromLeaderboard`); keep copy honest (no fabricated counts).
+
+[1.5] **“Skicka som present” toggle not implemented anywhere in supporter funnel**
+  Files: apps/web/src/app/(shop)/shop/[slug]/page.tsx
+        apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx
+        apps/api/src/routes/checkout.ts (no `isGift` / present fields — repo grep)
+  Symptom: Checklist feature completely absent. Gift buyers cannot flag intent before checkout.
+  Fix: Toggle on shop or kassa + persist to checkout payload / order metadata (additive field).
+
+[1.6] **Per-shop Open Graph image not set — shares use generic site hero**
+  File: apps/web/src/app/(shop)/shop/[slug]/layout.tsx (~46–61)
+  Symptom: `generateMetadata` sets `openGraph.title`, `description`, `url`, `twitter.card` but **no `images`**. Root layout default (`/images/h1desktop.jpg`) applies — WhatsApp/iMessage previews do not show seller/campaign context (SELLER [1.4–1.5], SUPPORTER attribution).
+  Fix: Add `openGraph.images` / `twitter.images` (seller avatar when available, else campaign/product collage via `opengraph-image.tsx`).
+
+=====================================================
+PRIORITY 2 — HIGH
+=====================================================
+
+[2.1] **Shop fetch maps all HTTP errors to “Denna shop finns inte.”**
+  File: apps/web/src/app/(shop)/shop/[slug]/page.tsx (~85–88)
+  Symptom: 404 and 500 both show missing-shop copy; transient API failures mislead supporters (SUPPORTER [1.5]).
+  Fix: Branch on `res.status` — 404 vs 5xx retry message.
+
+[2.2] **No seller photo or initials avatar**
+  Files: apps/web/src/app/(shop)/shop/[slug]/page.tsx (~149–164)
+        apps/api/src/routes/shop.ts (~82–88)
+        packages/db/src/schema/users.ts (no image URL field)
+  Symptom: Header is text-only “Köp av {displayName}”; cold trust for grandparents opening a teen’s link (SUPPORTER [2.5]).
+  Fix: Initials bubble from alias/name until photo upload exists.
+
+[2.3] **Persisted cart + ended campaign = silent dead end**
+  File: apps/web/src/app/(shop)/shop/[slug]/page.tsx (~332–354)
+        apps/web/src/lib/use-cart.ts (sessionStorage persistence)
+  Symptom: Return visitor with items in sessionStorage sees disabled +/- and **no sticky bar** (`totalItems > 0 && campaignAcceptsOrders`). Banner explains inactive period but cart totals invisible; no “rensa varukorg” or email-lag contact.
+  Fix: When cart non-empty && !ACTIVE, show read-only summary + clear-cart CTA in banner.
+
+[2.4] **Main content lacks bottom padding when sticky cart visible**
+  File: apps/web/src/app/(shop)/shop/[slug]/page.tsx (~166, ~331–354)
+  Symptom: Fixed cart bar (~56px+) can cover delivery info card and footer links on mobile scroll; unlike kassa, `<main>` has no `pb-20`/`pb-24` (SUPPORTER [3.3] — safe-area on bar fixed, but content inset not).
+  Fix: Conditional `pb-24` on main when sticky bar shown (+ safe-area).
+
+[2.5] **Product images hardcoded client-side — wrong fallback for unknown slugs**
+  File: apps/web/src/app/(shop)/shop/[slug]/page.tsx (~67–71, ~233)
+  Symptom: `PRODUCT_IMAGES[slug] || "/images/p1.jpg"` — new SKUs all show shampoo art; no `imageUrl` from DB (SUPPORTER [2.9]).
+  Fix: Shared catalog image field from API or product slug map in one module.
+
+[2.6] **`ShopData` TypeScript type omits `bundles` — API contract drift**
+  File: apps/web/src/app/(shop)/shop/[slug]/page.tsx (~39–65)
+  Symptom: Client type doesn't include `bundles` even though API returns them (`shop.snapshot.test.ts.snap`). Bundles silently dropped at compile time.
+  Fix: Extend interface; render or intentionally omit with comment.
+
+[2.7] **Inactive seller (`sellers.status`) not gated**
+  File: apps/api/src/routes/shop.ts (~24–32)
+  Symptom: Only slug lookup; `seller.status === "INACTIVE"` still returns full shop payload. UI would allow browsing if campaign ACTIVE.
+  Fix: 404 or dedicated “shoppen är pausad” when seller INACTIVE.
+
+[2.8] **404 shop page has no recovery CTA**
+  File: apps/web/src/app/(shop)/shop/[slug]/page.tsx (~134–143)
+  Symptom: Message + “Kontrollera att länken stämmer” only; no Link to `/` or `/kontakt` (SUPPORTER [3.18]).
+  Fix: Primary “Till startsidan” button.
+
+[2.9] **Empty product list — no empty state**
+  File: apps/web/src/app/(shop)/shop/[slug]/page.tsx (~229–295)
+  Symptom: If `products.length === 0`, section renders empty grid with heading “Produkter” only.
+  Fix: Copy + contact lagledare when assortment missing.
+
+=====================================================
+PRIORITY 3 — MEDIUM
+=====================================================
+
+[3.1] **Weak add-to-cart feedback — no toast or `aria-live`**
+  File: apps/web/src/app/(shop)/shop/[slug]/page.tsx (~257–287)
+  Symptom: Qty changes silently; screen-reader users get no confirmation (SUPPORTER [3.1]).
+
+[3.2] **Small +/- touch targets (`h-8 w-8` = 32px)**
+  File: apps/web/src/app/(shop)/shop/[slug]/page.tsx (~259–287)
+  Symptom: Below 44px WCAG touch recommendation for older supporters on phones (SUPPORTER [3.2]).
+
+[3.3] **Team/org line visually de-emphasized vs seller name**
+  File: apps/web/src/app/(shop)/shop/[slug]/page.tsx (~152–158)
+  Symptom: `text-sm text-muted-foreground` for team · org; cause context easy to miss (SUPPORTER [3.7]).
+
+[3.4] **Campaign team goal unused — only individual progress bar**
+  File: apps/web/src/app/(shop)/shop/[slug]/page.tsx (~47–54, ~115–125)
+  Symptom: API sends `goalType`/`goalValue`; UI never shows team-wide target (SUPPORTER [2.8]).
+
+[3.5] **Cold landing when no story and no individual goal**
+  File: apps/web/src/app/(shop)/shop/[slug]/page.tsx (~191–226)
+  Symptom: Page jumps straight to product grid — thin emotional bridge (SUPPORTER [2.7]).
+
+[3.6] **Shop footer competes with sticky bar on small viewports**
+  File: apps/web/src/app/(shop)/layout.tsx (~17–43)
+  Symptom: Legal footer always rendered below fold; with sticky cart, last footer links may require extra scroll past obscured zone (mitigate via [2.4]).
+
+=====================================================
+PRIORITY 4 — LOW
+=====================================================
+
+[4.1] **“Roots” badge in header — brand noise on personal shop**
+  File: apps/web/src/app/(shop)/shop/[slug]/page.tsx (~160–162)
+  Symptom: Secondary badge adds little for supporter conversion.
+
+[4.2] **Loading state is spinner only — no skeleton or seller name hint**
+  File: apps/web/src/app/(shop)/shop/[slug]/page.tsx (~126–131)
+  Symptom: Slow 3G shows blank branded spinner; no progressive header from slug (SUPPORTER [3.19]).
+
+[4.3] **`generateMetadata` description template always mentions hårvård**
+  File: apps/web/src/app/(shop)/shop/[slug]/layout.tsx (~42–44)
+  Symptom: Generic product category copy even when campaign story is about other causes.
+
+=====================================================
+RESOLVED SINCE APRIL 2026 AUDITS (verify, do not re-fix)
+=====================================================
+
+- **Campaign inactive gating on shop UI** — banner + disabled add-to-cart (was SUPPORTER [1.4], CONVERSION [1.8]). CLOSED in page.tsx ~108–113, ~169–188, ~264–279.
+- **Cart persistence** — `useCart` + sessionStorage behind `webFlags.cartPersistence()` (was SUPPORTER [2.2]). CLOSED in apps/web/src/lib/use-cart.ts.
+- **No generateMetadata** — server layout now fetches shop name (was SELLER [1.4]). CLOSED in layout.tsx ~32–61.
+- **Shop layout missing legal footer** — `(shop)/layout.tsx` now has `LegalIdentityBlock` + villkor/integritet/kontakt (was SUPPORTER [1.6]). CLOSED.
+- **Sticky bar iOS home indicator** — `env(safe-area-inset-bottom)` on bar (was SUPPORTER [3.3]). CLOSED in page.tsx ~335.
+- **Kassa order summary** — line items + moms + total added (was SUPPORTER [1.1] for kassa; out of scope but affects shop→kassa flow). CLOSED in kassa/page.tsx ~195–247.
+
+=====================================================
+USER FLOWS (3 SCENARIOS)
+=====================================================
+
+**A. First-time visitor (opens shared `/shop/anna-…` link)**
+  1. Link preview: title `{seller} — {campaign} | Stötta via Roots` ✅; image still generic site hero ❌.
+  2. Lands on shop: sees team · org, seller display name, optional campaign story + progress ✅/partial.
+  3. Browses products, taps + → qty increases; sticky bar appears with total ✅.
+  4. Missing: seller photo/message, social proof nudge, gift toggle, bundle purchase ❌.
+  5. Taps “Till kassan” → query-string cart ✅ (kassa summary exists).
+
+**B. Return visitor (same browser, same slug)**
+  1. sessionStorage restores cart on reload ✅.
+  2. If campaign still ACTIVE: seamless continue ✅.
+  3. If campaign ENDED since last visit: amber banner ✅ but cart controls disabled and sticky bar hidden while sessionStorage still holds items ❌ ([2.3]).
+  4. Direct `/shop/{slug}/kassa?item_…` with stale IDs: kassa empty-state with back link ✅ (kassa/page.tsx ~200–209).
+
+**C. Mobile supporter (iPhone, portrait)**
+  1. Product row layout stacks image + controls — usable ✅.
+  2. Sticky bar respects safe-area ✅.
+  3. Delivery card + footer may sit under sticky bar without extra main padding ❌ ([2.4]).
+  4. 32px +/- buttons — error-prone for large fingers ❌ ([3.2]).
+  5. No ChatWidget on shop layout — no FAB conflict ✅ (shop uses dedicated `(shop)` layout).
+
+=====================================================
+MVP READINESS BREAKDOWN
+=====================================================
+
+| Area                         | Status   | Notes |
+|-----------------------------|----------|-------|
+| Slug 404 / error handling   | PARTIAL  | Clean UI; 500 mislabeled; no home CTA |
+| Campaign gating             | OK       | Banner + disabled cart controls |
+| Seller identity             | FAIL     | Name only; no photo/alias/message |
+| Context (team/org)          | PARTIAL  | Present but muted |
+| Product grid + cart         | PARTIAL  | Works for singles; images hardcoded |
+| Bundle commerce             | FAIL     | Static promo only |
+| Sticky cart bar             | OK       | Desktop + mobile + safe-area |
+| Metadata / OG               | PARTIAL  | Title/desc OK; images generic |
+| Social proof / gift         | FAIL     | Checklist features missing |
+| Catalog correctness         | FAIL     | All active products, not campaign-scoped |
+
+Overall MVP readiness for **supporter personal shop as commerce entrypoint**: **NOT READY** — core add-to-cart path works for ACTIVE campaigns, but bundle dead-end, wrong catalog scope, missing checklist social proof/gift, and incomplete seller profile block launch-quality conversion.
+
+Recommended MVP gate (this scout):
+  □ campaign_products filter (or documented global-catalog exception)
+  □ API + UI: publicAlias, personalMessage
+  □ Bundles wired to cart from API payload
+  □ Social proof line from stats.orderCount (+ optional team rank)
+  □ Per-shop OG image
+  □ Gift toggle → checkout field
+  □ Main pb inset when sticky bar visible
+
+=====================================================
+NOTES
+=====================================================
+
+- Checkout/kassa/bekraftelse issues (Klarna, delivery mismatch, share-back) are **adjacent** — scout 21 scope stops at shop page + API + shop layout footer; kassa improvements since April reduce but do not remove shop-side gaps.
+- MASTER_PLAN Fas 2 commerce batch aligns with [1.1], [1.2], [1.6], and seller privacy fields [1.3].
+- Do **not** fabricate “topp 5 i lag” without real team sales query; use `hideFromLeaderboard` when exposing ranks.
+
+--- END SCOUT 21 ---

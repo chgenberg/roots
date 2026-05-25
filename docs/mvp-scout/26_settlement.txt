@@ -1,0 +1,267 @@
+================================================================
+SCOUT 26 — Settlement + payouts (INTERNAL_ADMIN, ASSOCIATION_ADMIN)
+================================================================
+Date: 2026-05-25
+Roles: INTERNAL_ADMIN, ASSOCIATION_ADMIN
+Scope: apps/api/src/routes/settlement.ts, packages/db/src/schema/payouts.ts, campaigns.ts (SETTLED), customer-orders.ts, portal/utbetalningar (briefed — absent)
+Reference: docs/flow-audits/INTERNAL_ADMIN_2026-04-18_1310.txt [2.11–2.13, 3.4–3.6]; docs/feedback-plans/08-ecommerce-integration/03_settlement_and_payouts.txt; docs/feedback-plans/05-sales-process/04_marketing_support_trigger.txt
+
+SUMMARY
+-------
+Settlement backend exists (`POST /v1/settlement/generate`, `GET /by-campaign`, `POST /create-invoice`) with correct role gates and a simple margin split per team, but MVP money ops are blocked: no UI calls the API, campaigns cannot reach `ENDED` from the web, Fortnox invoicing passes empty customer data and fails (or silently no-ops in dev), concurrent generate requests can double-settle, marketing-support tiers are not implemented, and `/portal/utbetalningar/` does not exist — assoc admin uses `/forening/avrakning` live estimates only.
+Findings: 22 (P1: 7, P2: 8, P3: 5, P4: 2)
+MVP readiness: 42/100
+
+================================================================
+FOCUS CHECKLIST (pass / partial / fail)
+================================================================
+| Item | Status | Notes |
+|------|--------|-------|
+| requireAdmin: ASSOCIATION_ADMIN own org | PASS | `campaign.orgId !== session.orgId` → 403 (settlement.ts:60-65, 182-187) |
+| requireAdmin: INTERNAL_ADMIN cross-org | PASS | Org check skipped when `session.role === "INTERNAL_ADMIN"` |
+| Aggregation per team / org | PARTIAL | Per-team `SUM(totalOre)` where `status = PAID`; no org rollup row; UI dashboard mixes all campaigns |
+| Marketing support tiers (skill 05) | FAIL | No `marketing_support_tiers` schema or settlement hook |
+| Roots-share vs team-share formula | PASS | `teamShareOre = round(total × marginPercent/100)`; `rootsShareOre = total − teamShare` |
+| Double-settlement guard | PARTIAL | Pre-tx requires `ENDED`; blocks re-run after `SETTLED`; no row lock / in-tx status re-check → race |
+| Payout row PENDING + status workflow | PARTIAL | Insert `PENDING`; invoice → `INVOICED`; `PAID` enum unused — no mark-paid API |
+| Audit log per settlement | PASS | `campaign.status.changed` with `from`/`to`/`settlementCount` (settlement.ts:147-158) |
+| Edge: 0 sold packages | PARTIAL | Zero-amount payout rows created for every team; no skip/log per feedback plan |
+| Edge: partial refunds | FAIL | No partial refund model; `REFUNDED` never set in API |
+| Edge: cancelled orders excluded | PASS | Only `PAID` included; `CANCELLED`/`REFUNDED`/`FAILED` excluded |
+| Portal visibility | FAIL | No `/portal/utbetalningar/`; `/forening/avrakning` never hits settlement API |
+| Fortnox invoice trigger | FAIL | Wrong/empty customer payload; NullProvider → 502; no idempotency on INVOICED |
+
+================================================================
+P1 — CRITICAL (MVP blockers)
+================================================================
+
+[1.1] No settlement UI — API never called from web
+  File: apps/web/src/app/(fundraising)/forening/avrakning/page.tsx (entire file)
+        apps/web/src/app/(portal)/portal/layout.tsx:59-68 (ADMIN_NAV — no utbetalningar)
+        apps/api/src/routes/settlement.ts:43-165, 167-223
+  Symptom: ASSOCIATION_ADMIN and INTERNAL_ADMIN cannot generate avräkning, view payout status (PENDING/INVOICED/PAID), or trigger Fortnox from the product. Ops must use raw API/curl.
+  Root cause: Avräkning page loads `/v1/dashboard/association` estimates only; briefed `/portal/utbetalningar/` path absent.
+  Fix: Campaign picker → `GET /v1/settlement/by-campaign/:id`; table with status badges; "Generera avräkning" → POST generate with confirm + disable while pending; INTERNAL_ADMIN global list under `/portal/utbetalningar` or link from klubbar.
+  Effort: M
+  Ref: INTERNAL_ADMIN [3.4], [2.13]; Scout 15 [1.3]
+
+[1.2] Cannot end campaign in UI — settlement pipeline unreachable
+  File: apps/api/src/routes/settlement.ts:67-69
+        apps/api/src/routes/association.ts:405-504 (create → ACTIVE immediately)
+        apps/web/src/app/(fundraising)/forening/ (no end-campaign control)
+  Symptom: `POST /generate` returns 400 until `campaign.status === "ENDED"`. No REST or web path sets ENDED; tRPC `campaigns.update` exists but is unwired.
+  Root cause: Lifecycle mutation only in unused tRPC router.
+  Fix: REST `PATCH /v1/association/campaigns/:id/status` with ENDED transition + UI "Avsluta kampanj"; block new checkout when ENDED.
+  Effort: M
+  Ref: Scout 15 [1.4]; feedback 03_settlement [GAP statusmachine]
+
+[1.3] Fortnox create-invoice uses empty orgNumber and wrong customer stub
+  File: apps/api/src/routes/settlement.ts:249-267
+        apps/api/src/lib/invoicing/fortnox-provider.ts:71-86
+        packages/db/src/schema/organizations.ts (fortnoxCustomerId column unused)
+  Symptom: `create-invoice` passes `name: "Roots AB"`, `orgNumber: ""`, `email: ""`. Fortnox `CustomerNumber` is set from empty orgNumber → API error in prod.
+  Root cause: Settlement never loads organization row; hardcoded placeholder customer.
+  Fix: Join `organizations` on `payout.orgId`; use `fortnoxCustomerId` or org number + billing email; reject if Fortnox customer missing with actionable error.
+  Effort: M
+  Ref: platform-audit [1.10], [2.15]; INTERNAL_ADMIN financial gap
+
+[1.4] NullInvoiceProvider makes create-invoice always fail in dev/staging
+  File: apps/api/src/lib/invoicing/null-provider.ts:21-30
+        apps/api/src/routes/settlement.ts:269-274
+  Symptom: When `FORTNOX_ENABLED !== "true"`, provider returns `externalId: null`, `status: "pending"`; settlement treats as error → HTTP 502. Admins cannot exercise invoice workflow without Fortnox credentials.
+  Root cause: Strict `!result.externalId` check with no dev stub ID.
+  Fix: NullProvider returns synthetic `externalId` in non-prod, or settlement accepts `pending` and stores `status: INVOICED` with null fortnox id + banner "manuell faktura".
+  Effort: S
+
+[1.5] Concurrent settlement generate — race double-settlement
+  File: apps/api/src/routes/settlement.ts:67-69, 76-145
+  Symptom: Two parallel POSTs while campaign is ENDED both pass pre-tx status check; both run transaction, upsert payouts, set SETTLED — duplicate audit entries; last writer wins on amounts.
+  Root cause: Status guard outside transaction; no `SELECT … FOR UPDATE` on campaign row; no in-tx `WHERE status = 'ENDED'` on update.
+  Fix: Move status check + campaign update into single tx with row lock: `UPDATE campaigns SET status = 'SETTLED' WHERE id = ? AND status = 'ENDED' RETURNING id`; abort if 0 rows.
+  Effort: S
+  Ref: feedback 03_settlement [Dubbleringsskydd — ADR on re-run policy]
+
+[1.6] create-invoice lacks idempotency — duplicate Fortnox invoices
+  File: apps/api/src/routes/settlement.ts:225-285
+  Symptom: Double-click or retry on `POST /create-invoice/:payoutId` creates another Fortnox invoice when first call succeeded but client timed out; no check for existing `fortnoxInvoiceId` or `status === INVOICED`.
+  Root cause: No guard before `invoiceProvider.createInvoiceFromOrder`.
+  Fix: If `payout.fortnoxInvoiceId` or `status !== 'PENDING'`, return existing id; wrap in tx.
+  Effort: S
+  Ref: platform-audit [2.16]
+
+[1.7] Avräkning UI aggregates all org sales — misleading vs per-campaign settlement
+  File: apps/web/src/app/(fundraising)/forening/avrakning/page.tsx:57-62
+        apps/api/src/routes/dashboard.ts:85-97 (no campaignId filter on salesByTeam)
+  Symptom: Page picks first ACTIVE/ENDED campaign for margin label but `totalSalesOre` sums PAID orders across every campaign in org; per-team rows same cross-campaign mix.
+  Root cause: Dashboard association endpoint is org-wide, not campaign-scoped.
+  Fix: Pass `campaignId` query param to dashboard or use settlement by-campaign API; show campaign selector.
+  Effort: M
+  Ref: Scout 15 [2.x dashboard scope]
+
+================================================================
+P2 — HIGH (must fix before launch)
+================================================================
+
+[2.1] Marketing support tiers not implemented
+  File: packages/db/src/schema/campaigns.ts (no tier fields)
+        docs/feedback-plans/05-sales-process/04_marketing_support_trigger.txt
+  Symptom: Bonus trappa from Säljprocess slide 4 never applied to `teamShareOre`; calculator and payout reports omit marknadsstöd.
+  Root cause: Planned in skill 05 agent 4; zero schema/API/settlement integration.
+  Fix: Defer to post-MVP OR add `marketing_support_ore` on payouts after tier query in generate loop.
+  Effort: L (full) / M (MVP: manual bonus field)
+  Ref: feedback 03_settlement [Marknadsstöd-trappa]
+
+[2.2] Payout `PAID` status never reachable
+  File: packages/db/src/schema/payouts.ts:15-19
+        apps/api/src/routes/settlement.ts (no PATCH payout status)
+  Symptom: Workflow stops at INVOICED; finance cannot record bank transfer to association/team in product.
+  Root cause: No mark-paid endpoint or Fortnox paid webhook → payout sync.
+  Fix: `PATCH /v1/settlement/payouts/:id/status` (INTERNAL_ADMIN) + optional Fortnox webhook hook.
+  Effort: M
+
+[2.3] Re-settlement after correction blocked with no safe amendment path
+  File: apps/api/src/routes/settlement.ts:67-69, 109-118
+  Symptom: Once SETTLED, new PAID orders (late webhook) are excluded forever unless DB manual revert to ENDED. Re-generate would overwrite INVOICED payout amounts without status guard.
+  Root cause: Idempotent upsert documented for ENDED re-run, but status gate prevents it; no amendment workflow.
+  Fix: ADR: allow `SETTLED → ENDED` (INTERNAL_ADMIN only) with audit + block if any payout INVOICED; or delta-adjustment job.
+  Effort: M
+  Ref: feedback 03_settlement [policy: blockera ny generate eller omstatus]
+
+[2.4] Invoice customer semantics inverted / incomplete
+  File: apps/api/src/routes/settlement.ts:252-256
+  Symptom: Invoice line bills `rootsShareOre` to association (correct business intent) but customer block names "Roots AB" instead of association legal name; ops cannot reconcile Fortnox debtor.
+  Root cause: Placeholder customer object.
+  Fix: Load org `name`, `orgNumber`, billing email; description per campaign/team.
+  Effort: S (same fix as [1.3])
+
+[2.5] INTERNAL_ADMIN has no global payout overview
+  File: apps/web/src/app/(portal)/portal/layout.tsx:59-68
+        docs/flow-audits/INTERNAL_ADMIN_2026-04-18_1310.txt [2.13]
+  Symptom: Internal ops must know campaign UUIDs to call `GET /by-campaign/:id`; no list of pending settlements across orgs.
+  Root cause: No `GET /v1/settlement` list endpoint or admin page.
+  Fix: `GET /v1/settlement?status=PENDING` for INTERNAL_ADMIN; portal table with org/campaign/team/amount/status.
+  Effort: M
+
+[2.6] Zero-sales teams always get payout rows
+  File: apps/api/src/routes/settlement.ts:79-136
+  Symptom: Campaign with sales on one team inserts 0-öre payout rows for every other team — noise in reports and invoice triggers.
+  Root cause: Loop all teams regardless of sales.
+  Fix: Skip insert when `totalSalesOre === 0` (optional audit log line per feedback plan).
+  Effort: S
+
+[2.7] Settlement audit omits payout IDs and amount checksum
+  File: apps/api/src/routes/settlement.ts:147-158
+  Symptom: Audit entry only records `settlementCount`; cannot reconstruct which payout rows changed for ISAE/finance review.
+  Root cause: Meta not extended per feedback 03_settlement.
+  Fix: Add `payoutIds`, `totalTeamShareOre`, `totalRootsShareOre` to meta; consider action `settlement.generated`.
+  Effort: S
+
+[2.8] Order status filter fragile for future fulfillment workflow
+  File: apps/api/src/routes/settlement.ts:89
+        packages/db/src/schema/customer-orders.ts:17-27
+  Symptom: Only `PAID` orders count. Schema defines CONFIRMED/SHIPPED/DELIVERED but no API updates customer_orders past PAID today — safe now; any future status transition without updating settlement excludes revenue.
+  Root cause: Single-status filter vs multi-state "completed sale" concept.
+  Fix: Centralize eligible statuses in `lib/settlement/eligible-orders.ts` e.g. `IN ('PAID','CONFIRMED','SHIPPED','DELIVERED')`; exclude REFUNDED/CANCELLED.
+  Effort: S
+
+================================================================
+P3 — MEDIUM (post-MVP or polish)
+================================================================
+
+[3.1] Partial refunds not supported
+  File: packages/db/src/schema/customer-orders.ts (REFUNDED enum only)
+        apps/api/** (no refund mutation)
+  Symptom: Full REFUNDED status exists but never set; no partial refund amount; settlement would over-count if refund added without regenerate policy.
+  Root cause: Refunds/chargebacks dashboard absent (INTERNAL_ADMIN [2.11]).
+  Fix: Refund API adjusts order total or spawns credit note; exclude/adjust in settlement.
+  Effort: L
+
+[3.2] No payout PDF / bankgiro capture for association
+  File: packages/db/src/schema/organizations.ts (no bankgiro/plusgiro)
+        docs/flow-audits/ASSOCIATION_ONBOARDING [3.6]
+  Symptom: Settlement computes shares but no export for paying the association or team leaders.
+  Root cause: feedback 03_settlement PDF + payout fields not built.
+  Effort: L
+
+[3.3] group_unit payout aggregation not implemented
+  File: packages/db/src/schema/payouts.ts (teamId only)
+        apps/api/src/lib/flags.ts (`payoutByGroupUnit` flag)
+  Symptom: Payouts keyed per team; Modell_register hierarchy (grupp/lag) not reflected.
+  Root cause: Planned in feedback skill 01/03; flag exists, logic does not.
+  Effort: L
+
+[3.4] Team-leader avräkning page also estimate-only
+  File: apps/web/src/app/(fundraising)/lag/avrakning/page.tsx
+  Symptom: TEAM_LEADER sees live margin math, not persisted payout status after settlement.
+  Root cause: Same pattern as forening avräkning — dashboard API only.
+  Effort: M
+
+[3.5] CSRF required for settlement POST in production
+  File: apps/api/src/app.ts:60-70
+  Symptom: Future UI must send `x-csrf-token` on generate/invoice POSTs (not exempt).
+  Root cause: Global CSRF middleware.
+  Fix: Wire `apiFetch` with CSRF token in new settlement UI (same as other portal mutations).
+  Effort: S (when building UI)
+
+================================================================
+P4 — LOW (nice-to-have)
+================================================================
+
+[4.1] Rounding: per-team round on teamShare; rootsShare as remainder — sum of team shares may differ from round(total×margin) by öre across teams
+  File: apps/api/src/routes/settlement.ts:95-96
+  Detail: Acceptable if documented; add reconciliation check in generate response.
+
+[4.2] `create-invoice` bills per team payout — large campaigns produce many Fortnox invoices
+  File: apps/api/src/routes/settlement.ts:225-285
+  Detail: Consider org-level consolidated invoice for rootsShare sum; product decision.
+
+================================================================
+WHAT WORKS (keep)
+================================================================
+- Role gates on all three settlement routes (ASSOCIATION_ADMIN scoped to org; INTERNAL_ADMIN global).
+- Unique index `payouts_campaign_team_unique_idx` prevents duplicate payout rows per team/campaign.
+- Transaction wraps payout upserts + campaign SETTLED in one commit.
+- Margin split formula matches UI estimates (`marginPercent` on campaign).
+- CANCELLED/FAILED/PENDING orders excluded via PAID-only aggregation.
+- Audit log fires on successful generate with status transition metadata.
+- Payout schema includes fortnoxInvoiceId and PENDING/INVOICED/PAID enum ready for workflow extension.
+
+================================================================
+RECOMMENDED FIX ORDER (MVP)
+================================================================
+1. Campaign ENDED transition (REST + UI) — unblocks generate.
+2. Row-lock + in-tx status guard on generate — prevents double-settle race.
+3. Wire `/forening/avrakning` (and INTERNAL_ADMIN page) to settlement API with campaign scope.
+4. Fix organization customer payload + Fortnox idempotency on create-invoice.
+5. NullProvider/dev path so invoice workflow testable without Fortnox.
+6. Skip zero-sales payout rows + extend audit meta.
+7. Marketing support tiers — explicit post-MVP unless sales process requires day one.
+
+MVP READINESS NOTES
+-------------------
+- **ASSOCIATION_ADMIN happy path today:** view estimated avräkning on `/forening/avrakning` (wrong scope) → cannot end campaign → cannot generate settlement → cannot see PENDING/INVOICED/PAID → cannot invoice Roots share.
+- **INTERNAL_ADMIN happy path today:** no nav entry; raw API only; audit-log may show `campaign.status.changed` to SETTLED if someone called generate via curl.
+- **Fortnox:** Disabled by default; enabled path still broken on customer identity until [1.3]/[2.4] fixed.
+- **Scout 15 overlap:** [1.3], [1.4] duplicated here with settlement-specific depth; this scout owns financial correctness and invoice path.
+
+FILES REVIEWED
+--------------
+apps/api/src/routes/settlement.ts
+apps/api/src/lib/invoicing/index.ts
+apps/api/src/lib/invoicing/fortnox-provider.ts
+apps/api/src/lib/invoicing/null-provider.ts
+apps/api/src/routes/dashboard.ts (association aggregation)
+apps/api/src/routes/association.ts (campaign create)
+apps/api/src/app.ts (route mount, CSRF)
+packages/db/src/schema/payouts.ts
+packages/db/src/schema/campaigns.ts
+packages/db/src/schema/customer-orders.ts
+packages/db/src/schema/organizations.ts
+apps/web/src/app/(fundraising)/forening/avrakning/page.tsx
+apps/web/src/app/(fundraising)/lag/avrakning/page.tsx
+apps/web/src/app/(portal)/portal/layout.tsx
+docs/feedback-plans/08-ecommerce-integration/03_settlement_and_payouts.txt
+docs/feedback-plans/05-sales-process/04_marketing_support_trigger.txt
+docs/flow-audits/INTERNAL_ADMIN_2026-04-18_1310.txt
+
+--- END SCOUT 26 ---

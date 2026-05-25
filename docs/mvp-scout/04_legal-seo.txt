@@ -1,0 +1,257 @@
+ROOTS MVP SCOUT 4/35 — LEGAL + SEO
+===================================
+Date: 2026-05-25
+Scope: villkor, integritet, robots, sitemap, JSON-LD, legal-identity, root metadata
+Roles: PUBLIC, ALL
+Mode: Read-only source audit
+
+SUMMARY
+-------
+Total findings: 22
+  Priority 1 (MVP-blocking):  3
+  Priority 2 (High):          7
+  Priority 3 (Medium):        8
+  Priority 4 (Low):           4
+
+Legal pages (köpvillkor + integritetspolicy) are substantially complete for a Swedish B2C launch: ångerrätt, reklamation, GDPR rights, ARN, EU ODR, IMY, and contact are all present. Since the April 2026 conversion/trust audit, LegalIdentity has been centralised and is now rendered in footer, kontakt, villkor, integritet, and shop/kassa footer — a major gap closed. Remaining MVP blockers are (1) unverified/placeholder company constants (phone, possibly address), (2) missing GDPR disclosure for AI håranalys automated processing, and (3) structured-data/SEO polish gaps that hurt discoverability but not checkout legality.
+
+Compared to docs/flow-audits/CONVERSION_TRUST_2026-04-18_1313.txt and MASTER_PLAN Fas 4: footer/legal/JSON-LD items from that audit are largely implemented. Canonical URLs, per-page OG, contactPoint in JSON-LD, and env-driven legal constants remain open.
+
+=====================================================
+PRIORITY 1 — MVP-BLOCKING
+=====================================================
+
+[P1.1] **Placeholder telephone in published legal identity**
+File: apps/web/src/lib/legal-identity.ts (contact.phone: "+46 8 000 000 00")
+Also emitted in: apps/web/src/components/json-ld.tsx (OrganizationJsonLd → telephone)
+Impact: Fake phone in schema.org Organization misleads consumers and search engines; violates e-handelslagen expectation of reachable seller contact. LegalIdentityBlock does not surface phone in UI, but JSON-LD does.
+Fix: Replace with verified business phone before launch; add phone to LegalIdentityBlock when showContact=true, or remove telephone from JSON-LD until real.
+
+[P1.2] **Registered address / org.nr not verifiable from repo**
+File: apps/web/src/lib/legal-identity.ts
+Values: orgNumber "559517-3210", vatId "SE559517321001", street "Storgatan 1", 111 51 Stockholm
+Impact: Format is structurally valid (559-prefix AB, VAT = SE + org digits + 01), but "Storgatan 1" reads as generic placeholder and appears nowhere else in the monorepo. If these do not match Bolagsverket/Fortnox records, every footer, legal page, and JSON-LD block publishes false trader identity — a hard launch blocker under e-handelslagen and EU consumer law.
+Fix: Confirm against company registration; update legal-identity.ts to exact registered postadress. Consider Bolagsverket link or " säte" wording if virtual office.
+
+[P1.3] **Integritetspolicy lacks AI / automated-decision disclosure for håranalys**
+File: apps/web/src/app/(marketing)/integritet/page.tsx
+Gap: Section 2 mentions håranalys images + OpenAI, but no Art. 13/22 language on automated profiling, logic involved, significance/consequences, or right to human review — required when offering GPT Vision recommendations that influence product suggestions.
+Impact: GDPR compliance gap for a live lead magnet promoted in sitemap (/haranalys) and marketing.
+Fix: Add subsection under håranalys or "Dina rättigheter" covering automated analysis, opt-out/human contact path, and that recommendations are advisory not binding.
+
+=====================================================
+PRIORITY 2 — HIGH
+=====================================================
+
+[P2.1] **No standard withdrawal form (ångerrättsformulär) linked from köpvillkor**
+File: apps/web/src/app/(marketing)/villkor/page.tsx (§4 Ångerrätt)
+Gap: Email contact is provided, but distansavtalslagen expects access to a model withdrawal form (often EU standard template PDF or dedicated page).
+Fix: Add /villkor/angerratt or PDF link; reference it in §4.
+
+[P2.2] **ProductJsonLd uses relative image URL**
+File: apps/web/src/app/(marketing)/produkter/[slug]/page.tsx → ProductJsonLd image="/images/m3.jpg" etc.
+Impact: Google Rich Results prefer absolute URLs; may suppress product rich snippets.
+Fix: Prefix with metadataBase / NEXT_PUBLIC_SITE_URL (as MASTER_PLAN Fas 4 notes).
+
+[P2.3] **Canonical URLs missing on almost all marketing pages**
+Files: villkor, integritet, produkter, produkter/[slug], foreningsliv, om-oss, kontakt, haranalys, homepage
+Only shop layout sets alternates.canonical (apps/web/src/app/(shop)/shop/[slug]/layout.tsx).
+Impact: Duplicate-URL risk if query params or trailing slashes proliferate; weaker SEO consolidation.
+Fix: Add alternates: { canonical: "/path" } per public route (metadataBase in root layout makes relative paths valid).
+
+[P2.4] **Per-page Open Graph / Twitter incomplete**
+Root layout (apps/web/src/app/layout.tsx) sets default OG/Twitter images — good fallback.
+Explicit OG: kontakt layout, haranalys layout, shop layout, login layout.
+Missing explicit OG/twitter on: villkor, integritet, produkter, produkter/[slug], foreningsliv, om-oss, homepage (inherits root only — no page-specific title/description in OG block).
+Impact: Shared links to legal/product pages unfurl generic hero, not page-specific copy.
+Fix: Extend metadata on each public marketing page with openGraph + twitter mirroring title/description; use product image on product detail.
+
+[P2.5] **LegalIdentityBlock showContact omits phone**
+File: apps/web/src/components/legal-identity-block.tsx
+Impact: kontakt page shows address + org.nr but no phone; component design says "phone number" in docblock but only renders email when showContact=true. Inconsistent with JSON-LD telephone field once P1.1 is fixed.
+Fix: Render LEGAL_IDENTITY.contact.phone in block variant when showContact.
+
+[P2.6] **Köpvillkor — price change "utan föregående meddelande"**
+File: apps/web/src/app/(marketing)/villkor/page.tsx (§2)
+Impact: Conflicts with checkout UX (price locked at order time) and weakens consumer-trust signal; flagged in CONVERSION_TRUST audit [1.18].
+Fix: Reword to "pris vid beställningstillfället gäller" and limit changes to future orders only.
+
+[P2.7] **Integritet — no explicit data controller contact for GDPR requests beyond email**
+File: apps/web/src/app/(marketing)/integritet/page.tsx (§7)
+Gap: Email hej@roots.se given; no postal address repeat in rights section (only in §1 via LegalIdentityBlock). IMY link present — good.
+Fix: Repeat postal address in §7 for formal DSR requests; optional DPO line if appointed.
+
+=====================================================
+PRIORITY 3 — MEDIUM
+=====================================================
+
+[P3.1] **OrganizationJsonLd missing contactPoint array**
+File: apps/web/src/components/json-ld.tsx
+Gap: MASTER_PLAN Fas 4 requested contactPoint; current schema has flat email/telephone only.
+Fix: Add contactPoint with contactType "customer service", availableLanguage "Swedish".
+
+[P3.2] **ProductJsonLd seller object minimal**
+File: apps/web/src/components/json-ld.tsx (offers.seller)
+Gap: Only legalName; no url, vatID, or address on seller Organization.
+Fix: Spread LEGAL_IDENTITY fields into seller for richer merchant markup.
+
+[P3.3] **sitemap.ts omits /hjalp**
+File: apps/web/src/app/sitemap.ts
+Present: /, /produkter (+3 slugs), /foreningsliv, /om-oss, /kontakt, /haranalys, /integritet, /villkor
+Missing: /hjalp (public FAQ hub at apps/web/src/app/(marketing)/hjalp/page.tsx)
+Impact: Help content not discoverable via sitemap; page also has no layout metadata.
+
+[P3.4] **/hjalp has no metadata export**
+File: apps/web/src/app/(marketing)/hjalp/page.tsx ("use client", no layout.tsx)
+Impact: Generic title from root template; no description for SEO.
+Fix: Add hjalp/layout.tsx with metadata (pattern: kontakt, haranalys).
+
+[P3.5] **robots.ts — no explicit /admin disallow (portal covered)**
+File: apps/web/src/app/robots.ts
+Current disallow: /api/, /portal/, /forening/, /lag/, /min-shop/, /login, /registrera
+Allow: /, /shop/
+Assessment: /portal/ correctly blocks all portal routes including audit-log (INTERNAL_ADMIN). No /admin web route exists today. /preview-gate not disallowed but page sets robots: { index: false } — defence in depth gap only.
+Fix: Add /preview-gate to disallow list; add /admin/ if route is introduced later.
+
+[P3.6] **Homepage has no page-level metadata file**
+File: apps/web/src/app/(marketing)/page.tsx (no metadata export)
+Impact: Relies entirely on root layout defaults — acceptable but no homepage-specific canonical or OG description beyond root.
+Fix: Optional marketing/page metadata or layout with canonical "/".
+
+[P3.7] **Dynamic seller shops not in sitemap**
+File: apps/web/src/app/sitemap.ts
+Note: /shop/[slug] intentionally omitted (dynamic, unbounded). robots allows /shop/ for viral discovery — correct tradeoff. Consider sitemap index or API-driven sitemap for active campaigns if SEO on seller links becomes priority.
+
+[P3.8] **Integritet §8 cookies vs session cookies**
+File: apps/web/src/app/(marketing)/integritet/page.tsx
+Text claims "inga tredjepartscookies" and "cookiefri" analytics; also states sessionscookies for login/cart. Accurate if Plausible is cookiefri, but no cookie banner/consent mechanism referenced.
+Impact: Likely OK for strictly-necessary session cookies; document Plausible explicitly in §8 if enabled via NEXT_PUBLIC_PLAUSIBLE_DOMAIN.
+
+=====================================================
+PRIORITY 4 — LOW
+=====================================================
+
+[P4.1] **kontakt duplicates LEGAL_IDENTITY inline instead of LegalIdentityBlock**
+File: apps/web/src/app/(marketing)/kontakt/page.tsx (lines 157–168)
+Impact: Drift risk if legal-identity.ts changes; component exists for this purpose.
+Fix: Replace inline address block with <LegalIdentityBlock variant="block" showContact />.
+
+[P4.2] **OrganizationJsonLd hardcodes numberOfEmployees: 3**
+File: apps/web/src/components/json-ld.tsx
+Impact: Minor structured-data inaccuracy if headcount differs.
+
+[P4.3] **Multilingual: sv-only, lang="sv" confirmed**
+File: apps/web/src/app/layout.tsx (<html lang="sv">)
+No hreflang alternates — acceptable for MVP Sweden-only launch. Note for future NO/DK expansion.
+
+[P4.4] **EU ODR link uses legacy path**
+File: apps/web/src/app/(marketing)/villkor/page.tsx (§9)
+URL: https://ec.europa.eu/consumers/odr — may redirect; consider https://consumer-redress.ec.europa.eu/ when EU portal fully migrated.
+
+=====================================================
+CHECKLIST — PASS / PARTIAL / FAIL
+=====================================================
+
+Legal text completeness
+  Ångerrätt (14 dagar, undantag hygien)     PASS
+  Reklamation (3 år)                         PASS
+  GDPR rights (access, erase, portability)   PASS
+  Contact (email + LegalIdentity)            PASS (phone placeholder — FAIL in JSON-LD)
+  ARN                                        PASS
+  EU ODR                                     PASS
+  IMY complaint path                         PASS
+  Withdrawal form template                   FAIL (P2.1)
+  AI automated decision disclosure           FAIL (P1.3)
+  Klarna payment mention                     PASS (kassa); not in villkor §2 — PARTIAL
+
+LegalIdentity rendering
+  Footer                                     PASS (footer.tsx → LegalIdentityBlock compact + contact)
+  Kontakt                                    PASS (inline LEGAL_IDENTITY, full org/VAT/address)
+  Villkor                                    PASS (§10 LegalIdentityBlock block)
+  Integritet                                 PASS (§1 LegalIdentityBlock block)
+  Kassa / shop                               PASS (shop layout footer + villkor links in kassa form)
+
+robots.ts
+  /shop/ allowed                               PASS
+  /portal blocked                              PASS
+  /api blocked                                 PASS
+  /admin blocked                               N/A (no route; portal covers admin UI)
+  Auth routes blocked                          PASS (/login, /registrera)
+
+sitemap.ts
+  /produkter                                   PASS
+  /haranalys                                   PASS
+  /foreningsliv                                PASS
+  Core public routes                           PASS
+  /hjalp                                       FAIL (P3.3)
+
+JSON-LD
+  Organization legalName                       PASS
+  vatID / taxID                                PASS
+  address                                      PASS (if address verified — see P1.2)
+  sameAs (Instagram, LinkedIn)                 PASS
+  Product with seller                          PARTIAL (seller minimal; image relative — P2.2, P3.2)
+  contactPoint                                 FAIL (P3.1)
+
+Metadata / SEO
+  Root metadataBase + OG defaults              PASS
+  lang="sv"                                    PASS
+  Per-page generateMetadata/export             PARTIAL (shop + product slug only; most static pages title/desc only)
+  Canonical URLs                               FAIL (shop only — P2.3)
+  OG/Twitter per public page                   PARTIAL (P2.4)
+
+LEGAL_IDENTITY constants
+  org.nr format                                PASS (structurally)
+  vatID format                                 PASS (SE559517321001)
+  Real vs placeholder                          FAIL until verified (P1.1, P1.2)
+
+=====================================================
+ROLE CONNECTIONS
+=====================================================
+
+PUBLIC (visitor / supporter / lead)
+  • Trust at first visit: footer + JSON-LD Organization signal legitimacy before any signup.
+  • Supporter checkout: shop layout footer + kassa villkor/integritet links satisfy pre-contract disclosure at payment commitment.
+  • Håranalys lead magnet: integritet must cover AI processing (P1.3) before scaling traffic via /haranalys SEO.
+  • Product discovery: ProductJsonLd + sitemap /produkter paths feed Google Shopping / rich results for cold traffic.
+
+ALL roles
+  • Single legal-identity.ts source prevents footer vs email vs Fortnox mismatch.
+  • robots blocking /portal, /forening, /lag keeps authenticated surfaces out of search; public /shop/ remains indexable for viral seller links.
+  • villkor/integritet linked from footer on every marketing page via Footer component.
+
+Indirect
+  • Sales/association onboarding (registrera blocked in robots — correct).
+  • Email domain split (rootshaircare.se in API emails) out of scope but still erodes trust if legal pages say roots.se only — coordinate with brand scout.
+
+=====================================================
+MVP READINESS BREAKDOWN
+=====================================================
+
+Legal pages (villkor + integritet)     85%  — content solid; withdrawal form + AI GDPR gap
+LegalIdentity footprint               90%  — all required surfaces covered; verify real data
+robots.txt                            95%  — correct for current route tree
+sitemap.xml                           85%  — core routes present; /hjalp missing
+JSON-LD                               75%  — Organization good; Product + contactPoint gaps
+Metadata / OG / canonical             60%  — root defaults OK; per-page SEO thin
+Company constants authenticity        50%  — BLOCK until phone/address verified
+
+Overall Legal + SEO MVP readiness: **~78% — ship after P1 fixes and P2.1–P2.3**
+
+Recommended pre-launch sequence (aligns MASTER_PLAN Fas 4):
+  1. Verify and publish real org.nr, VAT, address, phone in legal-identity.ts
+  2. Add håranalys GDPR automated-processing section
+  3. Add withdrawal form link in villkor §4
+  4. Absolute ProductJsonLd URLs + canonical on top 8 public routes
+  5. Add /hjalp to sitemap + metadata layout
+
+NOTES
+-----
+• Significant improvement since CONVERSION_TRUST_2026-04-18 audit: items [2.1]–[2.3] (footer/kontakt/legal pages lacking org data) and JSON-LD gaps are now addressed in code.
+• Shop generateMetadata now lives in shop/[slug]/layout.tsx (server) — resolves old audit [2.16] about client-only unfurl.
+• legal-identity.ts intentionally hardcodes public values in code (not env) — acceptable; env vars from MASTER_PLAN are optional hygiene.
+• Kassa page is "use client" but inherits shop layout footer with LegalIdentity — meets checkout disclosure requirement without duplicating block in form body.
+• Preview gate uses page-level noindex — sufficient for staging; disallow in robots is belt-and-braces.
+• Swedish-only (lang="sv") confirmed; no i18n routing — document as MVP scope decision.
+
+--- END SCOUT 4 ---

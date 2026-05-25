@@ -1,0 +1,258 @@
+================================================================
+SCOUT 32 — Forms audit (validation, errors, a11y, success)
+================================================================
+Date: 2026-05-25
+Scope: apps/web/src/app/(auth)/, (portal)/, (shop)/, (marketing)/;
+       apps/web/src/components/ui/ (Input, Label, Button — no Textarea/Select);
+       form helpers: lib/api.ts (CSRF), lib/portal-api.ts
+Out of scope: (fundraising)/ dialogs except cross-refs where same patterns apply
+
+Ref audits: docs/flow-audits/ASSOCIATION_ONBOARDING_2026-04-18_1241.txt,
+            docs/flow-audits/SUPPORTER_2026-04-18_1247.txt,
+            docs/flow-audits/CONVERSION_TRUST_2026-04-18_1313.txt
+
+SUMMARY
+-------
+Forms work for happy paths (Swedish copy, loading/disabled submit, CSRF on
+apiFetch POSTs) but share no validation layer, no accessible field-error wiring,
+and inconsistent `<form>` usage. Zero `aria-required` / `aria-invalid` /
+`aria-describedby` site-wide. Portal has no native `<form>` elements — all
+dialogs submit via `onClick`. MVP blockers: portal order dialog shows success
+after API failure; checkout/registration omit autocomplete and trigger iOS input
+zoom; multi-step registration wizard bypasses native validation; team org-search
+401 is silent in the form UI.
+Findings: 24 (P1: 5, P2: 11, P3: 6, P4: 2)
+MVP readiness: 54/100
+
+FORM INVENTORY (in scope)
+-------------------------
+| Surface | File | `<form>` | Validation | Success |
+|---------|------|----------|------------|---------|
+| Login | (auth)/login/page.tsx | Yes | HTML5 required + type=email | Redirect by role |
+| Register wizard | (auth)/registrera/page.tsx | **No** | Client disabled buttons; step 3 email/password only | Inline + redirect |
+| Seller invite | (auth)/registrera/saljare/[token]/page.tsx | Yes | HTML5 + min password client | Inline + redirect |
+| Team-leader claim | (auth)/registrera/lagansvarig/[token]/page.tsx | Yes | Client regex + min length | Inline + redirect |
+| Checkout | (shop)/shop/[slug]/kassa/page.tsx | Yes | HTML5 required; conditional address | Klarna embed |
+| Kontakt | (marketing)/kontakt/page.tsx | Yes | HTML5 required | Inline replace form |
+| Hjälp support | (marketing)/hjalp/page.tsx | Yes | Client trim check + HTML5 | Inline banner |
+| Håranalys wizard | components/hair-analysis-lead-dialog.tsx | **No** | Gate email/consent client | Result step |
+| Portal password | (portal)/portal/installningar/page.tsx | **No** (dialog) | Client length/match | Toast |
+| Portal invite member | (portal)/portal/medlemmar/page.tsx | **No** (dialog) | Client email regex | Close dialog |
+| Portal ny offert | (portal)/portal/offerter/page.tsx | **No** (dialog) | Client org + cart | Close dialog |
+| Portal ny beställning | (portal)/portal/bestallningar/page.tsx | **No** (dialog) | Cart count only | **Buggy** |
+| Portal nytt lead | (portal)/portal/pipeline/page.tsx | **No** (dialog) | Toast on invalid | Toast + reload |
+
+UI primitives: Input, Label, Button exist; **Textarea and Select components do not**
+(raw `<textarea>` / `<select>` duplicated in kontakt, hjalp, hair-analysis, pipeline).
+
+CHECKLIST (pass / partial / fail)
+---------------------------------
+| Item | Status | Notes |
+|------|--------|-------|
+| Required fields marked visually | PARTIAL | `*` in some Labels (registrera, kassa); many omit asterisk |
+| Required fields marked semantically (aria-required) | **FAIL** | **Zero matches** in apps/web/src |
+| Live vs blur vs submit validation | PARTIAL | Mostly submit-only; lagansvarig validates on submit; no on-blur |
+| Inline accessible errors (Swedish) | PARTIAL | Swedish yes; **aria-describedby / aria-invalid: none** |
+| Submit disabled while pending + spinner | PASS | login, auth registers, kassa, kontakt, most dialogs |
+| Success state / redirect | PARTIAL | Auth/shop OK; kontakt/hjälp inline; **bestallningar false success** |
+| autocomplete attributes | PARTIAL | login, passwords, partial registrera; **kassa/kontakt/hjälp/reg step 2: gaps** |
+| Numeric inputMode (mobile keyboards) | **FAIL** | Only preview-gate; phone/postal/orgnr use default |
+| Long forms collapsible | PARTIAL | registrera/kassa use step cards; hair-analysis scrolls in dialog |
+| Reset on cancel | PARTIAL | Portal dialogs reset on open/close; registrera back keeps field values |
+| Keyboard tab order / no traps | PARTIAL | Radix Dialog traps focus (OK); **Enter won't submit non-form dialogs** |
+| Server errors mapped to fields | **FAIL** | All surfaces use single global string or toast |
+| CSRF on mutating POSTs | PASS | apiFetch + portalFetch attach x-csrf-token; GET searches exempt |
+
+P1 — CRITICAL (MVP-blocking form bugs)
+
+[1.1] Portal "Ny beställning" shows success after failed API call
+  File: apps/web/src/app/(portal)/portal/bestallningar/page.tsx:141-183,212-219
+  Symptom: `handleSubmit` catch block only `console.error`s; execution continues to `setCart({})`, `setSubmitted(true)`. User sees "Beställning skickad!" and empty cart even when POST `/v1/portal/orders` failed.
+  Root cause: Missing early return / error state in catch; no `role="alert"` error surface.
+  Fix: On failure set `submitError` state, keep dialog in edit mode, show Swedish error; only `setSubmitted(true)` when order created.
+  Effort: S
+
+[1.2] Checkout form missing autocomplete — mobile autofill broken
+  File: apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx:257-286,337-364
+  Symptom: `customerName`, `customerEmail`, `customerPhone`, address fields have no `autoComplete`. iOS/Android won't offer saved contact/address on highest-friction supporter step.
+  Root cause: Fields added without autofill tokens; scout 23 noted same gap.
+  Fix: Add `name`, `email`, `tel`, `address-line1`, `postal-code`, `address-level2` (city) per WHATWG mapping.
+  Effort: S
+  Ref: SUPPORTER [2.5] iOS/checkout friction
+
+[1.3] Shared Input uses text-sm (~14px) — iOS Safari zoom on focus
+  File: apps/web/src/components/ui/input.tsx:10
+  Symptom: All scoped forms use `Input` with `text-sm`. On iOS, focused inputs <16px trigger viewport zoom — layout jump, CTA below fold on kassa/registrera.
+  Root cause: Design token prioritised over mobile form UX.
+  Fix: Use `text-base` on Input at md breakpoint down, or `text-base` globally for form controls; mirror on raw textarea/select classes.
+  Effort: S
+  Ref: SUPPORTER [2.5], scout 23 mobile UX
+
+[1.4] Registration wizard is not a `<form>` — native validation and a11y tree broken
+  File: apps/web/src/app/(auth)/registrera/page.tsx:285-521
+  Symptom: Steps 1–3 are `<div>` + `Button onClick`. `required` on Inputs in steps 1–2 never fires (no form submit). Enter key does not advance/submit. Assistive tech does not expose a single form landmark.
+  Root cause: Multi-step implemented as state machine outside HTML form semantics.
+  Fix: Wrap each step in `<form onSubmit>` or one form with step fieldsets; call `reportValidity()` before step advance; associate step progress with `aria-current="step"`.
+  Effort: M
+  Ref: scout 08_register-association mobile/autofill partial
+
+[1.5] Team registration org-search field fails silently (401)
+  File: apps/web/src/app/(auth)/registrera/page.tsx:71-86,348-373
+  Symptom: Anonymous `fetch` to `/v1/auth/organizations/search` returns 401; UI shows empty dropdown — user thinks org doesn't exist. No `role="alert"`, no retry guidance.
+  Root cause: Endpoint requires session; registrera catch swallows errors into empty array.
+  Fix: Open search pre-auth OR show explicit error under orgSearch field; disable team path with link to association signup.
+  Effort: M (API) / S (UI error)
+  Ref: ASSOCIATION [1.1]–[1.2]
+
+P2 — HIGH (must fix before MVP launch)
+
+[2.1] Zero accessible field-error association site-wide
+  Files: all form surfaces in scope (grep: no aria-invalid / aria-describedby)
+  Symptom: Errors render as detached `<p>` below fields. Screen readers don't announce which field failed; no `aria-invalid="true"` on invalid inputs.
+  Root cause: No FormField/FieldError primitive; ad-hoc error strings.
+  Fix: Add `FormField` wrapper: `id`, `aria-describedby={errorId}`, `aria-invalid={!!error}`; error `<p id={errorId} role="alert">`.
+  Effort: M
+
+[2.2] Zero `aria-required` despite visual required markers
+  Files: registrera/page.tsx (Labels with `*`), kassa/page.tsx, seller/lagansvarig forms
+  Symptom: Required fields use `required` HTML attribute inconsistently (portal dialogs: none). Asterisk in label text is not exposed to AT as required.
+  Fix: Set `aria-required="true"` on required inputs; use `*` + `(obligatoriskt)` in sr-only span pattern.
+  Effort: S
+
+[2.3] Portal has no `<form>` elements — Enter key doesn't submit dialogs
+  Files: installningar, medlemmar, offerter, bestallningar, pipeline (all under (portal)/)
+  Symptom: Password change, invite member, create quote/order/lead only submit via footer `Button onClick`. Keyboard users pressing Enter in last field get no action.
+  Fix: Wrap dialog fields in `<form onSubmit>`; default submit button type="submit".
+  Effort: S–M
+
+[2.4] Registration step 2 missing autocomplete for PII/address
+  File: apps/web/src/app/(auth)/registrera/page.tsx:417-464
+  Symptom: contactName, phone, address, postalCode, city lack `autoComplete` (`name`, `tel`, `address-line1`, `postal-code`, `address-level2`).
+  Fix: Add tokens on step 2 fields (step 3 already has email/new-password).
+  Effort: S
+
+[2.5] Seller registration missing name/tel autocomplete
+  File: apps/web/src/app/(auth)/registrera/saljare/[token]/page.tsx:104-144
+  Symptom: `displayName` and `phone` lack `autoComplete="name"` / `autoComplete="tel"`.
+  Effort: S
+
+[2.6] Kontakt + Hjälp contact forms missing autocomplete
+  Files: (marketing)/kontakt/page.tsx:79-91; (marketing)/hjalp/page.tsx:408-427
+  Symptom: name/email fields have no autofill hints; repeat visitors re-type data.
+  Effort: S
+
+[2.7] Global errors missing role="alert" on several high-traffic forms
+  Files: registrera/page.tsx:278-281; saljare/[token]/page.tsx:147-150; kassa/page.tsx:186-189; hjalp/page.tsx:455-457; hair-analysis-lead-dialog.tsx (multiple steps)
+  Symptom: Error text visible but not live-region announced (contrast: login/page.tsx:95, kontakt:118 use role="alert").
+  Fix: Standardise error component with `role="alert"` + optional `aria-live="polite"`.
+  Effort: S
+
+[2.8] No server-side field error mapping — API returns single `error` string
+  Files: lib/api.ts; all consumers
+  Symptom: Validation failures (400) from auth/register, checkout/create, contact, portal routes surface as one banner. User can't tell which field to fix (email taken vs weak password vs bad orgnr).
+  Root cause: API contract is `{ error: string }` not `{ fieldErrors: Record<string,string> }`; UI has no mapper.
+  Fix: Extend API error shape + client helper `applyFieldErrors(setters, data.fieldErrors)`; until API ready, parse known Swedish messages to fields where possible.
+  Effort: M–L
+
+[2.9] Hair-analysis email gate: consent not enforced semantically
+  File: components/hair-analysis-lead-dialog.tsx:385-424
+  Symptom: Email input has no `required`; consent checkbox uses custom `gateReady` but checkbox lacks `required` / `aria-invalid` when user tries Continue without consent. Marketing lead magnet — GDPR-sensitive.
+  Fix: Disable continue via `required` on checkbox group; link consent error to checkbox with aria-describedby.
+  Effort: S
+
+[2.10] Hair-analysis `<select>` elements lack labels tied by htmlFor / id
+  File: components/hair-analysis-lead-dialog.tsx:567-649
+  Symptom: Six native selects have `<Label>` text but no `htmlFor` + matching `id` on select; AT association weak.
+  Fix: Add ids; use shared Select component with Label primitive.
+  Effort: S
+
+[2.11] Pipeline lead form validates via toast only — not inline
+  File: apps/web/src/app/(portal)/portal/pipeline/page.tsx:140-149,296-364
+  Symptom: Empty/short club name or bad score shows toast, not field-level error; toast may be missed by screen reader if focus in dialog.
+  Fix: Inline `<p role="alert">` under leadName/leadScore; aria-invalid on inputs.
+  Effort: S
+
+P3 — MEDIUM
+
+[3.1] No Textarea or Select UI components
+  File: apps/web/src/components/ui/ — absent
+  Symptom: kontakt, hjalp, hair-analysis, pipeline duplicate border/focus classes manually; visual/a11y drift vs Input.
+  Fix: Add textarea.tsx + select.tsx matching Input focus ring and min 16px text on mobile.
+  Effort: S
+
+[3.2] No shared form validation hook / schema (no react-hook-form, zod resolver)
+  Symptom: Each page reimplements email regex, password length, trim rules differently (lagansvarig vs medlemmar vs pipeline).
+  Fix: Optional `@roots/contracts` + lightweight `useFormState` for shared rules and Swedish messages.
+  Effort: M
+
+[3.3] Password change dialog: fields not marked required
+  File: (portal)/portal/installningar/page.tsx:119-148
+  Symptom: Three password fields lack `required`; validation only in onClick handler.
+  Effort: S (part of [2.3])
+
+[3.4] Kontakt success state — no "Skicka ett till" without full page reload
+  File: (marketing)/kontakt/page.tsx:65-75
+  Symptom: After send, form replaced by thank-you; no button to reset `sent` state.
+  Effort: S
+
+[3.5] Checkout note field uses single-line Input instead of Textarea
+  File: (shop)/shop/[slug]/kassa/page.tsx:377-381
+  Symptom: "Meddelande" limited to one line; minor UX for longer hälsningar.
+  Effort: S
+
+[3.6] Registrera error banner lacks role="alert"
+  File: (auth)/registrera/page.tsx:278-281
+  Effort: S (subset of [2.7])
+
+P4 — LOW
+
+[4.1] Offerter dialog: club picker has no aria-selected on chosen org
+  File: (portal)/portal/offerter/page.tsx:250-261
+  Symptom: Selected club only styled visually; listbox pattern incomplete for AT.
+  Effort: S
+
+[4.2] Medlemmar invite dialog resets on open but not on Cancel mid-edit
+  File: (portal)/portal/medlemmar/page.tsx:88-94
+  Symptom: Closing via Avbryt resets via onOpenChange; minor — same as Radix default.
+  Effort: —
+
+WHAT WORKS (no action required for baseline)
+--------------------------------------------
+- CSRF: `apiFetch` fetches `/v1/csrf-token` and sends `x-csrf-token` on non-GET; portalFetch inherits (lib/api.ts:18-46, portal-api.ts:41-44).
+- Login form: semantic form, autocomplete, required, disabled+spinner, role="alert" errors (login/page.tsx:68-107).
+- Auth token registers (seller, lagansvarig): real `<form>`, Swedish errors, success cards + timed redirect.
+- Checkout: form submit, disabled CTA when loading/empty/inactive campaign, order summary card, legal links (kassa/page.tsx:192-440).
+- Kontakt: form submit, success inline confirmation, CSRF via apiFetch.
+- Radix Dialog: focus trap + close control with sr-only "Stäng" (dialog.tsx:43-46) — acceptable modal tab trap.
+- Lagansvarig claim: client-side validation before POST with Swedish messages (lagansvarig/[token]/page.tsx:93-104).
+
+CROSS-SCOUT DEPENDENCIES
+------------------------
+- Checkout shipping total mismatch, server DIRECT address validation: scout 23 [1.1]–[1.2] (API + display, not pure form UX).
+- Registration server validation gaps: scout 08 [1.1]–[1.4] (contract parsing).
+- Forgot password absent: scout 07 [1.2] (login form gap).
+
+RECOMMENDED FIX ORDER (forms-only MVP batch)
+--------------------------------------------
+1. [1.1] bestallningar false success — ship same day
+2. [1.2] + [1.3] kassa autocomplete + Input 16px — supporter mobile
+3. [2.7] role="alert" standard on all error strings
+4. [1.4] registrera wrap steps in forms
+5. [2.1] + [2.2] FormField primitive (aria-invalid, aria-required, aria-describedby)
+6. [2.3] portal dialog forms + Enter submit
+7. [1.5] org search error UX (parallel API fix)
+
+MVP READINESS BREAKDOWN
+- Validation coverage:     11/25  (HTML5 only; server field mapping absent; wizard gaps)
+- Accessibility:            8/25  (no aria-required/invalid/describedby; inconsistent alerts)
+- Mobile / autofill:       10/25  (14px zoom; checkout/reg/contact autofill gaps)
+- Submit / success UX:     17/25  (spinners good; bestallningar false success drags down)
+- CSRF / security:         23/25  (apiFetch solid; raw GET fetches OK)
+
+REFERENCES
+- docs/flow-audits/ASSOCIATION_ONBOARDING_2026-04-18_1241.txt — org search 401, registrera silent empty
+- docs/flow-audits/SUPPORTER_2026-04-18_1247.txt — iOS checkout inputs, autofill
+- docs/flow-audits/CONVERSION_TRUST_2026-04-18_1313.txt — password reset, trust at form commitment
+- docs/mvp-scout/07_login.txt, 08_register-association.txt, 23_checkout.txt — overlapping auth/checkout findings
+
+--- END SCOUT 32 ---

@@ -1,0 +1,223 @@
+================================================================
+SCOUT 13 — INTERNAL_ADMIN portal (dashboard, system, masterdata)
+================================================================
+Date: 2026-05-25
+Scope: Admin branch of /portal, /portal/system, /portal/saljare, /portal/statistik (admin view), portal.ts (/dashboard /system /pipeline /statistics /sellers)
+
+SUMMARY
+-------
+Since the April 2026 INTERNAL_ADMIN audit, Sprint E4–E12 fixed the worst API/UI contract drift (dashboard `mrr` alias, statistics KPI keys, pipeline/sellers RBAC, system service latency fields) and removed hardcoded statistik numbers like “45 000 kr” / “+24%”. Remaining MVP blockers: admin dashboard still paints **green placeholder system health** while `/dashboard` only returns four KPIs; **“Aktiva klubbar” counts every organization row**; **MRR tile is lifetime paid-order sum**; system/AI telemetry is mostly null stubs; and **masterdata (Riksorganisation → Segment) has DB seeds but zero admin UI**.
+Findings: 23 total (P1: 6, P2: 8, P3: 6, P4: 3)
+MVP readiness: 61/100
+
+================================================================
+P1 — CRITICAL (blocks MVP)
+================================================================
+
+[1.1] Admin dashboard system-status card shows false-green health before any fetch
+  File: apps/web/src/app/(portal)/portal/page.tsx:79-83, 398, 546-560
+  Symptom: INTERNAL_ADMIN lands on `/portal` and sees three services (API, Redis, AI) with green dots and badge text “—”, implying operational status.
+  Root cause: `FALLBACK_ADMIN_SYSTEM_HEALTH` sets `ok: true` for every row; API `/dashboard` never returns `systemHealth`, so state never updates. Empty “—” is rendered as success variant.
+  Fix: Default `ok: false` or neutral “Okänd” until hydrated; or fetch `/portal/system` for the sidebar card; map unknown state to `secondary` badge, not `success`.
+  Effort: S
+  Ref audit: INTERNAL_ADMIN [1.1] — PARTIALLY RESOLVED (no fabricated numbers, but false-green remains)
+
+[1.2] Admin `/dashboard` API omits leaderboard, recentActivity, systemHealth — rich blocks never hydrate
+  File: apps/api/src/routes/portal.ts:251-262; apps/web/src/app/(portal)/portal/page.tsx:434-436, 474-537
+  Symptom: “Säljare — topplista”, “Senaste händelser”, and system card stay empty (or false-green per [1.1]) even when sellers/quotes/audit data exist elsewhere.
+  Root cause: `INTERNAL_ADMIN` branch returns only `totalOrders`, `totalClubs`, `mrrOre`, `mrr`, `activeClubs`, `hairConversion: null`. UI expects optional `leaderboard`, `recentActivity`, `systemHealth` arrays that are never sent.
+  Fix: Extend `/dashboard` for INTERNAL_ADMIN: top sellers from `/sellers` aggregates, recent rows from `audit_logs`, service summary from `/system` probe — or drop unused UI blocks until wired.
+  Effort: M
+  Ref audit: INTERNAL_ADMIN [1.1] — STILL UNRESOLVED
+
+[1.3] “Aktiva klubbar” KPI counts all organizations, not clubs
+  File: apps/api/src/routes/portal.ts:236-259
+  Symptom: Admin tile “Aktiva klubbar” includes leads, associations, and other org types — inflated vs sales dashboards that filter `organizations.type = 'club'`.
+  Root cause: `totalClubs` query is `SELECT count(*) FROM organizations` with no `type` filter; label implies club-only.
+  Fix: `WHERE type = 'club'` (and optionally `crm_status != 'LEAD'`) to match SALES_ADMIN semantics; rename tile if intentional platform-wide org count.
+  Effort: S
+  Ref audit: INTERNAL_ADMIN [1.2] — STILL UNRESOLVED (wrong denominator)
+
+[1.4] “MRR (betalda ordrar)” is lifetime cumulative revenue, not monthly recurring
+  File: apps/api/src/routes/portal.ts:239-258; apps/web/src/app/(portal)/portal/page.tsx:417-420
+  Symptom: Ops/investors reading the second KPI think it is recurring MRR; value is `SUM(orders.totalOre) WHERE invoiceStatus = 'PAID'` across all time.
+  Root cause: Mislabeled aggregate; no monthly window or subscription concept in schema.
+  Fix: Rename UI to “Totalt betalt (alla tider)” or compute rolling-30d / calendar-month PAID sum to align label; document in tooltip.
+  Effort: S
+  Ref audit: INTERNAL_ADMIN [1.3] — STILL UNRESOLVED
+
+[1.5] System page telemetry is structurally wired but operationally empty
+  File: apps/api/src/routes/portal.ts:1559-1582, 1566-1573; apps/web/src/app/(portal)/portal/system/page.tsx:109-172, 185-188
+  Symptom: `/portal/system` loads for INTERNAL_ADMIN but AI usage shows all “—”, rate-limit bars have no `current` values, every service uptime is “—”, AI status reflects only `OPENAI_API_KEY` presence (not reachability).
+  Root cause: `aiUsage` fields hard-coded `null`; `rateLimits[].current` always `null`; `uptime` always `"—"` in `pushService`; no OpenAI/mail probe.
+  Fix: Emit Redis counters for AI tokens/sessions; populate rate-limit gauges; optional lightweight OpenAI ping; show “Ej mätt” styling when null (not empty progress bars).
+  Effort: M
+  Ref audit: INTERNAL_ADMIN [1.4], [2.1], [2.4] — PARTIALLY RESOLVED (UI reads API shape; data still stub)
+
+[1.6] Masterdata admin UI missing (Riksorganisation → Segment)
+  File: apps/web/src/app/(portal)/portal/layout.tsx:59-68 (ADMIN_NAV); packages/db/src/schema/master-riksorganisation.ts; packages/db/src/schema/master-segment.ts
+  Symptom: INTERNAL_ADMIN has no portal route to browse/edit riksorganisationer or segment — Modell_register Fas 1 expects hierarchical masterdata ops surface.
+  Root cause: Schema + CSV seed utilities exist (`seed-masters`, extract scripts) but no `/portal/masterdata` page or API routes in scope.
+  Fix: MVP minimum: read-only list + search for riksorg/segment with link from ADMIN_NAV; full CRUD can follow feedback skill 01.
+  Effort: L
+  Ref audit: MASTER_PLAN Fas 1; feedback-plans/01-master-data — NOT STARTED in portal
+
+================================================================
+P2 — HIGH (must fix before MVP launch)
+================================================================
+
+[2.1] Statistik page ignores API `isDemo` — no DataSourceBadge
+  File: apps/web/src/app/(portal)/portal/statistik/page.tsx:70-150; apps/api/src/routes/portal.ts:1300
+  Symptom: Fresh platform shows em-dash KPIs and empty charts with no “Demo-data / Live” indicator; admin cannot tell empty tenant from fetch failure.
+  Root cause: Client never reads `data.isDemo`; unlike admin/sales dashboards, no `DataSourceBadge` in header.
+  Fix: Parse `isDemo` from `/statistics` response; render `DataSourceBadge demo={isDemo}` next to page title (same pattern as portal/page.tsx:453).
+  Effort: S
+  Ref audit: INTERNAL_ADMIN [3.10] — IMPROVED (no hardcoded +24%), badge gap remains
+
+[2.2] Säljare page lacks loading, error, and demo/live affordances
+  File: apps/web/src/app/(portal)/portal/saljare/page.tsx:50-64, 126-134
+  Symptom: On slow network admin sees “0 aktiva säljare” until fetch completes; 403 from non-admin session fails silently (empty table); no DataSourceBadge when roster empty.
+  Root cause: `.catch(() => {})` swallows errors; no `loading` state; no `isDemo` concept on `/sellers`.
+  Fix: Add loading skeleton, explicit 403 banner (“Kräver INTERNAL_ADMIN”), optional empty-vs-error distinction.
+  Effort: S
+  Ref audit: INTERNAL_ADMIN [2.6] — PARTIALLY RESOLVED (aggregates wired in E12)
+
+[2.3] Säljare table not mobile-safe — horizontal overflow likely
+  File: apps/web/src/app/(portal)/portal/saljare/page.tsx:135-188
+  Symptom: Seven-column table (email, pipeline, conversion) on phone forces horizontal clip or page scroll without scroll container.
+  Root cause: `<Table>` not wrapped in `overflow-x-auto`; no card fallback for `lg:hidden`.
+  Effort: S
+  Ref audit: new (mobile checklist)
+
+[2.4] No drill-down from admin dashboard KPIs to detail routes
+  File: apps/web/src/app/(portal)/portal/page.tsx:456-467, 583-600
+  Symptom: KPI cards (ordrar, klubbar, MRR) are static; only “Systemöversikt” and “Hantera säljare” quick links — no click-through to `/portal/statistik`, `/portal/klubbar`, `/portal/bestallningar`, `/portal/audit-log`.
+  Root cause: Cards are plain `<Card>` without `Link`; snabblänkar omit statistik/orders.
+  Fix: Wrap KPI cards or add “Visa detaljer →” links matching ADMIN_NAV targets.
+  Effort: S
+  Ref audit: INTERNAL_ADMIN drill-down gap — STILL UNRESOLVED
+
+[2.5] “Konvertering håranalys” KPI permanently “—”
+  File: apps/api/src/routes/portal.ts:260; apps/web/src/app/(portal)/portal/page.tsx:427-430
+  Symptom: Fourth admin KPI never shows a number in any environment.
+  Root cause: API hard-codes `hairConversion: null`; no query against hair-analysis leads table.
+  Fix: Remove tile until metric exists, or wire to lead-magnet completion / order attribution query.
+  Effort: M
+  Ref audit: INTERNAL_ADMIN [1.2] — STILL UNRESOLVED (dead KPI)
+
+[2.6] No campaign oversight on admin dashboard or ADMIN_NAV
+  File: apps/web/src/app/(portal)/portal/page.tsx; apps/web/src/app/(portal)/portal/layout.tsx:59-68
+  Symptom: INTERNAL_ADMIN cannot see cross-org active campaigns, pause/extend, or anomalies from portal shell — must use association-only tRPC or DB.
+  Root cause: Out of scope for current pages; `/dashboard` has no campaign block; nav has no campaigns entry.
+  Effort: L
+  Ref audit: INTERNAL_ADMIN [1.13] — STILL UNRESOLVED
+
+[2.7] `/portal/*` not listed in Next.js middleware role guard
+  File: apps/web/src/middleware.ts:17-21
+  Symptom: Unauthenticated user can load portal HTML shell until client `auth/me` redirect; defense-in-depth weaker than `/forening`.
+  Root cause: `PROTECTED_ROUTES` omits `/portal`; relies on client fetch + API 401.
+  Fix: Add `/portal` with allowed portal roles or generic “authenticated” check at edge.
+  Effort: S
+  Ref audit: INTERNAL_ADMIN [3.13] — STILL UNRESOLVED
+
+[2.8] Statistics “active members (30d)” uses distinct order `userId`, not membership
+  File: apps/api/src/routes/portal.ts:1193-1206, 1245-1246; apps/web/src/app/(portal)/portal/statistik/page.tsx:57-58, 128-131
+  Symptom: Admin KPI “Aktiva medlemmar (30d)” counts unique B2B order placers, not club members or sellers — misleading for fundraising ops.
+  Root cause: `count(distinct orders.userId)` labeled as members in UI.
+  Fix: Rename to “Unika köpare (30d)” or query `users`/`campaign_sellers` with activity filter.
+  Effort: M
+  Ref audit: INTERNAL_ADMIN analytics semantics — NEW
+
+================================================================
+P3 — MEDIUM
+================================================================
+
+[3.1] System recent events depend on sparse `audit_logs` — empty copy only
+  File: apps/api/src/routes/portal.ts:1584-1614; apps/web/src/app/(portal)/portal/system/page.tsx:229-232
+  Symptom: “Inga händelser registrerade ännu” even after logins if `FEATURE_AUDIT_LOGGING` off or fresh DB.
+  Root cause: Reads last 10 audit rows; writer exists (`apps/api/src/lib/audit.ts`, auth/association/sales) but coverage incomplete for all admin actions.
+  Fix: Ensure login + portal admin reads write audit events; link empty state to `/portal/audit-log`.
+  Effort: M
+  Ref audit: INTERNAL_ADMIN [1.6] — IMPROVED (read path + writers exist; still sparse)
+
+[3.2] Admin dashboard “Senaste händelser” duplicates system/audit surfaces without link
+  File: apps/web/src/app/(portal)/portal/page.tsx:509-537
+  Symptom: Empty activity card tells user audit “aktiveras snart” though `/portal/audit-log` already exists in nav.
+  Root cause: Dashboard block not wired; copy outdated vs E11 audit-log page.
+  Fix: Wire to audit feed or replace with link “Öppna audit-log →”.
+  Effort: S
+
+[3.3] System page missing DataSourceBadge / demo distinction
+  File: apps/web/src/app/(portal)/portal/system/page.tsx:85-92
+  Symptom: Null AI/rate-limit fields look like zero usage rather than “not instrumented”.
+  Fix: Badge or section hint when `aiUsage.tokensToday === null`.
+  Effort: S
+
+[3.4] INTERNAL_ADMIN seed user carries `orgId` (sales org) — sidebar shows “Admin · Roots Sales”
+  File: packages/db/src/seed.ts:104-109; apps/web/src/app/(portal)/portal/layout.tsx:223-225
+  Symptom: Confusing tenancy context for platform admin; does not break API (platform-wide stats) but undermines trust in shell copy.
+  Fix: Seed `orgId: null` for `admin@roots.se` or display “Plattform” when role is INTERNAL_ADMIN.
+  Effort: S
+
+[3.5] Statistik top products link to public `/produkter/*` — no admin product/order drill-down
+  File: apps/web/src/app/(portal)/portal/statistik/page.tsx:262-267
+  Symptom: Clicking product name opens marketing PDP, not portal orders filtered by SKU.
+  Effort: S
+
+[3.6] `/portal/clubs` returns all org types in list (same as KPI issue)
+  File: apps/api/src/routes/portal.ts:531-535
+  Symptom: “Alla klubbar” nav shows leads and non-club orgs when no search query.
+  Fix: Default filter `type = 'club'` with toggle for leads.
+  Effort: S
+
+================================================================
+P4 — LOW
+================================================================
+
+[4.1] No incident/maintenance banner in portal layout
+  File: apps/web/src/app/(portal)/portal/layout.tsx
+  Ref audit: INTERNAL_ADMIN [2.5]
+
+[4.2] System page: no historical uptime/latency charts (point-in-time only)
+  File: apps/web/src/app/(portal)/portal/system/page.tsx
+  Ref audit: INTERNAL_ADMIN [4.1]
+
+[4.3] Positive: `/portal/system`, `/sellers`, `/pipeline` enforce role guards correctly
+  File: apps/api/src/routes/portal.ts:797-798, 1384-1386, 1513-1514
+  Ref audit: INTERNAL_ADMIN [1.7], [1.8], [4.5] — RESOLVED
+
+================================================================
+RESOLVED SINCE APRIL 2026 REFERENCE AUDIT
+================================================================
+- Dashboard KPI key mismatch (`mrr` vs `mrrOre`): API now returns formatted `mrr` — CLOSED.
+- Statistik API/UI key mismatch (`orders`/`revenue` vs `orderCount`/`revenueOre`): client maps `revenueOre`, API sends `kpis` block — CLOSED.
+- Hardcoded statistik summary “45 000 kr” / “+24%”: removed; KPIs use rolling 30d with computed `prevPeriod*Percent` — CLOSED.
+- `GET /pipeline` open to any session: now 403 unless SALES_REP | SALES_ADMIN | INTERNAL_ADMIN — CLOSED.
+- `GET /sellers` PII leak to any user: now INTERNAL_ADMIN | SALES_ADMIN only — CLOSED.
+- `GET /statistics` global leak via `1=1` for club users without orgId: now 400 — CLOSED; INTERNAL_ADMIN gets platform-wide scope — CLOSED.
+- System service cards blank latency: API returns `latency` + `uptime` fields matching UI — CLOSED (values still “—” for uptime).
+- `audit_logs` never read: `/system` and `/v1/admin/audit-log` read table; writers in auth/association/sales/settlement — PARTIALLY CLOSED.
+- Admin dashboard `DataSourceBadge` on `/portal` when `isDemo` — CLOSED (flag-gated via `FEATURE_DATA_SOURCE_BADGE`).
+
+================================================================
+MVP READINESS BREAKDOWN
+================================================================
+- Functionality:         14/25  (core routes live; masterdata + campaign ops missing; dashboard blocks unwired)
+- Reliability/trust:     13/25  (false-green health, MRR/club KPI semantics, empty telemetry)
+- Polish/UX:             16/25  (empty states improved; statistik/säljare lack badges/loading; mobile table)
+- Security/RBAC:         18/25  (portal REST guards largely fixed; edge middleware gap on /portal)
+
+ROLE INTEGRATION CHECK
+----------------------
+- INTERNAL_ADMIN → `/portal` dashboard: ⚠ KPIs live; supplemental blocks stubbed
+- INTERNAL_ADMIN → `/portal/system`: ⚠ RBAC OK; telemetry mostly null
+- INTERNAL_ADMIN → `/portal/saljare`: ✓ API aggregates; UX gaps only
+- INTERNAL_ADMIN → `/portal/statistik`: ✓ Live KPIs/charts; missing isDemo badge
+- INTERNAL_ADMIN → masterdata UI: ✗ Not built
+- INTERNAL_ADMIN → `/portal/audit-log`: ✓ (adjacent; E11 — out of scout file scope but linked in nav)
+
+NOTES FOR THE TEAM
+------------------
+Highest-impact sprint for this scout’s scope: (1) fix false-green system health + filter club count on `/dashboard`, (2) rename or re-window MRR tile, (3) add `DataSourceBadge` + `isDemo` on statistik and loading/error on säljare, (4) ship read-only masterdata list or hide dead KPIs until wired. These four changes restore ops trust without waiting for full campaign oversight or AI telemetry.
+
+--- END SCOUT 13 ---

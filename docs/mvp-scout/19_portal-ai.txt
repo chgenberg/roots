@@ -1,0 +1,214 @@
+================================================================
+SCOUT 19 — Portal AI assistant (/portal/ai)
+================================================================
+Date: 2026-05-25
+Scope: apps/web/src/app/(portal)/portal/ai/page.tsx
+        apps/api/src/routes/ai-chat.ts
+        apps/api/src/lib/ai/system-prompt.ts (buildSystemPrompt)
+        apps/api/src/lib/ai/openclaw-client.ts
+Roles: ALL portal roles (CLUB_*, SALES_*, ASSOCIATION_ADMIN, TEAM_LEADER, SELLER, INTERNAL_ADMIN)
+Reference: docs/flow-audits/AI_COACH_2026-04-18_1312.txt, MASTER_PLAN Fas 3
+
+SUMMARY
+-------
+Portal AI UI is materially improved since the April audit (role-specific welcome copy, CSRF, AbortController + stop button, unmount abort cleanup, SSE streaming with mid-stream error handling, disclaimer footer). The dominant MVP blocker remains architectural: the page still POSTs to `/v1/ai/public-chat` with `PUBLIC_CHAT_SYSTEM_PROMPT`, while the session-aware `/v1/ai/chat` route (role-based `buildSystemPrompt`, per-user rate limit, history sanitisation) is implemented but unused — `FEATURE_PORTAL_AI_SESSION_ENDPOINT` is not wired in web. Three fundraising roles (ASSOCIATION_ADMIN, TEAM_LEADER, SELLER) get internal-admin suggestion chips despite correct welcome text, creating false-confidence UX. Cross-links to `/portal/*` paths render as plain text; mobile keyboard and 429 retryAfter UX remain weak.
+Findings: 18 (P1:4 P2:7 P3:4 P4:3)
+MVP readiness: 58/100
+
+CHECKLIST (scoped pass / partial / fail)
+-----------------------------------------
+Role-specific welcome messages         PARTIAL  all roles in getWelcomeMessage (20-38); backend persona mismatches via public-chat
+Role-specific suggestion chips           FAIL     ASSOCIATION_ADMIN, TEAM_LEADER, SELLER fall through to INTERNAL_ADMIN chips (231-248)
+SSE streaming                            PASS     page.tsx:146-189
+[DONE] handling                          PARTIAL  inner-loop `break` only; outer read loop continues until TCP close (164)
+Abort button works                       PASS     stop() + Square button (351-359)
+History sanitisation (no system inject)  PASS     public-chat maps user|assistant only (public-chat.ts:72-75); ai-chat sanitizeHistory (41-56) ready but unused
+Abort cleanup on unmount                 PASS     useEffect return abort (68-72)
+New conversation clears state            PASS     newConversation (91-94)
+New conversation refocuses input         FAIL     no inputRef.focus() after reset
+Mobile full-height / keyboard            PARTIAL  h-[calc(100vh-8rem)] (251); no visualViewport or safe-area on composer
+Rate limit error state                   PARTIAL  429 surfaced as generic error string; retryAfter ignored (139-144)
+AI disabled fallback                     PASS     public-chat flags.aiEnabled + isAiConfigured stream fallback (public-chat.ts:60-67)
+AI error mid-stream                      PASS     parsed.error throws → assistant bubble (180-182); server SSE error + [DONE] (ai-chat.ts:147-153)
+Disclaimer footer text                   PASS     page.tsx:372-374; ai-chat.ts DISCLAIMER constant matches
+Cross-link /portal pages in replies      FAIL     plain text bubbles; no linkify or Next.js Link for /portal/* paths
+
+P1 — CRITICAL (MVP-blocking)
+
+[1.1] Portal AI still calls public endpoint — role-aware system prompt never applied
+  File: apps/web/src/app/(portal)/portal/ai/page.tsx:18,124-136
+  Symptom: Authenticated portal users POST to `/v1/ai/public-chat`. Server prepends `PUBLIC_CHAT_SYSTEM_PROMPT`, which explicitly refuses CRM/pipeline/admin answers (system-prompt.ts:57-58), while UI welcome/chips promise pipeline, KPI, and admin help.
+  Root cause: MASTER_PLAN Fas 3 wiring not done. Session route `/v1/ai/chat` + `buildSystemPrompt(session.role)` exists in ai-chat.ts:126-136 but web never calls it. `flags.portalAiUseSessionEndpoint()` (flags.ts:72-76) is API-only — no web consumer.
+  Fix: Point API_URL to `/v1/ai/chat`; gate rollout on `FEATURE_PORTAL_AI_SESSION_ENDPOINT` if desired. Remove dependency on PUBLIC_CHAT for logged-in surfaces.
+  Effort: S
+  Ref: AI_COACH [1.1], [1.4]; MASTER_PLAN Fas 3 item 209
+
+[1.2] Wrong suggestion chips for ASSOCIATION_ADMIN, TEAM_LEADER, SELLER
+  File: apps/web/src/app/(portal)/portal/ai/page.tsx:231-248
+  Symptom: These roles get internal-admin chips ("Vilka KPI:er ska jag titta på idag?", "Systemstatus — kort sammanfattning", "Trender i håranalyskonvertering") while welcome text correctly targets campaign setup, team motivation, or shop sharing.
+  Root cause: Ternary only branches CLUB_* and SALES_*; all other roles share default admin suggestions.
+  Fix: Add explicit chip sets per ASSOCIATION_ADMIN, TEAM_LEADER, SELLER, INTERNAL_ADMIN (e.g. seller: "Hur delar jag min shop?", "Tips till vänner och familj", "Hur fungerar leveransen?").
+  Effort: S
+  Ref: AI_COACH [1.11] (welcome fixed; chips still broken)
+
+[1.3] Sales-facing chips promise pipeline data the model cannot access
+  File: apps/web/src/app/(portal)/portal/ai/page.tsx:238-242; public-chat.ts:77-80
+  Symptom: Chip "Sammanfatta min pipeline" implies live CRM summary. Public prompt has no pipeline context and instructs refusal of CRM answers — high hallucination / false-confidence risk even after [1.1] fix unless copy is qualified.
+  Root cause: Product copy ahead of backend grounding; no tools/RAG for pipeline data on any AI route.
+  Fix: Reword chips to flow-level questions ("Hur fungerar pipeline i portalen?") until data grounding exists; in `buildSystemPrompt` SALES_* block, keep explicit "no database access — direct user to /portal/pipeline" (already partially present system-prompt.ts:68-69).
+  Effort: S
+  Ref: AI_COACH [1.3], [1.4]
+
+[1.4] Per-user AI rate limit bypassed — portal shares anonymous IP bucket
+  File: apps/web/src/app/(portal)/portal/ai/page.tsx:18; ai-chat.ts:84-92; public-chat.ts:18-20
+  Symptom: Logged-in portal users hit `pub-chat:${ip}` (30/h per IP) instead of `aiRateLimit(session.userId)` (30/min per user). Shared office IP or NAT can block entire teams; conversely one user can consume shared quota.
+  Root cause: [1.1] — wrong endpoint.
+  Fix: Switch to `/v1/ai/chat` after [1.1]; optionally keep IP cap as secondary abuse guard on public-chat only.
+  Effort: S (with [1.1])
+  Ref: AI_COACH [1.9]
+
+P2 — HIGH
+
+[2.1] 429 rate-limit response ignores `retryAfter`
+  File: apps/web/src/app/(portal)/portal/ai/page.tsx:139-144
+  Symptom: Server returns `{ error, retryAfter }` (public-chat.ts:30-35; ai-chat.ts:86-91); client shows error string only — no countdown, disabled composer, or "försök om X min".
+  Root cause: Generic `!res.ok` branch.
+  Fix: Parse 429 body; disable input until window elapses; show formatted retry time.
+  Effort: S
+  Ref: Scout 6 [2.3]
+
+[2.2] `/portal/*` paths in assistant replies are not clickable
+  File: apps/web/src/app/(portal)/portal/ai/page.tsx:312-328
+  Symptom: Model instructed to mention portal pages (system-prompt.ts:65-81) but bubbles render raw text — `/portal/pipeline` etc. are not links.
+  Root cause: No markdown or safe URL linkification in message renderer.
+  Fix: Lightweight link detector for `/portal/...` and known marketing paths → Next.js `<Link>`; or safe subset markdown.
+  Effort: M
+  Ref: MASTER_PLAN Fas 3 (portal navigation assist)
+
+[2.3] Mobile soft keyboard likely obscures composer
+  File: apps/web/src/app/(portal)/portal/ai/page.tsx:251,339-375
+  Symptom: Fixed `h-[calc(100vh-8rem)]` layout inside portal shell (mobile header h-16 in layout.tsx). iOS/Android keyboard shrinks visual viewport; textarea at bottom may sit under keyboard; no `env(safe-area-inset-bottom)`.
+  Root cause: CSS viewport units without `visualViewport` adjustment.
+  Fix: Use `dvh` where supported; listen to `visualViewport` resize to scroll composer into view; add safe-area padding on input bar.
+  Effort: M
+  Ref: AI_COACH [3.2], [3.5]
+
+[2.4] New conversation does not refocus input
+  File: apps/web/src/app/(portal)/portal/ai/page.tsx:91-94 vs 87-89
+  Symptom: After "Ny konversation", focus stays on button or last focused element; keyboard users must tab back to textarea.
+  Root cause: `newConversation` omits `inputRef.current?.focus()`.
+  Fix: Call focus after state reset (respect `streaming` guard — button already disabled while streaming).
+  Effort: S
+
+[2.5] No aria-live region for streamed assistant replies
+  File: apps/web/src/app/(portal)/portal/ai/page.tsx:295-336
+  Symptom: Screen readers not notified as tokens append during SSE.
+  Root cause: Message list is static divs without `aria-live="polite"`.
+  Fix: Wrap assistant message area in live region; use assertive for error bubbles.
+  Effort: S
+  Ref: Scout 6 [2.1]
+
+[2.6] Message length mismatch — client allows >1000 chars to public-chat
+  File: page.tsx (no client max); public-chat.ts:46-54 vs ai-chat.ts:102-107
+  Symptom: User can type long messages; public endpoint rejects >1000 chars with 400; session route allows 2000. Confusing error once over limit.
+  Root cause: No client-side maxlength aligned to active endpoint.
+  Fix: Set `maxLength={2000}` on textarea when on `/chat`; validate before send with role-aware limit.
+  Effort: S
+
+[2.7] Redis rate limit fails open (affects current public-chat path)
+  File: apps/api/src/lib/rate-limit.ts:29-31
+  Symptom: Redis outage → unlimited AI requests on `/v1/ai/public-chat` (and `/v1/ai/chat` when wired).
+  Root cause: `checkRateLimit` catch returns `{ allowed: true }`.
+  Fix: Fail closed for AI keys or process-local fallback counter.
+  Effort: M
+  Ref: AI_COACH [1.8]; Scout 6 [1.1]
+
+P3 — MEDIUM
+
+[3.1] `[DONE]` handler exits inner loop only
+  File: apps/web/src/app/(portal)/portal/ai/page.tsx:161-164
+  Symptom: After `[DONE]`, outer `while (true)` keeps reading until stream closes — harmless but wasteful.
+  Fix: Flag or labeled break to exit read loop on `[DONE]`.
+  Effort: S
+  Ref: Scout 6 [4.3]
+
+[3.2] Server stream not cancelled on client disconnect
+  File: apps/api/src/lib/ai/openclaw-client.ts:71-131; ai-chat.ts:138-155
+  Symptom: User abort stops browser reader; upstream OpenAI fetch continues until timeout (30s stream = TIMEOUT_MS * 3).
+  Root cause: No propagation of `c.req.raw.signal` / client abort into `chatCompletionStream`.
+  Fix: Pass AbortSignal from Hono request through to openclaw fetch.
+  Effort: M
+  Ref: AI_COACH [2.4]
+
+[3.3] Assistant bubbles plain text — markdown and links show literally
+  File: apps/web/src/app/(portal)/portal/ai/page.tsx:320
+  Symptom: Bold, lists, and markdown links from model render as raw characters (overlaps [2.2]).
+  Fix: Safe markdown renderer or post-process links only.
+  Effort: M
+  Ref: AI_COACH [2.6]
+
+[3.4] No conversation persistence on refresh
+  File: apps/web/src/app/(portal)/portal/ai/page.tsx:53-55
+  Symptom: Messages in `useState` only; refresh resets to welcome. `FEATURE_CHAT_HISTORY_PERSISTENCE` exists but not wired here.
+  Effort: S (optional for MVP)
+  Ref: AI_COACH [2.1]
+
+P4 — LOW
+
+[4.1] Header subtitle overpromises vs guardrails
+  File: apps/web/src/app/(portal)/portal/ai/page.tsx:259-261
+  Symptom: "Fråga om vad som helst relaterat till Roots" invites out-of-scope questions model must refuse.
+  Fix: Align with role-scoped subtitle or welcome tone.
+  Effort: S
+
+[4.2] No `/v1/ai/status` preflight in UI
+  File: ai-chat.ts:175-180
+  Symptom: User discovers AI disabled only after sending a message (fallback still returns 200 stream — acceptable but no proactive banner).
+  Fix: Optional status fetch on mount → inline "AI tillfälligt av" banner when `enabled: false`.
+  Effort: S
+
+[4.3] Streaming indicator disappears after first token
+  File: apps/web/src/app/(portal)/portal/ai/page.tsx:320-328
+  Symptom: "Tänker…" only while assistant bubble empty; long mid-stream pauses show static partial text.
+  Fix: Show subtle in-stream cue while `streaming`.
+  Effort: S
+  Ref: AI_COACH [2.8]
+
+ALREADY ADDRESSED (since AI_COACH 2026-04-18)
+
+✓ Role-specific welcome messages for all portal roles including SELLER, ASSOCIATION_ADMIN, TEAM_LEADER (page.tsx:20-38) — was [1.11] partial
+✓ AbortController + stop button (page.tsx:62-66, 119-120, 351-359) — was [2.3]
+✓ Abort cleanup on component unmount (page.tsx:68-72)
+✓ CSRF on POST via getCsrfToken + x-csrf-token (page.tsx:123-128)
+✓ History role-stripping on server for public-chat path (public-chat.ts:72-75)
+✓ ai-chat sanitizeHistory strips client system messages (ai-chat.ts:41-56) — was [1.7] for session route
+✓ buildSystemPrompt role contexts + earnings/medical guardrails in BASE_RULES (system-prompt.ts:14-22, 60-85)
+✓ AI kill-switch via flags.aiEnabled() on both routes
+✓ Mid-stream SSE error payload + [DONE] on server (ai-chat.ts:147-153; public-chat.ts:91-98)
+✓ Disclaimer footer matches server DISCLAIMER constant
+✓ OpenAI keys server-side only (openclaw-client.ts)
+
+SECURITY NOTES
+- Portal page is auth-gated by portal layout; API public-chat remains unauthenticated — any caller with CSRF can hit same endpoint without session (by design for marketing widget). Portal users should migrate to session-only `/v1/ai/chat` to avoid sharing anonymous abuse surface.
+- Client history sends `{ role, content }` only (page.tsx:135) — good; server enforces user|assistant on both routes.
+- User-typed content can still attempt prompt injection via message body and multi-turn history; BASE_RULES lack explicit anti-jailbreak clause (see Scout 6 [2.6]).
+- `max_completion_tokens: 1024` and rate limits cap cost when Redis healthy.
+
+MVP READINESS BREAKDOWN
+- Functionality:         12/25  (stream/abort work; wrong API + chips undermine role-aware goal)
+- Security / abuse:        13/25  (CSRF OK; wrong rate-limit key; Redis fail-open; public endpoint for logged-in users)
+- Role correctness:       8/20  (welcome OK; backend persona + chips wrong for 3 roles + sales pipeline)
+- Mobile / UX:           13/20  (layout usable desktop; keyboard, links, refocus gaps)
+- Operational readiness:  12/15  (kill-switch, fallbacks; status endpoint unused in UI)
+
+RECOMMENDED MVP FIX ORDER (aligns MASTER_PLAN Fas 3)
+1. [1.1] Wire portal page to `/v1/ai/chat` (optionally behind FEATURE_PORTAL_AI_SESSION_ENDPOINT)
+2. [1.2] Role-specific suggestion chips for all portal roles
+3. [1.3] Qualify sales/admin chip copy — no implied live data until grounded
+4. [2.1] Parse 429 retryAfter in UI
+5. [2.2] Linkify `/portal/*` paths in assistant bubbles
+6. [2.3] Mobile keyboard / viewport fix for composer
+7. [2.4] Refocus input on new conversation
+8. [2.7] Fail-closed rate limit when Redis down
+
+--- END SCOUT 19 ---

@@ -1,0 +1,281 @@
+================================================================
+SCOUT 16 — Team leader portal (lag, invitering, framsteg)
+================================================================
+Date: 2026-05-25
+Scope: TEAM_LEADER role — `apps/web/src/app/(portal)/portal/page.tsx` (TL branch),
+       `apps/web/src/app/(portal)/portal/saljare/page.tsx`, `portal/lag/`, `portal/bjud-in/`,
+       live TL shell `apps/web/src/app/(fundraising)/lag/*`, `apps/web/src/app/(fundraising)/layout.tsx`,
+       `apps/api/src/routes/sharing.ts`, `apps/api/src/routes/dashboard.ts`,
+       `packages/db/src/schema/teams.ts`, `packages/db/src/schema/sellers.ts`
+Ref: docs/flow-audits/TEAM_LEADER_2026-04-18_1243.txt, docs/flow-audits/MASTER_PLAN_2026-04-18.md,
+     docs/mvp-scout/09_register-team-leader.txt
+
+NOTE ON ROUTES
+--------------
+Scout brief lists `/portal/*` TL pages — **those routes do not exist for team leaders**.
+`portal/lag/` and `portal/bjud-in/` are absent. Login redirects `TEAM_LEADER` → `/lag`
+(`login/page.tsx:47-48`), not `/portal`. The live coach experience is the fundraising shell:
+`/lag`, `/lag/saljare`, `/lag/bestallningar`, `/lag/avrakning` (`fundraising/layout.tsx:98-104`).
+
+`portal/page.tsx` has branches for CLUB, SALES, and a default **AdminDashboard** only — no
+`TEAM_LEADER` case (`portal/page.tsx:614-620`). `portal/saljare/page.tsx` is an **internal
+admin / sales-rep** pipeline table (`GET /portal/sellers`), not the team roster.
+
+SUMMARY
+-------
+The team-leader **fundraising shell** (`/lag/*`) is the real product surface and covers core
+coach jobs: team KPIs, seller ranking, invite URL copy, inline seller create, per-seller goals,
+pause/reactivate, and orders/CSV. MVP blockers remain: broken onboarding when no team row exists,
+misleading KPI math (all orders vs PAID revenue), pause-seller not enforced at checkout/shop,
+coach-chosen seller passwords, and invite distribution limited to raw URL (no SMS template, QR,
+share-sheet, or token rotation UI). Portal paths in scope are stubs or wrong-role shells.
+Findings: 24 (P1: 6, P2: 9, P3: 6, P4: 3)
+MVP readiness: 54/100
+
+================================================================
+FOCUS CHECKLIST
+================================================================
+| Item | Status | Notes |
+|------|--------|-------|
+| Team overview: members, progress, total | PARTIAL | `/lag` KPIs + ranking; order count ≠ PAID filter ([1.1]); no campaign deadline ([2.1]) |
+| Invite link: copyable, QR, deep link | PARTIAL | Copy works (`/registrera/saljare/[token]`); no QR on `/lag/*` ([2.2]); deep link OK |
+| Invite distribution: email, SMS, share-sheet | FAIL | Raw URL only; `GET /v1/sharing/invite-template/:teamId` unused ([2.3]) |
+| Progress visualization: per seller, lag total | PASS | Ranking, grades, goals, milestones on `/lag` and `/lag/saljare` |
+| Motivational nudges or push | FAIL | No reminders, milestone emails unsent, no Web Push ([2.8], [3.4]) |
+| Member status (active/inactive) | PARTIAL | UI + PATCH exist (E12); commerce layer ignores INACTIVE ([1.2]) |
+| Remove or deactivate a seller | PARTIAL | Pause/reactivate only — no delete, no remove-from-team ([2.9]) |
+| Reorder/coach low-performer | PARTIAL | Ranking + individual goals; no "zero-sales" cohort or nudge ([2.5]) |
+| Mobile UX (TL on phone) | PARTIAL | Hamburger nav; long invite rows risk overflow ([2.7]); no sticky invite CTA |
+| Empty state: zero sellers | PASS | Encouraging copy on overview + saljare ([3.1]) |
+| Add seller manually (no invite) | PASS | Inline create on `/lag/saljare` — but password chosen by coach ([1.3]) |
+| Portal TL branch (`portal/page.tsx`) | FAIL | No branch; falls through to AdminDashboard ([1.4]) |
+| Portal `/saljare` for TL | FAIL | Wrong page — internal sales pipeline, not team roster ([1.5]) |
+| `portal/lag`, `portal/bjud-in` | FAIL | Routes do not exist |
+
+================================================================
+P1 — CRITICAL (blocks MVP)
+================================================================
+
+[1.1] Order KPI vs revenue mismatch on team overview
+  File: apps/web/src/app/(fundraising)/lag/page.tsx:156-157,112
+  File: apps/api/src/routes/dashboard.ts:274-296,343-345
+  Symptom: "Beställningar" card shows `orders.length` (all statuses from full team order list);
+           "Total försäljning" aggregates **PAID** only via `salesBySeller`. Coach sees e.g.
+           12 orders but 800 kr (or high kr with 0 orders) and misjudges sideline momentum.
+  Root cause: UI uses unfiltered `data.orders` length; stats use PAID-only aggregation.
+  Fix: Show PAID count in KPI (or split "Väntande" vs "Betalt"); align label copy.
+  Effort: S
+  Ref audit: TEAM_LEADER [1.1] — STILL UNRESOLVED
+
+[1.2] Seller `INACTIVE` not enforced on public shop or checkout
+  File: apps/api/src/routes/shop.ts:24-32 (no status check)
+  File: apps/api/src/routes/checkout.ts:82-90 (no status check)
+  File: apps/web/src/app/(fundraising)/lag/saljare/page.tsx:58-94 (pause UI exists)
+  Symptom: Team leader pauses a seller ("Pausa"); toast says seller hidden from ranking.
+           Supporters can still open `/shop/[slug]` and complete checkout.
+  Root cause: Sprint E12 added status PATCH + UI but commerce routes never read `sellers.status`.
+  Fix: Return 404/410 from shop for INACTIVE; reject checkout with clear error.
+  Effort: S
+  Ref audit: TEAM_LEADER [1.5] — UI CLOSED; API enforcement STILL OPEN
+
+[1.3] Team leader creates seller credentials (consent / minors)
+  File: apps/web/src/app/(fundraising)/lag/saljare/page.tsx:205-245,330-337
+  File: apps/api/src/routes/dashboard.ts:466-539
+  Symptom: "Lägg till säljare" form requires coach to set seller email + password (min 6 client-side).
+           Youth sellers never choose their own password; no forced reset email.
+  Root cause: Admin-create path shipped alongside invite-only self-register; no temp-password flow.
+  Fix: Prefer invite-only for MVP; or generate one-time reset link / temp password email on create.
+  Effort: M
+  Ref audit: TEAM_LEADER [1.2], MASTER_PLAN T5 — STILL UNRESOLVED
+
+[1.4] No `TEAM_LEADER` branch in `/portal` — wrong dashboard if visited
+  File: apps/web/src/app/(portal)/portal/page.tsx:610-620
+  File: apps/web/src/app/(portal)/portal/layout.tsx:71-74,142-143
+  Symptom: If a coach bookmarks `/portal` or follows a generic "portal" link, they land on
+           **AdminDashboard** with ADMIN_NAV ("Alla klubbar", "System", "Audit-log") and fetches
+           `GET /portal/dashboard` as internal admin — not team data.
+  Root cause: Portal shell built for CLUB / SALES / INTERNAL_ADMIN only; middleware does not
+               block `/portal` for TEAM_LEADER (only `/lag` is role-gated).
+  Fix: Redirect `TEAM_LEADER` → `/lag` in portal layout or middleware; or add real TL dashboard branch.
+  Effort: S
+  Ref audit: MASTER_PLAN T2 (parallel shells) — NEW for portal scope
+
+[1.5] `portal/saljare` is wrong surface for team leaders
+  File: apps/web/src/app/(portal)/portal/saljare/page.tsx:42-64,69-72
+  Symptom: Page title "Säljare" / "Säljteamets prestation" fetches `portalFetch("/sellers")` —
+           internal **sales-rep pipeline** (klubbar, pipelineOre, closedOre), not team youth roster.
+  Root cause: Route shared naming with fundraising `/lag/saljare`; no role guard redirecting TL away.
+  Fix: Role-check in page or nav: TL → `/lag/saljare`; restrict `/portal/saljare` to SALES/ADMIN.
+  Effort: S
+
+[1.6] Onboarding dead-end: account without team → broken `/lag`
+  File: apps/api/src/routes/auth.ts:645-665,700-712
+  File: apps/web/src/app/(auth)/registrera/page.tsx:137-143
+  File: apps/web/src/app/(fundraising)/lag/page.tsx:40-45,87-94
+  Symptom: Self-serve TL register succeeds but skips `teams` insert when org has no ACTIVE campaign.
+           UI always redirects to `/lag`; `GET /v1/dashboard/my-team` → 404 "Inget lag hittades".
+  Root cause: Registration API gates team creation on active campaign; frontend ignores `teamId: null`.
+  Fix: Campaign-pending holding page; block self-serve until campaign exists; or route via invite only.
+  Effort: M
+  Ref: SCOUT 9 [1.2] — STILL UNRESOLVED (blocks first TL session)
+
+================================================================
+P2 — HIGH (must fix before MVP launch)
+================================================================
+
+[2.1] No campaign deadline / "dagar kvar" on team overview
+  File: apps/web/src/app/(fundraising)/lag/page.tsx:120-126
+  File: packages/db/src/schema/campaigns.ts (startDate, endDate exist)
+  Symptom: Header shows campaign name only; coach cannot see urgency on phone at a glance.
+  Fix: Render `endDate`, days remaining, progress toward team goal.
+  Effort: S
+  Ref audit: TEAM_LEADER [2.1] — STILL UNRESOLVED
+
+[2.2] No QR code for team invite URL
+  File: apps/web/src/app/(fundraising)/lag/page.tsx:204-227
+  File: apps/web/src/app/(fundraising)/lag/saljare/page.tsx:374-397
+  File: apps/web/src/app/(fundraising)/min-shop/page.tsx:24-58 (QR exists for shop only)
+  Symptom: Coach at training must copy long URL; seller min-shop has QR, team invite does not.
+  Fix: Reuse `qrcode` package + print-friendly card on `/lag` and `/lag/saljare`.
+  Effort: S
+  Ref audit: TEAM_LEADER [2.6] — STILL UNRESOLVED
+
+[2.3] SMS / email invite templates not exposed in UI
+  File: apps/api/src/routes/sharing.ts:30-59
+  File: apps/api/src/lib/communication-templates.ts:3-32
+  File: apps/web/src/app/(fundraising)/lag/page.tsx:67-77 (clipboard URL only)
+  Symptom: API returns ready `sms` + `email` bodies with story and leader copy; web never calls endpoint.
+           `leaderName` hardcoded `"Lagansvarig"` in sharing route (:56).
+  Fix: "Kopiera SMS" / "Kopiera e-post" buttons; pass session user name as leaderName.
+  Effort: S
+  Ref audit: TEAM_LEADER [2.7], [2.13] — STILL UNRESOLVED
+
+[2.4] No invite token rotation in UI
+  File: apps/api/src/trpc/routers/campaigns.ts:288-307 (`regenerateInviteToken`)
+  File: packages/db/src/schema/teams.ts:28 (permanent token until rotated)
+  Symptom: Lost or leaked invite link cannot be invalidated from coach UI.
+  Fix: "Skapa ny länk" button wired to regenerate + confirm dialog.
+  Effort: S
+  Ref audit: TEAM_LEADER [2.8], MASTER_PLAN T8 — STILL UNRESOLVED
+
+[2.5] No "needs follow-up" view for zero-sales sellers
+  File: apps/web/src/app/(fundraising)/lag/page.tsx:241-269
+  File: apps/web/src/app/(fundraising)/lag/saljare/page.tsx:453-456
+  Symptom: Sellers at 0 kr only visible at bottom of sorted list; no filter or cohort for coaching.
+  Fix: Chip/filter "Har inte börjat" + optional reminder CTA when comms layer exists.
+  Effort: M
+  Ref audit: TEAM_LEADER [3.7]
+
+[2.6] `GET /my-team` returns arbitrary team when leader has multiple
+  File: apps/api/src/routes/dashboard.ts:230-234 (`.limit(1)`)
+  Symptom: Coach leading two teams always sees one team with no picker.
+  Fix: Return all teams or require explicit `teamId` query param + switcher UI.
+  Effort: M
+  Ref audit: TEAM_LEADER [2.23]
+
+[2.7] Mobile: invite URL rows risk horizontal overflow
+  File: apps/web/src/app/(fundraising)/lag/page.tsx:211-216
+  File: apps/web/src/app/(fundraising)/lag/saljare/page.tsx:381-386
+  Symptom: Flex row with full URL Input + button lacks `min-w-0` / truncation at ~375px.
+  Fix: Stack on `sm`, `flex-1 min-w-0 truncate` on input, or show shortened URL + expand.
+  Effort: S
+  Ref audit: TEAM_LEADER [2.20] — STILL UNRESOLVED
+
+[2.8] No realtime freshness / sideline alerts for new orders
+  File: apps/web/src/app/(fundraising)/lag/page.tsx:37-65 (single fetch on mount)
+  Symptom: Coach must manually reopen app to see new orders; no polling, pull-to-refresh, or push.
+  Fix: 60s poll or SSE on team dashboard; optional Web Push behind flag.
+  Effort: M
+  Ref audit: TEAM_LEADER [2.3], [3.22]
+
+[2.9] No hard remove / delete seller — pause only
+  File: apps/web/src/app/(fundraising)/lag/saljare/page.tsx:611-624
+  File: apps/api/src/routes/dashboard.ts (no DELETE on sellers)
+  Symptom: Mistaken duplicate or test seller stays in roster forever (paused at best).
+  Fix: Soft-delete or admin-only remove with confirmation + audit log.
+  Effort: M
+
+================================================================
+P3 — MEDIUM
+================================================================
+
+[3.1] Empty roster KPI grid shows zeros before encouraging copy
+  File: apps/web/src/app/(fundraising)/lag/page.tsx:129-165,236-239
+  Symptom: First paint is four "0" KPI cards before invite empty state below fold.
+  Fix: Hero empty state when `sellers.length === 0` with primary "Dela inbjudan" CTA.
+  Effort: S
+
+[3.2] Invite actions below fold on overview
+  File: apps/web/src/app/(fundraising)/lag/page.tsx:129-227
+  Symptom: Flow is KPIs → milestones → invite link; sideline coach must scroll to share.
+  Fix: Sticky top bar or quick action "Dela länk" on mobile.
+  Effort: S
+  Ref audit: TEAM_LEADER [2.4]
+
+[3.3] `hideFromLeaderboard` not respected in TL ranking UI
+  File: packages/db/src/schema/sellers.ts:44
+  File: apps/web/src/app/(fundraising)/lag/page.tsx:256-257 (always `displayName`)
+  Symptom: Schema supports youth privacy opt-out; team leader still sees full names in ranking.
+  Fix: Show `publicAlias` or "Anonym säljare" when flag set; filter from public-facing exports only if policy requires.
+  Effort: S
+  Ref: MASTER_PLAN Fas 4
+
+[3.4] Milestone / campaign-start emails defined but never sent
+  File: apps/api/src/lib/communication-templates.ts:64-105
+  Symptom: No automated "kampanj startad" or milestone fan-out to coach or sellers.
+  Fix: Wire pg-boss or cron + feature flag (MASTER_PLAN T6).
+  Effort: L
+  Ref audit: TEAM_LEADER [2.12]
+
+[3.5] Password policy inconsistent on inline seller create
+  File: apps/web/src/app/(fundraising)/lag/saljare/page.tsx:337 (minLength 6)
+  File: apps/web/src/app/(auth)/registrera/saljare/[token]/page.tsx (~min 8)
+  File: apps/api/src/routes/dashboard.ts:479-481 (presence only on POST)
+  Symptom: Coach can create seller with 6-char password via UI; API accepts any non-empty string.
+  Fix: Shared server validator min 8; align all client forms.
+  Effort: S
+  Ref audit: TEAM_LEADER [1.3], [3.6]
+
+[3.6] tRPC `sellers.listByTeam` org-scoped, not leader-scoped
+  File: apps/api/src/trpc/routers/campaigns.ts:60-76,312-330
+  Symptom: Any user in org with teamId could list sellers via tRPC; REST dashboard correctly checks `leaderId`.
+  Fix: Add `team.leaderId === ctx.userId` for TEAM_LEADER role in verifyTeamOwnership.
+  Effort: S
+  Ref audit: TEAM_LEADER [1.6]
+
+================================================================
+P4 — LOW
+================================================================
+
+[4.1] Decorative TrendingUp on earnings card without trend data
+  File: apps/web/src/app/(fundraising)/lag/page.tsx:140-142
+  Effort: S — remove icon or add WoW delta when API supports it.
+
+[4.2] `sellers.inviteToken` column unused — team token only for registration
+  File: packages/db/src/schema/sellers.ts:38
+  Note: Per-seller invite links not implemented; informational.
+
+[4.3] Escalation to föreningsadmin is static copy on error states
+  File: apps/web/src/app/(fundraising)/lag/page.tsx:100-104
+  Fix: Link to `/hjalp` or contact mailto when `my-team` 404.
+
+================================================================
+IMPROVED SINCE APRIL 2026 AUDIT
+================================================================
++ Sprint E10: per-seller individual goal inline edit on `/lag/saljare` (dashboard PATCH)
++ Sprint E12: seller pause/reactivate UI + `status` in team dashboard JSON
++ Sprint E12: CSV export + date filter on `/lag/bestallningar` (was "unused generateOrdersCsv")
++ Schema: `sellers.publicAlias`, `hideFromLeaderboard`, `personalMessage` columns added (UI wiring partial)
++ AI welcome copy for TEAM_LEADER exists in `portal/ai/page.tsx:30-31` (but TL primary shell is `/lag`, not portal)
+
+================================================================
+MVP GATE (minimum to ship coach flow)
+================================================================
+1. Fix [1.6] onboarding dead-end OR disable self-serve TL until campaign exists (SCOUT 9)
+2. Fix [1.1] KPI alignment so coach trusts the numbers
+3. Fix [1.2] enforce INACTIVE at shop + checkout
+4. Fix [1.4]/[1.5] portal misrouting or hard redirect TL → `/lag`
+5. Ship [2.2]+[2.3] mobile invite (QR + SMS copy) — coaches live on phones
+6. Decide [1.3] invite-only vs password-reset on manual seller create
+
+--- END SCOUT 16 ---

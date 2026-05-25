@@ -1,0 +1,262 @@
+================================================================
+SCOUT 11 — Auth secondary flows (password reset, session lifecycle, MFA, logout-all)
+================================================================
+Date: 2026-05-25
+Scope: apps/web/src/app/(auth)/*, apps/api/src/routes/auth.ts, apps/api/src/lib/session.ts, apps/api/src/lib/mfa.ts, apps/api/src/lib/bankid/*, related portal/fundraising settings + tRPC auth router
+Roles: ALL
+
+SUMMARY
+-------
+Primary login/logout and in-session password change work for real DB users, but every secondary auth path is missing or stubbed: no forgot-password request, token email, or reset page; invited members are created with a non-login sentinel hash and have no accept-invite flow; MFA exists only as library helpers + empty DB column; BankID REST routes run mock adapter with zero web UI; sessions never slide-refresh; /me serves stale role from Redis; multi-tab logout is inconsistent; and account deletion is a support toast with no API. These gaps block MVP for any user who loses a password, receives a club invite, or exercises GDPR erasure.
+Findings: 24 total (P1: 2, P2: 10, P3: 8, P4: 4)
+MVP readiness: 38/100
+
+================================================================
+P1 — CRITICAL (blocks MVP)
+================================================================
+
+[1.1] Password reset flow entirely absent (API + UI + email)
+  File: apps/api/src/routes/auth.ts (no reset routes); apps/api/src/trpc/routers/auth.ts:105-113; apps/web/src/app/(auth)/login/page.tsx:67-108; packages/contracts/src/auth.ts:66-73
+  Symptom: User clicks “Logga in”, enters wrong/old password, has no recovery path. Login page has no “Glömt lösenord?” link. No `/glomt-losenord` or `/aterstall-losenord/[token]` routes under `(auth)`.
+  Root cause: `PasswordResetRequestSchema` / `PasswordResetSchema` exist in contracts; tRPC `requestPasswordReset` always returns success without sending mail; REST auth router has no `POST /forgot-password` or `POST /reset-password`. Email templates (`apps/api/src/lib/email/templates.ts`) include welcome/order mail only — no reset template.
+  Fix: Add `password_reset_tokens` table (userId, token hash, expiresAt, usedAt); `POST /v1/auth/forgot-password` (rate-limited, generic 200); send reset link email; `GET/POST /aterstall-losenord` page consuming token once; link from login page.
+  Effort: M
+  Ref audit: CONVERSION [5] password reset stub; INTERNAL_ADMIN support reset not implemented — STILL UNRESOLVED
+
+[1.2] Invited club members cannot log in — no accept-invite / set-password flow
+  File: apps/api/src/routes/portal.ts:744-748; apps/api/src/routes/auth.ts:322-334
+  Symptom: CLUB_ADMIN invites member via `/portal/medlemmar`; invitee receives no email with setup link. DB row gets `passwordHash: invite-pending-{uuid}…` — not valid argon2. Login returns 401; change-password returns 400 (“Lösenordet kan inte verifieras”).
+  Root cause: Comment in portal.ts explicitly defers “Real password reset/accept-invite flow”. Invited users are permanently locked until manual DB intervention.
+  Fix: Reuse password-reset token pattern OR dedicated invite token on user row; email “Acceptera inbjudan” → set-password page; on success replace sentinel hash and create session.
+  Effort: M
+  Ref audit: INTERNAL_ADMIN support “act on behalf” / password reset — STILL UNRESOLVED; blocks CLUB_MEMBER onboarding
+
+================================================================
+P2 — HIGH (must fix before MVP launch)
+================================================================
+
+[2.1] MFA advertised in README but not wired end-to-end
+  File: README.md:26; packages/db/src/schema/users.ts:29; apps/api/src/lib/mfa.ts; apps/api/src/trpc/routers/auth.ts:91-103; apps/web (no MFA UI — grep empty)
+  Symptom: README claims “TOTP MFA”. `users.mfaSecret` column exists. `setupMfa` generates secret but never persists; `verifyMfa` always returns `{ verified: false }`. No enrollment UI in portal or fundraising settings. No step-up MFA on sensitive actions (change-password, payout, admin).
+  Root cause: MFA is scaffold-only; product UI never built; REST auth path ignores MFA entirely.
+  Fix: For MVP either remove README claim + hide column, OR implement: enroll (QR + confirm), store encrypted secret, optional enforce on INTERNAL_ADMIN/SALES roles, verify gate on change-password + settlement approve.
+  Effort: L (full) / S (remove claim)
+  Ref audit: CLUB_MEMBER [4.3] MFA stub — STILL UNRESOLVED
+
+[2.2] /me returns role from Redis session, not live DB — stale after admin role change
+  File: apps/api/src/routes/auth.ts:407-416
+  Symptom: Admin changes user role in DB (or org reassignment). Active session keeps old `session.role` until re-login. Portal nav/RBAC in layout uses cached `/me` from mount — user may see wrong menus or get 403 on API calls while UI still shows old role label from context.
+  Root cause: `return c.json({ user: { … role: session.role … }})` — email/name fetched from DB but role/orgId from session blob.
+  Fix: Return `role: user.role` and `orgId: user.orgId` from DB when user row exists; optionally re-write session on mismatch; portal layout refetch /me on window focus or interval.
+  Effort: S
+  Ref audit: NEW (role-change ops gap)
+
+[2.3] Session TTL is fixed at creation — refreshSession never called
+  File: apps/api/src/lib/session.ts:83-92; apps/api/src/routes/auth.ts (no refresh calls)
+  Symptom: Session expires exactly 7 days after login regardless of activity. `refreshSession()` exists but has zero callers (confirmed grep). Active daily users still logged out at day 7 without warning.
+  Root cause: No middleware hook on authenticated routes to extend Redis TTL / cookie maxAge.
+  Fix: Call `refreshSession(sessionId)` from shared `requireSession` helper or `/me` when session age > 50% TTL; optionally return `expiresAt` to client for soft warning.
+  Effort: S
+  Ref audit: platform-audit [4.5] refreshSession unused — STILL UNRESOLVED
+
+[2.4] Expired/revoked session does not redirect until full page navigation
+  File: apps/web/src/app/(portal)/portal/layout.tsx:111-123; apps/web/src/app/(fundraising)/layout.tsx:47-70
+  Symptom: User leaves portal tab open >7 days (or admin revokes session). Cookie still sent but Redis key gone. `/me` returns `{ user: null }` — layouts only fetch on mount; in-tab API calls fail with 401 while shell remains visible until manual refresh.
+  Root cause: One-shot `useEffect` auth check; no global 401 interceptor; no `visibilitychange` refetch.
+  Fix: Shared auth provider with periodic or focus-based `/me` poll; apiFetch wrapper redirects to `/login` on 401 for portal routes; optional BroadcastChannel for cross-tab session invalidation.
+  Effort: M
+  Ref audit: NEW
+
+[2.5] Multi-tab logout inconsistency
+  File: apps/web/src/app/(portal)/portal/layout.tsx:125-129; apps/web/src/lib/portal-context.tsx (static context)
+  Symptom: Tab A logs out → server session destroyed + cookie cleared. Tab B still shows authenticated chrome and PortalUser context until user navigates or refreshes; may submit forms that 401.
+  Root cause: No `storage` event / BroadcastChannel on logout; user state local to each layout instance.
+  Fix: On logout `localStorage.setItem('roots:logout', Date.now())`; all layouts listen and redirect; on login broadcast `roots:login`.
+  Effort: S
+  Ref audit: NEW
+
+[2.6] No “logout all devices” / session inventory
+  File: apps/api/src/routes/auth.ts:226-248; apps/api/src/lib/session.ts; packages/db/src/schema/sessions.ts (unused PG table)
+  Symptom: User cannot revoke other browsers after credential compromise or shared-device use. Only current cookie session destroyed on logout. PG `sessions` table exists in schema/migrations but app stores sessions only in Redis with no userId index for enumeration.
+  Root cause: Session IDs are opaque Redis keys with no `userId → [sessionId]` mapping; no `POST /auth/logout-all`.
+  Fix: Store session metadata (userId, userAgent, createdAt, lastSeen) in Redis set or revive PG sessions table; settings UI “Logga ut överallt”; change-password optionally calls logout-all except current.
+  Effort: M
+  Ref audit: auth.ts change-password comment “invalidate other sessions — out of scope” — STILL DEFERRED
+
+[2.7] change-password does not invalidate other sessions
+  File: apps/api/src/routes/auth.ts:258-260,344-356
+  Symptom: After password change, stolen session cookies on other devices remain valid for up to 7 days.
+  Root cause: Explicitly documented as follow-up; only hash updated in DB.
+  Fix: On successful change-password, delete all Redis sessions for userId except current (pairs with [2.6]).
+  Effort: S (once session inventory exists)
+  Ref audit: NEW (security)
+
+[2.8] Account deletion / GDPR erasure — UI only, no backend
+  File: apps/web/src/app/(portal)/portal/installningar/page.tsx:271-272; apps/api (no delete-user route)
+  Symptom: “Radera konto” shows toast “Kontakta support…”. No self-service erasure, no admin delete-user API, no anonymization job. Fundraising `/installningar` has no delete button at all.
+  Root cause: GDPR mentioned on marketing `/integritet` only; no operational workflow.
+  Fix: `POST /v1/auth/delete-account` (confirm password + cooldown); soft-delete user + anonymize PII; audit log; admin override in internal portal; document retention in integritet.
+  Effort: M
+  Ref audit: INTERNAL_ADMIN “No GDPR erasure/delete-user API” — STILL UNRESOLVED
+
+[2.9] BankID adapter is mock-by-default with no login integration
+  File: apps/api/src/lib/bankid/adapter.ts:53-64; apps/api/src/routes/bankid.ts; apps/web (zero BankID references)
+  Symptom: `/v1/bankid/status` returns `mode: "mock"` unless `BANKID_PFX_PATH` set. Mock adapter instantly returns fake person `199001011234`. No web page calls start/collect; BankID is not part of login, registration, or step-up auth.
+  Root cause: Infrastructure scaffold only; real adapter loads if cert env present but product never consumes it.
+  Fix: For MVP document “password-only auth”; if BankID required for minors/strong auth, add optional login button + callback binding to user.personalNumber; gate mock to non-production.
+  Effort: L (integration) / S (document + env guard)
+  Ref audit: CLUB_MEMBER [4.3] BankID not in club login UX — STILL UNRESOLVED
+
+[2.10] Parallel tRPC auth router is dead code with empty demo map
+  File: apps/api/src/trpc/routers/auth.ts:25-36
+  Symptom: tRPC `auth.login` uses empty `demoUsers` object — always UNAUTHORIZED. `requestPasswordReset` stub may confuse future integrators. Web app uses REST `/v1/auth/*` exclusively.
+  Root cause: Dual auth stacks; tRPC never finished.
+  Fix: Delete or align tRPC auth with REST; remove misleading stubs from public router.
+  Effort: S
+  Ref audit: NEW (maintainability)
+
+================================================================
+P3 — MEDIUM (should fix; workaround exists)
+================================================================
+
+[3.1] Login page missing forgot-password entry point
+  File: apps/web/src/app/(auth)/login/page.tsx:81-92
+  Symptom: Even after backend exists, users won't discover recovery without link under password field.
+  Fix: Add `Link href="/glomt-losenord"` below password input.
+  Effort: S
+
+[3.2] Silent session takeover on seller self-register (shared device)
+  File: apps/api/src/routes/auth.ts:797-798
+  Symptom: Parent logged in on browser; teen completes seller invite registration → new session cookie overwrites without warning.
+  Root cause: register/seller always `createSession` + setCookie.
+  Fix: Detect existing session; return 409 `SESSION_CONFLICT` + UI banner (per MASTER_PLAN Fas 2).
+  Effort: S
+  Ref audit: SELLER [1.1] — STILL UNRESOLVED
+
+[3.3] Demo sessions cannot change password but can access settings
+  File: apps/api/src/routes/auth.ts:277-281; apps/web fundraising + portal settings
+  Symptom: Demo user opens “Byt lösenord”, submits, gets 400 “Demo-konton kan inte byta lösenord.” Help page documents this (`hjalp/page.tsx:82`) but settings UI doesn’t pre-disable button.
+  Fix: Hide or disable change-password when `/me` indicates demo (e.g. random userId not in DB + demoProfile in session — expose flag).
+  Effort: S
+
+[3.4] Invited member flow sends no email at all
+  File: apps/api/src/routes/portal.ts:767-780
+  Symptom: CLUB_ADMIN invites member — API returns 201 but no transactional email (contrast: register paths send welcomeEmail).
+  Fix: Part of [1.2] — send invite email with token link.
+  Effort: S (with [1.2])
+
+[3.5] No rate limit on password-reset endpoint (when built)
+  File: apps/api/src/lib/rate-limit.ts (login only)
+  Symptom: Future forgot-password without limit enables email harassment / user enumeration timing attacks.
+  Fix: Reuse loginRateLimit pattern per IP+email; always return generic success message.
+  Effort: S
+
+[3.6] CSRF token cache not cleared on logout (multi-user same browser)
+  File: apps/web/src/lib/api.ts:1-16,41-43
+  Symptom: Logout doesn’t reset module-level `csrfToken`. Next user on same browser profile reuses prior token until 403 refresh — edge case for shared kiosks.
+  Fix: Export `clearCsrfToken()`; call from logout handlers.
+  Effort: S
+
+[3.7] Unused PG `sessions` table vs Redis-only runtime
+  File: packages/db/src/schema/sessions.ts; apps/api/src/lib/session.ts
+  Symptom: Schema/migration/maintenance cost with no runtime usage; confuses “logout all” implementation path.
+  Fix: Either wire PG sessions as source of truth or drop table in favor of Redis session index.
+  Effort: M
+  Ref audit: NEW (architecture drift)
+
+[3.8] Fundraising settings lacks account deletion affordance
+  File: apps/web/src/app/(fundraising)/installningar/page.tsx
+  Symptom: ASSOCIATION_ADMIN / TEAM_LEADER / SELLER can change password but have no “Radera konto” — inconsistent with portal settings.
+  Fix: Add same pattern or unified settings component once [2.8] API exists.
+  Effort: S
+
+================================================================
+P4 — LOW (polish / post-MVP)
+================================================================
+
+[4.1] BankID cancel endpoint swallows errors
+  File: apps/api/src/routes/bankid.ts:79-80
+  Symptom: Failed cancel returns `{ ok: false }` with 200 — client can’t distinguish failure modes.
+  Effort: S
+
+[4.2] Session cookie lacks explicit `domain` — cross-subdomain behavior env-dependent
+  File: apps/api/src/lib/session.ts:97-103
+  Symptom: Production uses `sameSite: none` + `secure` for cross-origin API; document required cookie domain alignment between web and API hosts.
+  Effort: S (ops doc)
+
+[4.3] Argon2 params duplicated across auth.ts and packages/db seed
+  File: apps/api/src/routes/auth.ts:38-43 vs seed-demo.ts
+  Symptom: Minor drift risk if one path updates cost factors.
+  Effort: S
+
+[4.4] tRPC `setupMfa` returns raw secret in response — unsafe pattern if ever wired
+  File: apps/api/src/trpc/routers/auth.ts:91-94
+  Symptom: Secret should only be shown once during enroll confirm flow, never logged.
+  Effort: S (when implementing MFA)
+
+================================================================
+WHAT WORKS (baseline)
+================================================================
++ POST /v1/auth/login — DB users + demo fallback, rate-limited, audit logged
++ POST /v1/auth/logout — destroys Redis session, deleteCookie, audit log
++ POST /v1/auth/change-password — argon2 verify + rotate hash (portal + fundraising UI wired)
++ GET /v1/auth/me — returns null cleanly when session missing (no 401 on anonymous check)
++ Session store — Redis in prod with 7-day TTL; in-memory dev fallback blocked in production
++ Cookie — httpOnly, secure+SameSite=None in prod for cross-origin fetch
++ Registration flows — association / team-leader / seller create session + welcome email
++ CSRF — apiFetch attaches token on mutating requests (fixes prior logout 403)
++ BankID REST — start/collect/cancel/status endpoints exist; real adapter loads when BANKID_PFX_PATH set
+
+================================================================
+ROLE IMPACT MATRIX
+================================================================
+| Flow                         | PUBLIC | CLUB_* | SALES_* | INTERNAL | ASSOC | TEAM | SELLER |
+|-----------------------------|--------|--------|---------|----------|-------|------|--------|
+| Forgot password             | ✗      | ✗      | ✗       | ✗        | ✗     | ✗    | ✗      |
+| Invite set-password         | —      | ✗      | —       | —        | —     | —    | —      |
+| Change password (logged in) | —      | ✓*     | ✓*      | ✓*       | ✓     | ✓    | ✓      |
+| MFA                         | —      | ✗      | ✗       | ✗        | ✗     | ✗    | ✗      |
+| Logout current device       | —      | ✓      | ✓       | ✓        | ✓     | ✓    | ✓      |
+| Logout all devices          | —      | ✗      | ✗       | ✗        | ✗     | ✗    | ✗      |
+| Account deletion            | —      | toast  | toast   | toast    | —     | —    | —      |
+| BankID login                | —      | ✗      | ✗       | ✗        | ✗     | ✗    | ✗      |
+| Session refresh on activity | —      | ✗      | ✗       | ✗        | ✗     | ✗    | ✗      |
+| Stale role after DB change  | —      | ⚠      | ⚠       | ⚠        | ⚠     | ⚠    | ⚠      |
+
+* CLUB_MEMBER invited via portal invite is blocked until [1.2] fixed
+
+================================================================
+MVP READINESS BREAKDOWN
+================================================================
+- Password recovery:        2/25   (no flow; invited users hard-blocked)
+- Session lifecycle:       12/25  (create/destroy OK; no refresh, no multi-tab, no logout-all)
+- MFA / step-up:            3/25  (library + column only)
+- Account lifecycle/GDPR:   5/25  (change-password OK; delete/erasure absent)
+- BankID:                   4/25  (API mock; no product wiring)
+
+NOTES FOR THE TEAM
+------------------
+Resolved since April 2026 reference audits (verify, do not re-fix):
+- Logout CSRF 403 — apiFetch now sends CSRF token (portal + fundraising layouts comment Sprint fix) — CLOSED.
+- change-password REST + portal/fundraising UI — Sprint C wired — CLOSED for authenticated rotation.
+- BankID routes exist at /v1/bankid/* with env-gated real adapter — partial CLOSED (infra only).
+
+Still open from reference audits:
+- CONVERSION [5] password reset tRPC stub — UNRESOLVED ([1.1])
+- INTERNAL_ADMIN GDPR erasure — UNRESOLVED ([2.8])
+- INTERNAL_ADMIN support password reset — UNRESOLVED ([1.1]/[1.2])
+- SELLER silent session switch — UNRESOLVED ([3.2])
+- README MFA claim — UNRESOLVED ([2.1])
+
+Recommended MVP sprint (this scout’s scope only):
+1. Ship forgot-password + reset page + email template ([1.1]) — unblocks all roles.
+2. Ship invite accept / set-password for portal members ([1.2]) — unblocks CLUB_MEMBER.
+3. Fix /me to read role from DB + optional session resync ([2.2]) — unblocks admin ops.
+4. Defer MFA/BankID from MVP OR hide README claims; do not half-ship mock BankID in prod.
+
+Cross-scout dependencies:
+- Scout login/register (primary auth) should align password rules across invite + reset.
+- Scout internal admin should add support-triggered reset with audit once [1.1] exists.
+- Scout GDPR/integritet should link to self-service delete once [2.8] exists.
+
+--- END SCOUT 11 ---

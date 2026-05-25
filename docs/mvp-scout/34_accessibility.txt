@@ -1,0 +1,324 @@
+================================================================
+SCOUT 34 — Accessibility (a11y) audit
+================================================================
+Date: 2026-05-25
+Scope: All public, portal, shop, auth pages; apps/web/src/components/ui/*;
+       chat-widget.tsx; hair-analysis-lead-dialog.tsx; layout shells
+Roles: ALL (legal requirement — EU Web Accessibility Act / WCAG 2.1 AA)
+Ref audits: docs/flow-audits/PUBLIC_2026-04-18_1238.txt,
+            docs/flow-audits/INTERNAL_ADMIN_2026-04-18_1310.txt
+
+SUMMARY
+-------
+Roots has a solid accessibility foundation — `lang="sv"`, a global skip link, Radix
+dialogs with focus trap/ESC, `:focus-visible` rings in globals.css, and partial
+`prefers-reduced-motion` handling. However, several WCAG AA blockers remain for MVP:
+the skip link only lands on marketing pages; auth flows have no `<h1>`; hidden UI
+(chat panel, mobile nav, portal sidebar) stays in the keyboard tab order; AI chat
+surfaces lack `aria-live` for streamed messages; the hair-analysis wizard has six
+unlabeled `<select>` controls; and contrast fails on hero subcopy and 10px disclaimers.
+Findings: 28 total (P1: 8, P2: 11, P3: 6, P4: 3)
+MVP readiness: 61/100
+
+CHECKLIST (pass / partial / fail)
+---------------------------------
+| Item                              | Status  | Notes |
+|-----------------------------------|---------|-------|
+| Semantic landmarks (header/nav/main/footer) | PARTIAL | Marketing ✓; shop has footer; auth header+main; portal/fundraising nav+main but no footer |
+| One h1 per page                   | PARTIAL | Marketing/portal/shop mostly ✓; auth uses CardTitle div — no h1 |
+| Heading hierarchy (no skipped levels) | PARTIAL | kontakt h1→h3; hair dialog h2 title + h3 steps OK |
+| alt on all images                 | PASS    | Next/Image + hero alts present; decorative brand imgs use alt="" |
+| ARIA on icon-only buttons         | PASS    | Header, chat, portal nav, theme toggle generally labeled |
+| Focus rings on interactive        | PARTIAL | Button/Input ✓; chat send/close, some custom buttons rely on global outline only |
+| Modal focus trap + ESC + initial focus | PARTIAL | Radix dialogs ✓; chat custom ✓; search ✓; mobile overlays NOT trapped |
+| Keyboard — all actions reachable  | FAIL    | Hidden off-screen panels still tabbable |
+| Form labels linked to inputs      | PARTIAL | Login/checkout/portal filters ✓; hair-analysis selects ✗ |
+| Skip-to-content link              | PARTIAL | Link in root layout ✓; `#main-content` only on marketing layout |
+| Color contrast ≥ 4.5:1            | PARTIAL | Core tokens OK; hero `text-white/70`, `text-muted-foreground/60` at 10px fail |
+| prefers-reduced-motion            | PARTIAL | globals.css disables some animations; `pulse-shadow-light` hero CTA not covered |
+| aria-live for dynamic chat        | FAIL    | Hair loading step ✓; public chat + portal AI messages ✗ |
+| lang="sv" on html                 | PASS    | apps/web/src/app/layout.tsx:58 |
+
+================================================================
+P1 — CRITICAL (blocks MVP / legal AA)
+================================================================
+
+[1.1] Skip-to-content link broken outside marketing shell
+  File: apps/web/src/app/layout.tsx:79-84; apps/web/src/app/(marketing)/layout.tsx:14
+  Symptom: "Hoppa till innehåll" is global, but `id="main-content"` exists only on
+           `(marketing)/layout.tsx`. On `/login`, `/portal/*`, `/shop/*`, `/forening`,
+           `/min-shop`, etc., activating the skip link does nothing useful.
+  Root cause: Other route-group layouts use `<main>` without the shared id.
+  Fix: Add `id="main-content"` to `<main>` in `(auth)/layout.tsx`, `(portal)/portal/layout.tsx`,
+       `(fundraising)/layout.tsx`, and shop pages that define their own `<main>`; or move
+       the id to a shared wrapper used by every layout.
+  Effort: S
+  WCAG: 2.4.1 Bypass Blocks (A)
+
+[1.2] Auth pages have no document `<h1>` — CardTitle renders a `<div>`
+  File: apps/web/src/components/ui/card.tsx:25-28
+  File: apps/web/src/app/(auth)/login/page.tsx:64; registrera/page.tsx:170,262;
+        registrera/saljare/[token]/page.tsx:95; registrera/lagansvarig/[token]/page.tsx:190
+  Symptom: Screen readers and heading navigation skip the primary page title on every
+           auth/registration screen ("Logga in", "Kom igång med Roots", etc.).
+  Root cause: `CardTitle` is a styled `<div>`, not a heading element.
+  Fix: Change `CardTitle` to render `h1` (or accept `asChild`/level prop); ensure one
+       h1 per auth page. Prefer `DialogTitle`-style polymorphism if cards used as subsections elsewhere.
+  Effort: S
+  WCAG: 1.3.1 Info and Relationships (A), 2.4.6 Headings and Labels (AA)
+
+[1.3] Site search dialog missing accessible name (no DialogTitle)
+  File: apps/web/src/components/search-dialog.tsx:151-167
+  Symptom: Radix DialogContent without DialogTitle triggers console warning and leaves
+           the modal unnamed for assistive tech ("dialog" with no label).
+  Root cause: SearchDialog imports only `DialogContent`; no `DialogTitle` or visually hidden title.
+  Fix: Add `<DialogTitle className="sr-only">Sök på Roots</DialogTitle>` (or visible title).
+  Effort: S
+  WCAG: 4.1.2 Name, Role, Value (A)
+
+[1.4] Closed chat panel remains in keyboard tab order
+  File: apps/web/src/components/chat-widget.tsx:236-337
+  Symptom: When chat is closed (`opacity-0 pointer-events-none`), focus can still tab
+           into textarea, send, stop, and close buttons inside the off-screen dialog.
+  Root cause: Panel stays mounted without `hidden`, `inert`, `aria-hidden`, or `tabIndex=-1` on descendants.
+  Fix: When `!open`, add `hidden`/`inert`/`aria-hidden="true"` to the dialog container, or
+       conditionally unmount panel content; return focus to floating trigger on close.
+  Effort: S
+  WCAG: 2.1.1 Keyboard (A), 2.4.3 Focus Order (A)
+
+[1.5] Mobile marketing nav overlay focusable while visually hidden
+  File: apps/web/src/components/header.tsx:196-272
+  Symptom: Full-screen mobile menu uses `opacity-0 pointer-events-none` when closed but
+           remains in DOM; Tab reaches nav links, search, and CTAs while menu appears closed.
+  Root cause: No `inert`/`aria-hidden`/`hidden` when `menuOpen === false`; no focus trap when open.
+  Fix: Toggle `inert` + `aria-hidden` on overlay when closed; trap focus + ESC when open; restore focus to burger.
+  Effort: M
+  WCAG: 2.1.1, 2.4.3
+
+[1.6] Portal sidebar off-screen links still tabbable on mobile
+  File: apps/web/src/app/(portal)/portal/layout.tsx:156-217
+  Symptom: On viewports `< lg`, sidebar is `-translate-x-full` when closed but nav links,
+           logout, and help remain reachable via keyboard.
+  Root cause: Aside always rendered; only CSS transform hides it — no `inert`/`aria-hidden`.
+  Fix: Set `inert={!sidebarOpen}` on aside for mobile, or `hidden lg:flex` pattern; trap focus when open.
+  Effort: M
+  WCAG: 2.1.1, 2.4.3
+
+[1.7] Hair-analysis wizard: six `<select>` fields not programmatically labeled
+  File: apps/web/src/components/hair-analysis-lead-dialog.tsx:567-648
+  Symptom: `<Label>` text is visual only — no `htmlFor`/`id` pairing on wash frequency,
+           hair type, scalp, heat tools, chemical treatment, swim frequency selects.
+  Root cause: Label component rendered adjacent without association; Radix Label needs `htmlFor`.
+  Fix: Add unique `id` per select and `htmlFor` on each Label (mirror portal/fakturor pattern).
+  Effort: S
+  WCAG: 1.3.1, 3.3.2 Labels or Instructions (A), 4.1.2
+
+[1.8] AI chat messages not announced — missing aria-live region
+  File: apps/web/src/components/chat-widget.tsx:267-297
+  File: apps/web/src/app/(portal)/portal/ai/page.tsx:294-337
+  Symptom: New assistant messages (including streamed tokens) appear silently; screen-reader
+           users must manually find the message list after send.
+  Root cause: Message container is a plain `<div>` with no `aria-live`/`aria-relevant`.
+  Fix: Wrap message list in `aria-live="polite"` + `aria-atomic="false"` region; for streaming,
+       announce completion or use live region on latest assistant bubble.
+  Effort: S
+  WCAG: 4.1.3 Status Messages (AA)
+
+================================================================
+P2 — HIGH (must fix before MVP launch)
+================================================================
+
+[2.1] Hero subcopy contrast fails WCAG AA on photo background
+  File: apps/web/src/components/sections/hero.tsx:43
+  File: apps/web/src/components/sections/hero-lead.tsx:25
+  Symptom: `text-white/70` (~rgba(255,255,255,0.7)) over darkened photo reads below 4.5:1
+           on typical hero luminance; secondary CTA same issue.
+  Fix: Use `text-white/90` or solid `#F1EBE2`; add semi-opaque text backdrop if needed.
+  Effort: S
+  WCAG: 1.4.3 Contrast (Minimum) (AA)
+
+[2.2] 10px disclaimers at 60% muted opacity fail contrast
+  File: apps/web/src/components/chat-widget.tsx:333
+  File: apps/web/src/app/(portal)/portal/ai/page.tsx:372
+  Symptom: `text-[10px] text-muted-foreground/60` is below 4.5:1 and below readable size.
+  Fix: Minimum `text-xs` (12px) at full `text-muted-foreground`; verify dark mode (#B2A491 on #221F1B).
+  Effort: S
+  WCAG: 1.4.3, 1.4.4 Resize Text (AA)
+
+[2.3] Checkout delivery choice not exposed as radio group
+  File: apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx:296-328
+  Symptom: Samleverans vs Hemleverans are `<button type="button">` tiles with no
+           `role="radio"`, `aria-pressed`, or `radiogroup` — state change invisible to SR.
+  Fix: Use `<fieldset>` + `<legend>` + native radios, or buttons with `role="radiogroup"` + `aria-checked`.
+  Effort: S
+  WCAG: 4.1.2, 1.3.1
+
+[2.4] Hair-analysis progress bar not accessible
+  File: apps/web/src/components/hair-analysis-lead-dialog.tsx:128-151
+  Symptom: Step progress is visual-only `<div>` with width style; no `role="progressbar"`,
+           `aria-valuenow`, `aria-valuemin`, `aria-valuemax`, or step change announcement.
+  Fix: Add progressbar semantics; optionally `aria-live="polite"` on step label when step changes.
+  Effort: S
+  WCAG: 4.1.2, 1.3.1
+
+[2.5] Hero primary CTA pulse animation ignores reduced motion
+  File: apps/web/src/components/sections/hero-lead.tsx:16
+  Symptom: Custom `animate-[pulse-shadow-light_…]` not listed in globals.css reduced-motion block
+           (only `.animate-subtle-pulse`, `.animate-float`, `.animate-spin-slow`).
+  Fix: Add `motion-reduce:animate-none` on pulse span or extend `@media (prefers-reduced-motion)`.
+  Effort: S
+  WCAG: 2.3.3 Animation from Interactions (AAA — best practice for MVP polish)
+
+[2.6] Mobile touch targets below 44×44 px minimum
+  File: apps/web/src/components/header.tsx:179-185 (burger `p-2` ≈ 36×40 px)
+  File: apps/web/src/app/(fundraising)/layout.tsx:220-227 (menu button `h-9 w-9` = 36 px)
+  Symptom: Primary navigation controls hard to activate on phones; fails WCAG 2.5.5 Target Size (AAA)
+           and practical AA usability expectations for public/portal MVP.
+  Fix: `min-h-11 min-w-11 flex items-center justify-center` on icon nav buttons.
+  Effort: S
+  Ref audit: PUBLIC [2.12] — STILL UNRESOLVED
+
+[2.7] Chat widget icon buttons lack explicit focus-visible styling
+  File: apps/web/src/components/chat-widget.tsx:256-330
+  Symptom: Close/send/stop use hover colors only; rely on global `:focus-visible` outline which
+           may be low-contrast on dark `bg-inverse-surface` buttons.
+  Fix: Add `focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2` matching Button component.
+  Effort: S
+  WCAG: 2.4.7 Focus Visible (AA)
+
+[2.8] Sheet close control English screen-reader text
+  File: apps/web/src/components/ui/sheet.tsx:51
+  Symptom: `<span className="sr-only">Close</span>` — Swedish site should say "Stäng".
+  Fix: Replace with "Stäng" (match dialog.tsx:45).
+  Effort: S
+  WCAG: 3.1.2 Language of Parts (AA)
+
+[2.9] Kontakt page skips heading level (h1 → h3)
+  File: apps/web/src/app/(marketing)/kontakt/page.tsx:51,137,156,175
+  Symptom: Page h1 "Kontakta oss" then sidebar blocks use h3 ("E-post", "Adress") with no h2.
+  Fix: Add h2 "Kontaktuppgifter" wrapping sidebar, or demote sidebar titles to h2.
+  Effort: S
+  WCAG: 1.3.1, 2.4.6
+
+[2.10] Checkout inline error banner missing role="alert"
+  File: apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx:186-189
+  Symptom: Error shown in red box without `role="alert"` (Klarna error path at ~407 has it).
+  Fix: Add `role="alert"` to top error container for immediate SR announcement.
+  Effort: S
+  WCAG: 4.1.3
+
+[2.11] Data tables lack accessible name / caption
+  File: apps/web/src/app/(portal)/portal/saljare/page.tsx; klubbar/page.tsx; bestallningar/page.tsx (pattern)
+  Symptom: Dense `<Table>` grids have column headers but no `<caption>` or `aria-label` describing
+           the table purpose — SR users hear cells without table context on entry.
+  Fix: Add visually hidden `<caption>` or `aria-label="Säljare — översikt"` on `<Table>`.
+  Effort: S
+  WCAG: 1.3.1
+
+================================================================
+P3 — MEDIUM (post-MVP or batch fix)
+================================================================
+
+[3.1] Registration type-picker buttons lack expanded/selected semantics
+  File: apps/web/src/app/(auth)/registrera/page.tsx:176-209
+  Symptom: Large card-style `<button>` choices ("Förening", "Lag eller klass") have no
+           `aria-describedby` linking to helper text; selection state not announced.
+  Fix: Wrap in `<fieldset>`/`<legend>`; optional `aria-pressed` after selection on summary step.
+  Effort: S
+
+[3.2] Portal mobile header shows page title as `<p>`, not linked to h1
+  File: apps/web/src/app/(portal)/portal/layout.tsx:251-253
+  Symptom: Duplicate visual title — mobile chrome `<p className="text-lg font-bold">` vs page h1 below.
+           Not a strict failure if page h1 exists, but redundant and can confuse rotor order.
+  Fix: Hide chrome title from SR (`aria-hidden`) or merge with page h1 via layout slot.
+  Effort: M
+
+[3.3] Hair-analysis result step: long dynamic content without live announcement
+  File: apps/web/src/components/hair-analysis-lead-dialog.tsx:737-850
+  Symptom: Transition from loading → result not announced beyond leaving loading `role="status"`.
+  Fix: Move `aria-live="polite"` to result container or focus heading on result mount.
+  Effort: S
+
+[3.4] Search dialog input uses outline-none without ring
+  File: apps/web/src/components/search-dialog.tsx:161
+  Symptom: Search field removes outline; relies on dialog chrome — minor focus visibility gap.
+  Fix: Add `focus-visible:ring-2 focus-visible:ring-ring` like Input component.
+  Effort: S
+
+[3.5] Notification badge count may be unread for screen readers
+  File: apps/web/src/components/notification-bell.tsx:150
+  Symptom: Numeric badge on bell icon — verify button `aria-label` includes unread count dynamically.
+  Fix: `aria-label={\`Notiser${unread ? `, ${unread} olästa` : ""}\`}`.
+  Effort: S
+
+[3.6] Dark mode warning badge contrast untested in UI
+  File: apps/web/src/app/globals.css:257-258 (`--color-warning: #ECD488` on dark bg)
+  Symptom: Yellow sun token on `#1A1815` cards (campaign banners) may fall below 4.5:1 for small text.
+  Fix: Audit amber campaign banners in shop/fundraising; darken text or lighten badge in `.dark`.
+  Effort: S
+
+================================================================
+P4 — LOW (polish)
+================================================================
+
+[4.1] Marketing layout missing explicit `<footer>` landmark wrapper semantics
+  File: apps/web/src/components/footer.tsx (component exists; verify `<footer>` element)
+  Note: Footer component likely correct — verify once during fix pass.
+
+[4.2] `CardDescription` / section descriptions use `<div>` not associated with inputs
+  File: apps/web/src/components/ui/card.tsx:32-35
+  Note: Acceptable for non-form cards; avoid for form field descriptions without `aria-describedby`.
+
+[4.3] Plausible analytics script has no reduced-motion / consent coupling
+  Note: Out of a11y scope but document for integritet page cross-link.
+
+================================================================
+WHAT ALREADY WORKS (do not regress)
+================================================================
+- `html lang="sv"` on root layout (layout.tsx:58)
+- Skip link present with good focus styles (layout.tsx:79-84) — only needs target id everywhere
+- Global `:focus-visible` outline (globals.css:296-298)
+- Radix Dialog: focus trap, ESC, sr-only "Stäng" (dialog.tsx)
+- Hair-analysis dialog: DialogTitle, DialogDescription, photo alt text, file input aria-label
+- Login/register field labels with htmlFor on primary inputs
+- Portal filter forms (fakturor, pipeline, audit-log) — Label + id pattern
+- Chat widget: floating trigger aria-label toggles, manual focus trap when open, ESC closes
+- Decorative motion elements use `aria-hidden="true"` + `motion-reduce:animate-none` (foreningsliv, for-foreningar)
+- Hero/product images include meaningful alt text
+- Auth login errors use `role="alert"`
+
+================================================================
+ROLE COVERAGE
+================================================================
+| Role              | Critical gaps |
+|-------------------|---------------|
+| Public visitor    | Skip link (N/A marketing only), chat aria-live, hero contrast, mobile nav tab order, search dialog title |
+| Supporter (shop)  | Skip link, checkout radio semantics, error alerts |
+| Seller / team / association | Skip link, sidebar tab order, touch targets |
+| Portal (all roles)| Skip link, sidebar tab order, table captions, AI aria-live |
+| Auth (all)        | No h1 on login/register/invite flows |
+
+================================================================
+MVP READINESS BREAKDOWN
+================================================================
+- Perceivable:     14/25  (contrast gaps on hero + microcopy; images OK)
+- Operable:        12/25  (keyboard tab-order leaks on hidden UI; touch targets)
+- Understandable:  18/25  (SV lang ✓; form labels mostly OK; hair selects fail)
+- Robust:          17/25  (dialogs mostly OK; search unnamed; chat status messages)
+
+RECOMMENDED FIX ORDER (single sprint)
+-------------------------------------
+1. Add `id="main-content"` to all layout `<main>` elements [1.1]
+2. Fix hidden UI tab order: chat, header menu, portal sidebar (`inert`) [1.4–1.6]
+3. CardTitle → h1 on auth pages [1.2]
+4. aria-live on chat-widget + portal/ai message lists [1.8]
+5. Hair-analysis select label association [1.7]
+6. DialogTitle on search-dialog [1.3]
+7. Contrast: hero white/90 + disclaimer text size [2.1–2.2]
+
+Cross-scout notes:
+- Scout 05/06 (hair-analysis, public-chat) should treat [1.7], [1.8], [2.4] as dependencies.
+- Scout 07 (login) — extend with [1.2]; login form a11y otherwise passes checklist.
+- Scout 23 (checkout) — add [2.3], [2.10].
+
+--- END SCOUT 34 ---

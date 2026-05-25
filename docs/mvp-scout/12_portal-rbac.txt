@@ -1,0 +1,261 @@
+================================================================
+SCOUT 12 — Portal layout, middleware, RBAC enforcement
+================================================================
+Date: 2026-05-25
+Scope: apps/web/src/app/(portal)/portal/layout.tsx,
+       apps/web/src/middleware.ts,
+       apps/web/src/lib/portal-context.tsx,
+       apps/web/src/lib/api.ts, apps/web/src/lib/portal-api.ts,
+       apps/api/src/lib/session.ts,
+       apps/api/src/routes/portal.ts (sample), admin.ts, auth.ts (/me),
+       docs/flow-audits/INTERNAL_ADMIN_2026-04-18_1310.txt,
+       docs/flow-audits/MASTER_PLAN_2026-04-18.md
+
+NOTE: Brief referenced `/logga-in`; live login is `/login` only (see Scout 7).
+
+SUMMARY
+-------
+Portal API RBAC improved since the April internal-admin audit (pipeline/sellers/statistics
+now guarded; regression tests in portal.snapshot.test.ts). MVP-blocking gaps remain on the
+**web shell**: `/portal` is not middleware-protected, `getNavItems()` maps unknown roles
+(SELLER, TEAM_LEADER, ASSOCIATION_ADMIN) to **ADMIN_NAV**, and several portal REST handlers
+still accept any authenticated session without `isPortalRole()`. Deep-linked admin pages
+often **fail open in the UI** (empty state after swallowed 403) while the API correctly
+denies. No inactive/banned-user gate; 401 redirects omit `?next=`.
+
+Findings: 22 (P1:6 P2:8 P3:5 P4:3)
+MVP readiness: 58/100
+
+CHECKLIST (pass / partial / fail)
+---------------------------------
+| Item                                      | Status  | Notes |
+|-------------------------------------------|---------|-------|
+| Role-based nav visibility                 | FAIL    | [1.2] SELLER/TEAM_LEADER/ASSOCIATION → ADMIN_NAV |
+| Server-side RBAC on every /api endpoint   | PARTIAL | portal.ts mostly guarded; gaps [1.4]–[1.5] |
+| Deep-link /portal/system as SELLER        | PARTIAL | API 403 PASS; UI misleading FAIL [1.2][2.3] |
+| 401 → login with return-to                | FAIL    | layout → /login, no `next` [2.1] |
+| 403 → pleasant no-access page             | FAIL    | middleware plain text; pages swallow [2.3] |
+| Demo vs real user limits                  | PARTIAL | change-password blocked; portal/demo OK [2.5] |
+| Middleware protects /portal, /admin       | FAIL    | only /forening, /lag, /min-shop [1.1] |
+| Inactive/banned users blocked             | FAIL    | no user status in schema/session [1.6] |
+| Cross-org data leakage                    | PARTIAL | members/orders scoped; admin roster [2.6] |
+| portal-context fresh on login/logout      | PARTIAL | remount-only; no global invalidation [2.2] |
+
+P1 — CRITICAL (MVP-blocking)
+
+[1.1] `/portal/*` not protected in middleware — auth is client-only
+  File: apps/web/src/middleware.ts:17-21,105-107
+  Symptom: Matcher runs gate + role checks only for `/forening`, `/lag`, `/min-shop`. Any
+  user with `rootsSessionId` can load `/portal/system`, `/portal/saljare`, etc. in the browser.
+  Root cause: Portal shell relies on layout `useEffect` → `/v1/auth/me`, not edge enforcement.
+  Fix: Add `/portal` to PROTECTED_ROUTES with allowed portal roles
+  (CLUB_*, SALES_*, INTERNAL_ADMIN) OR server layout that redirects fundraising roles to
+  `/forening`/`/lag`/`/min-shop` and unauthenticated to `/login?next=`.
+  Effort: M
+
+[1.2] `getNavItems()` default branch exposes ADMIN_NAV to fundraising roles
+  File: apps/web/src/app/(portal)/portal/layout.tsx:71-75,86-89
+  Symptom: Roles not in CLUB_* or SALES_* (SELLER, TEAM_LEADER, ASSOCIATION_ADMIN,
+  or typos) receive ADMIN_NAV: System, Audit-log, Alla klubbar, Säljare, etc. Sidebar label
+  shows "Admin · {orgName}".
+  Root cause: `return ADMIN_NAV` catch-all; no deny-list or redirect for fundraising roles.
+  Fix: Explicit map per Role enum; for non-portal roles redirect out of layout or show
+  single "Behörighet saknas" shell without admin links.
+  Effort: S
+
+[1.3] Deep-link RBAC: API blocks, UI misleads (SELLER → /portal/system)
+  File: apps/api/src/routes/portal.ts:1509-1514 (INTERNAL_ADMIN only)
+        apps/web/src/app/(portal)/portal/system/page.tsx:63-82
+  Symptom: SELLER/TEAM_LEADER with session cookie opening `/portal/system` sees admin chrome
+  (via [1.2]); `portalFetch` gets 403; `.catch(() => {})` leaves empty health cards (looks
+  like "no incidents" not "no access").
+  Root cause: No route-level guard; silent error swallowing.
+  Fix: Combine [1.1]/[1.2] + dedicated `/portal/ingen-behorighet` page when API returns 403;
+  never empty-state on auth failure.
+  Effort: M
+
+[1.4] `GET /v1/portal/products` — any authenticated session, no portal-role guard
+  File: apps/api/src/routes/portal.ts:272-283
+  Symptom: SELLER / TEAM_LEADER / ASSOCIATION_ADMIN can read full B2B product catalog via REST
+  if they discover the path (used by club portal UI).
+  Root cause: Only `requireSession`, no `isPortalRole()`.
+  Fix: Mirror `/dashboard`: reject non-portal roles with 403; or move catalog to public
+  read-only endpoint if intentional for shop builders.
+  Effort: S
+
+[1.5] `GET /v1/portal/orders` and `GET /v1/portal/quotes` — incomplete role gates
+  File: apps/api/src/routes/portal.ts:289-320,908-952
+  Symptom: `/orders` lists up to 100 rows for INTERNAL_ADMIN/SALES_ADMIN globally, or by
+  `session.orgId` for **any** other role with orgId (including ASSOCIATION_ADMIN on a
+  fundraising org) — no `isPortalRole`. `/quotes` has no portal/fundraising guard; non-sales
+  users hit `else` branch (`salesRepId = session.userId`) — usually empty but inconsistent.
+  Root cause: Legacy handlers predating connection-audit P0 #1 pattern.
+  Fix: Add `isPortalRole` + per-role scoping consistent with `/orders/:orderId` and `/pipeline`.
+  Effort: M
+
+[1.6] No inactive / banned / deleted-user enforcement at session or /me
+  File: apps/api/src/routes/auth.ts:120-186,363-420
+        packages/db (users — no status/suspended column found in grep)
+  Symptom: Valid session cookie continues to work until expiry even if account should be
+  disabled; `/me` returns user from session.role without DB re-validation of eligibility.
+  Root cause: Session stores role/org at login; no revocation list or user.status check.
+  Fix: On `/me` and `requireSession` helpers, reload user row and reject DISABLED/BANNED;
+  optional session version field bumped on admin suspend.
+  Effort: M
+
+P2 — HIGH
+
+[2.1] 401 handling: no redirect with return-to from portal shell
+  File: apps/web/src/app/(portal)/portal/layout.tsx:115-121
+        apps/web/src/lib/api.ts:18-45 (no 401 branch)
+  Symptom: Expired session → `router.replace("/login")` without `?next=/portal/...`.
+  Middleware for fundraising routes sets `next` (middleware.ts:111-113) but portal does not.
+  Root cause: Layout auth check is ad hoc fetch, not shared auth helper.
+  Fix: `router.replace(\`/login?next=${encodeURIComponent(pathname)}\`)`; centralize in
+  `apiFetch` optional callback for 401.
+  Effort: S
+
+[2.2] `PortalUserProvider` / layout session not refreshed on login/logout in-place
+  File: apps/web/src/lib/portal-context.tsx:14-35
+        apps/web/src/app/(portal)/portal/layout.tsx:111-123
+  Symptom: Context set once after `/me`; logging in as different user in another tab or
+  role change without full navigation may show stale nav until hard refresh. Logout navigates
+  away (OK) but does not clear CSRF cache in layout (api.ts clears CSRF only on 403).
+  Root cause: `useEffect(..., [router])` does not re-run on cookie change alone.
+  Fix: Re-fetch `/me` on `visibilitychange` / `focus`; clear `csrfToken` on logout in layout.
+  Effort: S
+
+[2.3] No shared "no access" (403) page — inconsistent UX
+  File: apps/web/src/middleware.ts:135-136 (plain `Forbidden` body)
+        apps/web/src/app/(portal)/portal/saljare/page.tsx:63
+        apps/web/src/app/(portal)/portal/system/page.tsx:81
+  Symptom: Wrong role on `/lag` gets raw 403 text; portal pages use `.catch(() => {})` or
+  generic thrown Error from portalFetch. audit-log page is better (explicit 403 copy).
+  Root cause: No `(portal)/ingen-behorighet` route or portalFetch 403 discriminator.
+  Fix: `portalFetch` throws `PortalForbiddenError`; boundary page with CTA to correct home.
+  Effort: M
+
+[2.4] `GET /v1/portal/members` — weak role guard; cross-org for INTERNAL_ADMIN
+  File: apps/api/src/routes/portal.ts:635-667
+  Symptom: Any session with `orgId` sees org members (OK for CLUB). INTERNAL_ADMIN without
+  orgId gets **first 100 users platform-wide** (email, role) — powerful but needs audit;
+  SALES_REP with accidental orgId could read another org's roster.
+  Root cause: No `isPortalRole`; INTERNAL_ADMIN path is global enumeration.
+  Fix: Restrict list to CLUB_* + INTERNAL_ADMIN; cap + filter INTERNAL_ADMIN to support
+  tooling with explicit orgId query param.
+  Effort: M
+
+[2.5] Demo sessions: portal access OK; fundraising demo still orgId-null
+  File: apps/api/src/lib/session.ts:16-17
+        apps/api/src/routes/auth.ts:34-87,200-220
+  Symptom: `admin@roots.se` demo → full INTERNAL_ADMIN portal. `forening@`/`lag@` demo →
+  fundraising 403 without seed (Scout 7 [1.3]). Demo blocked from change-password (good).
+  Root cause: Intentional split; not enforced at portal layout entry.
+  Fix: Banner when `demoProfile` set; block INTERNAL_ADMIN demo in production unless flag.
+  Effort: S
+
+[2.6] SALES_ADMIN platform-wide statistics/income (may be intended)
+  File: apps/api/src/routes/portal.ts:1136-1140,1333-1337
+  Symptom: SALES_ADMIN sees global order aggregates (`sql\`1=1\``) — not org-scoped.
+  Nav hides `/portal/system` (SALES_NAV only) but API allows deep-link to admin-only
+  endpoints only where role-checked (system still 403).
+  Root cause: Product choice: sales manager = global BI.
+  Fix: Document; if wrong, scope SALES_ADMIN to assigned ASM accounts only.
+  Effort: M (if change needed)
+
+[2.7] `POST /v1/portal/orders` — no portal-role check beyond orgId
+  File: apps/api/src/routes/portal.ts:422-435
+  Symptom: Any authenticated user with `orgId` can create B2B subscription orders.
+  Root cause: Club-commerce path; fundraising orgId edge case as [1.5].
+  Fix: `isPortalRole` + CLUB_ADMIN/CLUB_MEMBER only.
+  Effort: S
+
+[2.8] Audit-log nav visible only to INTERNAL_ADMIN nav set — SALES_ADMIN deep-link OK blocked
+  File: apps/web/src/app/(portal)/portal/audit-log/page.tsx:126-135
+        apps/api/src/routes/admin.ts:48-54
+  Status: API **PASS** (403 for non-INTERNAL_ADMIN). UI shows clear error — **partial PASS**.
+  Gap: Nav item only on ADMIN_NAV; SALES_ADMIN doesn't see link (good). INTERNAL_ADMIN only.
+
+P3 — MEDIUM
+
+[3.1] Connection-audit fixes present — verify in prod
+  File: apps/api/src/routes/portal.snapshot.test.ts:372-462
+  Evidence: dashboard/statistics/income/pipeline/clubs/sellers 403 tests for wrong roles.
+  Risk: Other routes in [1.4]–[1.5] not in test matrix.
+
+[3.2] `portalFetch` throws generic Error — pages can't distinguish 401 vs 403 vs 500
+  File: apps/web/src/lib/portal-api.ts:46-47
+  Fix: Typed errors + optional redirect on 401.
+
+[3.3] Admin REST (`/v1/admin/*`) correctly INTERNAL_ADMIN-only
+  File: apps/api/src/routes/admin.ts:48-54
+  Sample PASS — separate from `/v1/portal/*`.
+
+[3.4] Fundraising middleware role check uses tRPC `auth.me` — fragile shape
+  File: apps/web/src/middleware.ts:119-132
+  Symptom: Parses `data?.result?.data?.json?.role ?? data?.result?.data?.role`; REST `/v1/auth/me`
+  is different shape if tRPC changes.
+  Fix: Call same REST `/v1/auth/me` as portal layout.
+
+[3.5] Master plan T2 — `/portal` vs `/lag`/`/forening` dual shells still unresolved
+  File: docs/flow-audits/MASTER_PLAN_2026-04-18.md §2 T2
+  TEAM_LEADER product surface is `/lag`, not `/portal`; RBAC doc should not assume one shell.
+
+P4 — LOW
+
+[4.1] `GET /v1/auth/me` returns 200 with `{ user: null }` for missing session (correct)
+  File: apps/api/src/routes/auth.ts:367-368
+
+[4.2] Session cookie: httpOnly, secure prod, SameSite none prod — PASS
+  File: apps/api/src/lib/session.ts:97-103
+
+[4.3] Logout destroys session + CSRF on POST — PASS (portal layout uses apiFetch)
+  File: apps/web/src/app/(portal)/portal/layout.tsx:125-129
+
+DEEP-LINK MATRIX (API vs UI)
+----------------------------
+| Path                    | SELLER API | SELLER UI (sidebar)      |
+|-------------------------|------------|--------------------------|
+| /portal/system          | 403        | ADMIN_NAV link visible   |
+| /portal/saljare         | 403        | ADMIN_NAV link visible   |
+| /portal/audit-log       | 403 admin  | ADMIN_NAV link visible   |
+| /portal/pipeline        | 403        | ADMIN_NAV (if reached)   |
+| /portal (dashboard)     | 403        | ADMIN_NAV overview       |
+
+Regression target: After [1.1]–[1.2], SELLER never sees admin nav; API 403 unchanged.
+
+SAMPLE API RBAC (portal.ts) — current state
+-------------------------------------------
+| Endpoint        | Guard summary                                      |
+|-----------------|----------------------------------------------------|
+| /dashboard      | isPortalRole; INTERNAL_ADMIN explicit              |
+| /system         | INTERNAL_ADMIN only                                |
+| /sellers        | INTERNAL_ADMIN, SALES_ADMIN                        |
+| /pipeline       | SALES_REP, SALES_ADMIN, INTERNAL_ADMIN + rep filter|
+| /statistics     | isPortalRole; blocks SALES_REP; org/null rules     |
+| /clubs          | sales + INTERNAL_ADMIN                             |
+| /members/invite | CLUB_ADMIN (own org), INTERNAL_ADMIN               |
+| /products       | **session only** [1.4]                             |
+| /orders         | **session only** [1.5]                             |
+| /quotes GET     | **weak** [1.5]                                     |
+
+Other route files (sample): `admin.ts` uses `requireInternalAdmin`; `dashboard.ts` (fundraising)
+has team/org RBAC; `sales.ts` checks sales roles at line 55; `notifications.ts` scopes by role
+in file header — not exhaustively audited here.
+
+RECOMMENDED MVP SEQUENCE
+------------------------
+1. [1.2] Fix nav map + redirect fundraising roles out of portal layout (S).
+2. [1.1] Middleware or server guard for `/portal` (M).
+3. [1.4][1.5][2.7] Align remaining portal handlers with `isPortalRole` (M).
+4. [2.3][1.3] Forbidden page + stop swallowing 403 (M).
+5. [2.1] return-to on 401 (S).
+6. [1.6] User status check on /me (M).
+
+REFERENCES
+----------
+- docs/flow-audits/INTERNAL_ADMIN_2026-04-18_1310.txt [1.7]–[1.9] — **fixed in portal.ts**;
+  re-verify [1.4][1.5] leftovers.
+- docs/flow-audits/MASTER_PLAN_2026-04-18.md T1 (API/UI drift), T2 (dual shells), T8 (RBAC).
+
+--- END SCOUT 12 ---

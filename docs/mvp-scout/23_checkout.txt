@@ -1,0 +1,287 @@
+================================================================
+SCOUT 23 — Checkout flow (/shop/[slug]/kassa + API checkout)
+================================================================
+Date: 2026-05-25
+Scope: apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx,
+       apps/api/src/routes/checkout.ts,
+       apps/api/src/routes/customer-checkout.ts (does not exist),
+       packages/db/src/schema/customer-orders.ts,
+       related: bekraftelse/page.tsx, shop layout, klarna lib
+
+Ref audits: docs/flow-audits/SUPPORTER_2026-04-18_1247.txt,
+            docs/flow-audits/CONVERSION_TRUST_2026-04-18_1313.txt,
+            docs/flow-audits/MASTER_PLAN_2026-04-18.md (Fas 2 kassa)
+
+SUMMARY
+-------
+Since the April 2026 supporter audit, Fas 2 delivered the highest-friction fixes: order summary with line items and VAT, legal links in kassa + shop footer, campaign-inactive banner/disabled CTA, and sessionStorage cart on the shop page. MVP-blocking gaps remain: kassa total omits shipping that the API adds for hemleverans, server accepts DIRECT orders without address validation, no per-field error display, no explicit köpvillkor checkbox, Klarna-only payment (DIRECT_TO_LEADER unused), and weak payment-failure/cancel recovery. Mobile checkout still lacks sticky CTA and iOS-safe input sizing.
+Findings: 21 (P1: 3, P2: 10, P3: 5, P4: 3)
+MVP readiness: 68/100
+
+CHECKLIST (pass / partial / fail)
+---------------------------------
+| Item                              | Status  | Notes |
+|-----------------------------------|---------|-------|
+| Form: name, email, phone          | PASS    | Required name/email; phone optional |
+| Form: address, postal, city       | PARTIAL | Shown + HTML5 required only when DIRECT |
+| Validation client + server        | PARTIAL | HTML5/required only; server returns single `error` string |
+| Per-field error display           | FAIL    | Global red banner only |
+| Order summary: lines, qty, price  | PASS    | From URL items + `/shop/by-slug` products |
+| VAT 25% inclusive formula         | PASS    | UI: `subtotal * 25 / 125`; API: `lineTotal - lineTotal/1.25` |
+| Legal links (köpvillkor, integritet) | PASS | Inline links before CTA; shop layout footer |
+| Legal acceptance checkbox         | FAIL    | Implicit “Genom att gå vidare…” text only |
+| Disabled CTA if inactive / empty    | PARTIAL | Disabled when shop loaded + inactive; race if shop fetch pending/failed |
+| Payment method selection          | FAIL    | Klarna hardcoded; enum has DIRECT_TO_LEADER unused |
+| Submit → order → payment URL        | PASS    | POST `/v1/checkout/create` → `htmlSnippet` embed |
+| Payment failure handling          | PARTIAL | Order → FAILED on Klarna 502; generic UI; retry creates orphan orders |
+| Mobile UX (keyboard, sticky CTA)  | PARTIAL | No sticky submit bar; `text-sm` inputs; no autocomplete |
+| Happy path flow                   | PASS    | Shop → URL cart → kassa → Klarna/mock → bekraftelse |
+| Validation error flow             | PARTIAL | Browser blocks empty fields; API errors not field-mapped |
+| Payment failure flow              | PARTIAL | API error shown; Klarna cancel/abandon poorly handled |
+
+RESOLVED SINCE APRIL 2026 AUDIT
+--------------------------------
+- [1.1] Checkout order summary missing — FIXED (kassa/page.tsx:195–248)
+- [1.6] Köpvillkor/integritet absent — FIXED (kassa:387–402; shop layout footer)
+- [2.1] Empty cart no recovery — FIXED (kassa:200–209 link back to shop)
+- [1.4] Campaign inactive only at API — PARTIAL FIXED (kassa:405–428 banner + disabled; shop page also gates CTA)
+- [2.2] Cart not persisted — PARTIAL FIXED (`useCart` + sessionStorage on shop; kassa still URL-only)
+- Shop layout legal footer — FIXED ((shop)/layout.tsx + LegalIdentityBlock)
+
+P1 — CRITICAL (blocks MVP / revenue trust)
+
+[1.1] Kassa total omits shipping fee that API adds for hemleverans
+  File: apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx:92–95,240–244
+        apps/api/src/routes/checkout.ts:168–187
+  Symptom: Supporter selects “Hemleverans” and sees “Totalt att betala X kr” in summary. If subtotal is below `campaign.shippingThresholdOre`, API adds `shippingFeeOre` to Klarna `orderAmount` but UI never shows frakt row — supporter pays more than displayed on Roots step.
+  Root cause: `subtotalOre` / `vatOre` computed from product lines only; no fetch/use of `campaign.shippingFeeOre` / `shippingThresholdOre` from shop payload (shop API returns them; kassa `CheckoutShop` type omits them).
+  Fix: Extend kassa shop fetch type; when `deliveryType === "DIRECT"` and subtotal < threshold, show “Frakt” line + update total/VAT display to match server before Klarna redirect.
+  Effort: S
+  Ref audit: SUPPORTER [2.4] — STILL UNRESOLVED
+
+[1.2] Server accepts DIRECT delivery without shipping address
+  File: apps/api/src/routes/checkout.ts:66–68,206–210
+        apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx:116–120
+  Symptom: Client sends `deliveryType: "DIRECT"` with empty/null address fields (API call bypass, tampered request, or race). Order persists with `shippingAddressLine1/city/postalCode = null` and proceeds to Klarna.
+  Root cause: Validation checks `sellerSlug`, `customerName`, `customerEmail`, `items` only — no conditional require for DIRECT address fields; no email format check.
+  Fix: When `deliveryType === "DIRECT"`, return 400 if any of `shippingAddressLine1`, `shippingCity`, `shippingPostalCode` missing/blank; optionally validate Swedish postal format.
+  Effort: S
+  Ref audit: SUPPORTER [3.11] pattern — server-side gap
+
+[1.3] Klarna session failure leaves FAILED orders with no idempotent retry
+  File: apps/api/src/routes/checkout.ts:231–257,195–229
+        apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx:127–129
+  Symptom: User sees “Betalningen kunde inte initieras.” and clicks “Gå till betalning” again → new DRAFT/PENDING order each time; prior order stuck FAILED. DB accumulates orphan orders; supporter may double-pay if Klarna eventually succeeds on a later attempt.
+  Root cause: Each POST always inserts new `customer_orders` row before Klarna call; no reuse of FAILED draft for same cart fingerprint/session.
+  Fix: Reuse existing FAILED/PENDING draft for same seller+customer+items within TTL, or expose `orderId` retry endpoint; surface “Försök igen” with same order when status FAILED.
+  Effort: M
+  Ref audit: CONVERSION trust at payment commitment
+
+P2 — HIGH (must fix before MVP launch)
+
+[2.1] No per-field validation or error mapping from API
+  File: apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx:186–190,257–287
+        apps/api/src/routes/checkout.ts:66–68,78,109,136
+  Symptom: API returns “Alla obligatoriska fält krävs.” / “Kampanjen är inte aktiv.” / “Produkt hittades inte” as one global banner. User cannot tell which field or cart line failed.
+  Root cause: Single `error` state string; API uses flat `{ error: string }` without field keys.
+  Fix: Return `{ error, fields?: Record<string,string> }` from API; map to inline messages under inputs / delivery section.
+  Effort: M
+  Ref audit: SUPPORTER checkout UX
+
+[2.2] No explicit köpvillkor/integritet checkbox — implicit consent only
+  File: apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx:387–403,419–428
+  Symptom: Legal links visible but CTA enabled without checked acceptance. MASTER_PLAN Fas 2 asked for visible links under CTA; consumer-trust audits wanted affirmative consent before payment.
+  Root cause: Copy-only “Genom att gå vidare godkänner du…” with no `checkbox` state gating submit.
+  Fix: Add required unchecked-by-default checkbox linking villkor + integritet; disable submit until checked.
+  Effort: S
+  Ref audit: CONVERSION [2.4]; MASTER_PLAN Fas 2
+
+[2.3] Payment method selection missing — Klarna only despite schema
+  File: apps/api/src/routes/checkout.ts:211
+        packages/db/src/schema/customer-orders.ts:29–31,65–67
+        apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx (no payment UI)
+  Symptom: Enum supports `DIRECT_TO_LEADER` (pay team leader offline) but checkout always sets `paymentMethod: "KLARNA"` and UI offers no choice. Campaigns expecting dual rails cannot support “betala lagansvarig”.
+  Root cause: Payment path not implemented in supporter kassa; schema ahead of product.
+  Fix: If MVP requires both: add radio/tiles, branch create flow (Klarna vs mark-as-pending leader payment). If Klarna-only MVP: document and hide enum from supporter UX until built.
+  Effort: M (if required for launch)
+  Ref audit: MASTER_PLAN scope note “payment stub” vs live Klarna
+
+[2.4] Kassa does not hydrate cart from sessionStorage — URL-only
+  File: apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx:54–60
+        apps/web/src/lib/use-cart.ts:52–91
+  Symptom: User adds items on shop (sessionStorage), navigates to `/shop/[slug]/kassa` without query string (bookmark, back button, shared bare link) → “Din varukorg är tom” despite persisted cart on shop page.
+  Root cause: Kassa reads `searchParams` only; `useCart` not imported.
+  Fix: On mount, if URL has no `item_*` params, fall back to `useCart(slug)` sessionStorage; prefer URL when both present (share links).
+  Effort: S
+  Ref audit: MASTER_PLAN Fas 2 cart-persistens — PARTIAL
+
+[2.5] Campaign inactive gate bypass while shop fetch pending or failed
+  File: apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx:62–74,422–427
+  Symptom: Before `/shop/by-slug` resolves (or after silent fetch failure), `(shop !== null && !campaignAcceptsOrders)` is false → submit enabled if name/email/items present. Server rejects with 400 but supporter wasted effort.
+  Root cause: Disabled logic treats `shop === null` as “unknown OK”; fetch errors swallowed (line 69–71).
+  Fix: Disable submit until shop loaded; show loading skeleton on summary; on fetch fail show retry + block checkout.
+  Effort: S
+  Ref audit: SUPPORTER [1.4] — PARTIAL
+
+[2.6] Seller attribution stripped on checkout — bare “Kassa” header
+  File: apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx:172–181
+  Symptom: Shop page shows “Köp av {displayName}” + team/org; kassa shows only “Kassa” + Tillbaka. Highest-friction step loses who supporter is helping.
+  Root cause: Kassa shop fetch type includes only `products` + `campaign.status`; no seller/team display.
+  Fix: Extend fetch + render compact seller/team banner under header (match shop header pattern).
+  Effort: S
+  Ref audit: SUPPORTER [1.7] — STILL UNRESOLVED
+
+[2.7] Shop vs kassa delivery options mismatch
+  File: apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx:296–331
+        apps/web/src/app/(shop)/shop/[slug]/page.tsx:318–322
+  Symptom: Campaign `deliveryType === "BULK"` shows bulk-only copy on shop but kassa still offers both Samleverans and Hemleverans tiles. Supporter may pick hemleverans when campaign configured for bulk-only.
+  Root cause: Kassa always renders both delivery buttons; API does not reject deliveryType incompatible with campaign setting.
+  Fix: Default/hide delivery choice to match `campaign.deliveryType`; server validate allowed enum per campaign.
+  Effort: S–M
+  Ref audit: SUPPORTER [2.17] / cart abandonment risk #4
+
+[2.8] Inactive seller not blocked at checkout
+  File: apps/api/src/routes/checkout.ts:82–90
+        packages/db/src/schema/sellers.ts:37
+  Symptom: Team leader sets seller `status = INACTIVE`; supporter with old link can still complete checkout if campaign ACTIVE.
+  Root cause: Checkout loads seller by slug only; no `seller.status === "ACTIVE"` check.
+  Fix: Return 400 “Säljaren tar inte emot beställningar just nu” when inactive.
+  Effort: S
+  Ref audit: TEAM_LEADER [1.5]
+
+[2.9] Payment cancel / abandon from Klarna returns to bare kassa URL
+  File: apps/api/src/routes/checkout.ts:241–242
+        apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx:155–167
+  Symptom: Klarna `merchant_urls.checkout` points to `/shop/[slug]/kassa` without cart query params. Cancelled payer lands on empty cart + empty form — no “Betalningen avbröts, försök igen” message.
+  Root cause: Checkout URL omits cart state; no `?cancelled=1` or order_id query handling.
+  Fix: Append cart query string to checkout URL; read `order_id`/`cancelled` search param and show recovery banner + prefill from pending order.
+  Effort: M
+  Ref audit: SUPPORTER payment failure path
+
+[2.10] Bekräftelse error state lacks contact channel and kassa retry
+  File: apps/web/src/app/(shop)/shop/[slug]/bekraftelse/page.tsx:67–86
+  Symptom: Failed/cancelled payment shows “Kontakta oss” with no email/link; only “Tillbaka till shoppen” — cart may be lost.
+  Root cause: Error UI minimal; no link to `/kassa?...` with preserved items.
+  Fix: Add `hej@roots.se` / `/kontakt`; deep-link retry kassa with cart params when `order_id` known.
+  Effort: S
+  Ref audit: SUPPORTER [2.16]
+
+P3 — MEDIUM
+
+[3.1] Mobile: submit CTA not sticky; long form pushes button below fold
+  File: apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx:415–438
+  Symptom: Shop has fixed bottom cart bar; kassa submit sits after 4 cards + legal copy — iPhone user scrolls to pay.
+  Fix: Mirror shop sticky footer with total + “Gå till betalning” + safe-area padding.
+  Effort: S
+  Ref audit: SUPPORTER [3.4]
+
+[3.2] iOS Safari zoom-on-focus risk — inputs use `text-sm` (~14px)
+  File: apps/web/src/components/ui/input.tsx:10
+        apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx:259–365
+  Fix: Use `text-base` (16px) on checkout inputs or checkout-scoped Input override.
+  Effort: S
+  Ref audit: SUPPORTER [1.8]
+
+[3.3] No `autocomplete` attributes on checkout fields
+  File: apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx:259–365
+  Fix: Add `autoComplete="name"`, `email`, `tel`, `street-address`, `postal-code`, `address-level2`.
+  Effort: S
+  Ref audit: SUPPORTER [3.10]
+
+[3.4] Submit disabled does not account for DIRECT address fields
+  File: apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx:422–427
+  Symptom: Button can enable when DIRECT selected but address empty until HTML5 submit validation fires (no early disabled state).
+  Fix: Include address fields in disabled predicate when `deliveryType === "DIRECT"`.
+  Effort: S
+
+[3.5] Server email format not validated
+  File: apps/api/src/routes/checkout.ts:66–68
+  Fix: Zod email() or regex before insert; return field-level error.
+  Effort: S
+
+P4 — LOW / POLISH
+
+[4.1] Klarna step hides shop footer context — full-page widget only
+  File: apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx:155–167
+  Note: Still wrapped by shop layout footer on outer shell; inner view minimal. Acceptable for MVP.
+
+[4.2] Optional note field — unclear who reads it
+  File: apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx:372–383
+  Fix: Helper text “Syns för säljaren och lagansvarig” or remove until wired in leader portal.
+
+[4.3] `customer-checkout.ts` route file does not exist — all logic in `checkout.ts`
+  Note: No split route; not a bug. Document single mount at `/v1/checkout`.
+
+================================================================
+THREE FLOWS — WALKTHROUGH
+================================================================
+
+FLOW A — Happy path (supporter completes purchase)
+1. `/shop/{slug}` — add products via sticky cart (sessionStorage + URL params on link).
+2. `/shop/{slug}/kassa?item_{uuid}=qty` — summary shows names/prices/VAT; fill name + email; choose delivery; accept legal copy implicitly; click “Gå till betalning”.
+3. POST `/v1/checkout/create` — validates campaign ACTIVE, prices from DB, creates order DRAFT→PENDING, returns Klarna `htmlSnippet`.
+4. Klarna widget (or mock “Simulera betalning” when credentials unset) → confirmation URL `/shop/{slug}/bekraftelse?order_id=…`.
+5. GET `/v1/checkout/confirm/:orderId` — polls Klarna; status PAID → thank-you + masked email.
+**Blockers on happy path:** shipping total mismatch ([1.1]) if hemleverans + below threshold; otherwise works in dev mock mode.
+
+FLOW B — Validation errors
+- **Client:** HTML5 blocks empty name/email; DIRECT address fields `required` when visible. No inline Swedish copy beyond browser defaults.
+- **Server:** Missing fields → 400 “Alla obligatoriska fält krävs.”; bad qty → “Ogiltig vara…”; inactive campaign → “Kampanjen är inte aktiv.”; unknown product → “Produkt hittades inte: {id}”.
+- **UI:** All mapped to single red banner — user must guess cause ([2.1]).
+- **Gap:** DIRECT without address via API succeeds ([1.2]); invalid email string accepted server-side ([3.5]).
+
+FLOW C — Payment failure / abandon
+- **Klarna API error on create:** Order updated to FAILED; UI “Betalningen kunde inte initieras.” ([1.3] orphan order on retry).
+- **Network/CSRF:** “Kunde inte nå servern.” / 403 after token refresh path in apiFetch.
+- **User cancels in Klarna:** Redirect to `/shop/{slug}/kassa` without cart params — empty cart, no cancelled message ([2.9]).
+- **Bekräftelse with FAILED/CANCELLED:** Error card, no contact link ([2.10]); PENDING shows spinner “Din betalning behandlas…” (acceptable).
+
+================================================================
+VAT VERIFICATION
+================================================================
+Inclusive 25% moms (hygienprodukter):
+- UI:  `vatOre = Math.round(subtotalOre * 25 / 125)` — CORRECT for VAT portion of gross.
+- API: `taxAmount = Math.round(lineTotal - lineTotal / 1.25)` — equivalent.
+- Klarna: `tax_rate: 2500` (25.00%) with amounts in öre — CORRECT.
+- Note: Shipping line uses same 25% extraction when added server-side; UI must include shipping in gross before VAT display matches ([1.1]).
+
+================================================================
+SCHEMA NOTES (customer-orders.ts)
+================================================================
+- Status lifecycle: DRAFT → PENDING → PAID (webhook/confirm) | FAILED (Klarna create fail) — matches checkout.ts usage.
+- `paymentMethod` enum includes DIRECT_TO_LEADER but checkout always writes KLARNA — product/schema drift ([2.3]).
+- Shipping stored as `shippingOre` on order; not broken out on kassa UI.
+- No `vatOre` column — VAT derived at payment layer only (OK for Klarna).
+
+================================================================
+MVP READINESS BREAKDOWN
+================================================================
+- Functionality:         18/25  (core Klarna path works; shipping display + DIRECT validation gaps)
+- Reliability:           16/25  (server campaign gate OK; seller inactive + orphan FAILED orders)
+- Trust/compliance:      14/25  (summary + legal links improved; checkbox + total mismatch hurt trust)
+- Mobile UX:             12/25  (no sticky pay bar; iOS input sizing)
+- Cross-role integration: 18/25  (webhook → PAID → email; leader portal reads orders elsewhere)
+
+NOTES FOR THE TEAM
+------------------
+Highest-impact sprint for this scout’s scope:
+1. Show frakt + match total on kassa when DIRECT + below threshold ([1.1]).
+2. Server-side require address for DIRECT + email format ([1.2], [3.5]).
+3. Checkbox + sticky mobile CTA ([2.2], [3.1]).
+4. Hydrate kassa from sessionStorage when URL empty ([2.4]).
+
+`apps/api/src/routes/customer-checkout.ts` — not present; all checkout endpoints live in `checkout.ts` mounted at `/v1/checkout`.
+
+FILES REVIEWED
+--------------
+apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx
+apps/web/src/app/(shop)/shop/[slug]/bekraftelse/page.tsx
+apps/web/src/app/(shop)/shop/[slug]/page.tsx (cart → kassa handoff)
+apps/web/src/app/(shop)/layout.tsx
+apps/api/src/routes/checkout.ts
+apps/api/src/lib/payments/klarna.ts
+packages/db/src/schema/customer-orders.ts
+apps/web/src/lib/use-cart.ts
+apps/web/src/components/ui/input.tsx
+
+--- END SCOUT 23 ---

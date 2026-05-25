@@ -1,0 +1,207 @@
+MVP SCOUT 3/35 — PRODUCT PAGES (/produkter, /produkter/[slug])
+==============================================================
+Date: 2026-05-25
+Scout: MVP Scout 3 — Product pages
+Scope (read-only):
+  - apps/web/src/app/(marketing)/produkter/page.tsx
+  - apps/web/src/app/(marketing)/produkter/[slug]/page.tsx
+  - apps/web/src/components/json-ld.tsx (ProductJsonLd usage)
+Roles cross-checked: PUBLIC, CLUB_MEMBER, CLUB_ADMIN, ASSOCIATION_ADMIN
+References: docs/flow-audits/PUBLIC_2026-04-18_1238.txt,
+            docs/flow-audits/CLUB_MEMBER_2026-04-18_1249.txt,
+            docs/flow-audits/CONVERSION_TRUST_2026-04-18_1313.txt
+
+SUMMARY
+-------
+Total findings: 22
+  Priority 1 (MVP-blocking):  5
+  Priority 2 (High):          8
+  Priority 3 (Medium):        6
+  Priority 4 (Low):           3
+
+Verdict: Marketing product pages render cleanly as a static brand catalog, but they are **not wired to the commerce source of truth** and **misroute B2B buyers** who arrive from `/portal/produkter`. Prices happen to match DB seed values today (149/129/399 kr), yet names, SKUs, images, and copy are duplicated in four places and already diverge from `products` table + portal fallbacks. No add-to-cart, no related products, no reviews. JSON-LD has schema correctness gaps (relative image, invented SKUs). Detail mobile sticky CTA can obscure INCI block.
+
+Top quick wins:
+1. Single shared product catalog module fed by DB/API (or at minimum one TS constant imported everywhere).
+2. Role-aware CTA on PDP: logged-in CLUB_MEMBER/CLUB_ADMIN → `/portal/produkter` or deep-link add-to-cart; PUBLIC → `/foreningsliv`.
+3. Fix ProductJsonLd: absolute image URL, real SKU from DB, optional `metadataBase`-resolved `url`.
+4. Add `pb-24` (or safe-area) on PDP so sticky bar does not cover ingredients.
+5. “Andra produkter” row on PDP linking sibling slugs + bundle upsell (399 kr).
+
+=====================================================
+PRIORITY 1 — MVP-BLOCKING
+=====================================================
+
+[1.1] **B2B portal links to marketing PDP with wrong checkout CTA** — `/portal/produkter` links each card to `publicProductHref(slug)` → `/produkter/[slug]`, but PDP primary + sticky CTAs always say “Beställ via din förening” and route to `/foreningsliv` (association signup/marketing), **not** back to portal cart or `/portal/bestallningar`. CLUB_MEMBER flow breaks at the moment of purchase intent.
+Files: apps/web/src/app/(portal)/portal/produkter/page.tsx (~104–125, ~179)
+        apps/web/src/app/(marketing)/produkter/[slug]/page.tsx (~165–167, ~193–195)
+Detail: Detect session/role or `?from=portal` and show “Lägg i beställning” → portal cart; keep föreningsliv CTA for anonymous PUBLIC only.
+
+[1.2] **No “Lägg i kundvagn” / add-to-cart on marketing product surfaces** — listing and detail expose price + “Läs mer” / föreningsliv CTAs only. There is zero path from `/produkter` to supporter shop (`/shop/[slug]`) or B2B order dialog. For MVP commerce story, product pages are **browse-only dead ends** unless user self-navigates to portal or a seller shop.
+Files: apps/web/src/app/(marketing)/produkter/page.tsx (~117–124, ~137–141)
+        apps/web/src/app/(marketing)/produkter/[slug]/page.tsx (~163–167)
+Detail: At minimum, secondary CTA for CLUB_MEMBER (“Beställ i portalen”) and clarify PUBLIC path (föreningsliv vs find seller shop).
+
+[1.3] **Product catalog hardcoded in marketing — not DB/API source of truth** — Full product records (name, slug, price string, image, INCI, copy) live in local `PRODUCTS` constants on listing + detail pages. DB seed (`packages/db/src/seed.ts`) uses different **display names** (“Roots Shampoo” vs “First Growth”), English descriptions, and portal mapping (`portal-products.ts`) uses different **hero images** for shampoo (`p1.jpg` vs marketing `m3.jpg`). Price integers match today (14900/12900/39900 öre) but will drift silently on any DB/catalog update.
+Files: apps/web/src/app/(marketing)/produkter/page.tsx (~15–46)
+        apps/web/src/app/(marketing)/produkter/[slug]/page.tsx (~13–84, ~106)
+        packages/db/src/seed.ts (~112–139)
+        apps/web/src/lib/portal-products.ts (~1–54)
+        apps/web/src/components/sections/products-preview.tsx (~7–32) [adjacent duplicate]
+Detail: Fetch active products server-side (tRPC or `/v1/portal/products` public variant) or import one shared catalog; format prices from `priceOre` via shared `formatSek`.
+
+[1.4] **ProductJsonLd SKU values do not match database SKUs** — Detail page builds `sku={\`ROOTS-${slug.toUpperCase().replace("-", "")}-001\`}` producing e.g. `ROOTS-SHAMPOO-001`, `ROOTS-BODYWASH-001`. Seeded SKUs are `ROOTS-SH-001`, `ROOTS-CO-001`, `ROOTS-BW-001`. Structured data, ERP, and order lines will not reconcile.
+File: apps/web/src/app/(marketing)/produkter/[slug]/page.tsx (~110–116)
+        packages/db/src/seed.ts (~114–137)
+Detail: Pass real `sku` from catalog/DB row into ProductJsonLd.
+
+[1.5] **ProductJsonLd `image` is a relative path** — Passes `/images/m3.jpg` etc. Google Rich Results / Schema validators expect absolute URLs; PUBLIC audit [2.11] still applies. `metadataBase` exists in root layout but is not used to resolve product image in JSON-LD.
+Files: apps/web/src/components/json-ld.tsx (~73–74)
+        apps/web/src/app/(marketing)/produkter/[slug]/page.tsx (~115)
+Detail: `new URL(product.image, metadataBase).toString()` (or `${SITE_URL}${product.image}`).
+
+=====================================================
+PRIORITY 2 — HIGH
+=====================================================
+
+[2.1] **Sticky mobile CTA on PDP lacks page bottom padding** — Fixed bar (`fixed inset-x-0 bottom-0`, `lg:hidden`) covers last ~56px of content; INCI ingredients card at page bottom can sit **under** the bar on phones. No `pb-20`/`pb-24` on `<section>` or main content wrapper.
+File: apps/web/src/app/(marketing)/produkter/[slug]/page.tsx (~119, ~186–197)
+Detail: Add bottom padding on mobile equal to sticky bar height + safe-area.
+
+[2.2] **No related products / cross-sell on detail page** — After viewing one SKU, user cannot navigate to siblings or bundle except via breadcrumb “Alla produkter”. SUPPORTER audit [3.9] flagged same gap for shop; marketing PDP has **zero** “Andra produkter” or “Komplett paket 399 kr” module.
+File: apps/web/src/app/(marketing)/produkter/[slug]/page.tsx (entire file — section absent)
+Detail: Render other keys from shared catalog excluding current slug; link bundle to `/foreningsliv` or future bundle PDP.
+
+[2.3] **Bundle upsell on listing is marketing-only** — `/produkter` footer card shows “399 kr” + “Beställ för din förening” → `/foreningsliv`. DB has `bundles.complete-kit` at 39900 öre with three product FKs, but bundle is **not** a first-class marketing route and not linked from PDP.
+File: apps/web/src/app/(marketing)/produkter/page.tsx (~133–144)
+        packages/db/src/seed.ts (~168–190)
+Detail: Expose bundle slug page or deep-link CLUB_MEMBER to portal bundle order.
+
+[2.4] **No image fallback if asset missing or fails** — `next/image` used with static paths; no `onError`, no placeholder component, no default image constant (contrast: `portal-products.ts` has `DEFAULT_IMAGE`). Broken path → empty/broken hero.
+Files: apps/web/src/app/(marketing)/produkter/page.tsx (~90–96)
+        apps/web/src/app/(marketing)/produkter/[slug]/page.tsx (~138–145)
+Detail: Shared `ProductImage` with fallback to `/images/p1.jpg` or brand mark.
+
+[2.5] **Currency formatting inconsistent — hardcoded “kr” strings vs öre pipeline** — UI shows `"149 kr"` literals; JSON-LD correctly uses `priceOre` ÷ 100. No shared `formatSek(priceOre)` on marketing pages (portal uses `toLocaleString("sv-SE")` elsewhere). Risk of typo/drift; no “inkl. moms” disclosure on PDP.
+Files: apps/web/src/app/(marketing)/produkter/page.tsx (~22–42, ~118)
+        apps/web/src/app/(marketing)/produkter/[slug]/page.tsx (~31–69, ~106, ~163)
+Detail: Derive display price from integer öre; add moms line if legally required for B2B browse.
+
+[2.6] **ProductJsonLd always `InStock`** — CONVERSION_TRUST [3.8]. No inventory model on marketing pages; if stock rules arrive later, structured data overstates availability.
+File: apps/web/src/components/json-ld.tsx (~76–81)
+Detail: Gate availability on catalog flag or omit until inventory exists.
+
+[2.7] **No reviews / social proof on product pages** — No star ratings, testimonials, “X föreningar säljer”, or `aggregateRating` in schema (correct not to fake reviews). Product trust relies on copy + INCI only; weak vs skincare buyer expectations and CONVERSION_TRUST themes.
+Files: apps/web/src/app/(marketing)/produkter/page.tsx
+        apps/web/src/app/(marketing)/produkter/[slug]/page.tsx
+Detail: Add honest proof (association quote, seller count, or “Nytt sortiment — recensioner kommer”) without fabricated schema.
+
+[2.8] **Per-product Open Graph metadata missing custom image** — `generateMetadata` sets title + description only; shares inherit root OG hero (`h1desktop.jpg`), not product photo. Hurts link previews from portal → PDP shares.
+File: apps/web/src/app/(marketing)/produkter/[slug]/page.tsx (~90–95)
+Detail: `openGraph: { images: [{ url: product.image, alt: product.name }] }` with absolute URL.
+
+=====================================================
+PRIORITY 3 — MEDIUM
+=====================================================
+
+[3.1] **English retail copy on Swedish pages** — “Bestseller”, “Body Wash” badge on listing; portal fallbacks also use “Body Wash”. PUBLIC audit [3.5] Swenglish theme.
+File: apps/web/src/app/(marketing)/produkter/page.tsx (~23, ~39, ~73)
+Detail: Swedish labels (“Bästsäljare”, “Kroppstvätt”) or consistent brand English.
+
+[3.2] **“100% naturliga ingredienser” value chip vs om-oss skepticism** — CONVERSION_TRUST [3.4] semantic tension for careful readers.
+File: apps/web/src/app/(marketing)/produkter/page.tsx (~48–52)
+
+[3.3] **Category story: metadata says “hudvård”, product copy is hair-first** — Root layout description mentions schampo/balsam/kroppstvätt; listing hero says “hudvård”-adjacent positioning mixed with hair products. Weak SEO/IA clarity.
+Files: apps/web/src/app/(marketing)/produkter/page.tsx (~9–13, ~60–64)
+        apps/web/src/app/layout.tsx (~13–14)
+
+[3.4] **Listing CTA is “Läs mer” only — no price-forward commerce action on mobile** — Unlike PDP sticky bar, `/produkter` index has no persistent CTA; long scroll on mobile before bundle card.
+File: apps/web/src/app/(marketing)/produkter/page.tsx (~117–124)
+
+[3.5] **Alternating RTL grid trick on listing** — `lg:[direction:rtl]` for zig-zag layout; generally OK but can confuse screen-reader reading order on large breakpoints (visual order vs DOM order).
+File: apps/web/src/app/(marketing)/produkter/page.tsx (~84–86)
+
+[3.6] **Chat widget may overlap PDP sticky CTA** — Marketing layout mounts `ChatWidget` at `bottom-6 right-6`; PDP sticky bar is full-width `bottom-0`. On narrow viewports, FAB competes with thumb zone next to “Beställ via din förening”.
+Files: apps/web/src/app/(marketing)/layout.tsx (~16)
+        apps/web/src/app/(marketing)/produkter/[slug]/page.tsx (~187–197)
+        apps/web/src/components/chat-widget.tsx (pattern)
+
+=====================================================
+PRIORITY 4 — LOW
+=====================================================
+
+[4.1] **Breadcrumbs only on PDP, not on listing** — `/produkter` has no BreadcrumbList; PDP has visual `Breadcrumbs` component only (not JSON-LD BreadcrumbList).
+File: apps/web/src/app/(marketing)/produkter/[slug]/page.tsx (~121–126)
+
+[4.2] **ProductJsonLd `description` uses short tagline, not long INCI-adjacent description** — Rich snippet may underrepresent product; minor SEO.
+File: apps/web/src/app/(marketing)/produkter/[slug]/page.tsx (~112)
+
+[4.3] **Pulse animation on primary PDP CTA** — `Button pulse` draws attention; paired with no scarcity copy on product pages (lower ethics risk than shop, but noted in CONVERSION_TRUST).
+File: apps/web/src/app/(marketing)/produkter/[slug]/page.tsx (~165)
+
+=====================================================
+ROLE CONNECTIONS
+=====================================================
+
+PUBLIC (logged-out visitor)
+  - `/produkter` and `/produkter/[slug]` are the intended discovery layer: images, prices, INCI, brand story.
+  - CTAs correctly push toward `/foreningsliv` for association acquisition, but there is **no D2C path** to a supporter shop from product pages (must know a seller URL).
+  - JSON-LD helps SEO; fixes [1.4–1.5] matter for organic product rich results.
+  - No reviews/trust layer hurts conversion (CONVERSION_TRUST).
+
+CLUB_MEMBER (B2B buyer, `/portal`)
+  - Portal catalog links **into** marketing PDP for product detail — then **strands** user with föreningsliv CTA [1.1]. Critical MVP break.
+  - Separate issue (out of file scope but blocks MVP): portal cart on `/portal/produkter` does not persist to `/portal/bestallningar` (CLUB_MEMBER audit [1.5]).
+  - Marketing prices align with DB wholesale list price; no volume tiers shown on marketing pages.
+
+CLUB_ADMIN
+  - Same as CLUB_MEMBER for catalog browsing; association onboarding not linked from product pages (uses `/foreningsliv`).
+  - Product pages do not explain club margin, campaign pricing, or MOQ — expectation set only on foreningsliv/portal.
+
+ASSOCIATION_ADMIN
+  - Product pages support **pre-sales storytelling** for admins evaluating sortiment before `/registrera`.
+  - No link from PDP to association dashboard, campaign setup, or “starta kampanj”.
+  - Bundle 399 kr messaging matches seed bundle but routes to marketing funnel, not association tooling.
+
+Supporter shop (adjacent, not in scope)
+  - `/shop/[slug]` has real cart (`useCart`) and öre-based prices from API; marketing `/produkter` is a **parallel catalog** — intentional split but confusing if prices/names diverge.
+
+=====================================================
+MVP READINESS BREAKDOWN
+=====================================================
+
+| Area                         | Status   | Notes |
+|-----------------------------|----------|-------|
+| Listing renders (img/price/CTA) | PARTIAL  | Visual polish good; CTA is read-only “Läs mer”; bundle card OK |
+| Detail hero + description   | OK       | Hero, tagline, long copy, INCI present |
+| Detail price display        | OK       | Matches seed; hardcoded strings |
+| Add-to-cart / order path    | FAIL     | No cart; wrong CTA for B2B return path |
+| Related products            | FAIL     | Not implemented |
+| JSON-LD Product schema      | PARTIAL  | Core fields present; SKU + absolute image wrong |
+| Image fallbacks             | FAIL     | No fallback component |
+| Mobile layout               | PARTIAL  | Responsive grid OK; sticky bar covers content |
+| Currency (SEK öre→kr)       | PARTIAL  | JSON-LD correct; UI uses string literals |
+| DB / source-of-truth sync   | FAIL     | 4 duplicated catalogs; names/images diverge |
+| Reviews / social proof      | FAIL     | Absent (do not fake) |
+
+Overall MVP readiness for **product pages as commerce entrypoints**: **NOT READY** — acceptable as static marketing brochure only. **Ready for MVP** only after [1.1–1.3] (catalog single-source + B2B CTA routing) and JSON-LD fixes [1.4–1.5].
+
+Recommended MVP gate (this scout):
+  □ Shared catalog from DB or one module
+  □ PDP CTA routes CLUB_MEMBER → portal order flow
+  □ ProductJsonLd SKU + absolute image
+  □ Mobile PDP bottom inset for sticky CTA
+  □ Related products + bundle cross-link
+
+=====================================================
+NOTES
+=====================================================
+
+- Image assets exist under `apps/web/public/images/` (m3.jpg, p5.jpg, p6.jpg, p1.jpg, etc.); no broken files detected for current paths.
+- `priceOre` on detail page (~106) duplicates slug ternary; only consumed by ProductJsonLd — display price string is separate duplicate.
+- `generateStaticParams` enumerates three slugs — consistent with seed; adding DB-driven catalog would need dynamic params or ISR.
+- OrganizationJsonLd in same file is richer (address, VAT) than ProductJsonLd — product schema is minimal but valid `@type: Product` + `Offer` nesting.
+- Do **not** add fake `aggregateRating` for MVP; use visible social proof copy instead.
+- Portal `toPortalProductCard` already maps SKU → image and slug; strongest integration point for unifying marketing + portal visuals.
+
+--- END SCOUT 3 ---

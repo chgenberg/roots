@@ -1,0 +1,351 @@
+================================================================
+SCOUT 30 — Database schema integrity (FKs, indexes, migrations)
+================================================================
+Date: 2026-05-25
+Scope: packages/db/src/schema/*, packages/db/drizzle/*.sql,
+       packages/db/drizzle/meta/_journal.json, packages/db/src/seed.ts
+Role: System
+Ref: docs/flow-audits/MASTER_PLAN_2026-04-18.md (Fas 5–6, T6 audit_logs)
+
+SUMMARY
+-------
+Schema is structurally sound for core commerce (campaigns → teams → sellers →
+customer_orders) with additive migrations 0001–0006 and a consistent journal.
+The highest MVP risks are (1) Fas 6 privacy/minor columns exist in DB but have
+zero read/write paths in application code, (2) guardian_user_id lacks the FK
+MASTER_PLAN specifies, and (3) several Drizzle-declared indexes were never
+emitted to SQL (partially patched in 0004, but orders_created_at_idx and
+quotes_status_idx remain missing). audit_logs is append-only and now written,
+but has no indexes for the admin/notifications query patterns — a scaling
+blocker once Fas 5 audit volume ramps up.
+Findings: 22 total (P1: 3, P2: 10, P3: 7, P4: 2)
+MVP readiness: 68/100
+
+================================================================
+FOCUS CHECKLIST
+================================================================
+created_at / updated_at on all tables
+  Core entities (users, orgs, campaigns, teams, sellers, orders, quotes,
+  customer_orders, payouts, subscriptions, products, integrations)     ✓ both
+  Append-only / event tables (audit_logs, hair_analysis_leads,
+  waitlist_signups, team_goals, campaign_products)                      ✓ created only
+  Junction/line tables (order_lines, quote_lines, customer_order_lines,
+  bundle_products)                                                      ✗ neither (acceptable for v1)
+  master_riksorganisation                                                 ⚠ created only (master_segment has updated_at)
+  team_invites                                                          ⚠ created + expires_at only
+  sessions (Postgres table)                                             ⚠ created only — table unused (Redis sessions)
+
+updated_at maintenance
+  DB trigger                                                            ✗ none in any migration
+  App-side explicit `.set({ updatedAt: new Date() })`                   ⚠ partial — checkout, settlement,
+    campaigns tRPC, auth password reset, dashboard seller patch set it;
+    teams.memberCount++ on seller register does NOT touch teams.updatedAt
+    (`auth.ts:782-785`); many insert-only paths rely on defaultNow() only
+
+soft delete (deleted_at) prep
+  Any table                                                               ✗ none — all hard-delete or status enums
+  MASTER_PLAN / feedback BI (deleted_at)                                  ⚠ not started; acceptable pre-MVP if
+    GDPR delete is manual SQL for now
+
+FK ON DELETE behaviour
+  Default 0000 FKs                                                       RESTRICT (ON DELETE NO ACTION) — correct
+    for financial rows (customer_orders, orders, payouts)
+  organizations.assigned_asm_user_id                                     SET NULL (0002 DO block) ✓
+  organizations.riksorganisation_id / segment_id                         SET NULL (0003 DO block) ✓
+  master_segment.riksorganisation_id                                     RESTRICT ✓
+  users.guardian_user_id → users.id                                      ✗ NO FK (see P1)
+  orders.quote_id → quotes.id                                            ✗ NO FK (see P2)
+  audit_logs.user_id → users.id                                          ✗ NO FK (intentional retention)
+  sessions.user_id → users.id                                            ✗ NO FK (table legacy/unused)
+  team_invites → org/campaign/user/team                                  default RESTRICT ✓
+
+Indexes on FK + hot columns
+  users.org_id, orders.org/user, quotes.org/sales_rep, sessions.expires  ✓ 0004 backfill
+  sellers/teams/campaigns/customer_orders FK paths                       ✓ in 0000
+  users.guardian_user_id                                                 ✓ 0001
+  organizations masterdata FKs                                           ✓ 0002–0003
+  orders.created_at, quotes.status                                       ✗ declared in schema, NOT in SQL
+  waitlist_signups.created_at                                            ✓ 0006 SQL — missing from Drizzle schema
+  audit_logs (created_at, action, user_id)                               ✗ none
+  integration_fortnox.org_id                                             ✗ no index
+  bundle_products / order_lines / quote_lines FK cols                    ✗ no indexes (low row count v1)
+
+Composite indexes for hot queries
+  team_goals (team_id, campaign_id)                                      ✓ unique
+  payouts (campaign_id, team_id)                                       ✓ unique
+  campaign_products (campaign_id, product_id)                            ✓ unique
+  customer_orders multi-filter (org+campaign+status)                       ⚠ single-column only — OK for MVP volume
+
+Enum stability
+  All pgEnums defined once in 0000                                       ✓ no mid-rollout renames
+  user_role includes ASSOCIATION_ADMIN, TEAM_LEADER, SELLER             ✓ matches app
+  master_segment.type as varchar (not enum)                              ✓ per synthesis §14.2
+
+Nullable vs code expectations
+  users.org_id nullable                                                  ✓ seller register sets orgId from team
+  sellers Fas 6 columns nullable / defaulted                             ✓ schema matches additive plan
+  orders.quote_id nullable                                               ✓ B2B path optional
+  team_invites.invited_email nullable                                    ✓
+
+Migration ordering (_journal.json)
+  idx 0–6 sequential tags 0000→0006                                     ✓ timestamps monotonic
+
+0001_minor_consent_and_seller_privacy.sql idempotency
+  ADD COLUMN IF NOT EXISTS (users + sellers)                             ✓
+  CREATE INDEX IF NOT EXISTS users_guardian_idx                          ✓
+  hide_from_leaderboard NOT NULL DEFAULT false on add                    ✓ safe first add;
+    re-run skips via IF NOT EXISTS
+
+New fields actually used in code
+  users.birthYear / guardianUserId / guardianConsentAt                   ✗ schema + migration only
+  sellers.publicAlias / hideFromLeaderboard / personalMessage            ✗ schema + migration only;
+    shop API returns displayName only (`shop.ts:85-86`); leaderboard uses
+    displayName (`lag/page.tsx:257`, `lag/saljare/page.tsx:432`)
+
+audit_logs structure for scaling
+  Append-only, JSONB meta, no updated_at                                 ✓ good shape
+  Writer: apps/api/src/lib/audit.ts (feature-flagged)                    ✓
+  Readers: admin.ts, notifications.ts, portal.ts                         ✓
+  Indexes / partitioning / retention policy                              ✗ missing (see P1/P2)
+
+seed.ts
+  Demo orgs + users + products + bundle                                ✓ idempotent
+  Does not seed campaigns/teams/sellers or Fas 6 columns               ⚠ limits local Fas 6 testing
+  syncDemoUser update omits updatedAt                                    P4
+
+================================================================
+P1 — CRITICAL (MVP-blocking)
+================================================================
+
+[1.1] Fas 6 schema columns are dead — minor consent & seller privacy unenforced
+  Files: packages/db/src/schema/users.ts:33-35; sellers.ts:43-45;
+         apps/api/src/routes/auth.ts:762-780; apps/api/src/routes/shop.ts:85-86
+  Symptom: DB has birth_year, guardian_user_id, guardian_consent_at,
+    public_alias, hide_from_leaderboard, personal_message but no API route
+    reads or writes them. Public shop always exposes real displayName.
+  Root cause: Migration 0001 landed schema ahead of Fas 6 application work
+    (MASTER_PLAN §263–284). Scout 10 confirmed same gap.
+  Fix: Wire register/seller + shop snapshot + leaderboard to columns; not a
+    schema change — but schema without app = compliance MVP blocker for
+    youth fundraising product.
+  Effort: L (app, not DB)
+  Ref: MASTER_PLAN Fas 6; Scout 10 [1.2], [2.6]
+
+[1.2] guardian_user_id missing FK to users(id)
+  Files: packages/db/src/schema/users.ts:34 (plain uuid, no .references());
+         packages/db/drizzle/0001_minor_consent_and_seller_privacy.sql:6-10
+  Symptom: Index exists but no referential integrity; invalid guardian UUIDs
+    can be stored; deleting a guardian user leaves dangling references with
+    no ON DELETE policy.
+  Root cause: 0001 added column + index only; MASTER_PLAN explicitly requires
+    `guardianUserId uuid null → users.id`.
+  Fix: New idempotent migration:
+    DO $$ … ADD CONSTRAINT users_guardian_user_id_fk
+      FOREIGN KEY (guardian_user_id) REFERENCES users(id) ON DELETE SET NULL;
+    Add `.references(() => users.id, { onDelete: "set null" })` in Drizzle
+    (self-ref — may need `(): AnyPgColumn` pattern).
+  Effort: S
+  Ref: MASTER_PLAN Fas 6 schema list
+
+[1.3] audit_logs has zero indexes — admin UI will degrade as Fas 5 logging rolls out
+  Files: packages/db/src/schema/audit.ts:3-11;
+         apps/api/src/routes/admin.ts:97-113 (ORDER BY created_at DESC);
+         apps/api/src/routes/notifications.ts:296-303
+  Symptom: Every audit list / notification poll scans full table.
+  Root cause: 0000 created bare table; no follow-up migration.
+  Fix: Additive migration with IF NOT EXISTS:
+    - audit_logs_created_at_idx ON (created_at DESC)
+    - audit_logs_action_created_at_idx ON (action, created_at DESC) — optional
+    - audit_logs_user_id_created_at_idx ON (user_id, created_at DESC) WHERE user_id IS NOT NULL
+  Effort: S
+  Ref: MASTER_PLAN Fas 5 (audit_logs write path); T6
+
+================================================================
+P2 — HIGH (fix before scale / next migration batch)
+================================================================
+
+[2.1] Schema ↔ SQL index drift (undeployed indexes)
+  Files: packages/db/src/schema/orders.ts:49 (orders_created_at_idx);
+         packages/db/src/schema/quotes.ts:37 (quotes_status_idx);
+         packages/db/drizzle/0004_fk_indexes.sql (partial fix only)
+  Symptom: Drizzle schema promises indexes that do not exist in any .sql file.
+    Prod portal order lists and quote filters may seq-scan as data grows.
+  Fix: New 0007 migration mirroring 0004 style (CREATE INDEX IF NOT EXISTS).
+  Effort: S
+
+[2.2] orders.quote_id has no FK to quotes
+  Files: packages/db/src/schema/orders.ts:38; 0000_premium_photon.sql:91
+  Symptom: Quote row can be removed while orders.quote_id still points at UUID.
+  Fix: ADD CONSTRAINT orders_quote_id_fk … ON DELETE SET NULL (nullable col).
+  Effort: S
+
+[2.3] Drizzle meta snapshot frozen at 0000
+  Files: packages/db/drizzle/meta/_journal.json (7 entries);
+         packages/db/drizzle/meta/0000_snapshot.json only
+  Symptom: `drizzle-kit generate` may diff incorrectly against prod schema
+    that has 0001–0006 applied manually; risk of duplicate or destructive SQL.
+  Fix: Run drizzle-kit introspect/pull after migrations settle, or maintain
+    hand-written SQL discipline (current approach) and document "no generate".
+  Effort: M
+
+[2.4] sessions Postgres table is orphaned — Redis is runtime store
+  Files: packages/db/src/schema/sessions.ts; apps/api/src/lib/session.ts
+  Symptom: Schema suggests PG session persistence; app uses Redis only.
+    No FK on user_id, no user_id index, no updated_at / cleanup job.
+  Fix: Either drop table in post-MVP cleanup or document as legacy; not MVP
+    blocker but confuses schema audits.
+  Effort: S (docs) / M (remove)
+
+[2.5] teams.updatedAt stale on seller registration
+  Files: apps/api/src/routes/auth.ts:782-785 (memberCount++ only)
+  Symptom: updated_at frozen at team creation when members join.
+  Fix: Include updatedAt: new Date() in same UPDATE.
+  Effort: XS
+
+[2.6] integration_fortnox.org_id — FK without index
+  Files: packages/db/src/schema/integrations.ts:6-8; 0000 SQL
+  Symptom: Lookup by org for Fortnox token may seq-scan.
+  Fix: CREATE INDEX IF NOT EXISTS integration_fortnox_org_id_idx.
+  Effort: XS
+
+[2.7] integration_fortnox lacks UNIQUE(org_id)
+  Files: packages/db/src/schema/integrations.ts
+  Symptom: Duplicate Fortnox rows per org possible on reconnect bugs.
+  Fix: uniqueIndex on org_id (nullable tokens still one row per org).
+  Effort: S
+
+[2.8] waitlist_signups — migration index not reflected in Drizzle schema
+  Files: packages/db/drizzle/0006_waitlist_signups.sql:15-16;
+         packages/db/src/schema/waitlist.ts (no index export)
+  Symptom: Schema drift; future generate may drop index.
+  Fix: Add index("waitlist_signups_created_at_idx").on(table.createdAt) to schema.
+  Effort: XS
+
+[2.9] Universal ON DELETE RESTRICT blocks org/user cleanup in dev/staging
+  Files: 0000_premium_photon.sql:299-334 (all NO ACTION)
+  Symptom: Cannot delete demo org with campaigns/orders without manual
+    child deletes — slows QA, not prod behaviour (correct for prod).
+  Fix: Document teardown script order; optional CASCADE only on dev seed reset.
+  Effort: S (tooling)
+
+[2.10] No deleted_at anywhere — GDPR erasure is hard-delete or status-only
+  Files: all schema/*
+  Symptom: feedback-plan 07 BI fields not started; SAR erasure must touch
+    many FK-restricted tables manually.
+  Fix: Post-MVP: deleted_at on users, organizations, sellers + partial indexes;
+    not blocking launch if legal accepts manual process.
+  Effort: L
+
+================================================================
+P3 — MEDIUM (quality / consistency)
+================================================================
+
+[3.1] master_riksorganisation missing updated_at while master_segment has it
+  Files: master-riksorganisation.ts:34-35 vs master-segment.ts:40-41
+  Fix: Add updated_at column in additive migration for parity.
+
+[3.2] campaign_products missing updated_at
+  Files: campaign-products.ts:26-27
+  Fix: Add nullable-then-backfill updated_at if price/sort edits need audit.
+
+[3.3] team_invites missing updated_at
+  Files: team-invites.ts:46-47
+  Fix: Low priority — invite rows are immutable except used_at stamp.
+
+[3.4] hair_analysis_leads / waitlist_signups — no updated_at
+  Fix: OK for insert-only capture tables.
+
+[3.5] Line-item tables lack FK indexes (order_lines.order_id, etc.)
+  Fix: Add when order volume > ~10k; customer_order_lines already indexed.
+
+[3.6] seed.ts does not populate Fas 6 demo data
+  Files: packages/db/src/seed.ts
+  Fix: Extend seed-demo.ts path with one minor seller + guardian for E2E.
+
+[3.7] users.personal_number stored as varchar — no encryption at schema layer
+  Fix: App/KMS concern; note for security scout, not schema integrity per se.
+
+================================================================
+P4 — LOW
+================================================================
+
+[4.1] seed.ts syncDemoUser update omits updatedAt
+  Files: packages/db/src/seed.ts:55-63
+  Fix: Add updatedAt: new Date() to .set() for consistency.
+
+[4.2] bundle_products junction table has no timestamps
+  Fix: Acceptable unless bundle composition versioning needed.
+
+================================================================
+MIGRATION INVENTORY (verified)
+================================================================
+0000_premium_photon.sql          Base schema + enums + most FKs/indexes
+0001_minor_consent_and_seller_privacy.sql   Idempotent ✓ — users/sellers Fas 6 cols
+0002_organizations_masterdata_v1.sql        Idempotent ✓ — org CRM cols + ASM FK
+0003_master_riksorganisation_and_segment.sql Idempotent ✓ — master tables + org FKs
+0004_fk_indexes.sql              Idempotent ✓ — backfills 6 missing indexes
+0005_team_invites.sql            Idempotent ✓ — CREATE TABLE IF NOT EXISTS
+0006_waitlist_signups.sql        Idempotent ✓ — table + created_at index
+
+_journal.json: 7 entries, idx 0–6, tags match filenames ✓
+
+================================================================
+TABLE TIMESTAMP MATRIX (quick reference)
+================================================================
+| Table                    | created_at | updated_at | deleted_at |
+|--------------------------|------------|------------|------------|
+| organizations            | Y          | Y          | —          |
+| users                    | Y          | Y          | —          |
+| products, bundles        | Y          | Y          | —          |
+| orders, quotes           | Y          | Y          | —          |
+| campaigns, teams, sellers| Y          | Y          | —          |
+| customer_orders, payouts   | Y          | Y          | —          |
+| subscriptions            | Y          | Y          | —          |
+| integration_fortnox      | Y          | Y          | —          |
+| master_segment           | Y          | Y          | —          |
+| master_riksorganisation  | Y          | —          | —          |
+| campaign_products        | Y          | —          | —          |
+| team_goals, team_invites | Y          | —          | —          |
+| audit_logs               | Y          | — (append) | —          |
+| hair_analysis_leads      | Y          | —          | —          |
+| waitlist_signups         | Y          | —          | —          |
+| sessions (unused)        | Y          | —          | —          |
+| *_lines, bundle_products | —          | —          | —          |
+
+================================================================
+RECOMMENDED MVP MIGRATION BATCH (0007)
+================================================================
+1. FK users.guardian_user_id → users(id) ON DELETE SET NULL
+2. INDEX audit_logs(created_at DESC), optional (action, created_at)
+3. INDEX orders(created_at), quotes(status) — close 0004 gap
+4. FK orders.quote_id → quotes(id) ON DELETE SET NULL
+5. INDEX integration_fortnox(org_id); UNIQUE(org_id) if product agrees
+6. Sync waitlist index into Drizzle schema file
+
+Application work (same sprint, not DB-only):
+- Wire Fas 6 columns in register/shop/leaderboard (blocks youth MVP)
+
+================================================================
+MVP READINESS SCORE BREAKDOWN
+================================================================
+- Core relational model (fundraising + B2B):     22/25
+- Migration hygiene & idempotency:              18/20
+- Index / FK completeness:                      12/20
+- Timestamp / soft-delete conventions:          10/15
+- Fas 6 schema ↔ app alignment:                  6/20
+
+NOTES FOR THE TEAM
+------------------
+Positive since April audits:
+- 0004 explicitly documents and fixes the Drizzle-vs-prod index gap for
+  the worst join paths (users.org_id, orders, quotes, sessions.expires_at).
+- 0001–0003 migrations are exemplary additive/idempotent patterns.
+- audit_logs is no longer write-only-in-theory — audit.ts + admin routes
+  consume it; indexes are the remaining gap.
+
+Highest-impact sprint for this scout's scope:
+1. Migration 0007: guardian FK + audit_logs indexes + missing order/quote indexes
+2. Application wiring for Fas 6 columns (compliance — schema already ready)
+3. Document "hand-written migrations only" until drizzle snapshot catches up
+
+--- END SCOUT 30 ---

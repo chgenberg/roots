@@ -1,0 +1,171 @@
+================================================================
+SCOUT 2 — Marketing pages
+================================================================
+Date: 2026-05-25 22:17
+Scope: apps/web/src/app/(marketing)/{om-oss,kontakt,foreningsliv}/ + press/jobb anchors on om-oss
+
+SUMMARY
+-------
+Marketing pages are structurally sound: real Swedish copy (no Lorem Ipsum), shared layout chrome, working internal routes, and a functional contact form with CSRF + rate limiting. The main MVP risk is narrative drift — especially on `/foreningsliv`, which still describes bulk portal ordering while the live product is seller-led fundraising campaigns — plus thin press/jobb sections and incomplete per-page SEO. Legal identity on `/kontakt` and footer is now solid (post prior audits).
+Findings: 18 (P1:2 P2:6 P3:6 P4:4)
+MVP readiness: 72/100
+
+P1 — CRITICAL
+
+[1.1] Föreningsliv page describes wrong business model for ASSOCIATION_ADMIN
+  File: apps/web/src/app/(marketing)/foreningsliv/page.tsx:16-20,42-45,17-27
+  Symptom: Steps promise “Beställ → Välj antal paket direkt i vår portal” and features promise “Administrera beställningar” / “Intäktsrapport”. Actual post-signup flow is register → create campaign → invite teams/sellers → supporters buy via personal shops (`/forening`, `/min-shop`).
+  Root cause: Marketing copy written for a B2B wholesale ordering mental model; platform evolved to B2B2C fundraising without page rewrite.
+  Fix: Rewrite STEPS/FEATURES/hero to match campaign → lag → säljare → delningslänk flow; mention margin/goal tracking in seller terms; link to `/registrera` with “förening” path called out explicitly.
+  Effort: M
+
+[1.2] Föreningsliv CTA lands on broken team-registration path
+  File: apps/web/src/app/(marketing)/foreningsliv/page.tsx:48-52,145-148
+  Symptom: Primary CTA “Anslut din förening” / “Registrera din förening” → `/registrera`. Team-leader path on that page calls `GET /v1/auth/organizations/search` anonymously and receives 401; UI shows empty org list with no error (`registrera/page.tsx:71-86`).
+  Root cause: Org search requires session (`apps/api/src/routes/auth.ts:831-835`); marketing page gives no role split or warning.
+  Fix: On `/foreningsliv`, clarify two paths (förening vs lagledare); open org search pre-auth or defer team search until after login; surface 401 copy on registrera.
+  Effort: M
+
+P2 — HIGH
+
+[2.1] Category story inconsistent: hårvård vs hudvård across metadata and body
+  File: apps/web/src/app/(marketing)/om-oss/page.tsx:8-11,79-84
+  Symptom: Meta description says “naturlig hårvård”; body says “Alla behöver hudvård” and “Tre naturliga produkter”. Root layout default is “Föreningsnära hudvård” (`layout.tsx:10-14`) while homepage hero says “Naturlig hårvård” (`hero.tsx:38-39`).
+  Root cause: Rebrand to hudvård not propagated to all marketing metadata/copy.
+  Fix: Pick one umbrella term (or explicit “hår & hud”) and sync om-oss metadata, foreningsliv metadata, and hero.
+  Effort: S
+
+[2.2] Hardcoded shipping promise may be false per campaign
+  File: apps/web/src/app/(marketing)/foreningsliv/page.tsx:26
+  Symptom: Feature card claims “Fri frakt över 500 kr”. Checkout uses per-campaign `shippingFeeOre` / `shippingThresholdOre` (`checkout.ts:168-175`), not a global 500 kr rule.
+  Root cause: Static marketing bullet not tied to campaign/config data.
+  Fix: Replace with accurate copy (“Frakt enligt kampanj”) or wire to default campaign settings.
+  Effort: S
+
+[2.3] Header “Boka demo” icon routes to Föreningsliv without booking
+  File: apps/web/src/components/header.tsx:168-174
+  Symptom: Calendar icon `aria-label="Boka demo"` links to `/foreningsliv`; no scheduler, calendar embed, or demo request form on destination.
+  Root cause: Label copied from aspirational UX; href is marketing page only.
+  Fix: Rename aria-label/link text to match destination (“För föreningar”) or add real booking on kontakt/foreningsliv.
+  Effort: S
+
+[2.4] Contact form email body inserts raw user input into HTML
+  File: apps/api/src/routes/contact.ts:49-55
+  Symptom: `name`, `subject`, `message` interpolated into HTML email without escaping; malicious payload could inject HTML into staff inbox.
+  Root cause: Template string without encode/escape helper.
+  Fix: HTML-escape all fields before embedding; keep plain-text part as primary.
+  Effort: S
+
+[2.5] No submitter confirmation after contact form success
+  File: apps/web/src/app/(marketing)/kontakt/page.tsx:65-75; apps/api/src/routes/contact.ts:46-68
+  Symptom: Visitor sees success UI but receives no email acknowledgement; only internal notification to `CONTACT_FORM_EMAIL`.
+  Root cause: API sends one outbound mail to ops only.
+  Fix: Optional auto-reply with reference id, SLA (1–2 days), and privacy note.
+  Effort: M
+
+[2.6] Om oss lacks conversion path for ASSOCIATION_ADMIN
+  File: apps/web/src/app/(marketing)/om-oss/page.tsx:35-142
+  Symptom: Long-form story + values + press/jobb; no CTA to `/registrera` or `/foreningsliv` despite föreningsliv being core mission copy.
+  Root cause: Page treated as pure brand story without funnel handoff.
+  Fix: Add closing CTA band mirroring foreningsliv (“Starta er kampanj”).
+  Effort: S
+
+P3 — MEDIUM
+
+[3.1] om-oss and foreningsliv missing page-level Open Graph / Twitter overrides
+  File: apps/web/src/app/(marketing)/om-oss/page.tsx:8-12; apps/web/src/app/(marketing)/foreningsliv/page.tsx:10-14
+  Symptom: Only `title` + `description`; inherit root OG image with alt “Naturlig hårvård” (`layout.tsx:34-40`). `/kontakt` has partial OG (`kontakt/layout.tsx:7-11`) but no `twitter` or `openGraph.images`.
+  Root cause: SEO metadata added minimally on server components; kontakt split into client page + layout partially done.
+  Fix: Add `openGraph` (title, description, url, images) and `alternates.canonical` per route.
+  Effort: S
+
+[3.2] No explicit canonical URLs on marketing sub-pages
+  File: apps/web/src/app/(marketing)/om-oss/page.tsx:8-12; foreningsliv/page.tsx:10-14; kontakt/layout.tsx:3-12
+  Symptom: Relies on Next defaults; prior PUBLIC audit flagged missing canonicals site-wide.
+  Root cause: `metadata.alternates.canonical` not set per page.
+  Fix: Set canonical to `/om-oss`, `/kontakt`, `/foreningsliv` via `metadataBase`.
+  Effort: S
+
+[3.3] Press section is email-only stub — no kit, logos, or coverage
+  File: apps/web/src/app/(marketing)/om-oss/page.tsx:93-101
+  Symptom: Single paragraph + `press@roots.se`; no downloadable assets, boilerplate, or outbound press links. Footer links `/om-oss#press` correctly but content is thin for journalists.
+  Root cause: Placeholder-level press surface acceptable for pre-launch but not launch-ready PR.
+  Fix: Add press kit PDF/ZIP, founder quotes, high-res logos, or honest “coming soon” with response SLA.
+  Effort: M
+
+[3.4] Jobb section is email-only — no listings or process
+  File: apps/web/src/app/(marketing)/om-oss/page.tsx:106-114
+  Symptom: Generic “Skicka till jobb@roots.se”; no open roles, locations, or hiring process. Footer `/om-oss#jobb` resolves but sets no expectations.
+  Root cause: No careers content model or CMS.
+  Fix: List current openings or state “inga lediga tjänster just nu” with talent-pool form.
+  Effort: M
+
+[3.5] Founders story duplicated between homepage and Om oss
+  File: apps/web/src/components/sections/founders.tsx:26-38; apps/web/src/app/(marketing)/om-oss/page.tsx:42-48,69-85
+  Symptom: Nearly identical “tre grannar över 1,95 m” narrative on `/` and `/om-oss`; om-oss adds history but repeats hero beat.
+  Root cause: FoundersSection on homepage + full om-oss page without differentiation.
+  Fix: Shorten om-oss opener or remove FoundersSection from homepage for visitors who drill into Om oss.
+  Effort: S
+
+[3.6] Contact form lacks privacy/consent copy near submit
+  File: apps/web/src/app/(marketing)/kontakt/page.tsx:77-124
+  Symptom: No link to `/integritet` or statement on how contact data is processed before submit.
+  Root cause: Form focuses on fields + SLA sidebar only.
+  Fix: One line + link: “Vi behandlar dina uppgifter enligt vår integritetspolicy.”
+  Effort: S
+
+P4 — LOW
+
+[4.1] Success state on kontakt has no “Skicka ett till meddelande” action
+  File: apps/web/src/app/(marketing)/kontakt/page.tsx:65-75
+  Symptom: After submit, user must refresh to send another message.
+  Root cause: `sent` boolean replaces form with static thank-you block; no reset handler.
+  Fix: Add button calling `setSent(false)`.
+  Effort: S
+
+[4.2] Om oss hero image alt text does not describe founders or company
+  File: apps/web/src/app/(marketing)/om-oss/page.tsx:57-59
+  Symptom: Alt is “Nordisk känsla — ren och naturlig” while copy claims “Tre män. Ett mål.” and three named roles — no founder photos or names anywhere on page.
+  Root cause: Stock/lifestyle image without people; copy promises founders but page never names them.
+  Fix: Use founder photo or adjust copy/alt to match actual imagery; add names if real founders approve.
+  Effort: S
+
+[4.3] Cmd+K search omits Press and Jobb quick links
+  File: apps/web/src/components/search-dialog.tsx:24-26
+  Symptom: Footer exposes Press/Jobb; search dialog lists Föreningsliv, Om oss, Kontakt only — anchors not discoverable via search.
+  Root cause: Static quick-link list not synced with footer.
+  Fix: Add “Press” → `/om-oss#press`, “Jobb” → `/om-oss#jobb`.
+  Effort: S
+
+[4.4] LEGAL_IDENTITY phone is placeholder and unused on kontakt
+  File: apps/web/src/lib/legal-identity.ts:27; apps/web/src/app/(marketing)/kontakt/page.tsx:129-172
+  Symptom: `+46 8 000 000 00` in legal-identity; kontakt sidebar shows email + postal address only (good omission if fake, but inconsistent with JSON-LD telephone field).
+  Root cause: Placeholder phone exported to OrganizationJsonLd (`json-ld.tsx:28`) but not shown on kontakt.
+  Fix: Replace with real number or remove telephone from JSON-LD until valid.
+  Effort: S
+
+ROLE CONNECTIONS CHECKED
+- PUBLIC → ASSOCIATION_ADMIN: `/foreningsliv` CTAs → `/registrera` (association path viable; copy oversells “beställ i portal”).
+- PUBLIC → ASSOCIATION_ADMIN: `/kontakt` form → ops email (no CRM/ticket id returned to user).
+- PUBLIC → TEAM_LEADER: No dedicated marketing path; team registrants hitting `/registrera` from generic CTAs hit 401 org search (broken).
+- PUBLIC → SALES_REP / SALES_ADMIN: No entry points on these pages (expected for MVP marketing scope).
+- PUBLIC → SELLER / SUPPORTER: Not addressed on these pages (shop/fundraising routes separate).
+- Footer Press/Jobb → `/om-oss#press`, `/om-oss#jobb`: anchors exist; no 404.
+- Header nav + footer Företaget links: `/foreningsliv`, `/om-oss`, `/kontakt` resolve; sitemap includes all three (`sitemap.ts:12-14`).
+- Chat widget on marketing layout: available on all scoped pages for PUBLIC → AI assist (out of page copy scope).
+
+MVP READINESS BREAKDOWN
+- Functionality:         18/25  (pages render, form submits, CTAs link; foreningsliv misstates product)
+- Reliability:           20/25  (contact API validated + rate-limited + CSRF; email escape gap)
+- Polish/UX:             17/25  (layout consistent with landing; thin press/jobb; duplicate founders)
+- Cross-role integration: 17/25  (association signup path OK; team path broken; om-oss no funnel CTA)
+
+NOTES
+- No Lorem Ipsum or placeholder paragraphs found in scoped files.
+- `/kontakt` now shows org.nr, VAT, and street via `LEGAL_IDENTITY` — prior PUBLIC/CONVERSION audits flagged this as missing; resolved on kontakt + footer (`legal-identity-block.tsx`).
+- Press and Jobb are anchor sections on `/om-oss`, not standalone routes — footer links are correct; no dedicated `/press` or `/jobb` 404 risk.
+- Campaign creation UI now exists under `/forening` (post association onboarding audit); marketing `/foreningsliv` copy has not caught up.
+- Contact spam protection: IP rate limit 5/hour (`contact.ts:32-35`) only — no honeypot, Turnstile, or reCAPTCHA.
+- Client-side contact validation: HTML5 `required` + email type (`kontakt/page.tsx:81-114`); server validates lengths and email regex.
+- Preview gate middleware correctly exempts `/foreningsliv` from `/forening` role protection (`middleware.ts:96-99`).
+--- END SCOUT 2 ---

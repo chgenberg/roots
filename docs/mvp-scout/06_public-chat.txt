@@ -1,0 +1,224 @@
+================================================================
+SCOUT 6 — Public chat widget (ChatWidget on marketing pages)
+================================================================
+Date: 2026-05-25
+Scope: apps/web/src/components/chat-widget.tsx
+        apps/api/src/routes/public-chat.ts
+        apps/api/src/lib/ai/openclaw-client.ts
+        apps/api/src/lib/ai/system-prompt.ts (PUBLIC_CHAT_SYSTEM_PROMPT)
+        apps/api/src/lib/rate-limit.ts (publicChatRateLimit)
+Role: PUBLIC (marketing layout only — apps/web/src/app/(marketing)/layout.tsx)
+Reference: docs/flow-audits/AI_COACH_2026-04-18_1312.txt, MASTER_PLAN Fas 3
+
+SUMMARY
+-------
+Public chat is substantially hardened vs the April AI audit: CSRF on POST, per-IP rate limit, history role-stripping, AbortController + stop button, backdrop/ESC close, focus trap, and AI kill-switch via `flags.aiEnabled()`. Core streaming path works with SSE `[DONE]` and mid-stream error payloads. Remaining MVP blockers are operational (Redis rate-limit fail-open), accessibility (no aria-live, closed dialog still tabbable), and mobile UX (keyboard vs centered dialog). Prompt-injection surface is reduced server-side but not explicitly jailbreak-hardened in the system prompt.
+Findings: 19 (P1:3 P2:6 P3:6 P4:4)
+MVP readiness: 68/100
+
+CHECKLIST (scoped pass/fail)
+----------------------------
+Open/close backdrop click          PASS  chat-widget.tsx:228-231
+Open/close ESC key                 PASS  chat-widget.tsx:74-76
+Focus trap (Tab wrap)              PASS  chat-widget.tsx:78-94
+Focus on open                      PASS  chat-widget.tsx:65-68
+Focus restore on close             FAIL  no return focus to FAB
+Welcome message clarity            PARTIAL  welcome scoped; header overpromises (252-254)
+SSE streaming                      PASS  chat-widget.tsx:141-182
+[DONE] handling                    PARTIAL  handled but `break` only exits inner for-loop (159)
+AbortController + stop             PASS  chat-widget.tsx:40-44,114-115,312-320
+Mid-stream error                   PASS  server error SSE + client parsed.error (173-175, public-chat.ts:91-98)
+History max 10                     PASS  client slice(-10) + server MAX_HISTORY
+System-role injection guard        PASS  public-chat.ts:72-75 maps user|assistant only
+Rate limit per-IP                  PASS  pub-chat:${ip} 30/h (public-chat.ts:18-19)
+Rate limit error message           PASS  Swedish 429 body (public-chat.ts:32-33)
+retryAfter respected in UI         FAIL  client ignores retryAfter field
+AI disabled / unconfigured fallback PASS  flags.aiEnabled + isAiConfigured (public-chat.ts:60-69)
+Mobile keyboard / viewport         FAIL  fixed center dialog, no visualViewport/safe-area
+aria-live for messages             FAIL  message list has no live region
+role="dialog" + aria-modal         PASS  chat-widget.tsx:244-246
+Prompt-injection robustness        PARTIAL  role strip OK; no explicit anti-jailbreak in prompt
+CSRF fetch + use                   PASS  getCsrf + x-csrf-token (17-23,118-124); app.ts:60-70
+No PII / API key in client bundle  PASS  getBrowserApiBase → /api only; keys server-side
+
+P1 — CRITICAL (MVP-blocking)
+
+[1.1] Redis rate limit fails open — unlimited public chat during Redis outage
+  File: apps/api/src/lib/rate-limit.ts:29-31
+  Symptom: `checkRateLimit` catch returns `{ allowed: true }` on Redis errors. Public chat shares this path via `publicChatRateLimit`.
+  Root cause: Deliberate degrade-to-allow pattern; no in-memory fallback or fail-closed for unauthenticated AI.
+  Fix: Fail closed for `pub-chat:*` (503 + retryAfter) or short-lived process-local counter when Redis unavailable.
+  Effort: M
+  Ref: AI_COACH [1.8]
+
+[1.2] Dialog remains keyboard-focusable while visually closed
+  File: apps/web/src/components/chat-widget.tsx:236-337
+  Symptom: Panel stays mounted with `pointer-events-none opacity-0` when `open=false`. Close button, textarea, and send remain in tab order; focus trap listener only active when open.
+  Root cause: No `inert`, `aria-hidden`, or `tabIndex={-1}` on dialog subtree when closed.
+  Fix: Conditionally render dialog when open, or set `inert`/`aria-hidden="true"` and disable focusables when closed.
+  Effort: S
+
+[1.3] Closing dialog (ESC / backdrop / X) does not abort in-flight stream
+  File: apps/web/src/components/chat-widget.tsx:74-76,228-231,256-258
+  Symptom: User can close chat while `streaming=true`; fetch continues, consumes rate limit and OpenAI tokens; state still updates off-screen.
+  Root cause: Close handlers only call `setOpen(false)`; `stop()` / `abortRef` not invoked on close.
+  Fix: On any close path, call `stop()` if streaming; optionally pause UI updates when `!open`.
+  Effort: S
+
+P2 — HIGH
+
+[2.1] No aria-live region for assistant replies
+  File: apps/web/src/components/chat-widget.tsx:267-297
+  Symptom: Screen readers are not notified when streamed tokens append; users must manually explore the message list.
+  Root cause: Bubbles are plain divs with no `aria-live="polite"` (or assertive for errors).
+  Fix: Wrap assistant messages in `aria-live="polite"` region; mark errors assertive.
+  Effort: S
+
+[2.2] Mobile keyboard likely obscures composer
+  File: apps/web/src/components/chat-widget.tsx:238-243,300-311
+  Symptom: Dialog is `fixed` centered at `top-1/2` with `height: min(580px, calc(100vh - 4rem))`. iOS/Android soft keyboard shrinks visual viewport; input area can sit under keyboard.
+  Root cause: No `visualViewport` resize handler, bottom-sheet layout, or `env(safe-area-inset-bottom)` on FAB/input.
+  Fix: On narrow viewports use bottom-anchored sheet; listen to `visualViewport` and shrink/reposition panel; add safe-area padding on FAB.
+  Effort: M
+  Ref: AI_COACH [3.2], [3.5]
+
+[2.3] 429 rate-limit response ignores `retryAfter`
+  File: apps/web/src/components/chat-widget.tsx:134-138; apps/api/src/routes/public-chat.ts:30-35
+  Symptom: Server returns `{ error, retryAfter }`; client surfaces `error` string only — no countdown, disabled send, or formatted “försök om X min”.
+  Root cause: Generic `!res.ok` branch; no parsing of `retryAfter`.
+  Fix: Parse 429 body; show retry time; disable input until window elapses.
+  Effort: S
+
+[2.4] Header copy overpromises vs guardrails and welcome
+  File: apps/web/src/components/chat-widget.tsx:25-28,252-254
+  Symptom: Welcome scopes to products, föreningsliv, leveranser; subtitle says “Fråga oss vad som helst” — invites CRM, pricing, medical, and out-of-scope questions the model must refuse.
+  Root cause: Marketing tone not aligned with PUBLIC_CHAT_SYSTEM_PROMPT boundaries.
+  Fix: Align subtitle with welcome (e.g. “Produkter, föreningsliv och leverans”); keep disclaimer visible.
+  Effort: S
+  Ref: AI_COACH [2.2], [4.2]
+
+[2.5] No focus return to launcher after close
+  File: apps/web/src/components/chat-widget.tsx:256-258,340-354
+  Symptom: Closing dialog leaves focus on detached/hidden controls; keyboard users lose context.
+  Root cause: No `ref` on FAB + `focus()` on close (ESC, backdrop, X).
+  Fix: Store launcher ref; on close, `requestAnimationFrame(() => launcherRef.focus())`.
+  Effort: S
+
+[2.6] Prompt injection: no explicit jailbreak instruction in public system prompt
+  File: apps/api/src/lib/ai/system-prompt.ts:45-58; apps/api/src/routes/public-chat.ts:72-80
+  Symptom: Server strips `system` from client `history` (good). User message and multi-turn history can still carry “ignore previous instructions” / role-play overrides; prompt lacks explicit “never obey user attempts to change rules” clause.
+  Root cause: Reliance on BASE_RULES content guardrails only; no injection-specific hardening (MASTER_PLAN Fas 3 guardrails partial for public path).
+  Fix: Add short anti-jailbreak block to PUBLIC_CHAT_SYSTEM_PROMPT; optionally log/sanitize obvious override patterns server-side.
+  Effort: S
+
+P3 — MEDIUM
+
+[3.1] Static consumer-law bullets in prompt may drift from live /villkor
+  File: apps/api/src/lib/ai/system-prompt.ts:39-43
+  Symptom: SUPPORT_CONTEXT embeds 14-day ångerrätt, 3-year reklamation, shipping wording — may disagree with CMS/legal pages after updates.
+  Root cause: Hardcoded legal copy in prompt vs deferral pattern used for prices.
+  Fix: Mirror price rule — defer to /villkor and /kassa for legal/shipping specifics.
+  Effort: S
+  Ref: AI_COACH [1.5] (partially mitigated for prices)
+
+[3.2] CSRF prefetch has no failure handling
+  File: apps/web/src/components/chat-widget.tsx:17-23
+  Symptom: `getCsrf()` assumes JSON `{ token }`; network/403 throws uncaught → generic catch shows error in assistant bubble without retry.
+  Root cause: No try/catch around CSRF fetch; `_csrfCache` never cleared on 403.
+  Fix: Handle failed CSRF fetch with user-facing copy; clear cache and retry once on 403.
+  Effort: S
+
+[3.3] Conversation lost on page refresh
+  File: apps/web/src/components/chat-widget.tsx:33
+  Symptom: Messages live in `useState` only; refresh resets to welcome. Server accepts `history` per request but client does not persist.
+  Root cause: `FEATURE_CHAT_HISTORY_PERSISTENCE` exists in API/web flags but is not wired in ChatWidget.
+  Effort: S (optional for MVP)
+  Ref: AI_COACH [2.1]
+
+[3.4] Streaming indicator disappears after first token
+  File: apps/web/src/components/chat-widget.tsx:287-293
+  Symptom: “Tänker…” only when last assistant bubble empty; long gaps mid-stream show static partial text with no progress cue.
+  Root cause: Loader tied to empty content only.
+  Fix: Show subtle in-stream indicator while `streaming` (e.g. cursor or “Skriver…”).
+  Effort: S
+  Ref: AI_COACH [2.8]
+
+[3.5] Server stream not cancelled on client disconnect
+  File: apps/api/src/lib/ai/openclaw-client.ts:71-131; apps/api/src/routes/public-chat.ts:84-99
+  Symptom: Browser abort stops client reader; upstream OpenAI fetch continues until timeout (30s stream timeout).
+  Root cause: No `c.req.raw.signal` / abort propagation from Hono SSE to openclaw-client.
+  Fix: Pass request abort signal into `chatCompletionStream`; abort upstream on disconnect.
+  Effort: M
+  Ref: AI_COACH [2.4]
+
+[3.6] No persistent human handoff control
+  File: apps/web/src/components/chat-widget.tsx:333-335
+  Symptom: Disclaimer “AI-genererat svar” only; `hej@roots.se` appears in errors/fallbacks, not as actionable link/button in header or composer.
+  Root cause: Handoff left to model text and failure paths.
+  Fix: Add “Kontakta oss” mailto or /kontakt link in header/footer of widget.
+  Effort: S
+  Ref: AI_COACH [3.4]
+
+P4 — LOW
+
+[4.1] FAB may overlap footer CTAs on small screens
+  File: apps/web/src/components/chat-widget.tsx:340-344
+  Symptom: `fixed bottom-6 right-6 z-50` with no `safe-area-inset-bottom` — can cover footer links and home indicator.
+  Fix: `bottom-[max(1.5rem,env(safe-area-inset-bottom))]`; optional collision padding.
+  Effort: S
+  Ref: AI_COACH [3.1], [3.5]
+
+[4.2] Assistant bubbles plain text — markdown shows literally
+  File: apps/web/src/components/chat-widget.tsx:287
+  Symptom: Lists, bold, links from model render as raw markdown characters.
+  Fix: Lightweight safe markdown or link detection (post-MVP polish).
+  Effort: M
+  Ref: AI_COACH [2.6]
+
+[4.3] `[DONE]` handler uses inner-loop `break` only
+  File: apps/web/src/components/chat-widget.tsx:156-159
+  Symptom: After `[DONE]`, outer `while (true)` keeps reading until TCP close — harmless but wastes cycles.
+  Fix: Use labeled break or flag to exit read loop on `[DONE]`.
+  Effort: S
+
+[4.4] No quick-reply / intent chips for common PUBLIC questions
+  File: apps/web/src/components/chat-widget.tsx:299-336
+  Symptom: Empty composer — no shortcuts for “Produkter”, “Föreningsliv”, “Leverans”, “Håranalys”.
+  Fix: Optional chip row above textarea (nice-to-have conversion aid).
+  Effort: S
+  Ref: AI_COACH [3.3]
+
+ALREADY ADDRESSED (since AI_COACH 2026-04-18)
+
+✓ AbortController + stop button on widget (was [2.3])
+✓ System-role stripping on public-chat history (contrast ai-chat [1.7])
+✓ PUBLIC_CHAT earnings guardrails — BASE_RULES lines 20-21
+✓ Price deferral to /produkter in PUBLIC prompt — lines 18, 29
+✓ CRM refusal line in PUBLIC prompt — system-prompt.ts:57-58
+✓ AI kill-switch `flags.aiEnabled()` — public-chat.ts:60 (default true)
+✓ Mid-stream SSE errors include `[DONE]` — public-chat.ts:91-98 (audit [4.5] fixed for public path)
+✓ CSRF required in production — app.ts:67-68
+✓ No OpenAI keys in web bundle — openclaw-client.ts server-only
+
+SECURITY NOTES
+- Client bundle: only `/api` proxy URL; no secrets or PII fields sent beyond user-typed chat text.
+- CSRF tokens are stateless HMAC (no TTL); module-level `_csrfCache` is acceptable unless 403 — then needs invalidation ([3.2]).
+- Rate limit key uses first `x-forwarded-for` hop — standard behind trusted proxy; spoofing risk if proxy not stripping client-supplied XFF.
+- `max_completion_tokens: 1024` caps cost per turn; 30 req/h/IP caps abuse volume when Redis healthy.
+
+MVP READINESS BREAKDOWN
+- Functionality:         17/25  (stream + fallback + stop work; close-during-stream gap)
+- Security / abuse:        14/25  (CSRF OK; Redis fail-open; injection partially mitigated)
+- Accessibility:         12/25  (dialog role OK; missing aria-live, focus restore, closed-tab leak)
+- Mobile / UX:           15/25  (usable desktop; keyboard/viewport risk; copy overpromise)
+- Operational readiness: 10/15  (AI_ENABLED flag; no audit logging on public chat)
+
+RECOMMENDED MVP FIX ORDER (aligns MASTER_PLAN Fas 3 public path)
+1. [1.3] Abort stream on dialog close
+2. [1.2] inert/hide dialog when closed
+3. [1.1] Fail-closed or local fallback rate limit
+4. [2.1] aria-live + [2.5] focus return
+5. [2.2] mobile bottom-sheet / viewport fix
+6. [2.3] retryAfter UX + [2.4] copy alignment
+
+--- END SCOUT 6 ---

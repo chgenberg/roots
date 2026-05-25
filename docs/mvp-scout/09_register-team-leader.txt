@@ -1,0 +1,233 @@
+================================================================
+SCOUT 9 — Team leader registration
+================================================================
+Date: 2026-05-25
+Scope: TEAM_LEADER self-serve signup — `apps/web/src/app/(auth)/registrera/page.tsx` (team path), `apps/api/src/routes/auth.ts` (`POST /register/team-leader`, `GET /organizations/search`), `packages/db/src/schema/{teams,organizations}.ts`; cross-ref invite path `registrera/lagansvarig/[token]`
+
+NOTE ON ROUTE
+-------------
+Scout brief references `/registrera/lagledare/` — **that route does not exist**. Team-leader self-registration lives inside the combined `/registrera` wizard (`type === "team"`). The invite-based path is `/registrera/lagansvarig/[token]` (Sprint E9, association-admin → coach claim). Both paths share role `TEAM_LEADER` and redirect target `/lag`.
+
+SUMMARY
+-------
+Team-leader registration is structurally implemented (3-step form, transactional API, session cookie, welcome email, audit log, 32-char `inviteToken`), but the self-serve path is MVP-broken in practice: org search requires an authenticated session so pre-login search always fails silently; when no `ACTIVE` campaign exists on the org the API creates user+org but skips team creation yet the UI always redirects to `/lag`, producing a dead-end dashboard. The invite-claim path (`/registrera/lagansvarig/[token]`) is the only reliable onboarding route today.
+Findings: 16 (P1:3 P2:5 P3:5 P4:3)
+MVP readiness: 35/100
+
+================================================================
+P1 — CRITICAL (blocks MVP)
+================================================================
+
+[1.1] Org search unusable before login — existing-org attach broken
+  File: apps/web/src/app/(auth)/registrera/page.tsx:71-86
+  File: apps/api/src/routes/auth.ts:831-835
+  Symptom: Coach types föreningsnamn in step 1; dropdown stays empty. No error shown. User assumes föreningen "finns inte" and creates duplicate org via "Eller skriv föreningsnamn" or leaves org blank (server creates org named after lag).
+  Root cause: `GET /v1/auth/organizations/search` returns 401 `{ error: "Ej inloggad" }` without session cookie. Client calls `fetch` without checking `res.ok`; catch/empty branch sets `orgSearchResults = []`.
+  Fix: Allow anonymous org search for registration (rate-limited, min 2 chars, return id+name only) OR defer search until post-auth with clear copy; surface 401/403 in UI ("Logga in först" or "Kunde inte söka — försök igen").
+  Effort: M
+  Ref: ASSOCIATION_ONBOARDING [P1 org search]; SCOUT 2 [1.2]
+
+[1.2] No active campaign → account created, team skipped, user sent to broken `/lag`
+  File: apps/api/src/routes/auth.ts:645-665,700-712
+  File: apps/web/src/app/(auth)/registrera/page.tsx:137-143
+  File: apps/web/src/app/(fundraising)/lag/page.tsx:40-45,87-94
+  File: apps/api/src/routes/dashboard.ts:225-236
+  Symptom: Registration succeeds ("Registrering klar!"), auto-redirect to `/lag` after 1.5s. `/v1/dashboard/my-team` returns 404 "Inget lag hittades". UI shows generic "Kunde inte hämta lagdata" with retry — no explanation that föreningen saknar aktiv kampanj.
+  Root cause: API only inserts `teams` row when `campaigns.status = 'ACTIVE'` for the org (`auth.ts:645-665`). Response includes `teamId: null` but frontend ignores it and always `router.push("/lag")`. Self-serve path with new org **never** has an active campaign at signup time.
+  Fix: Return explicit flag e.g. `{ teamCreated: false, reason: "NO_ACTIVE_CAMPAIGN" }`; redirect to holding page ("Väntar på att föreningen startar kampanj") with contact föreningsadmin copy; OR block self-serve TL signup and route coaches only via `/registrera/lagansvarig/[token]`.
+  Effort: M
+
+[1.3] Server-side password policy missing on `POST /register/team-leader`
+  File: apps/api/src/routes/auth.ts:563-565,578
+  File: apps/web/src/app/(auth)/registrera/page.tsx:509
+  Symptom: UI enforces min 8 chars; API only checks `!password` (presence). Client-side bypass or crafted request can register with 1-char password.
+  Root cause: Password length validation exists on password-reset (`auth.ts:300`) and invite-claim (`association.ts:297-298`) but not on team-leader self-register. Same gap on `/register/association` and `/register/seller`.
+  Fix: Shared validator: min 8, max 128; return `{ error: "Lösenord måste vara 8–128 tecken." }` before hash.
+  Effort: S
+  Ref: TEAM_LEADER audit [1.3]
+
+================================================================
+P2 — HIGH (must fix before MVP launch)
+================================================================
+
+[2.1] Welcome email login link 404
+  File: apps/api/src/lib/email/templates.ts:61
+  File: apps/web/src/app/(auth)/login/page.tsx (exists)
+  Symptom: Post-registration email CTA "Logga in" → `${siteUrl()}/logga-in`. No `/logga-in` route in web app; middleware and UI use `/login`.
+  Root cause: Swedish URL slug in email template never wired to Next.js route.
+  Fix: Change href to `/login` (or add redirect `/logga-in` → `/login`).
+  Effort: S
+
+[2.2] Frontend ignores `teamId` in registration response
+  File: apps/web/src/app/(auth)/registrera/page.tsx:127-143
+  Symptom: Success state and redirect identical whether or not team was created. Coach cannot tell if onboarding succeeded fully.
+  Root cause: `apiFetch` typed as `{ error?: string }` only; no branch on `teamId` / `teamCreated`.
+  Fix: Parse response; if `!teamId` show campaign-pending screen instead of `/lag`; if team exists show invite-link preview or deep link to `/lag/saljare`.
+  Effort: S
+
+[2.3] Duplicate org proliferation when search fails
+  File: apps/api/src/routes/auth.ts:609-625
+  File: apps/web/src/app/(auth)/registrera/page.tsx:390-401
+  Symptom: Coach cannot find real förening (search broken) → types new name or skips org field → API inserts new `organizations` row (`type: "club"` or `"team"`) per signup.
+  Root cause: Fallback org creation from `orgName`, `newOrgName`, or `teamName` with no dedup/normalization at registration time (normalization job runs async after commit).
+  Fix: Fix org search first; add server-side normalized-name dedup warning or block; require explicit "Skapa ny förening" confirmation.
+  Effort: M
+
+[2.4] Two TL onboarding paths with no product guidance
+  File: apps/web/src/app/(auth)/registrera/page.tsx:195-212
+  File: apps/web/src/app/(auth)/registrera/lagansvarig/[token]/page.tsx
+  File: apps/web/src/app/(fundraising)/forening/lag/page.tsx:101,180
+  Symptom: Self-serve "Lag eller klass" on `/registrera` promises "börja sälja direkt" but requires pre-existing ACTIVE campaign. Working path is association-admin invite link `/registrera/lagansvarig/[token]` — not mentioned on self-serve flow.
+  Root cause: Self-serve API shipped before campaign-first funnel; invite path (E9) is the intended production flow but marketing/register UI still advertises direct team signup.
+  Fix: Self-serve copy: "Be din förening bjuda in dig" + link explanation; demote self-serve to secondary; or auto-create DRAFT campaign for new orgs (product decision).
+  Effort: M
+
+[2.5] Audit log records team entity with null id when no team created
+  File: apps/api/src/routes/auth.ts:685-691
+  Symptom: `auth.register.team_leader` audit row has `entityType: "team"`, `entityId: null` when signup succeeds without team — breaks downstream audit queries expecting FK.
+  Root cause: `entityId: txResult.createdTeamId` without fallback.
+  Fix: Use `entityType: "user"` + `entityId: userId` when team skipped; add `meta.teamCreated: false`.
+  Effort: S
+
+================================================================
+P3 — MEDIUM
+================================================================
+
+[3.1] No server-side email format validation on team-leader register
+  File: apps/api/src/routes/auth.ts:563-565
+  Symptom: Malformed email strings pass API if truthy; invite-claim path validates regex (`association.ts:294-295`).
+  Fix: Reuse email regex before insert.
+  Effort: S
+
+[3.2] Org search fires on every keystroke — no debounce
+  File: apps/web/src/app/(auth)/registrera/page.tsx:354
+  Symptom: Each character triggers network request (once search is fixed); noisy on mobile/slow networks.
+  Fix: 300ms debounce; abort prior request.
+  Effort: S
+
+[3.3] Terminology drift: "Lag eller klass" vs "lagansvarig" vs "Lag-/klassnamn"
+  File: apps/web/src/app/(auth)/registrera/page.tsx:206-208,339,269-273
+  File: apps/web/src/app/(auth)/registrera/lagansvarig/[token]/page.tsx:187-190
+  File: apps/api/src/lib/email/templates.ts:47-48
+  Symptom: Role picker says "Lag eller klass"; step title "Ditt lag eller klass"; invite page says "lagansvarig"; welcome email "lagansvarig". Coaches in skola vs idrott unclear which path applies.
+  Fix: Pick one term set per audience or add one-line disambiguation on step 1.
+  Effort: S
+
+[3.4] Step 1 org entirely optional — silent server-side org creation
+  File: apps/web/src/app/(auth)/registrera/page.tsx:403-406
+  File: apps/api/src/routes/auth.ts:617-625
+  Symptom: User can proceed with only `teamName`; API creates `organizations` row named after team with `type: "team"` — orphan mini-org disconnected from real förening.
+  Fix: Require org selection OR explicit new-org name; block submit when neither provided.
+  Effort: S
+
+[3.5] No rate limiting on registration endpoints
+  File: apps/api/src/routes/auth.ts:541 (team-leader), 423 (association), 719 (seller)
+  Symptom: Only login uses `loginRateLimit`; registration open to email-enumeration and org-spam inserts.
+  Fix: Shared register rate limit per IP (e.g. 10/hour).
+  Effort: S
+
+================================================================
+P4 — LOW
+================================================================
+
+[4.1] API accepts `personalNumber` but team UI never collects it
+  File: apps/api/src/routes/auth.ts:557,636
+  Symptom: Dead field in contract; association path may use it elsewhere.
+  Fix: Remove from team-leader handler or add field if legally required.
+  Effort: S
+
+[4.2] `teams.inviteToken` column allows 64 chars; generator produces 32
+  File: packages/db/src/schema/teams.ts:28
+  File: apps/api/src/routes/auth.ts:653
+  Symptom: No bug — 32-char token requirement met via `crypto.randomUUID().replace(/-/g,"").slice(0,32)`.
+  Note: Informational OK.
+
+[4.3] Mobile UX: 3-step wizard + org dropdown structurally fine; broken search dominates
+  File: apps/web/src/app/(auth)/registrera/page.tsx:231,357-372,446-464
+  Symptom: `max-w-lg` card, progress bar, 2-col postal grid acceptable at 375px. Org result list `max-h-40` scrolls. Primary mobile pain is empty org search (P1) not layout overflow.
+  Fix: Address P1; optional sticky "Nästa" on long step 2.
+  Effort: S
+
+================================================================
+CHECKLIST (FOCUS AREAS)
+================================================================
+
+Form flow (teamName, org choice, email, password, contact)
+  ✓ 3-step wizard: step1 team+org, step2 contact+address, step3 email+password
+  ✗ Org choice broken pre-login (P1.1); org can be skipped (P3.4)
+  ✓ teamName required client + API
+  ✓ email, password, contactName required API
+
+Org search → validated FK
+  ✗ Search requires session → always empty pre-login (P1.1)
+  ✓ When `existingOrgId` provided: UUID regex + DB lookup + 404 if missing (auth.ts:583-596)
+
+Validation
+  ✓ teamName required
+  ✓ UUID format for existingOrgId
+  ✗ password min length server-side (P1.3)
+  ✗ email format server-side (P3.1)
+
+Transaction: org/user/team atomic; team only if ACTIVE campaign
+  ✓ Single `db.transaction` wraps org insert (if needed), user insert, conditional team insert
+  ✓ Team skipped when no ACTIVE campaign — but UX treats as success (P1.2)
+
+inviteToken 32 chars
+  ✓ Generated inside tx when team created (auth.ts:653)
+
+Welcome email + audit log
+  ✓ Both fire post-commit; email async catch logged
+  ✗ Email login link 404 (P2.1)
+  ~ Audit log written but entityId null when no team (P2.5)
+
+Post-signup redirect / next steps
+  ✗ Always `/lag` regardless of teamId (P1.2, P2.2)
+  ✗ No "wait for campaign" or "copy seller invite" on success screen
+  ✓ Invite path redirects to `/lag` with guaranteed team (association.ts claim)
+
+Edge case: no active campaign
+  ✗ Team not created; user stranded on `/lag` with generic error (P1.2)
+  ✗ API returns 200 ok:true with teamId:null — no user-facing message
+
+Mobile UX
+  ~ Layout OK; org search failure is the blocker (P4.3)
+
+Confusing copy / duplicate fields
+  ✗ "börja sälja direkt" overpromise (P2.4)
+  ✗ lagansvarig vs lag/klass terminology (P3.3)
+  ✓ No duplicate form fields within wizard
+
+================================================================
+WHAT WORKS (invite path — out of scope but relevant)
+================================================================
+
+`/registrera/lagansvarig/[token]` + `POST /v1/association/team-invites/claim`:
+  - Public GET preview (org, team, campaign names)
+  - Token expiry + used-at guards
+  - Server password 8–128, email regex
+  - Team always created (campaignId from invite)
+  - Session + redirect `/lag`
+This is the production-ready TL onboarding path when association admin has created campaign + team invite.
+
+================================================================
+CROSS-ROLE INTEGRATION
+================================================================
+
+- PUBLIC → TEAM_LEADER (self-serve): `/registrera` → broken org attach + likely no team → dead `/lag`
+- ASSOCIATION_ADMIN → TEAM_LEADER (invite): `/forening/lag` creates invite → `/registrera/lagansvarig/[token]` → ✓ works
+- TEAM_LEADER → SELLER: depends on team+inviteToken existing; self-serve path often never reaches invite-link copy on `/lag`
+- Welcome email → `/logga-in` (404) affects all roles using `welcomeEmail()`
+
+MVP READINESS BREAKDOWN
+- Functionality:         8/25  (API tx sound; self-serve path fails end-to-end)
+- Reliability:          10/25  (session+email ok; org search+no-campaign dead ends)
+- Polish/UX:             9/25  (wizard OK; copy overpromises; error states opaque)
+- Cross-role integration: 8/25  (invite path works; self-serve disconnected from campaign funnel)
+
+RECOMMENDED MVP PATH
+1. Fix P1.1 (pre-auth org search) OR disable self-serve and route all TLs via invite link.
+2. Fix P1.2 + P2.2 (conditional redirect / campaign-pending screen).
+3. Fix P1.3 + P2.1 (password policy + email login URL).
+4. Update register copy to match invite-first funnel (P2.4).
+
+--- END SCOUT 9 ---

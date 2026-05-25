@@ -1,0 +1,268 @@
+================================================================
+SCOUT 10 — Seller registration via invite
+================================================================
+Date: 2026-05-25
+Scope: `/registrera/saljare/[token]`, `POST /v1/auth/register/seller`, `packages/db` sellers + teams schemas
+Role: SELLER
+Ref: docs/flow-audits/SELLER_2026-04-18_1245.txt, MASTER_PLAN Fas 6
+
+SUMMARY
+-------
+Core seller self-registration works end-to-end: valid team invite token → atomic user+seller insert → session cookie → redirect to `/min-shop`, where “Öppna min shop” opens a live `/shop/[slug]`. However, the landing page never validates or previews the invite (unlike `/registrera/lagansvarig/[token]`), registration ignores campaign status and minor-protection schema fields, and successful signup silently overwrites any existing browser session. These gaps block MVP-ready seller onboarding for a youth-heavy fundraising product.
+Findings: 18 total (P1: 4, P2: 9, P3: 4, P4: 1)
+MVP readiness: 52/100
+
+================================================================
+FOCUS CHECKLIST (scope verification)
+================================================================
+Token validation
+  invalid → 404        ⚠ API returns 404 on POST only (`auth.ts:740-741`); page renders full form without pre-check — user discovers error only after filling form
+  expired → 410        ✗ `teams.inviteToken` has no `expiresAt`; 410 never returned. Contrast: `team_invites` table (lagansvarig) has expiry + 410 (`association.ts:233-234`)
+  used → ?             N/A by design — team seller invite is multi-use (same link for whole lag). No `usedAt`. Token rotation exists via tRPC `regenerateInviteToken` but old links fail as 404, not 410
+
+Pre-fill / context
+  team name shown      ✗ Page header is generic “Gå med som säljare” — no team/org/campaign (`page.tsx:95-98`)
+  org/campaign visible ✗ `campaigns.getByInviteToken` tRPC exists (`campaigns.ts:226-259`) but page never calls it; no REST preview endpoint like `/v1/association/team-invites/:token`
+
+Form fields
+  email                ✓ required (`page.tsx:113-122`)
+  password             ✓ required, client min 8 (`page.tsx:125-134`, `:156`)
+  displayName          ✓ required (`page.tsx:103-110`)
+  phone                ✓ optional (`page.tsx:137-144`)
+
+displayName → shopSlug
+  lowercase + kebab    ⚠ `displayName.toLowerCase().replace(/[^a-z0-9]/g, "-") + "-" + uuid.slice(0,6)` (`auth.ts:756-759`) — Swedish å/ä/ö stripped to empty segments (e.g. “Åsa” → `--a1b2c3`); not normalized kebab
+  unique               ✓ UUID suffix + DB unique constraint on `sellers.shopSlug`
+
+Duplicate email
+  409 handling         ✓ API returns 409 + Swedish message (`auth.ts:750-751`); UI shows generic error (`page.tsx:55-57`) — no “Logga in istället” path
+
+Transaction atomicity
+  user + seller        ✓ Single `db.transaction` (`auth.ts:761-788`)
+  memberCount++        ✓ `teams.memberCount + 1` in same tx (`auth.ts:782-785`)
+
+Welcome email + audit
+  welcome email        ✓ `welcomeEmail(displayName, "SELLER")` fire-and-forget (`auth.ts:808-813`) — but CTA links to `/logga-in` which does not exist (see P2)
+  audit log            ✓ `auth.register.seller` with teamId + shopSlug (`auth.ts:800-806`)
+
+Post-signup destination
+  /portal/saljare      ✗ Wrong role — `/portal/saljare` is internal SALES_REP pipeline view, not seller shop
+  actual redirect      ✓ `router.push("/min-shop")` after 2s (`page.tsx:62`) — correct SELLER dashboard in `(fundraising)` shell
+
+Minor protection (Fas 6 schema)
+  birthYear visible    ✗ Not on form; `users.birthYear` exists in schema (`users.ts:33`) but never written in `/register/seller`
+  guardianUserId       ✗ Not collected; no under-16 gate or guardian-consent mail (MASTER_PLAN Fas 6 unimplemented)
+
+Privacy profile fields (Fas 6 schema)
+  publicAlias          ✗ Schema column exists (`sellers.ts:43`) — not collected at signup
+  hideFromLeaderboard  ✗ Defaults false only; no UI opt-out at signup
+  personalMessage      ✗ Schema column exists (`sellers.ts:45`) — not collected; shop shows campaign story only
+
+Mobile UX
+  layout               ✓ Centered `max-w-md` card, full-width submit — usable at 375px
+  gaps                 ⚠ No loading/preview state; success screen has no tappable shop link; error only after submit
+
+“Visa min shop” after signup
+  immediate link       ⚠ Success card shows text `/shop/{slug}` (`page.tsx:79-82`) but not a clickable `<a>`; user waits 2s for `/min-shop` redirect
+  shop live            ✓ Shop API + page work immediately post-tx; min-shop “Öppna min shop” opens `/shop/{slug}` in new tab (`min-shop/page.tsx:308-312`)
+
+================================================================
+P1 — CRITICAL (blocks MVP)
+================================================================
+
+[1.1] Silent session takeover when another user is logged in
+  File: apps/api/src/routes/auth.ts:790-798; apps/web/src/app/(auth)/registrera/saljare/[token]/page.tsx (no session check)
+  Symptom: Parent/coach logged in on shared device opens seller invite; successful signup overwrites `rootsSessionId` with new SELLER session — no warning, no merge, no logout-first prompt.
+  Root cause: `createSession` + `setCookie` always runs after registration; page never reads existing session.
+  Fix: Detect active session in API or page; return 409 `{ kind: "SESSION_CONFLICT" }` per MASTER_PLAN Fas 6; UI shows confirm-switch banner. Or force logout before showing form.
+  Effort: M
+  Ref audit: SELLER [1.1] — STILL UNRESOLVED
+
+[1.2] No minor / guardian-consent workflow at seller signup
+  File: apps/api/src/routes/auth.ts:719-828; apps/web/src/app/(auth)/registrera/saljare/[token]/page.tsx; packages/db/src/schema/users.ts:30-35
+  Symptom: Youth sellers (primary persona) register with full legal name, no birth year, no guardian email/consent. Public shop exposes `displayName` + name-derived slug immediately.
+  Root cause: Fas 6 schema fields (`birthYear`, `guardianUserId`, `guardianConsentAt`) added to DB but registration path never reads/writes them; no age gate UI.
+  Fix: Add birth year (or age band) to form; if under 16 → collect guardian email, block public shop until consent token confirmed; default `hideFromLeaderboard` + suggest `publicAlias`.
+  Effort: L
+  Ref audit: SELLER [1.6], [1.7] — PARTIALLY IMPROVED (schema exists) but flow STILL UNRESOLVED
+
+[1.3] Invalid invite token not rejected until form submit
+  File: apps/web/src/app/(auth)/registrera/saljare/[token]/page.tsx (entire file — no useEffect preview)
+  Symptom: User pastes wrong/expired/rotated invite URL, sees full signup form, fills 4 fields, submits → “Ogiltig inbjudningslänk.” Lagansvarig flow already GETs preview on mount (`registrera/lagansvarig/[token]/page.tsx:61-87`).
+  Root cause: No public REST preview for team seller invites; tRPC `getByInviteToken` unused; page is submit-only.
+  Fix: Add `GET /v1/auth/seller-invites/:token` (or reuse tRPC from page) returning teamName, orgName, campaignName; on 404 render `<InviteNotFound />`; mirror lagansvarig UX.
+  Effort: M
+  Ref audit: SELLER [2.1], [2.3] — STILL UNRESOLVED
+
+[1.4] Registration allowed when campaign is not ACTIVE
+  File: apps/api/src/routes/auth.ts:734-742 (team lookup only — no campaign status join)
+  Symptom: Seller completes signup for a team whose campaign is ENDED/SETTLED; lands on min-shop with shop visible but checkout disabled (`shop/[slug]/page.tsx:108-113`). Wasted onboarding — seller cannot earn.
+  Root cause: `/register/seller` validates team token existence but not linked `campaigns.status`.
+  Fix: Join campaign in handler; reject non-ACTIVE with 410 + message “Kampanjen är avslutad”; show same on invite preview.
+  Effort: S
+
+================================================================
+P2 — HIGH (must fix before MVP launch)
+================================================================
+
+[2.1] No org/team/campaign trust context before signup
+  File: apps/web/src/app/(auth)/registrera/saljare/[token]/page.tsx:95-98; apps/api/src/trpc/routers/campaigns.ts:226-259
+  Symptom: Generic “Skapa ditt konto och få din personliga shop direkt” — seller cannot verify they’re joining the right lag/förening/kampanj (SMS templates include leader name; page cannot).
+  Root cause: Missing invite preview fetch (see [1.3]); `getByInviteToken` omits leader name.
+  Fix: Preview endpoint + render team/org/campaign cards; extend query with leader `contactName`.
+  Effort: M
+  Ref audit: SELLER [2.1], [2.2], [2.6] — STILL UNRESOLVED
+
+[2.2] API skips `RegisterSellerSchema` — password length not enforced server-side
+  File: packages/contracts/src/auth.ts:56-62; apps/api/src/routes/auth.ts:727-731
+  Symptom: Client requires ≥8 chars; API only checks truthy `password`. Direct API call with 1-char password succeeds.
+  Root cause: Zod schema defined in contracts but not parsed in route handler (unlike pattern expected for other register endpoints).
+  Fix: `RegisterSellerSchema.safeParse(body)` before DB work; return 400 with field errors.
+  Effort: S
+  Ref audit: SELLER [2.22] — STILL UNRESOLVED
+
+[2.3] 409 duplicate email — no login + bind-invite path
+  File: apps/api/src/routes/auth.ts:750-751; page.tsx:55-57
+  Symptom: Existing user gets “E-postadressen är redan registrerad.” with no link to `/login?next=/registrera/saljare/{token}` or “logga in och gå med i laget”.
+  Root cause: No account-linking flow for invites.
+  Fix: On 409, UI offers login CTA preserving token in `next`; post-login endpoint to attach seller row to team (if user is SELLER/PUBLIC).
+  Effort: M
+  Ref audit: SELLER [2.4] — STILL UNRESOLVED
+
+[2.4] Welcome email login link 404 (`/logga-in`)
+  File: apps/api/src/lib/email/templates.ts:61
+  Symptom: Post-signup email button “Logga in” → `/logga-in`; no such route in `apps/web` (login is `/login`).
+  Root cause: Stale path in template.
+  Fix: Change to `${siteUrl()}/login`; for sellers add secondary CTA “Öppna min shop” → `/min-shop`.
+  Effort: S
+
+[2.5] Swedish names produce broken shop slugs
+  File: apps/api/src/routes/auth.ts:756-759 (same pattern in dashboard.ts:513-516)
+  Symptom: “Östen Lindström” → slug like `---sten-lindstr-m-abc123` after non-ASCII strip; ugly share URLs, harder to remember.
+  Root cause: `replace(/[^a-z0-9]/g, "-")` after naive `toLowerCase()` without transliteration.
+  Fix: Use `slugify` with Swedish locale or strip diacritics (`ö→o`); collapse repeated hyphens; consider `publicAlias` for display vs slug (Fas 6).
+  Effort: S
+  Ref audit: SELLER [2.9] — STILL UNRESOLVED
+
+[2.6] Privacy fields in schema not collected at registration
+  File: packages/db/src/schema/sellers.ts:43-45; auth.ts:774-780
+  Symptom: Minors cannot set pseudonym, hide from leaderboard, or personal message at signup — defaults expose real name on public shop and team ranking.
+  Root cause: Fas 6 columns added without form/API wiring.
+  Fix: Optional signup step (or expandable section): publicAlias, hideFromLeaderboard checkbox, personalMessage textarea; persist in same tx.
+  Effort: M
+  Ref audit: SELLER [1.8], [1.9] — SCHEMA IMPROVED since April audit; UI/API STILL UNRESOLVED
+
+[2.7] Logged-in user sees full signup form (no branch)
+  File: apps/web/src/app/(auth)/layout.tsx; registrera/saljare/[token]/page.tsx
+  Symptom: TEAM_LEADER or ASSOCIATION_ADMIN opens seller invite on same browser — can create second account or hit 409 on own email without guidance.
+  Root cause: Auth layout has no session probe; no “already logged in as X” banner.
+  Fix: Fetch `auth.me` on mount; if session exists show context + logout / use different account.
+  Effort: S
+  Ref audit: SELLER [2.5] — STILL UNRESOLVED
+
+[2.8] Success screen lacks immediate clickable shop link
+  File: apps/web/src/app/(auth)/registrera/saljare/[token]/page.tsx:70-86
+  Symptom: After signup, user sees `/shop/{slug}` as plain text and waits 2s — cannot open shop immediately to verify; bad for “Visa min shop” acceptance test.
+  Root cause: Success UI is passive; redirect timer only.
+  Fix: Add primary `<a href="/shop/{slug}">Visa min shop</a>` + secondary “Gå till dashboard”; reduce or remove fixed delay.
+  Effort: S
+
+[2.9] No `/registrera/saljare` index — tokenless URL 404
+  File: apps/web/src/app/(auth)/registrera/saljare/ (only `[token]/page.tsx`)
+  Symptom: `/registrera/saljare` without token → Next.js 404; marketing copy or SMS truncation may land here.
+  Root cause: No fallback page explaining “you need an invite link from your lagledare”.
+  Fix: Add `registrera/saljare/page.tsx` with helpful copy + link to support.
+  Effort: S
+
+================================================================
+P3 — MEDIUM (quality / soft launch)
+================================================================
+
+[3.1] Team invite tokens never expire — inconsistent with lagansvarig invites
+  File: packages/db/src/schema/teams.ts:28-29; association team_invites with expiresAt
+  Symptom: Seller invite links work forever until manually rotated; leaked links stay valid indefinitely.
+  Root cause: By-design multi-use token without TTL.
+  Fix: Document as intentional OR add optional `inviteExpiresAt` on teams; return 410 when past date.
+  Effort: M
+  Ref audit: SELLER [2.3] — partial (no expiry field)
+
+[3.2] `RegisterSellerSchema` in contracts unused — contract drift
+  File: packages/contracts/src/auth.ts:56-62; auth.ts manual validation
+  Symptom: Frontend/backend can diverge on validation rules without compile-time enforcement.
+  Fix: Parse with shared schema in API; optionally validate client-side with same Zod export.
+  Effort: S
+
+[3.3] No automated tests for seller registration
+  File: (none found for `register/seller`)
+  Symptom: Regressions on tx atomicity, 409, slug uniqueness undetected in CI.
+  Fix: Integration test: valid token → 200 + seller row + memberCount; duplicate email → 409; bad token → 404.
+  Effort: M
+
+[3.4] Preview gate may block invite links in staging
+  File: apps/web/src/middleware.ts:78-92
+  Symptom: `/registrera/saljare/[token]` requires `roots_preview` cookie in gated environments — invite SMS links fail for cold visitors unless gate password known.
+  Root cause: Site-wide preview gate rewrites all non-bypass paths.
+  Fix: Add `/registrera` to gate bypass for invite flows (or disable gate in production only — verify env policy).
+  Effort: S
+
+================================================================
+P4 — LOW / POLISH (v1.1 backlog)
+================================================================
+
+[4.1] Success redirect fixed 2s delay — no skip control
+  File: page.tsx:62
+  Symptom: User must wait even if they clicked through to shop manually.
+  Fix: Remove timeout or navigate immediately after session established.
+  Effort: S
+
+================================================================
+WHAT WORKS (do not break)
+================================================================
+- POST `/v1/auth/register/seller` creates user (role SELLER), seller row, increments `teams.memberCount` in one transaction
+- Session cookie set on success — seller reaches `/min-shop` without separate login
+- Duplicate email returns HTTP 409 with clear Swedish error
+- Invalid token returns HTTP 404 on submit
+- Audit log `auth.register.seller` with teamId + shopSlug
+- Welcome email dispatched (content/link fix needed)
+- Shop slug resolves immediately via GET `/v1/shop/by-slug/:slug`
+- min-shop dashboard loads seller profile and “Öppna min shop” external link works
+- Form uses `apiFetch` with CSRF for production POST safety
+- Mobile-friendly single-column card layout
+
+================================================================
+ROLE CONNECTIONS CHECKED
+================================================================
+- TEAM_LEADER → SELLER (invite link): ✓ Link generated in `/lag`, `/lag/saljare`, `/forening/lag` → `/registrera/saljare/{teams.inviteToken}`
+- SELLER invite → SELLER session → min-shop: ✓ Correct path (NOT `/portal/saljare` which is SALES_REP internal)
+- SELLER → public shop (/shop/[slug]): ✓ Works post-signup if campaign ACTIVE
+- SELLER → checkout: ⚠ Depends on campaign.status — registration does not gate inactive campaigns ([1.4])
+- ASSOCIATION_ADMIN → seller invite: ✓ Indirect via team creation / lag pages
+- Existing user → join team via invite: ✗ No bind-after-login ([2.3])
+
+Cross-scout notes:
+- Scout 11+ should cover min-shop first-share UX (separate from registration scope).
+- Supporter checkout scout should verify shop checkout when campaign ACTIVE after fresh seller signup.
+- Fas 6 master plan items (guardian consent, publicAlias, session conflict) directly overlap this flow.
+
+================================================================
+MVP READINESS BREAKDOWN
+================================================================
+- Functionality:         14/25  (happy path works; missing preview, campaign gate, duplicate-user path)
+- Reliability:           12/25  (atomic tx good; no tests; session overwrite; slug edge cases)
+- Polish/UX:             13/25  (generic landing; no context; success screen weak; mobile ok)
+- Compliance/safety:      8/25  (minor consent absent despite schema; real names public by default)
+- Cross-role integration: 15/25  (invite generation wired; login/bind missing; wrong email CTA path)
+
+NOTES FOR THE TEAM
+------------------
+Resolved since April 2026 SELLER audit (verify, do not re-fix):
+- `sellers.publicAlias`, `hideFromLeaderboard`, `personalMessage` columns now exist (`sellers.ts:43-45`) — SELLER [1.9] schema CLOSED; collection still open ([2.6]).
+- `users.birthYear`, `guardianUserId`, `guardianConsentAt` columns now exist (`users.ts:33-35`) — SELLER [1.7] schema CLOSED; flow still open ([1.2]).
+
+Highest-impact sprint for this scout’s scope:
+1. Invite preview GET + 404/410 page states (mirror lagansvarig) — [1.3], [2.1]
+2. Session-conflict guard on register — [1.1]
+3. Campaign ACTIVE check on register — [1.4]
+4. Fix welcome email `/login` + success “Visa min shop” link — [2.4], [2.8]
+
+--- END SCOUT 10 ---

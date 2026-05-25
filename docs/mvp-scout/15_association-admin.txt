@@ -1,0 +1,262 @@
+================================================================
+SCOUT 15 — ASSOCIATION_ADMIN portal (kampanjer, säljare, leveranser, payouts)
+================================================================
+Date: 2026-05-25
+Role: ASSOCIATION_ADMIN
+Scope (as briefed): apps/web/src/app/(portal)/portal/page.tsx, portal/kampanjer|saljare|leveranser|utbetalningar, apps/api/src/routes/portal.ts, settlement.ts, packages/db/src/schema/campaigns.ts, payouts.ts
+Actual product surface: `(fundraising)/forening/*` — ASSOCIATION_ADMIN is intentionally excluded from `/portal/*` (portal.ts:69-75). Scout findings map brief checklist items to live routes under `/forening`.
+
+SUMMARY
+-------
+Sprint E9–E12 shipped a usable `/forening` shell: campaign create modal, team-invite flow, KPI dashboard, per-team goals, and read-only avräkning estimates. MVP-blocking gaps remain for the full association-admin job: no org-wide leveranser view or order-status updates, no real payout/settlement UX (API exists but UI never calls it), no campaign lifecycle (end → settle), no product assortment selection, dashboard aggregates mix all campaigns, and team-goal saves omit CSRF in production. Briefed `/portal/*` paths do not exist for this role; `/portal/saljare` is internal sales staff only.
+Findings: 24 (P1: 8, P2: 9, P3: 5, P4: 2)
+MVP readiness: 54/100
+
+================================================================
+FOCUS CHECKLIST (pass / partial / fail)
+================================================================
+| Item | Status | Notes |
+|------|--------|-------|
+| Create campaign: form, dates, goal | PARTIAL | Modal on `/forening` — name, dates, goal (kr), margin; hardcodes `goalType: AMOUNT`, `deliveryType: BULK` |
+| Product selection on campaign | FAIL | `campaign_products` table exists; no UI or API hook on POST `/v1/association/campaigns` |
+| Campaign status visible (DRAFT/ACTIVE/ENDED/SETTLED) | FAIL | Subtitle shows active name only; no list/badges; frontend type omits SETTLED |
+| Activate campaign UX + consequences | PARTIAL | Creates ACTIVE immediately (association.ts:470); dialog warns shops go live; no DRAFT step or end-campaign action |
+| Invite team leaders — link generation | PASS | `/forening/lag` → POST `/v1/association/team-invites`; 14-day TTL, single-use claim |
+| Invite sellers — link generation | PASS | Per-team seller URL on lag cards; multi-use token (no TTL) |
+| Aggregate stats: sellers, packages, % goal | PARTIAL | KPI cards on dashboard; progress bar when active campaign + goal; stats are org-wide not campaign-scoped |
+| Payouts view: amounts + PENDING/INVOICED/PAID | FAIL | `/forening/avrakning` shows estimated shares only; never reads `payouts` or settlement API |
+| Settlement trigger + double-press guard | FAIL | `POST /v1/settlement/generate/:campaignId` exists; no UI; no confirm/disable; requires ENDED first (no UI to end) |
+| Leveranser: order list, status, packing export | FAIL | No `/forening/leveranser`; TL has `/lag/bestallningar` + CSV; no org-wide list; no status-update API |
+| Mobile UX | PARTIAL | Fundraising layout has mobile nav (layout.tsx:208-272); wide tables minimal; campaign/lag modals usable |
+| Empty states | PARTIAL | Lag page has CTA; dashboard leaderboard copy-only; avräkning/mål weak when no teams/campaign |
+| Members / seller management | PARTIAL | Teams + seller invite links; no org-wide seller roster page; `/portal/medlemmar` is CLUB-only |
+| Scoped `/portal` routes (brief) | FAIL | kampanjer/, leveranser/, utbetalningar/ absent; ASSOCIATION_ADMIN gets 403 on portal APIs |
+
+================================================================
+P1 — CRITICAL (MVP blockers)
+================================================================
+
+[1.1] No leveranser surface for association admin — cannot see or fulfill org orders
+  File: apps/web/src/app/(fundraising)/layout.tsx:90-97 (nav has no leveranser)
+        apps/web/src/app/(fundraising)/lag/bestallningar/page.tsx (team-scoped only)
+        apps/api/src/routes/dashboard.ts:49-132 (association dashboard has no orders[])
+  Symptom: Föreningsadmin has no order list, filters, detail dialog, or CSV export. Team leaders use `/lag/bestallningar`; assoc admin middleware allows `/lag` but `GET /v1/dashboard/my-team` returns 404 (not a leader).
+  Root cause: Org-wide customer-order read path never built for ASSOCIATION_ADMIN despite RBAC on single-order detail (dashboard.ts:714-716).
+  Fix: Add `/forening/leveranser` + `GET /v1/dashboard/association/orders` (org + optional campaign filter); reuse OrderDetailDialog + orders-csv.
+  Effort: L
+
+[1.2] No API to update customer order delivery status (SHIPPED/DELIVERED)
+  File: packages/contracts/src/campaigns.ts:60-70 (status enum includes SHIPPED/DELIVERED)
+        apps/api/src/routes/*.ts (no PATCH for customer_orders status)
+  Symptom: Even team-leader order page is read-only for fulfillment; assoc admin cannot mark bulk shipment progress.
+  Root cause: Status transitions only from payment webhooks/checkout; no operator workflow.
+  Fix: `PATCH /v1/dashboard/orders/:id/status` with RBAC (TEAM_LEADER own team, ASSOCIATION_ADMIN org, INTERNAL_ADMIN); audit log.
+  Effort: M
+
+[1.3] Avräkning UI disconnected from settlement + payouts — no real payout status
+  File: apps/web/src/app/(fundraising)/forening/avrakning/page.tsx (entire file — only `/v1/dashboard/association`)
+        apps/api/src/routes/settlement.ts:167-223 (`GET /by-campaign/:id` returns payouts with status)
+        packages/db/src/schema/payouts.ts:15-19 (PENDING/INVOICED/PAID)
+  Symptom: Page shows live margin math on PAID orders, not persisted payout rows. Admins cannot see PENDING/INVOICED/PAID, Fortnox id, or trigger settlement.
+  Root cause: Settlement API shipped without frontend wiring (feedback-plans/08-ecommerce-integration/03_settlement_and_payouts.txt).
+  Fix: Campaign picker → fetch settlement by campaign; table per team with status badges; "Generera avräkning" → POST generate (with confirm modal).
+  Effort: M
+
+[1.4] Cannot end campaign — blocks settlement pipeline
+  File: apps/api/src/routes/settlement.ts:67-69 (requires `campaign.status === "ENDED"`)
+        apps/api/src/trpc/routers/campaigns.ts:137-176 (update/activate exist)
+        apps/web/src/app/(fundraising)/forening/ (no end-campaign control)
+  Symptom: Admin creates ACTIVE campaigns but has no UI/API REST path to set ENDED. Settlement always 400 until manual DB/tRPC intervention.
+  Root cause: Lifecycle mutations only in unused tRPC router; web never calls them.
+  Fix: REST `PATCH /v1/association/campaigns/:id/status` or wire tRPC; "Avsluta kampanj" on dashboard with consequences copy (shops close).
+  Effort: M
+
+[1.5] No campaign product assortment — shops may show wrong catalog
+  File: packages/db/src/schema/campaign-products.ts
+        apps/api/src/routes/association.ts:405-504 (create campaign — no campaign_products insert)
+        docs/flow-audits/SUPPORTER_2026-04-18_1247.txt [1.2]
+  Symptom: Campaign create never links products; public shop may expose all active SKUs instead of campaign assortment.
+  Root cause: Product picker never built for association admin.
+  Fix: Product multi-select in campaign modal; persist `campaign_products` on create/update; filter shop API by campaign.
+  Effort: L
+
+[1.6] Dashboard aggregates all campaigns — misleading goal progress and leaderboard
+  File: apps/api/src/routes/dashboard.ts:64-98,109-127
+        apps/web/src/app/(fundraising)/forening/page.tsx:166-181,183-185
+  Symptom: `totalSalesOre` / `totalOrders` sum every PAID order in org; progress bar uses active campaign goal against org-wide totals. Teams from old campaigns appear in ranking.
+  Root cause: Association dashboard query lacks `campaignId` filter.
+  Fix: Scope stats/teams/sellers to selected or active campaign; campaign switcher in header.
+  Effort: M
+
+[1.7] Team goal PATCH omits CSRF — fails in production
+  File: apps/web/src/app/(fundraising)/forening/mal/page.tsx:71-80
+        apps/api/src/app.ts:61-68 (POST/PATCH require x-csrf-token)
+        apps/web/src/lib/api.ts:27-28 (apiFetch attaches token)
+  Symptom: Saving team goals via raw `fetch` returns 403 "Invalid or missing CSRF token" when API CSRF is enforced (prod/staging).
+  Root cause: Mål page bypasses `apiFetch`; campaign create and team-invite correctly use it.
+  Fix: Replace with `apiFetch("/v1/dashboard/association/team-goals", { method: "PATCH", body: … })`.
+  Effort: S
+
+[1.8] Briefed `/portal/*` routes absent; role misroutes if user lands on `/portal`
+  File: apps/web/src/app/(portal)/portal/page.tsx:614-620 (ASSOCIATION_ADMIN → AdminDashboard fallback)
+        apps/api/src/routes/portal.ts:69-75 (403 for fundraising roles)
+  Symptom: No portal/kampanjer, leveranser, utbetalningar. Manual navigation to `/portal` shows internal-admin KPIs; API calls fail with 403. `/portal/saljare` lists SALES_REP pipeline, not youth sellers.
+  Root cause: Split shell design (/forening vs /portal) not reflected in scout paths; portal page lacks assoc branch.
+  Fix: Redirect ASSOCIATION_ADMIN from `/portal` → `/forening` in layout or middleware; document canonical routes.
+  Effort: S
+
+================================================================
+P2 — HIGH (launch quality / trust)
+================================================================
+
+[2.1] No campaign list or status badges — admin cannot see DRAFT/ENDED/SETTLED history
+  File: apps/web/src/app/(fundraising)/forening/page.tsx:166-196
+        apps/web/src/types/fundraising.ts:19 (status union missing SETTLED)
+  Symptom: Only first ACTIVE campaign name in subtitle; creating "Ny kampanj" while one is active allowed with no warning.
+  Fix: Campaign table/cards with status chips; warn before second ACTIVE; include SETTLED in types.
+  Effort: M
+
+[2.2] Activate/create skips DRAFT — no staged launch or edit-before-live
+  File: apps/api/src/routes/association.ts:470 (`status: "ACTIVE"`)
+        apps/api/src/trpc/routers/campaigns.ts:84-101 (insert defaults DRAFT in schema)
+  Symptom: REST path always goes live; tRPC DRAFT+activate path unused from web — inconsistent backends.
+  Fix: Align on DRAFT default + explicit activate, or document REST as intentional; show confirmation checklist before shops open.
+  Effort: M
+
+[2.3] No org-wide seller roster — API returns sellers, UI only shows count
+  File: apps/api/src/routes/dashboard.ts:74-83,125
+        apps/web/src/app/(fundraising)/forening/page.tsx:228-231
+  Symptom: `sellers` array fetched but never listed; admin cannot search/pause/contact sellers across teams.
+  Fix: `/forening/saljare` table (name, team, shop slug, sales) or expand dashboard section.
+  Effort: M
+
+[2.4] Seller invite links are permanent multi-use — no TTL or rotation for assoc admin
+  File: packages/db/src/schema/teams.ts (inviteToken)
+        apps/web/src/app/(fundraising)/forening/lag/page.tsx:218-261
+        apps/api/src/trpc/routers/campaigns.ts:288-308 (regenerate — TEAM_LEADER only)
+  Symptom: Lag page copy says leader invite is 14 days / one-use (team_invites) but seller links on same page are reusable forever; no rotate for assoc admin.
+  Fix: Align copy with behavior; optional expiry; expose regenerate for ASSOCIATION_ADMIN.
+  Effort: M
+
+[2.5] Settlement generate lacks idempotency UX — double POST recalculates while ENDED
+  File: apps/api/src/routes/settlement.ts:76-145 (updates existing payouts; no "already settled" guard)
+  Symptom: Repeated generate on ENDED campaign overwrites payout amounts and re-sets SETTLED; no UI confirm/disable.
+  Fix: Reject if campaign SETTLED unless INTERNAL_ADMIN; UI disable after success + audit trail display.
+  Effort: S
+
+[2.6] No path to mark payout PAID or create invoice from association UI
+  File: apps/api/src/routes/settlement.ts:225-289 (`create-invoice/:payoutId` — no PAID transition endpoint)
+  Symptom: Status stops at INVOICED; PAID enum unused in product flows.
+  Fix: Internal ops or assoc-admin "mark paid" with bank reference; wire Fortnox stub honestly in UI.
+  Effort: M
+
+[2.7] `/forening/mal` — no empty-state when no active campaign
+  File: apps/web/src/app/(fundraising)/forening/mal/page.tsx:137-180,275-280
+  Symptom: Without ACTIVE campaign, goal summary hidden; teams may still list with pencil disabled implicitly (save errors). No CTA to start campaign.
+  Fix: Empty state + link to dashboard campaign modal.
+  Effort: S
+
+[2.8] `/forening/avrakning` — empty teams renders blank list (no message)
+  File: apps/web/src/app/(fundraising)/forening/avrakning/page.tsx:113-141
+  Symptom: `teams.length === 0` → empty `<div className="space-y-3">` with no copy.
+  Fix: Dashed empty state + link to `/forening/lag`.
+  Effort: S
+
+[2.9] Org profile / bank details missing for payout trust
+  File: apps/web/src/app/(fundraising)/installningar/page.tsx (profile + password only)
+        docs/flow-audits/ASSOCIATION_ONBOARDING_2026-04-18_1241.txt [2.8]-[2.9]
+  Symptom: No bankgiro/plusgiro in org schema/UI before avräkning; treasurer cannot verify payout destination.
+  Fix: Org settings card on `/installningar` or `/forening/installningar` with persisted org fields.
+  Effort: M
+
+[2.10] `/portal/medlemmar` not available to ASSOCIATION_ADMIN — different membership model undocumented
+  File: apps/web/src/app/(portal)/portal/medlemmar/page.tsx (CLUB invite via portal API)
+        apps/web/src/app/(fundraising)/layout.tsx:90-97
+  Symptom: Checklist "members management" implies medlemmar page; assoc admin manages via team/seller invites only — no unified member directory.
+  Fix: Clarify IA in help docs; optional org member list if product needs non-seller contacts.
+  Effort: M (if building roster)
+
+================================================================
+P3 — MEDIUM
+================================================================
+
+[3.1] Campaign modal only supports AMOUNT goals — PACKAGES goal type unreachable from UI
+  File: forening/page.tsx:121-122; association.ts:436-437
+  Fix: Goal-type toggle when product supports package counting.
+  Effort: S
+
+[3.2] Leader invite email captured but never sent
+  File: forening/lag/page.tsx:371-374; association.ts:114-115
+  Fix: Send email template or remove field until wired.
+  Effort: M
+
+[3.3] Dashboard leaderboard empty state lacks deep link
+  File: forening/page.tsx:266-269
+  Fix: Button to `/forening/lag` (lag page already has good empty CTA).
+  Effort: S
+
+[3.4] tRPC campaigns router unused in web — duplicate backend surface
+  File: apps/web/src/lib/trpc.ts; apps/api/src/trpc/routers/campaigns.ts
+  Fix: Pick REST or tRPC; delete or wire dead client.
+  Effort: S
+
+[3.5] Multiple ACTIVE campaigns — no server guard
+  File: association.ts:462-478
+  Fix: Reject second ACTIVE per org or auto-end previous with confirm.
+  Effort: S
+
+================================================================
+P4 — LOW
+================================================================
+
+[4.1] Progress reload uses `window.location.reload()` on error paths — loses dialog state
+  File: forening/page.tsx:156-158; lag/page.tsx:172-174
+  Effort: S
+
+[4.2] Campaign create success toast says "är aktiv" even when user may expect draft
+  File: forening/page.tsx:130
+  Effort: S
+
+================================================================
+WHAT WORKS (no action required for partial MVP path)
+================================================================
+- Login → `/forening` redirect (login/page.tsx; scout 07).
+- Fundraising layout: auth gate, role nav, mobile menu, notifications (layout.tsx).
+- Campaign create modal: validation, POST `/v1/association/campaigns`, reload dashboard (forening/page.tsx:90-142).
+- Team create + leader invite: POST team-invites, claim flow with TTL (association.ts; lag/page.tsx).
+- Seller invite URL display + copy on lag cards (lag/page.tsx:240-261).
+- KPI cards: sales, orders, lag count, seller count (forening/page.tsx:205-234).
+- Per-team goal edit API + UI (when CSRF fixed) (mal/page.tsx; dashboard.ts:138+).
+- Settlement backend: generate, by-campaign, create-invoice (settlement.ts) — ready for UI.
+- Schema: campaigns status enum, payouts unique (campaignId, teamId), payout status enum (campaigns.ts, payouts.ts).
+- Demo seed: forening@demo-if.se → full fundraising path (seed-demo.ts:555+).
+
+ROLE / ROUTE MAP (canonical)
+------------------------------
+| Surface | Route | API |
+|---------|-------|-----|
+| Dashboard | /forening | GET /v1/dashboard/association |
+| Lag + invites | /forening/lag | POST /v1/association/team-invites |
+| Mål | /forening/mal | PATCH /v1/dashboard/association/team-goals |
+| Avräkning (estimates) | /forening/avrakning | GET /v1/dashboard/association |
+| Inställningar | /installningar | GET /v1/auth/me, change-password |
+| Settlement (no UI) | — | POST /v1/settlement/generate/:campaignId |
+| Portal (wrong role) | /portal/* | 403 for ASSOCIATION_ADMIN |
+
+MVP READINESS BREAKDOWN
+- Campaign lifecycle:     8/25  (create OK; no products, end, settle UI)
+- Teams & sellers:       16/25  (invites work; roster + seller token policy weak)
+- Orders & leveranser:    2/25  (no org list, status, export)
+- Payouts & avräkning:    5/25  (estimates only; API unwired)
+- UX / empty / mobile:   14/25  (shell good; gaps on avräkning/mål/leaderboard)
+- Architecture clarity:   9/25  (portal split confusing; CSRF bug on mål)
+
+REFERENCES
+- docs/flow-audits/ASSOCIATION_ONBOARDING_2026-04-18_1241.txt — onboarding desert, org profile (partially addressed E9)
+- docs/flow-audits/CLUB_MEMBER_2026-04-18_1249.txt — B2B club vs fundraising split (do not conflate with assoc admin)
+- docs/flow-audits/MASTER_PLAN_2026-04-18.md — campaign_products filter on shop; role welcome messages
+- docs/mvp-scout/08_register-association.txt — post-signup lands on /forening without wizard
+- docs/mvp-scout/07_login.txt — ASSOCIATION_ADMIN → /forening
+- docs/SPRINT_E9.md, docs/SPRINT_E12.md — team invites, goals, pause sellers (TL scope)
+
+--- END SCOUT 15 ---

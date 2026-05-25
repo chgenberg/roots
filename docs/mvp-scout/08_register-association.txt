@@ -1,0 +1,221 @@
+================================================================
+SCOUT 8 — Association registration (/registrera + API)
+================================================================
+Date: 2026-05-25
+Scope: ASSOCIATION_ADMIN signup — `apps/web/src/app/(auth)/registrera/` (page + layout), `POST /v1/auth/register/association`, `GET /v1/auth/organizations/search`, `packages/db/src/schema/organizations.ts`, `packages/db/src/schema/users.ts`
+Note: No dedicated `/registrera/forening/` route exists; association signup is the `"association"` branch inside the shared `/registrera` page.
+
+SUMMARY
+-------
+Association registration is a working 3-step wizard that atomically creates org + user, sets a session cookie, fires audit + welcome email, and redirects to `/forening`. Core happy-path is shippable. MVP blockers remain: API skips contract validation (password length, email format, orgnr), duplicate orgs are not prevented, and a Redis/session failure after DB commit leaves an orphan account with a generic 500. Post-signup lands on a dashboard without a guided setup wizard.
+Findings: 18 total (P1: 4, P2: 7, P3: 5, P4: 2)
+MVP readiness: 62/100
+
+================================================================
+FOCUS CHECKLIST
+================================================================
+| Item | Status | Notes |
+|------|--------|-------|
+| Multi-step or single form | ✓ | 3 steps: förening → uppgifter → konto (`registrera/page.tsx:228-521`) |
+| Org search/autocomplete (dupes, fuzzy) | ✗ (assoc path) | Search only on **team** path; association uses free-text org name with no dedup |
+| Validation: orgName, email, password | ⚠ | Client: orgName required, email type, password ≥8. Server: presence only — no email/password rules |
+| orgNumber NNNNNN-NNNN | ✗ | Placeholder only; no client or server format check (contrast: `sales.ts:106-108`) |
+| Phone / personnummer format | ⚠ | Phone optional, no format check; `personalNumber` accepted by API but not in association UI |
+| Postal code NNN NN | ✗ | Free text; no pattern |
+| Existing email → 409 | ✓ | `"E-postadressen är redan registrerad."` (`auth.ts:457-458`) |
+| Tx atomicity org + user | ✓ | `db.transaction` wraps both inserts (`auth.ts:463-492`) |
+| Welcome email (non-blocking) | ✓ | `.catch()` after tx; does not block response (`auth.ts:517-522`) |
+| Audit log auth.register.association | ✓ | Fire-and-forget (`auth.ts:509-515`) |
+| Session + redirect to setup wizard | ⚠ | Session + cookie on success; redirect → `/forening` dashboard, **no wizard** |
+| Mobile: sticky CTA, autofill | ⚠ | No `<form>`, no sticky CTA; partial autofill (email/password only) |
+| "Redan ett konto?" → login | ✓ | Footer on type picker + wizard steps (`page.tsx:215-222,525-532`) |
+| BankID stub status | ✓ OK | BankID API exists (`/v1/bankid`); **not shown** on registrera — correctly absent |
+
+================================================================
+P1 — CRITICAL (blocks MVP)
+================================================================
+
+[1.1] Server does not enforce password length or complexity on association register
+  File: apps/api/src/routes/auth.ts:446-448,461; packages/contracts/src/auth.ts:20-33 (unused)
+  Symptom: Client disables submit when `password.length < 8`, but API accepts any non-empty password (e.g. `"1"` via curl/Postman). `RegisterAssociationSchema` defines `.min(8)` but is never parsed in the route.
+  Root cause: Manual field presence check instead of Zod contract; no parity with `change-password` (min 8 at auth.ts:298-302).
+  Fix: Parse body with `RegisterAssociationSchema.safeParse()`; return 400 with field errors. Optionally add complexity rule matching product policy.
+  Effort: S
+  Ref audit: ASSOCIATION [3.2] — STILL UNRESOLVED
+
+[1.2] Session creation failure after successful DB commit → orphan account
+  File: apps/api/src/routes/auth.ts:463-507,535-537; apps/api/src/lib/session.ts:41-43
+  Symptom: If `createSession` throws (Redis down in production), transaction already committed org + user. Handler returns generic 500 `"Registreringen misslyckades."` with no session cookie. User cannot retry with same email (409) and may not know to use login.
+  Root cause: Session created outside tx with no rollback/compensation; login path handles this with 503 (`auth.ts:163-167`) but register does not.
+  Fix: Wrap `createSession` in try/catch; on failure return 503 with copy "Kontot skapades — logga in" OR delete org+user in compensating tx; align with login error handling.
+  Effort: M
+  Ref audit: NEW (reliability gap)
+
+[1.3] No duplicate-organization prevention for association signup
+  File: apps/api/src/routes/auth.ts:464-472; packages/db/src/schema/organizations.ts:35-36
+  Symptom: Each association registration inserts a new org row. Same förening can register twice (same name or orgNumber). No unique index on `org_number`; no name normalization check. Sales lead API dedupes by orgNumber (`sales.ts:114-123`) but register path does not.
+  Root cause: Association flow bypasses org search entirely; free-text `orgName` with optional `orgNumber` stored as-is.
+  Fix: If `orgNumber` provided, reject 409 when org exists; optional pre-submit search by normalized name; add unique partial index on `org_number` where not null.
+  Effort: M
+  Ref audit: ASSOCIATION [3.4], [3.5] — STILL UNRESOLVED (worse: no dedup at all)
+
+[1.4] No server-side email format validation
+  File: apps/api/src/routes/auth.ts:446-448,478
+  Symptom: Malformed strings (e.g. `"not-an-email"`) pass API validation if truthy; stored in DB; welcome email may fail silently.
+  Root cause: No `.email()` check; contract schema unused.
+  Fix: Enforce via `RegisterAssociationSchema` (already has `z.string().email()`).
+  Effort: S
+  Ref audit: ASSOCIATION [3.2] — STILL UNRESOLVED (partial)
+
+================================================================
+P2 — HIGH (must fix before MVP launch)
+================================================================
+
+[2.1] Post-signup redirect skips setup wizard — post-login desert
+  File: apps/web/src/app/(auth)/registrera/page.tsx:137-144; apps/web/src/app/(fundraising)/forening/page.tsx:187-201
+  Symptom: Success → 1.5s delay → `/forening` KPI dashboard. No "steg 1 av 4", no checklist (kampanj → lag → säljare). New admin sees "Ingen aktiv kampanj" with a button but no guided first-run flow.
+  Root cause: Product never shipped onboarding wizard; audit finding [2.1] still applies.
+  Fix: Redirect to `/forening?onboarding=1` or dedicated `/forening/kom-igang` with step checklist; auto-open campaign dialog on first visit.
+  Effort: M
+  Ref audit: ASSOCIATION [2.1]–[2.3] — STILL UNRESOLVED (campaign modal added in Sprint E9 — partial)
+
+[2.2] Organisationsnummer not validated (Swedish format)
+  File: apps/web/src/app/(auth)/registrera/page.tsx:298-304; apps/api/src/routes/auth.ts:468
+  Symptom: User can enter `"abc"` or wrong digit count; stored in `organizations.org_number` without checksum/pattern.
+  Root cause: Optional field with placeholder only; register API lacks regex used elsewhere in `sales.ts:106`.
+  Fix: Client mask/validate `^\d{6}-?\d{4}$` + Luhn if required; server reject invalid with 400.
+  Effort: S
+  Ref audit: ASSOCIATION [3.4], [3.5] — STILL UNRESOLVED
+
+[2.3] `RegisterAssociationSchema` defined but unused in API route
+  File: packages/contracts/src/auth.ts:20-33; apps/api/src/routes/auth.ts:423-448
+  Symptom: Contract drift — web sends ad-hoc JSON; server uses `any` + manual checks. Future field additions won't be validated consistently.
+  Root cause: Route predates contract wiring.
+  Fix: Import and `safeParse` in `/register/association` (and team-leader for parity).
+  Effort: S
+
+[2.4] No registration rate limiting (abuse / org spam)
+  File: apps/api/src/routes/auth.ts:423-539
+  Symptom: Unlike `/login` (IP+email rate limit at auth.ts:106-111), register endpoints accept unlimited POSTs — enables org/user table spam and email bombing via welcome template.
+  Root cause: Rate limit only on login.
+  Fix: Add `registerRateLimit(ip)` similar to login; cap e.g. 5/hour/IP.
+  Effort: S
+
+[2.5] Auth layout vertical centering hides mobile submit behind keyboard
+  File: apps/web/src/app/(auth)/layout.tsx:17; apps/web/src/app/(auth)/registrera/page.tsx:507-520
+  Symptom: `main` uses `items-center justify-center`; long step-3 form on 375px — "Skapa konto" may sit below fold or under iOS keyboard. No sticky footer CTA.
+  Root cause: Centered flex layout without scroll padding.
+  Fix: `items-start sm:items-center`, `scroll-padding-bottom`, sticky bottom bar on step 3.
+  Effort: S
+  Ref audit: ASSOCIATION [2.18] — STILL UNRESOLVED
+
+[2.6] Wizard uses click handlers, not `<form>` — Enter/autofill submit broken
+  File: apps/web/src/app/(auth)/registrera/page.tsx:324-331,466-473,507-520
+  Symptom: Enter key does not advance steps or submit on mobile keyboards; password managers may not offer save-password flow reliably.
+  Root cause: `<Button onClick>` instead of `<form onSubmit>`.
+  Fix: Wrap each step in `<form onSubmit={preventDefault; next/submit}>`.
+  Effort: S
+  Ref audit: ASSOCIATION [3.17] — STILL UNRESOLVED
+
+[2.7] Postnummer/ort grid cramped on mobile
+  File: apps/web/src/app/(auth)/registrera/page.tsx:446-465
+  Symptom: `grid-cols-2` at all breakpoints — tight inputs on 375px.
+  Fix: `grid-cols-1 sm:grid-cols-2`.
+  Effort: S
+  Ref audit: ASSOCIATION [3.16] — STILL UNRESOLVED
+
+================================================================
+P3 — MEDIUM (quality / soft launch)
+================================================================
+
+[3.1] Incomplete HTML autocomplete hints on personal fields
+  File: apps/web/src/app/(auth)/registrera/page.tsx:419-464
+  Symptom: `contactName`, `phone`, address fields lack `autoComplete` (`name`, `tel`, `street-address`, `postal-code`, `address-level2`). Only email/password have hints.
+  Fix: Add standard autocomplete attributes per field.
+  Effort: S
+  Ref audit: ASSOCIATION [3.8] — STILL UNRESOLVED
+
+[3.2] Phone and postal code format not validated when provided
+  File: apps/web/src/app/(auth)/registrera/page.tsx:428-454; auth.ts:483-487
+  Symptom: `"phone": "xxx"` and `"postalCode": "1"` accepted and stored.
+  Fix: Optional refine in schema: phone `^(\+46|0)[\d\s-]{8,}$`, postal `^\d{3}\s?\d{2}$`.
+  Effort: S
+
+[3.3] `personalNumber` in API/schema but absent from association UI
+  File: packages/db/src/schema/users.ts:24; auth.ts:440,484; registrera/page.tsx (no field)
+  Symptom: Personnummer never collected for association admins despite DB column and API accepting it.
+  Fix: Add optional field with format check, or remove from association register payload until needed (e.g. BankID/payout).
+  Effort: S
+
+[3.4] Success screen omits welcome-email expectation
+  File: apps/web/src/app/(auth)/registrera/page.tsx:152-163
+  Symptom: "Registrering klar!" + redirect only — no "kolla inkorgen" despite welcome email sent.
+  Fix: One line: "Vi har skickat ett välkomstmail till {email}."
+  Effort: S
+  Ref audit: ASSOCIATION [3.3] — STILL UNRESOLVED
+
+[3.5] Generic 500 on registration hides actionable errors
+  File: apps/api/src/routes/auth.ts:535-537
+  Symptom: DB constraint violations (e.g. race on email unique) surface as `"Registreringen misslyckades."`
+  Fix: Map Postgres unique violation on email to 409; log others; safe client messages.
+  Effort: S
+  Ref audit: ASSOCIATION [4.3] — STILL UNRESOLVED
+
+================================================================
+P4 — LOW / POLISH (v1.1 backlog)
+================================================================
+
+[4.1] No dedicated `/registrera/forening` deep link
+  File: apps/web/src/app/(auth)/registrera/page.tsx:166-193
+  Symptom: Marketing CTAs must link to `/registrera` and user picks "Förening" — extra step vs direct URL.
+  Fix: Add `/registrera/forening` route that pre-sets `type="association"` (or query `?typ=forening`).
+  Effort: S
+
+[4.2] Association registration heavier than MVP minimum
+  File: apps/web/src/app/(auth)/registrera/page.tsx:284-323
+  Symptom: Step 1 collects riksorganisation, idrott, orgnr — deferrable for faster signup.
+  Fix: Defer optional fields to post-signup org settings.
+  Effort: M
+  Ref audit: ASSOCIATION [3.1] — STILL UNRESOLVED
+
+================================================================
+ROLE CONNECTIONS CHECKED
+================================================================
+- PUBLIC → ASSOCIATION_ADMIN (register): ✓ — `/registrera` → type "Förening" → POST `/v1/auth/register/association` → session → `/forening`
+- ASSOCIATION_ADMIN → campaign: ⚠ — Dashboard has "Starta kampanj" modal (Sprint E9 improvement); no auto-open after signup
+- ASSOCIATION_ADMIN → org settings: ⚠ — Nav has `/installningar`; org profile completeness out of scout scope
+- Team path org search (out of assoc scope but same page): ✗ — `GET /organizations/search` requires session (`auth.ts:831-841`); team registrants get empty list pre-login
+- BankID: ✓ — Not exposed on register; `/v1/bankid/status` returns `enabled: false` without cert — no false promise in signup UI
+
+Cross-scout notes:
+- Scout 1/2: homepage and `/foreningsliv` should deep-link to association register path.
+- Team-leader branch on same page shares steps 2–3 bugs ([2.5]–[2.7]).
+
+================================================================
+MVP READINESS BREAKDOWN
+================================================================
+- Functionality:         16/25  (happy path works; no wizard; no org dedup)
+- Reliability:           14/25  (atomic tx ✓; session-after-commit gap; no register rate limit)
+- Validation/security:   11/25  (409 email ✓; password/email/orgnr gaps; contract unused)
+- Polish/UX:             14/25  (3-step wizard ✓; mobile/form/autofill gaps; login link ✓)
+- Post-signup handoff:   15/25  (session + /forening ✓; campaign CTA exists; no guided onboarding)
+
+NOTES FOR THE TEAM
+------------------
+Resolved since April 2026 reference audits (verify, do not re-fix):
+- Campaign creation UI on `/forening` — ASSOCIATION [1.3] PARTIALLY CLOSED (modal + POST `/v1/association/campaigns`; no full wizard).
+- Audit logging infrastructure wired — `auditLog()` with `auth.register.association` (was schema-only concern in MASTER_PLAN T6).
+
+Still open from reference audit (association signup scope):
+- Password server validation [3.2]
+- Org number validation [3.4], [3.5]
+- Mobile form/keyboard [2.18], [3.16], [3.17]
+- Post-login onboarding wizard [2.1]–[2.3]
+- Org search 401 affects **team** path only, not association path [1.1]–[1.2]
+
+Highest-impact sprint for this scout's scope:
+1. Wire `RegisterAssociationSchema` in API (closes [1.1], [1.4], [2.3] in one change).
+2. Handle `createSession` failure with 503 + actionable copy ([1.2]).
+3. Reject duplicate `orgNumber` + optional first-run redirect/modal on `/forening` ([1.3], [2.1]).
+
+--- END SCOUT 8 ---

@@ -1,0 +1,233 @@
+================================================================
+SCOUT 17 — Seller portal (min shop, stats, share, profile)
+================================================================
+Date: 2026-05-25
+Scope: SELLER role — `apps/web/src/app/(portal)/portal/page.tsx` (SELLER branch), `apps/web/src/app/(fundraising)/min-shop/`, `apps/web/src/app/(fundraising)/installningar/` (profil surrogate), `apps/api/src/routes/sharing.ts`, `apps/api/src/routes/portal.ts` (seller stats guard), `apps/api/src/routes/dashboard.ts` (`GET /seller`), `packages/db/src/schema/sellers.ts`
+Note: Scout brief paths `/portal/min-shop`, `/portal/dela`, `/portal/profil` **do not exist**. Individual sellers live in the `(fundraising)` shell: `/min-shop`, `/min-shop/bestallningar`, `/installningar`. Login redirects SELLER → `/min-shop` (`login/page.tsx:49-50`). `/portal/*` is for CLUB + internal SALES_* + INTERNAL_ADMIN only (`portal.ts:31-32,70-74`).
+
+Ref: docs/flow-audits/SELLER_2026-04-18_1245.txt, MASTER_PLAN Fas 6 (publicAlias, hideFromLeaderboard, personalMessage)
+
+SUMMARY
+-------
+The seller “portal” is effectively `/min-shop` plus read-only `/installningar`. Core loop works: authenticated seller loads `GET /v1/dashboard/seller`, sees sales KPIs, copies shop URL, generates QR, uses six client-side share templates, and opens live `/shop/[slug]`. MVP blockers: no seller self-service profile edit (schema fields exist but no API/UI), public shop ignores `publicAlias`/`personalMessage`, dashboard stats contradict recent orders (PAID-only totals vs all-status feed), `first_sale` milestone “Nästa” is nonsense for zero-sale sellers, team ranking never shown to the seller, and `portal/page.tsx` has no SELLER branch (wrong admin shell if a seller hits `/portal`).
+Findings: 20 total (P1: 5, P2: 8, P3: 5, P4: 2)
+MVP readiness: 56/100
+
+================================================================
+FOCUS CHECKLIST
+================================================================
+| Item | Status | Notes |
+|------|--------|-------|
+| Personalized welcome ("Hej {firstName}!") | ✗ | Header is static "Min shop" (`min-shop/page.tsx:145`); fundraising layout shows full name in sidebar only |
+| Shop link prominent + copy + QR | ✓ | URL input, copy button, QR PNG, external open (`min-shop/page.tsx:274-315`) |
+| Stats: paket sålda, intäkt, ranking, % to goal | ⚠ | Sålt (kr), Beställningar (count), uppskattad förtjänst, mål-% when `individualGoal > 0`; **no paket metric**, **no team rank/placement** |
+| Share toolkit: messages, social, SMS, email | ✓ | `ShareTemplates` (6 channels) + `navigator.share` fallback (`share-templates.tsx`, `min-shop/page.tsx:322-327`) |
+| Profile edit: displayName, publicAlias, personalMessage, photo, hideFromLeaderboard | ✗ | `/installningar` profile card is **read-only** with "kontakta lagansvarige" copy (`installningar/page.tsx:223-226`); no PATCH for seller self |
+| Live preview of own shop | ⚠ | "Öppna min shop" opens new tab only — no embedded/iframe preview |
+| Mobile-first | ⚠ | Responsive grid + mobile nav (`fundraising/layout.tsx`); share block is mid-page scroll — **no sticky "Dela min shop" bar** (contrast: sticky cart on `shop/[slug]/page.tsx:334`) |
+| Goal celebration animations | ✗ | Text-only "Mål uppnått! Fantastiskt!" (`min-shop/page.tsx:229-232`) |
+| "Tips från Roots" / AI suggestions | ✗ | No AI/tips card on min-shop; SELLER welcome exists in `portal/ai/page.tsx:32-33` but sellers are not routed to `/portal/ai` |
+| Empty state when no orders | ✓ | "Inga beställningar ännu. Dela din länk…" (`min-shop/page.tsx:344-347`) |
+
+================================================================
+P1 — CRITICAL (blocks MVP)
+================================================================
+
+[1.1] Seller cannot edit profile — Fas 6 schema orphaned
+  File: packages/db/src/schema/sellers.ts:35-45
+  File: apps/web/src/app/(fundraising)/installningar/page.tsx:216-268
+  File: apps/api/src/routes/dashboard.ts:365-464 (PATCH `/sellers/:sellerId` — leader/admin only)
+  Symptom: Product checklist expects displayName, publicAlias, personalMessage, hideFromLeaderboard self-edit. UI explicitly says contact lagansvarig. No `PATCH /v1/dashboard/seller/me` or equivalent for SELLER role.
+  Root cause: Privacy columns added in migration `0001_minor_consent_and_seller_privacy.sql` but no seller-facing write path.
+  Fix: Add `PATCH /v1/dashboard/seller/profile` (SELLER-only, fields: displayName, publicAlias, personalMessage, hideFromLeaderboard); wire form in `/installningar` or dedicated profil tab.
+  Effort: M
+  Ref audit: SELLER [1.9], [2.8]; MASTER_PLAN Fas 6 — STILL UNRESOLVED (schema CLOSED, UI/API OPEN)
+
+[1.2] Public shop ignores `publicAlias` and `personalMessage`
+  File: apps/api/src/routes/shop.ts:82-88 (returns `displayName` only)
+  File: apps/web/src/app/(shop)/shop/[slug]/page.tsx:190-199 (renders `campaign.story`, not seller message)
+  File: apps/web/src/app/(shop)/shop/[slug]/layout.tsx:23-26 (OG title uses `displayName`)
+  Symptom: Seller sets privacy/voice fields (once UI exists) but supporters still see legal name + campaign boilerplate. MASTER_PLAN: "Public shop UI: byt displayName mot publicAlias ?? displayName."
+  Root cause: Shop read path never selects or exposes alias/message columns.
+  Fix: Return `publicName: seller.publicAlias ?? seller.displayName`, `personalMessage` from API; shop page shows personal message block above/below campaign story; metadata uses publicName.
+  Effort: M
+  Ref audit: SELLER [1.8], [1.9] — PARTIAL (schema only)
+
+[1.3] Dashboard stats contradict "Senaste beställningar"
+  File: apps/api/src/routes/dashboard.ts:599-610 vs 612-616, 639-655
+  File: apps/web/src/app/(fundraising)/min-shop/page.tsx:152-165 vs 330-381
+  Symptom: "Sålt" / "Beställningar" KPIs count **PAID** orders only; `orders` array includes **all statuses** (PENDING, etc.). Seller sees e.g. "0 beställningar" but a pending row in the feed, or inflated feed vs KPI.
+  Root cause: Split aggregation vs list query without status filter.
+  Fix: Filter feed to PAID only, OR add unpaid badge + separate "Väntar på betalning" section; align KPI labels.
+  Effort: S
+  Ref audit: SELLER [1.2] — STILL UNRESOLVED
+
+[1.4] `first_sale` milestone "Nästa" shows nonsense at zero sales
+  File: apps/api/src/lib/milestones.ts:56-62, 164-215
+  File: apps/web/src/app/(fundraising)/min-shop/page.tsx:248-255
+  Symptom: New seller with 0 PAID orders sees e.g. "Nästa: Första försäljningen! 0 kr kvar" because `first_sale` has `thresholdOre: 1` and `getNextMilestone` treats it as öre gap without special-case (unlike `halfway` / `goal_reached`).
+  Root cause: Missing `first_sale` branch in `getNextMilestone`; should prompt "Gör din första försäljning" / link to share tools.
+  Fix: Special-case `first_sale` when `orderCount === 0`; skip öre math.
+  Effort: S
+  Ref audit: SELLER [1.3] — STILL UNRESOLVED
+
+[1.5] No SELLER branch in `portal/page.tsx` — wrong dashboard if route hit
+  File: apps/web/src/app/(portal)/portal/page.tsx:610-620
+  File: apps/web/src/middleware.ts (no `/portal` role guard)
+  File: apps/api/src/routes/portal.ts:70-74 (`/portal/dashboard` → 403 for SELLER)
+  Symptom: SELLER who navigates to `/portal` (bookmark, bad link, email CTA) passes portal layout auth but renders **AdminDashboard** fallback with em-dash KPIs; API calls fail silently → empty admin widgets, not seller shop.
+  Root cause: Page branches CLUB / SALES_* only; everything else → AdminDashboard. Middleware protects `/min-shop` but not `/portal`.
+  Fix: Redirect SELLER/TEAM_LEADER/ASSOCIATION_ADMIN away from `/portal/*` in layout or middleware; or add explicit SELLER redirect to `/min-shop`.
+  Effort: S
+  Ref audit: NEW (route-surface mismatch)
+
+================================================================
+P2 — HIGH (must fix before MVP launch)
+================================================================
+
+[2.1] No team ranking / placement on seller dashboard
+  File: apps/api/src/routes/dashboard.ts:574-656 (`GET /seller` — no rank field)
+  File: apps/web/src/app/(fundraising)/min-shop/page.tsx (no ranking UI)
+  Symptom: Checklist expects "ranking"; seller never sees "Du är #3 i laget" or similar. Team leaderboard exists on `/lag` for TEAM_LEADER only.
+  Root cause: Seller dashboard API omits computed rank among active team sellers.
+  Fix: Add `teamRank`, `teamSize` to `/v1/dashboard/seller` (respect `hideFromLeaderboard` for others, always show self placement); card on min-shop.
+  Effort: M
+  Ref audit: SELLER gamification gap
+
+[2.2] `hideFromLeaderboard` not enforced on team surfaces
+  File: apps/api/src/routes/dashboard.ts:316-330 (returns raw `displayName` for all sellers)
+  File: apps/web/src/app/(fundraising)/lag/saljare/page.tsx:276+ (filters INACTIVE only)
+  Symptom: Seller cannot opt out via UI today; even when set in DB, leader views still show real names in ranking.
+  Root cause: Fas 6 flag never read in aggregation or UI.
+  Fix: Filter or anonymize (`"Anonym säljare"`) when `hideFromLeaderboard === true`; expose toggle in seller profile (depends [1.1]).
+  Effort: M
+  Ref: MASTER_PLAN Fas 6 — STILL UNRESOLVED
+
+[2.3] No personalized welcome on primary seller surface
+  File: apps/web/src/app/(fundraising)/min-shop/page.tsx:144-149
+  Symptom: Generic "Min shop" vs expected "Hej {firstName}!" — weaker motivation for youth sellers on phone-first UX.
+  Fix: Pull first name from `/v1/auth/me` or dashboard payload; headline "Hej, {firstName}!" + subline team/campaign.
+  Effort: S
+
+[2.4] No sticky mobile "Dela min shop" CTA
+  File: apps/web/src/app/(fundraising)/min-shop/page.tsx (share card ~line 274, below fold)
+  File: apps/web/src/app/(shop)/shop/[slug]/page.tsx:334 (sticky bottom pattern exists)
+  Symptom: On phone, seller must scroll past stats/milestones to reach share tools — friction on primary action.
+  Fix: Fixed bottom bar on `min-shop` with copy + share buttons; safe-area padding.
+  Effort: S
+  Ref audit: SELLER first-sale accelerators [1]
+
+[2.5] `GET /v1/sharing/shop-share-template` unused
+  File: apps/api/src/routes/sharing.ts:66-94
+  File: apps/web/src/components/share-templates.tsx (hardcoded client templates)
+  File: apps/web/src/app/(fundraising)/min-shop/page.tsx:83-98 (`navigator.share` uses full `campaign.story`)
+  Symptom: Canonical SMS/email copy from `communication-templates.ts` diverges from UI templates; native share sheet gets long campaign story, not SMS-tuned text.
+  Fix: Fetch template on load; use `template.sms` in `navigator.share`; optional "Kopiera SMS" using API body.
+  Effort: S
+  Ref audit: SELLER [2.13]; MASTER_PLAN Fas 6 share wiring
+
+[2.6] "Din uppskattade förtjänst" may overstate payout
+  File: apps/api/src/routes/dashboard.ts:625-626
+  File: apps/web/src/app/(fundraising)/min-shop/page.tsx:169-180
+  Symptom: `estimatedEarningsOre = totalSalesOre * marginPercent` with no fees/splits/tooltip; youth sellers may misread as cash-in-hand.
+  Fix: Relabel ("Uppskattad andel till laget") or add info tooltip matching payout policy.
+  Effort: S
+  Ref audit: SELLER [2.10]
+
+[2.7] No photo / avatar upload
+  File: packages/db/src/schema/users.ts; packages/db/src/schema/sellers.ts (no image URL)
+  File: apps/web/src/app/(fundraising)/layout.tsx:122-130 (initials bubble only)
+  Symptom: Checklist item "photo" impossible; shop header text-only.
+  Fix: Defer to post-MVP with explicit "kommer snart" OR add `avatarUrl` + upload — product decision.
+  Effort: L (if shipped) / S (if deferred with copy)
+  Ref audit: SELLER [2.7]
+
+[2.8] `/installningar` not middleware-protected by role
+  File: apps/web/src/middleware.ts:17-21 (only `/forening`, `/lag`, `/min-shop`)
+  Symptom: Unauthenticated user can load `/installningar` HTML; client redirects after failed `/auth/me` — flash + SEO leak. Same for `/min-shop/bestallningar` prefix... actually `/min-shop/bestallningar` is under `/min-shop` prefix — protected. `/installningar` is **not** in PROTECTED_ROUTES.
+  Fix: Add `/installningar` to middleware with fundraising roles or parent under protected prefix.
+  Effort: S
+
+================================================================
+P3 — MEDIUM (polish / post-MVP-hardening)
+================================================================
+
+[3.1] No "Tips från Roots" / seller AI coach on min-shop
+  File: apps/web/src/app/(fundraising)/min-shop/page.tsx (no tips card)
+  File: apps/web/src/app/(portal)/portal/page.tsx (AI cards exist for CLUB/SALES only)
+  Symptom: No contextual nudges ("Dela i WhatsApp-gruppen", "Du är 2 paket från Silver").
+  Fix: Static tips from milestone state or link to `/hjalp`; optional Open Claw widget scoped to SELLER.
+  Effort: M
+
+[3.2] No goal-celebration animation
+  File: apps/web/src/app/(fundraising)/min-shop/page.tsx:229-232
+  Symptom: Goal hit shows green text only — missed delight moment for youth motivation.
+  Fix: Lightweight confetti/Lottie once when `progress >= 100` (respect `prefers-reduced-motion`).
+  Effort: S
+
+[3.3] No embedded shop preview
+  File: apps/web/src/app/(fundraising)/min-shop/page.tsx:308-312
+  Symptom: Seller must context-switch to new tab to see supporter view.
+  Fix: Collapsible iframe/card preview of `/shop/{slug}` or screenshot thumbnail.
+  Effort: M
+
+[3.4] "Paket sålda" not surfaced as primary KPI
+  File: apps/web/src/app/(fundraising)/min-shop/page.tsx:161-165
+  File: apps/api/src/lib/milestones.ts (package thresholds exist)
+  Symptom: UI shows order count, not package count; multi-line orders skew "paket" narrative.
+  Fix: Expose `packageCount` from order lines if product defines paket; label clearly.
+  Effort: M
+
+[3.5] Dedicated `/dela` route absent — share buried in long page
+  Symptom: Scout scope `/portal/dela/` missing; all share UX on min-shop scroll.
+  Fix: Optional `/min-shop/dela` deep link from notifications; not blocking if sticky CTA added ([2.4]).
+  Effort: S
+
+================================================================
+P4 — LOW / NICE
+================================================================
+
+[4.1] Shop OG metadata lacks seller-specific image
+  File: apps/web/src/app/(shop)/shop/[slug]/layout.tsx:46-60
+  Note: Server metadata **fixed** since April audit (was client-only page). Still uses generic OG — no per-seller image.
+  Ref audit: SELLER [1.4] — PARTIALLY CLOSED
+
+[4.2] Ugly slug — seller never picks alias
+  File: apps/api/src/routes/auth.ts (slug from ASCII-stripped name + UUID)
+  Symptom: `/shop/asa--a1b2c3` — share friction; MASTER_PLAN `s/<short-id>` not built.
+  Effort: M
+  Ref audit: SELLER [2.9]
+
+================================================================
+WHAT WORKS (do not regress)
+================================================================
+- Login → `/min-shop` routing for SELLER role
+- `GET /v1/dashboard/seller` returns seller, team, campaign, stats, grade, milestones, orders
+- Shop URL + copy + QR on min-shop
+- Six `ShareTemplates` with SMS/WhatsApp/email deep links
+- Empty orders state with share CTA
+- Order detail dialog + `/min-shop/bestallningar` archive
+- Grade badge + progress bar when individual goal set
+- `portal.ts` correctly **blocks** SELLER from internal `/portal/dashboard` and `/portal/sellers` (403) — stats isolation OK
+- `sharing.ts` `shop-share-template` endpoint implemented and auth-scoped (ready to wire)
+- Schema: `publicAlias`, `hideFromLeaderboard`, `personalMessage` columns present for Fas 6
+
+================================================================
+RECOMMENDED MVP FIX ORDER
+================================================================
+1. [1.3] Align order feed with PAID stats (S)
+2. [1.4] Fix `first_sale` next-milestone (S)
+3. [1.5] Redirect fundraising roles away from `/portal/*` (S)
+4. [1.1] + [1.2] Seller profile PATCH + shop publicName/message (M)
+5. [2.1] + [2.2] Team rank for seller + hideFromLeaderboard enforcement (M)
+6. [2.4] Sticky mobile share bar (S)
+7. [2.3] Personalized welcome (S)
+
+================================================================
+CROSS-SCOUT NOTES
+================================================================
+- Registration/onboarding gaps (invite preview, session takeover, minor consent) covered in SCOUT 10 — not duplicated here except where they block first min-shop visit.
+- `/portal/saljare` is **internal sales staff** pipeline (SALES_REP), not individual fundraiser — do not conflate with SELLER min-shop.
+- SCOUT 10 confirms post-signup destination `/min-shop` is correct.
+
+--- END SCOUT 17 ---

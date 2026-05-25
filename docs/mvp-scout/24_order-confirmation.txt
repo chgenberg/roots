@@ -1,0 +1,187 @@
+================================================================
+SCOUT 24 — Order confirmation + customer-facing tracking
+================================================================
+Date: 2026-05-25
+Scope: PUBLIC (supporters) post-purchase — `apps/web/src/app/(shop)/shop/[slug]/bekraftelse/page.tsx`, `apps/web/src/app/(shop)/shop/[slug]/order/[orderId]/page.tsx`, `apps/api/src/routes/checkout.ts` (return paths, confirm, order-status, webhook email), `apps/api/src/lib/email/templates.ts` (`orderConfirmationEmail`), `apps/api/src/lib/email/index.ts` (sender)
+Note: Scout brief path `customer-checkout.ts` **does not exist**; canonical checkout is `apps/api/src/routes/checkout.ts` (per `docs/feedback-plans/08-ecommerce-integration/02_order_attribution.txt`). Order detail route is `order/[orderId]/` (not `order/[id]/`).
+
+Ref: docs/flow-audits/SUPPORTER_2026-04-18_1247.txt ([2.17]–[3.17], post-purchase), CONVERSION_TRUST_2026-04-18_1313.txt ([2.18], [4.6]), MASTER_PLAN (transaktionella mail — do not regress)
+
+SUMMARY
+-------
+Post-purchase has two surfaces: a thin thank-you (`bekraftelse?order_id=`) and a richer public order-status page (`order/[orderId]`). Happy path shows total + email + link to status; email fires on Klarna webhook with branded HTML and item table. MVP blockers: confirmation email is **not** sent when status flips to PAID via the thank-you poll alone; fulfillment statuses (CONFIRMED/SHIPPED/DELIVERED) and carrier tracking are **schema/UI-only** with no write path or tracking fields; thank-you omits line items and seller/org social proof; no PDF/print save; public order APIs are unauthenticated capability URLs (UUID); email lacks explicit moms breakdown and `LegalIdentityBlock` disclosures.
+Findings: 18 total (P1: 5, P2: 7, P3: 4, P4: 2)
+MVP readiness: 48/100
+
+================================================================
+FOCUS CHECKLIST
+================================================================
+| Item | Status | Notes |
+|------|--------|-------|
+| Thank-you: order number, total, items | ⚠ | Ordernr (8 chars) + total on `bekraftelse` (`~106–121`); **no line items** on thank-you (items only on `order/[orderId]` + email) |
+| Status: Pending / Confirmed / Shipped / Delivered | ⚠ | Stepper on `order/[orderId]/page.tsx:35–41`; production checkout only sets **PAID** (`checkout.ts:334,399`) — later steps never advance without missing ops API |
+| Tracking link if available | ✗ | No `tracking_url` / carrier columns in `customer-orders.ts`; no UI block for spåra |
+| Email: triggered, branded, totals, VAT, order link | ⚠ | Webhook → `orderConfirmationEmail` (`checkout.ts:355–367`); Resend or mock (`email/index.ts`); branded wrap; link OK (`templates.ts:106`); **no VAT/moms line**, no shipping row in email when frakt applied |
+| "Spara orderbekräftelse" / PDF | ✗ | No print/PDF/download in shop post-purchase (SUPPORTER [3.16]) |
+| Returning customer → previous order | ✗ | No supporter account / order history; only UUID deep links |
+| Social share ("jag stöttade Onsala BK!") | ✗ | `navigator.share({ title: "Köp via Roots", url: shop })` — no seller/team/org in text (`bekraftelse/page.tsx:136–141`) |
+| Mobile UX | ✓ | `max-w-lg`, centered cards, touch-friendly CTAs; pending spinner states |
+| Invalid order ID → friendly 404 | ⚠ | Copy OK ("Order hittades inte") but **any** non-OK (404/500/network) → same message (`order/[orderId]/page.tsx:63–67`, `bekraftelse/page.tsx:47–48`) |
+| GDPR: no PII in URL params | ✓ | Query is `order_id` UUID only (`bekraftelse/page.tsx:25`); confirm API masks email (`checkout.ts:410–419`). **Caveat:** UUID is still a capability token (see P1 security) |
+
+================================================================
+P1 — CRITICAL (blocks MVP)
+================================================================
+
+[1.1] Order confirmation email only on webhook — not on confirm poll
+  File: apps/api/src/routes/checkout.ts:355–367 (email in webhook only)
+  File: apps/api/src/routes/checkout.ts:379–424 (`GET /confirm/:orderId` sets PAID, no `sendEmail`)
+  Symptom: Supporter lands on thank-you; confirm upgrades PENDING→PAID if Klarna complete, but **no email** unless webhook already ran. Dev/mock Klarna or delayed webhook → paid order, no confirmation mail.
+  Root cause: Duplicate payment-ack paths; email tied to webhook branch only.
+  Fix: Extract `sendOrderConfirmationIfPaid(orderId)`; call from webhook and from confirm when status transitions to PAID (idempotent flag e.g. `confirmationEmailSentAt`).
+  Effort: S
+  Ref: SUPPORTER post-purchase baseline [4.6] — regression risk
+
+[1.2] Fulfillment status stepper is cosmetic — no SHIPPED/DELIVERED pipeline
+  File: packages/db/src/schema/customer-orders.ts:17–27 (enum includes CONFIRMED/SHIPPED/DELIVERED)
+  File: apps/api/src/routes/checkout.ts (only PAID/FAILED/PENDING/DRAFT writes)
+  File: apps/web/src/app/(shop)/shop/[slug]/order/[orderId]/page.tsx:35–41, 153–195
+  Symptom: Supporters see five-step tracker; orders stay on **Betald** forever in production. "Skickad/Levererad" never lights up.
+  Root cause: No `PATCH` (or job) to advance `customer_orders.status` past PAID (SCOUT 15 noted same gap).
+  Fix: MVP minimum — `PATCH /v1/dashboard/orders/:id/status` for TEAM_LEADER/INTERNAL_ADMIN + optional auto CONFIRMED on PAID; or hide steps until backend exists.
+  Effort: M
+  Ref: feedback-plans/06-campaign-execution/07_logistics_packing.txt
+
+[1.3] No shipment tracking link (schema + API + UI)
+  File: packages/db/src/schema/customer-orders.ts (no tracking fields)
+  File: apps/api/src/routes/checkout.ts:459–470 (`order-status` response)
+  Symptom: Checklist expects carrier URL when available; nothing to store or render.
+  Fix: Add `carrier`, `trackingUrl`, `shippedAt`; expose on `order-status`; CTA "Spåra paket" when set.
+  Effort: M
+
+[1.4] Public order endpoints are unauthenticated capability URLs (IDOR)
+  File: apps/api/src/routes/checkout.ts:379–424, 427–475
+  File: platform-audit AUDIT_2026-04-15_2324 [1.6]
+  Symptom: Anyone with UUID can read masked buyer data + line items + seller name via `/v1/checkout/order-status/:orderId` and `/confirm/:orderId`. Slug in `/shop/{slug}/order/{id}` is **not** validated server-side against order's seller.
+  Root cause: Guest-friendly design without signed token or email proof.
+  Fix: MVP — HMAC `order_token` in Klarna confirmation URL + require on status API; or rate-limit + shorten retention messaging. Document tradeoff if deferring.
+  Effort: M
+  Ref: GDPR URL params OK; **link secrecy** is the issue
+
+[1.5] Thank-you page missing line-item recap (trust at purchase moment)
+  File: apps/web/src/app/(shop)/shop/[slug]/bekraftelse/page.tsx:13–18, 106–121
+  Symptom: Supporter sees total only before leaving; must open email or order-status for SKU list. SUPPORTER [3.15], checkout funnel trust gap.
+  Fix: Extend `GET /confirm/:orderId` with `items[]` (same join as order-status); render readonly list + frakt + "inkl. moms" on bekraftelse.
+  Effort: S
+
+================================================================
+P2 — HIGH (must fix before MVP launch)
+================================================================
+
+[2.1] Email total omits explicit moms / frakt breakdown
+  File: apps/api/src/lib/email/templates.ts:68–110
+  File: apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx:95–96 (VAT math exists on checkout UI)
+  Symptom: Email shows product rows + single **Totalt**; no "Varav moms 25%", no separate frakt row when `shippingOre > 0` but total includes it opaquely.
+  Root cause: Template never receives `shippingOre` or `vatOre`.
+  Fix: Pass shipping + computed moms; add rows per Swedish köplag expectations; mirror kassa copy "priser inkl. moms".
+  Effort: S
+
+[2.2] Email footer lacks full legal identity (org.nr, momsreg)
+  File: apps/api/src/lib/email/templates.ts:33–36 (generic footer)
+  File: apps/web/src/components/legal-identity-block.tsx (exists for web, unused in email)
+  Symptom: `LegalIdentityBlock` comment says order confirmations need disclosure; email only shows "Roots Nordic AB" + mailto.
+  Fix: Inject `LEGAL_IDENTITY` org number + VAT ID + address into `wrap()` footer for transactional mail.
+  Effort: S
+  Ref: villkor §6 orderbekräftelse expectation
+
+[2.3] Weak social share — not "jag stöttade {lag/förening}"
+  File: apps/web/src/app/(shop)/shop/[slug]/bekraftelse/page.tsx:136–141
+  Symptom: Share title **"Köp via Roots"**, URL = shop home — no celebration that purchase completed, no team/org name (SUPPORTER [2.9], CONVERSION_TRUST [2.18]).
+  Fix: `navigator.share({ title: \`Jag stöttade ${teamName}!\`, text: ..., url: shop })`; fetch team/campaign on confirm payload.
+  Effort: S
+
+[2.4] Thank-you collapses all failures into one message
+  File: apps/web/src/app/(shop)/shop/[slug]/bekraftelse/page.tsx:33–37, 67–77
+  Symptom: Missing `order_id`, FAILED/CANCELLED, 404, network → **"Något gick fel"** with no `hej@roots.se` (SUPPORTER [2.16], [2.19]).
+  Fix: Branch errors: no id → "Ogiltig länk"; payment failed → retry shop; include support mailto.
+  Effort: S
+
+[2.5] Order-status page conflates 404 and server errors
+  File: apps/web/src/app/(shop)/shop/[slug]/order/[orderId]/page.tsx:63–67
+  Symptom: SUPPORTER [3.17] — 500 shows "Order hittades inte".
+  Fix: Parse status code; generic retry for 5xx.
+  Effort: S
+
+[2.6] No "Spara orderbekräftelse" / print / PDF
+  File: repo search — no `window.print`, `@media print`, or PDF route on shop order surfaces
+  Symptom: Supporters cannot save receipt offline (SUPPORTER [3.16]).
+  Fix: MVP — `window.print()` + print stylesheet on `order/[orderId]`; later PDF via server render.
+  Effort: S–M
+
+[2.7] Mock email in dev — easy to think confirmations work in prod
+  File: apps/api/src/lib/email/index.ts:17–24
+  Symptom: Without `RESEND_API_KEY`, orders log to console only; QA may miss broken webhook→email path.
+  Fix: Document env in README; staging must use Resend; E2E assert one sent mail per PAID order.
+  Effort: S (ops)
+
+================================================================
+P3 — MEDIUM
+================================================================
+
+[3.1] `customerName` on confirm API truncated but unused in thank-you headline
+  File: apps/api/src/routes/checkout.ts:418 (`split(" ")[0]`)
+  File: apps/web/src/app/(shop)/shop/[slug]/bekraftelse/page.tsx (no use of `customerName`)
+  Fix: "Tack, {firstName}!" on success.
+
+[3.2] No post-purchase goal celebration
+  File: apps/web/src/app/(shop)/shop/[slug]/bekraftelse/page.tsx
+  Ref: SUPPORTER [2.17] — shop shows progress bar; thank-you does not echo "du hjälpte säljaren närmare målet".
+
+[3.3] Masked email on thank-you may reduce confidence
+  File: apps/api/src/routes/checkout.ts:410–412
+  Ref: SUPPORTER [4.5] — tradeoff vs shoulder-surfing; consider show full email with toggle.
+
+[3.4] Seller attribution on status page only — thank-you silent on seller/team
+  File: apps/web/src/app/(shop)/shop/[slug]/order/[orderId]/page.tsx:206–210 (seller name)
+  File: bekraftelse — no seller/org line
+
+================================================================
+P4 — LOW / POSITIVE
+================================================================
+
+[4.1] **Works:** Klarna `merchantUrls.confirmation` → `bekraftelse?order_id=` (`checkout.ts:243`)
+[4.2] **Works:** Link "Se orderstatus" from thank-you → `/shop/{slug}/order/{orderId}` (`bekraftelse/page.tsx:125–131`)
+[4.3] **Works:** Email CTA "Se orderstatus" matches public order URL (`templates.ts:106`)
+[4.4] **Works:** Order-status shows items, frakt, total, delivery type, date (`order/[orderId]/page.tsx:197–255`)
+[4.5] **Works:** Guest checkout — no PII in query string beyond opaque UUID
+[4.6] **Seller role:** Attribution via `GET /v1/dashboard/seller` + `/min-shop/bestallningar` (authenticated); not customer-facing tracking — out of scope except order payload includes `sellerName` for supporter context
+
+================================================================
+SELLER (attribution view) — cross-note
+================================================================
+- Sellers see orders in `/min-shop` and `/min-shop/bestallningar` with status badges (PAID/PENDING/CANCELLED only in labels — not full fulfillment enum).
+- No seller notification email on new PAID order (SELLER audit [2.17]) — pull-only dashboard.
+- Seller cannot advance shipment status for customer visibility (ties to [1.2]).
+
+================================================================
+RECOMMENDED MVP FIX ORDER
+================================================================
+1. [1.1] Idempotent confirmation email on PAID (S)
+2. [1.5] Line items + moms on thank-you (S)
+3. [2.1] + [2.2] Email moms/frakt + legal footer (S)
+4. [2.3] Branded social share text (S)
+5. [2.4] + [2.5] Differentiated error states (S)
+6. [1.2] Hide or implement fulfillment status updates (M)
+7. [1.3] Tracking fields + UI when shipped (M)
+8. [2.6] Print receipt on order-status (S)
+9. [1.4] Signed order access token (M — security hardening)
+
+================================================================
+CROSS-SCOUT NOTES
+================================================================
+- SCOUT 22: cart not cleared on bekraftelse — post-purchase hygiene adjacent.
+- SCOUT 15: no PATCH for `customer_orders.status` — blocks [1.2].
+- SCOUT 21: shop page seller/OG context — feeds [2.3] share copy.
+- Payment rails out of scope per SUPPORTER audit; this scout assumes Klarna webhook/confirm paths.
+
+--- END SCOUT 24 ---

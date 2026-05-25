@@ -1,0 +1,317 @@
+MVP SCOUT 25/35 — PAYMENT INTEGRATION (Klarna stub + webhooks)
+================================================================
+Date: 2026-05-25
+Scout: MVP Scout 25 — Payment integration
+Scope (read-only):
+  - apps/api/src/lib/payments/ (klarna.ts, klarna-webhook.ts, klarna-webhook.test.ts)
+  - apps/api/src/routes/checkout.ts (canonical kickoff — no customer-checkout.ts in repo)
+  - Webhook route: POST /v1/checkout/webhook/:klarnaOrderId (mounted in app.ts)
+  - Env: KLARNA_USERNAME, KLARNA_PASSWORD, KLARNA_ENV, KLARNA_WEBHOOK_SECRET,
+         KLARNA_WEBHOOK_IPS, API_URL
+Roles: PUBLIC (payers), system (Klarna webhooks)
+References: docs/flow-audits/MASTER_PLAN_2026-04-18.md (Fas 3 commerce rails),
+            docs/flow-audits/SUPPORTER_2026-04-18_1247.txt (checkout UX — payment out of scope there)
+
+SUMMARY
+-------
+Total findings: 21
+  Priority 1 (MVP-blocking):  5
+  Priority 2 (High):          8
+  Priority 3 (Medium):        5
+  Priority 4 (Low):           3
+
+Since the April 2026 platform audits, webhook HMAC verification and production fail-closed
+gating (KLARNA_WEBHOOK_SECRET or KLARNA_WEBHOOK_IPS) were added with unit tests. Order
+creation before Klarna session (DRAFT → PENDING) and webhook idempotency for PAID replays are
+sound. MVP-blocking gaps remain: Klarna webhook POST is **not CSRF-exempt** (403 in production),
+stub mode can drive orders to PAID without real PSP when credentials are missing, no refund/
+cancel webhook handling, no amount reconciliation, and confirmation email only fires from the
+webhook path (not /confirm fallback).
+
+MVP readiness (payment rails): 48/100
+
+Top quick wins:
+1. Add `/v1/checkout/webhook` to CSRF_EXEMPT_PATHS in app.ts (mirror Fortnox webhook).
+2. Fail boot or block checkout in production when `!isKlarnaConfigured()` (no mock PAID path).
+3. Reconcile Klarna `order_amount` to `customer_orders.total_ore` before setting PAID; auditLog on transitions.
+
+=====================================================
+CHECKLIST — FOCUS AREAS
+=====================================================
+
+| Item                              | Status  | Notes |
+|-----------------------------------|---------|-------|
+| Stub vs real provider gating      | PARTIAL | `isKlarnaConfigured()` on API creds; stub still returns checkout_complete |
+| Order PENDING before kickoff      | PASS    | DRAFT in tx → PENDING after session; FAILED on session error |
+| Status transitions (webhook)      | PARTIAL | PENDING → PAID only; CONFIRMED never set by payment code |
+| Webhook HMAC verification         | PASS    | klarna-webhook.ts + fail-closed prod without secret/IP |
+| Webhook idempotency (replay)      | PASS    | Skips update when status already PAID |
+| Retry on transient errors         | PARTIAL | 500 on handler error (Klarna retries); acknowledge failure swallowed |
+| Double-charge protection            | FAIL    | No idempotency on POST /create; duplicate orders possible |
+| Refund flow (full + partial)      | FAIL    | REFUNDED enum unused; no Klarna OM refund API |
+| Cancelled / failed payment path   | FAIL    | Webhook ignores non-complete Klarna statuses; abandon → stuck PENDING |
+| Audit log for payment events      | FAIL    | checkout.ts never calls auditLog() |
+| Error visible to payer            | PARTIAL | kassa/bekraftelse show errors; eternal PENDING on abandon |
+
+=====================================================
+RESOLVED SINCE APRIL 2026 AUDITS
+=====================================================
+- Klarna webhook HMAC — FIXED (klarna-webhook.ts, checkout.ts:296–310, unit tests)
+- Production webhook fail-closed without secret/IP — FIXED (checkout.ts:285–294)
+- Checkout order summary before Klarna embed — FIXED on kassa (outside payment scope but affects trust)
+- Klarna outbound 15s timeout — FIXED (klarna.ts:19–31)
+
+=====================================================
+P1 — CRITICAL (MVP-blocking)
+=====================================================
+
+[1.1] Klarna webhook blocked by CSRF middleware in production
+  File: apps/api/src/app.ts:44–70 (CSRF_EXEMPT_PATHS — Fortnox only)
+        apps/api/src/routes/checkout.ts:279 (POST webhook)
+  Symptom: Klarna server push to `/v1/checkout/webhook/:klarnaOrderId` has no `x-csrf-token`;
+           production middleware returns 403. Orders stay PENDING forever unless payer hits
+           `/confirm/:orderId` (browser GET, CSRF-safe).
+  Root cause: Machine webhook not exempt; only `/v1/integrations/fortnox/webhook` is listed.
+  Fix: Add `/v1/checkout/webhook` to CSRF_EXEMPT_PATHS; rely on HMAC + IP allowlist for auth.
+  Effort: S
+  Ref audit: platform AUDIT_2026-04-15 [1.5]/[1.1] — STILL UNRESOLVED
+
+[1.2] Unconfigured Klarna credentials allow fake PAID without real payment
+  File: apps/api/src/lib/payments/klarna.ts:34–36, 75–86, 121–130
+        apps/api/src/routes/checkout.ts:393–403, 322–337
+  Symptom: When KLARNA_USERNAME/PASSWORD unset, stub HTML offers "Simulera betalning" and
+           `getCheckoutOrder()` always returns `checkout_complete`. Webhook or /confirm marks
+           order PAID with no PSP involvement — catastrophic if prod deploy omits creds.
+  Root cause: `isKlarnaConfigured()` gates API calls but not checkout availability; stub is
+           dev-convenience leaking to all environments.
+  Fix: In production, reject POST /create when !isKlarnaConfigured(); or require explicit
+           KLARNA_STUB=true for mock path. validate-env should warn/fail if creds missing in prod.
+  Effort: S
+  Ref audit: platform AUDIT_2026-04-15 [1.1]/[1.23] — STILL UNRESOLVED
+
+[1.3] No amount reconciliation before marking PAID
+  File: apps/api/src/routes/checkout.ts:324–335, 396–400
+        apps/api/src/lib/payments/klarna.ts:120–144 (getCheckoutOrder returns raw JSON in prod)
+  Symptom: Any `checkout_complete` Klarna order flips Roots order to PAID regardless of whether
+           Klarna `order_amount` matches `customer_orders.total_ore` (price drift, tampering,
+           shipping miscalculation).
+  Root cause: Status-only check; no comparison of minor units or line items.
+  Fix: Parse `order_amount` from Klarna response; require exact match (or documented tolerance)
+           before UPDATE; log mismatch and return 409/422 so Klarna retries after investigation.
+  Effort: M
+  Ref audit: platform AUDIT_2026-04-15 [2.17]
+
+[1.4] Abandoned / cancelled Klarna checkout leaves order stuck PENDING
+  File: apps/api/src/routes/checkout.ts:279–377 (webhook only handles checkout_complete)
+  Symptom: Supporter closes Klarna widget or payment fails — order remains PENDING indefinitely;
+           bekraftelse and order-status show perpetual "Din betalning behandlas..." with no
+           timeout or recovery CTA beyond generic error for explicit FAILED/CANCELLED DB states
+           (which are never set from Klarna paths).
+  Root cause: No webhook handler for cancelled/expired checkout; no polling job to sync Klarna
+           terminal failure states; no TTL on PENDING orders.
+  Fix: Handle Klarna incomplete/cancelled statuses in webhook; optional cron to expire stale
+           PENDING; set CANCELLED/FAILED and surface copy on bekraftelse/order-status.
+  Effort: M
+  Ref audit: MASTER_PLAN Fas 3 (payment rails completeness)
+
+[1.5] Confirmation email only sent from webhook — not from /confirm fallback
+  File: apps/api/src/routes/checkout.ts:355–368 (email in webhook only)
+        apps/api/src/routes/checkout.ts:379–408 (/confirm sets PAID, no email)
+  Symptom: When webhook is blocked ([1.1]) or delayed, payer reaching bekraftelse triggers
+           /confirm which marks PAID but sends no confirmation email — supporter sees success
+           UI with "bekräftelse skickas till …" that never arrives.
+  Root cause: Email logic duplicated only in webhook branch.
+  Fix: Extract `finalizePaidOrder(orderId)` shared helper: idempotent PAID transition + email +
+           acknowledgeOrder; call from webhook and /confirm.
+  Effort: S–M
+  Ref audit: platform AUDIT_2026-04-15 [3.40]
+
+=====================================================
+P2 — HIGH (must fix before MVP launch)
+=====================================================
+
+[2.1] No refund flow — REFUNDED status dead
+  File: packages/db/src/schema/customer-orders.ts:17–27 (REFUNDED enum)
+        apps/api/src/lib/payments/ (no refund/capture/cancel OM calls)
+  Symptom: Team leader / admin UI labels REFUNDED but no API path sets it or calls Klarna
+           Order Management refunds (full or partial).
+  Fix: Add admin/portal endpoint → Klarna refund API → status REFUNDED + auditLog; partial
+           refund tracks amount in meta or new column.
+  Effort: L
+  Ref audit: platform AUDIT_2026-04-15 [2.18]; TEAM_LEADER [2.17]
+
+[2.2] CONFIRMED never reached from payment flow
+  File: apps/api/src/routes/checkout.ts (PAID terminal for payments)
+        apps/web/src/app/(shop)/shop/[slug]/order/[orderId]/page.tsx:35–40 (UI expects CONFIRMED step)
+  Symptom: Order status timeline shows "Bekräftad" step never reached after payment; settlement/
+           team dashboards treat CONFIRMED as paid-adjacent but payment code stops at PAID.
+  Fix: Either auto-transition PAID → CONFIRMED on acknowledge success, or document PAID as
+           fulfillment gate and adjust UI steps.
+  Effort: S
+
+[2.3] No audit log entries for payment lifecycle
+  File: apps/api/src/routes/checkout.ts (no auditLog import)
+        apps/api/src/lib/audit.ts
+  Symptom: payment.created, payment.paid, payment.failed, webhook.rejected not in audit_logs;
+           ops/compliance cannot trace who paid what without DB forensics.
+  Fix: void auditLog({ action: "order.payment.paid", entityType: "customer_order", entityId,
+           meta: { klarnaOrderId, totalOre, source: "webhook"|"confirm" } }) on transitions.
+  Effort: S
+  Ref audit: feedback-plans/07-data-quality-bi/04_audit_log_extension.txt
+
+[2.4] Double-submit on POST /create creates duplicate chargeable orders
+  File: apps/api/src/routes/checkout.ts:43–277
+        apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx:98–137 (loading flag only)
+  Symptom: Double-click "Gå till betalning" or network retry creates multiple DRAFT/PENDING
+           orders for same basket — supporter could pay twice if both Klarna sessions complete.
+  Fix: Idempotency-Key header + short-lived cache; or debounce + disable button (client only
+           insufficient); server-side dedupe by (sellerId, customerEmail, cart hash) within window.
+  Effort: M
+
+[2.5] Dev/staging webhook accepts unsigned POST when secret/IP unset
+  File: apps/api/src/routes/checkout.ts:318–319
+  Symptom: Non-prod allows anyone who knows mock `klarnaOrderId` to POST and mark PAID (paired
+           with stub getCheckoutOrder always complete).
+  Root cause: Intentional dev convenience without NODE_ENV guard on stub completion.
+  Fix: Require KLARNA_WEBHOOK_SECRET in all shared staging; separate local-only bypass flag.
+  Effort: S
+
+[2.6] Webhook returns 200 when no matching customer order
+  File: apps/api/src/routes/checkout.ts:325–329, 372
+  Symptom: Klarna push for unknown order_id silently acked — reconciliation blind spot; harder
+           to detect misconfigured merchant_reference or DB drift.
+  Fix: Return 404 when klarnaOrderId not found (after auth) so Klarna surfaces delivery errors;
+           log metric for orphan webhooks.
+  Effort: S
+
+[2.7] GET /confirm/:orderId and /order-status/:orderId are unauthenticated (IDOR)
+  File: apps/api/src/routes/checkout.ts:379–475
+  Symptom: Anyone with UUID sees masked email, totals, line items, seller name — acceptable for
+           supporter magic link but UUID leakage exposes PII.
+  Fix: Optional signed token in bekraftelse URL (`?order_id=&t=` HMAC); rate-limit by IP.
+  Effort: M
+  Ref audit: platform AUDIT_2026-04-15 [1.7]
+
+[2.8] KLARNA_USERNAME/PASSWORD not in validate-env REQUIRED or strong RECOMMENDED
+  File: apps/api/src/lib/validate-env.ts:60–72 (only KLARNA_WEBHOOK_SECRET recommended)
+        .env.example:86–99
+  Symptom: Production can boot without API credentials and silently enter stub mode ([1.2]).
+  Fix: Add RECOMMENDED_IN_PROD entry for KLARNA_USERNAME+PASSWORD pair; boot warning if missing.
+  Effort: S
+
+=====================================================
+P3 — MEDIUM
+=====================================================
+
+[3.1] No integration/route tests for checkout.ts
+  File: apps/api/src/lib/payments/klarna-webhook.test.ts (signature unit tests only)
+  Symptom: Regressions on CSRF, status transitions, email side effects unguarded.
+  Fix: Hono test harness for /create, /webhook, /confirm with mocked Klarna fetch + DB.
+  Effort: M
+
+[3.2] acknowledgeOrder failure does not fail webhook (silent)
+  File: apps/api/src/lib/payments/klarna.ts:147–161
+        apps/api/src/routes/checkout.ts:337
+  Symptom: Order marked PAID locally but Klarna not acknowledged — retry/ops issues.
+  Fix: Return 502 on acknowledge failure so Klarna retries; make PAID update idempotent.
+  Effort: S
+
+[3.3] Push URL depends on API_URL env — wrong value breaks webhook delivery
+  File: apps/api/src/routes/checkout.ts:244
+        .env.example:99
+  Symptom: Default localhost in push URL if API_URL unset in prod — Klarna cannot reach webhook.
+  Fix: validate-env REQUIRED_IN_PROD for API_URL (public API base); document Klarna merchant portal.
+  Effort: S
+
+[3.4] Mock Klarna HTML uses inline onclick — CSP may block in hardened prod web
+  File: apps/api/src/lib/payments/klarna.ts:78–83
+  Symptom: "Simulera betalning" button may not work under strict CSP on shop pages embedding snippet.
+  Fix: Dev-only stub page or postMessage bridge; irrelevant when real credentials used.
+  Effort: S
+
+[3.5] Shipping fee in Klarna lines uses type "physical" for SHIPPING reference
+  File: apps/api/src/routes/checkout.ts:176–185
+  Symptom: Klarna may expect type "shipping_fee" — potential playground/prod validation warnings.
+  Fix: Use KlarnaOrderLine type shipping_fee for frakt line.
+  Effort: S
+
+=====================================================
+P4 — LOW
+=====================================================
+
+[4.1] customer-checkout.ts referenced in skills/docs but does not exist
+  File: (absent) apps/api/src/routes/customer-checkout.ts
+  Detail: Canonical route is checkout.ts only — update skill references to avoid implementer confusion.
+
+[4.2] order-status page does not poll while PENDING
+  File: apps/web/src/app/(shop)/shop/[slug]/order/[orderId]/page.tsx:57–75
+  Detail: Single fetch; user must refresh to see PAID after slow webhook.
+
+[4.3] Webhook path uses `:klarnaOrderId` param but push template uses `{checkout.order.id}`
+  File: apps/api/src/routes/checkout.ts:244, 279
+  Detail: Klarna replaces placeholder — verify merchant portal config matches deployed API_URL path.
+
+=====================================================
+FLOW DIAGRAM (current)
+=====================================================
+
+```
+POST /v1/checkout/create
+  → validate seller/campaign/products
+  → INSERT customer_orders (DRAFT) + lines
+  → createCheckoutSession (stub | Klarna API)
+  → on fail: status FAILED, 502
+  → on ok: status PENDING, klarnaOrderId, htmlSnippet
+
+Payer completes Klarna
+  → Klarna POST /v1/checkout/webhook/:klarnaOrderId  [403 in prod today — CSRF]
+  → HMAC verify (if secret set)
+  → getCheckoutOrder → if checkout_complete → PAID + email + acknowledge
+  → 200 { received: true }
+
+Fallback: GET /v1/checkout/confirm/:orderId (bekraftelse)
+  → if PENDING + klarna checkout_complete → PAID + acknowledge (no email)
+```
+
+=====================================================
+ENV REFERENCE
+=====================================================
+
+| Variable              | Used in              | Prod behaviour |
+|-----------------------|----------------------|----------------|
+| KLARNA_USERNAME       | klarna.ts            | Optional → stub mode if empty |
+| KLARNA_PASSWORD       | klarna.ts            | Optional → stub mode if empty |
+| KLARNA_ENV            | klarna.ts            | playground vs production API host |
+| KLARNA_WEBHOOK_SECRET | checkout.ts webhook  | HMAC; recommended in validate-env |
+| KLARNA_WEBHOOK_IPS    | checkout.ts webhook  | Fallback if no secret; fail-closed if both empty |
+| API_URL               | checkout push URL    | Default localhost — webhook unreachable if unset |
+| NEXT_PUBLIC_SITE_URL  | merchantUrls         | Required in prod validate-env |
+
+=====================================================
+MVP READINESS NOTES
+=====================================================
+
+- **Supporter happy path (local/dev):** kassa → create → stub "Simulera betalning" → bekraftelse
+  /confirm → PAID. Works without webhook because GET /confirm polls stub getCheckoutOrder.
+- **Supporter happy path (production with creds):** Depends on Klarna webhook — **broken today**
+  due to CSRF unless infra routes webhooks outside CSRF middleware (unlikely). /confirm may
+  salvage PAID state but email gap remains.
+- **Refund/cancel:** Not implemented — support must handle manually outside platform.
+- **MASTER_PLAN alignment:** Fas 3 lists checkout webhook as revenue-critical; CSRF fix is
+  prerequisite before any Klarna playground → production promotion.
+
+FILES REVIEWED
+--------------
+apps/api/src/lib/payments/klarna.ts
+apps/api/src/lib/payments/klarna-webhook.ts
+apps/api/src/lib/payments/klarna-webhook.test.ts
+apps/api/src/routes/checkout.ts
+apps/api/src/app.ts (CSRF exemptions, route mount)
+apps/api/src/lib/validate-env.ts
+apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx (kickoff client)
+apps/web/src/app/(shop)/shop/[slug]/bekraftelse/page.tsx
+apps/web/src/app/(shop)/shop/[slug]/order/[orderId]/page.tsx
+packages/db/src/schema/customer-orders.ts
+.env.example
+
+--- END SCOUT 25 ---

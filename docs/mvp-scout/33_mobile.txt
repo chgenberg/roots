@@ -1,0 +1,352 @@
+================================================================
+SCOUT 33 — Mobile responsiveness audit (360–414px)
+================================================================
+Date: 2026-05-25
+Scope: All public, portal, shop, auth pages; Tailwind v4 @theme (globals.css); layout shells (marketing, auth, portal, fundraising, shop)
+Viewport targets: 360px (Galaxy S8 / small Android), 375–414px (iPhone SE–Pro Max)
+Roles: ALL (mobile-first audience)
+References: docs/flow-audits/PUBLIC_2026-04-18_1238.txt, SELLER_2026-04-18_1245.txt,
+            TEAM_LEADER_2026-04-18_1243.txt, SUPPORTER_2026-04-18_1247.txt;
+            docs/mvp-scout/06_public-chat.txt, 22_shop-cart.txt
+
+SUMMARY
+-------
+Read-only pass across marketing shells, auth/register flows, supporter shop/checkout, fundraising dashboards, and B2B portal. Layout grids generally stack cleanly at 360px and wide `<Table>` surfaces scroll inside `overflow-auto` wrappers as intended. MVP-blocking gaps cluster in three systemic areas: (1) global form inputs at 14px trigger iOS focus-zoom on every auth/checkout/portal form; (2) long URL copy rows in flex layouts lack `min-w-0` and can force horizontal page scroll; (3) fixed bottom chrome (shop cart bar, product CTA, chat FAB) lacks coordinated safe-area padding and content offset, so thumbs/home-indicator overlap footer links and last-fold CTAs. Header/portal hamburger controls remain under the 44×44px touch target minimum flagged in April audits.
+Findings: 28 total (P1: 5, P2: 11, P3: 8, P4: 4)
+MVP readiness (mobile UX): 54/100
+
+================================================================
+CHECKLIST — FOCUS AREAS (360–414px)
+================================================================
+
+Horizontal scrolling (none allowed)
+  ✗ Long invite/shop URL rows in `flex gap-2` without `min-w-0`/`flex-1` — page-level overflow risk on `/min-shop`, `/lag`, `/forening/lag`, `/installningar` (seller settings).
+  ✓ Marketing hero/sections use `max-w-*` + `px-6`; no `100vw` width traps found outside notification popover clamp.
+  ⚠ Shop legal footer links (`flex gap-4` in `(shop)/layout.tsx`) can wrap awkwardly at 360px but do not reliably overflow.
+  ✓ `<Table>` wrapper uses `overflow-auto` — horizontal pan is contained, not body scroll (portal saljare, audit-log, bestallningar, etc.).
+
+Sticky elements + safe-area-inset (notch / home indicator)
+  ✓ Shop sticky cart bar applies `paddingBottom: env(safe-area-inset-bottom)` (shop/[slug]/page.tsx:335) — IMPROVED since SUPPORTER [3.3].
+  ✗ Product detail mobile sticky CTA (`produkter/[slug]/page.tsx:187`) — `fixed bottom-0` with no safe-area padding.
+  ✗ Chat FAB `fixed bottom-6 right-6` (chat-widget.tsx:344) — no `env(safe-area-inset-bottom)` or `right` inset; overlaps home indicator on notched iPhones.
+  ✗ No `viewport-fit=cover` export in app layout; no global safe-area utility classes in globals.css.
+
+Touch targets ≥ 44×44px
+  ✗ Public header burger: `p-2` + 20×24px icon ≈ 32×32px (header.tsx:179–185) — PUBLIC [2.12] STILL OPEN.
+  ✗ Portal mobile menu trigger: `p-2.5` + 20px icon ≈ 40×40px (portal/layout.tsx:241–249).
+  ✗ Fundraising mobile menu: `h-9 w-9` = 36px (fundraising/layout.tsx:224).
+  ✗ Shop product +/- controls: `h-8 w-8` = 32px (shop/[slug]/page.tsx:262–277).
+  ✗ Chat close button `h-8 w-8`; send/stop `h-10 w-10` (chat-widget.tsx:256–327).
+  ✓ Default `<Button>` / `<Input>` height `h-11` (44px) — primary CTAs mostly OK when `size="default"`.
+  ✗ Widespread `size="sm"` (`h-9`) and ghost icon buttons (`h-7 w-7`) on fundraising `/lag/saljare` goal edit rows.
+
+Font / input legibility (≥16px base inputs; no iOS zoom)
+  ✗ Shared `<Input>` uses `text-sm` (14px) — apps/web/src/components/ui/input.tsx:10.
+  ✗ Hair-analysis gate + wizard inputs also `text-sm` (hair-analysis-lead-dialog.tsx:570–641).
+  ✗ Chat + portal AI textarea `text-sm` with `min-h-[40px]`/`min-h-[44px]` — triggers zoom on focus (chat-widget.tsx:309; portal/ai/page.tsx:348).
+  ✓ Body copy and headings legible; hero uses `clamp()` for display size.
+  ✗ globals.css has no `input, select, textarea { font-size: 16px }` mobile guard.
+
+Navigation: hamburger / drawer accessible
+  ✓ Marketing fullscreen drawer: `role="dialog"`, `aria-modal`, ESC via body scroll lock, focusable links (header.tsx:196–276).
+  ✓ Portal sidebar: `aria-expanded`, `aria-controls`, ESC closes (portal/layout.tsx:103–109, 241–247).
+  ⚠ Fundraising mobile nav is expand-in-place under header (not modal); no focus trap or body scroll lock (fundraising/layout.tsx:231–271).
+  ⚠ Portal/fundraising help + notification icons `h-9 w-9` (36px) in mobile chrome.
+
+Modal sizing: max-h-screen with scroll
+  ✓ Hair-analysis dialog: `max-h-[min(92vh,860px)] overflow-hidden` + inner scroll (hair-analysis-lead-dialog.tsx:354,364).
+  ✓ Order detail dialogs: `max-h-[90vh] overflow-y-auto` (order-detail-dialog.tsx:201; portal-order-dialog.tsx:161).
+  ✗ Default `<DialogContent>` centered with no max-height (dialog.tsx:37) — used by portal pipeline lead modal, forening create-team, medlemmar invite, installningar password (pipeline/page.tsx:287; forening/page.tsx:329; forening/lag/page.tsx:271).
+  ⚠ Chat widget dialog height fixed at 580px centered — can exceed usable viewport when keyboard open (chat-widget.tsx:238–243; scout 06 [2.2]).
+
+Sticky bottom bars don't cover content
+  ✗ Shop page `<main>` has no conditional `pb-*` when sticky cart visible — delivery info + shop footer links sit under cart bar (shop/[slug]/page.tsx:166 vs 331–354; shop layout footer below fold).
+  ✗ Product detail sticky CTA covers bottom of long ingredient copy; no spacer `pb-20` on page (produkter/[slug]/page.tsx:187–197).
+  ⚠ Chat FAB persists over product sticky bar on `/produkter/[slug]` — dual fixed bottom-right elements compete (marketing layout mounts ChatWidget + page sticky CTA).
+
+Form inputs not zoomed by iOS
+  ✗ See font/input section — systemic `text-sm` on `<Input>` and chat textareas.
+  ✓ Login + register seller/leader password fields have `autoComplete` where checked.
+  ✗ Checkout customer fields lack `autoComplete` (kassa/page.tsx:259–286) — SUPPORTER [3.10] STILL OPEN.
+
+Images responsive (next/image sizes)
+  ✓ Hero, product grids, marketing pages set `sizes="100vw"` or `(max-width: …) 100vw, …"`.
+  ✗ Shop product cards use `<Image fill>` without `sizes` prop (shop/[slug]/page.tsx:239–244) — minor LCP/bandwidth waste on mobile, not layout break.
+  ⚠ Hero still loads dual `priority` desktop+mobile branches (~5 MB assets) — slow first paint on 360px (scout 01 [1.2]; not horizontal scroll but mobile perf blocker).
+
+Hero / landing layout collapses cleanly
+  ✓ Single-column stack; hero `h-[calc(100dvh-5rem)]` with `min-h-[500px]` fits 360×740.
+  ⚠ Hero CTAs sit high (`justify-start pt-10`); thumb zone empty — PUBLIC [3.7] polish item.
+  ✓ Section grids collapse to 1 col below `md`/`lg` breakpoints.
+
+Tables scroll horizontally when needed
+  ✓ `<Table>` wraps in `overflow-auto` (table.tsx:6).
+  ⚠ Admin säljare table (7 columns) requires pan on 360px — acceptable pattern but poor field-sales UX (portal/saljare/page.tsx:135–188).
+
+Cart bar in (shop) layout
+  ✓ Sticky bar shows item count + total + checkout CTA; safe-area on bar itself.
+  ✗ Main content + thin legal footer not padded above bar — last actions obscured.
+  ✗ Bar inner layout `flex justify-between` — long totals + `Button size="lg"` tight at 360px (may wrap on very small screens).
+
+Chat widget on mobile (full screen?)
+  ✗ Not full-screen — centered `max-w-lg` panel; keyboard obscures composer (chat-widget.tsx:236–311; scout 06 [2.2]).
+  ✗ FAB + marketing product sticky bar overlap on product pages.
+  ✗ No safe-area on FAB; closed dialog still in tab order (scout 06 [1.2]) — a11y + mobile overlap.
+
+Tailwind breakpoints / global CSS
+  ✓ Tailwind v4 defaults via `@theme extend` in globals.css — sm 640, md 768, lg 1024 (no custom tailwind.config).
+  ✗ globals.css: no `overflow-x: hidden` on `html/body`, no safe-area padding utilities, no 16px input guard.
+  ✓ `prefers-reduced-motion` respected (globals.css:161–171).
+
+================================================================
+P1 — CRITICAL (MVP-blocking on mobile)
+================================================================
+
+[1.1] Global `<Input>` at 14px triggers iOS auto-zoom on every form focus
+  Files: apps/web/src/components/ui/input.tsx:10; cascades to login, registrera, checkout kassa, portal modals, fundraising settings, hair-analysis wizard.
+  Symptom: On iPhone Safari, tapping any text field zooms the page ~1.1×; layout jumps; user must pinch out after each field — especially painful on multi-step `/registrera` and checkout.
+  Root cause: `text-sm` (14px) on native `<input>`; Apple zooms inputs <16px.
+  Fix: Change default Input to `text-base` (16px) on mobile via `text-base md:text-sm` or unconditional `text-base`; mirror in hair-analysis native `<input>` classes; add optional globals.css `@media (max-width: 767px) { input, select, textarea { font-size: 16px; } }` as belt-and-braces.
+  Effort: S
+  Ref: SUPPORTER [3.10] adjacent; affects ALL roles.
+
+[1.2] Long URL copy rows force horizontal page scroll at ~360px
+  Files: apps/web/src/app/(fundraising)/min-shop/page.tsx:283–291; lag/page.tsx:211–224; forening/lag/page.tsx:244–261; installningar/page.tsx:286–291 (seller shop URL block).
+  Symptom: Read-only `<Input value={fullUrl}>` inside `flex gap-2` expands past viewport; body scrolls sideways; copy button may clip off-screen.
+  Root cause: Flex child default `min-width: auto`; URL string sets intrinsic min-width > 360px; Input has `w-full` but sibling Button prevents shrink.
+  Fix: Wrap input in `min-w-0 flex-1`; add `truncate` or stack vertically on `max-sm:flex-col`; prefer copy-only pattern (hide URL text, show “Kopiera länk” full-width).
+  Effort: S
+  Ref: TEAM_LEADER [2.20], SELLER [3.18] — STILL OPEN on `/lag`, `/min-shop`, `/forening/lag`.
+
+[1.3] Shop sticky cart bar covers last content and legal footer
+  Files: apps/web/src/app/(shop)/shop/[slug]/page.tsx:166,331–354; apps/web/src/app/(shop)/layout.tsx:17–41.
+  Symptom: With items in cart, supporter scrolls to delivery info or footer köpvillkor/integritet links — content hidden under ~64px+ fixed bar; must scroll extra blind distance.
+  Root cause: `<main>` has fixed `py-8` only; no `pb-24`/`pb-[calc(4rem+env(safe-area-inset-bottom))]` when `totalItems > 0`.
+  Fix: Conditional bottom padding on main or page wrapper matching cart bar height + safe-area; or inset spacer div above footer.
+  Effort: S
+  Ref: SUPPORTER [3.3] partial (safe-area on bar yes; content offset no); scout 22 cart scope.
+
+[1.4] Auth/register layout vertically centers forms — submit CTA hidden behind mobile keyboard
+  Files: apps/web/src/app/(auth)/layout.tsx:17–18; apps/web/src/app/(auth)/registrera/page.tsx (multi-step, ~537 lines, step buttons use `onClick` not `<form submit>`).
+  Symptom: On `/login` and `/registrera`, `flex-1 items-center justify-center` keeps card mid-screen; opening keyboard on step 2–3 pushes fields up but “Skapa konto” / “Nästa” may sit under keyboard; Enter key inconsistent (wizard uses div+onClick).
+  Root cause: Vertical centering + no `items-start`/`overflow-y-auto` on small viewports; non-form step navigation.
+  Fix: `@media (max-width: 767px)` switch main to `items-start pt-6 pb-8 overflow-y-auto`; wrap steps in `<form onSubmit>`; scroll focused field into view on focus.
+  Effort: M
+  Ref: ASSOCIATION_ONBOARDING [2.18], [3.17] — STILL OPEN.
+
+[1.5] Dual fixed bottom chrome on product detail — chat FAB overlaps sticky CTA
+  Files: apps/web/src/app/(marketing)/produkter/[slug]/page.tsx:187–197; apps/web/src/components/chat-widget.tsx:340–355; apps/web/src/app/(marketing)/layout.tsx:16.
+  Symptom: On `/produkter/shampoo` etc. at 360px, user sees sticky “Beställ via din förening” bar AND chat FAB bottom-right; FAB sits on bar/CTA zone; thumb target ambiguity.
+  Root cause: Independent fixed layers with no z-index/priority coordination; product sticky bar has no right padding for FAB clearance.
+  Fix: Hide ChatWidget on routes with bottom sticky bars, raise FAB to `bottom-24` when sticky bar present, or merge into one bottom sheet; add safe-area to both.
+  Effort: S
+  Ref: PUBLIC mobile + scout 06 mobile keyboard scope.
+
+================================================================
+P2 — HIGH (must fix before MVP launch on phones)
+================================================================
+
+[2.1] Public header hamburger below 44×44px minimum
+  File: apps/web/src/components/header.tsx:179–185
+  Symptom: Primary nav entry on all marketing pages; tap area ~32px.
+  Fix: `min-h-11 min-w-11 inline-flex items-center justify-center` on burger button.
+  Effort: S
+  Ref: PUBLIC [2.12] — STILL OPEN.
+
+[2.2] Portal mobile menu trigger undersized
+  File: apps/web/src/app/(portal)/portal/layout.tsx:241–249
+  Symptom: B2B club/sales/admin users open sidebar via ~40px control; sidebar close `p-1` even smaller (186–190).
+  Fix: `h-11 w-11` touch targets; increase nav link `py-3` vertical padding.
+  Effort: S
+
+[2.3] Fundraising shell mobile menu 36×36px
+  File: apps/web/src/app/(fundraising)/layout.tsx:220–227
+  Symptom: Sellers/coaches/leaders — core mobile audience — get smallest menu control in the app.
+  Fix: Match portal `h-11 w-11`; consider bottom tab bar for seller `/min-shop` (SELLER audit first-sale accelerator).
+  Effort: S
+  Ref: TEAM_LEADER [2.19] — nav behind hamburger only.
+
+[2.4] Shop quantity steppers below touch minimum
+  File: apps/web/src/app/(shop)/shop/[slug]/page.tsx:259–277
+  Symptom: Supporter adds products with 32×32px +/- buttons — mis-taps common on 360px.
+  Fix: `h-11 w-11` icon buttons or wider hit slop (`p-3 -m-1`).
+  Effort: S
+  Ref: SUPPORTER cart UX.
+
+[2.5] Product detail sticky CTA missing safe-area padding
+  File: apps/web/src/app/(marketing)/produkter/[slug]/page.tsx:187
+  Symptom: CTA bar flush to physical bottom on iPhone — home indicator overlaps button label.
+  Fix: `pb-[max(0.75rem,env(safe-area-inset-bottom))]` on fixed bar; add page `pb-24` spacer.
+  Effort: S
+
+[2.6] Chat widget mobile layout not thumb/keyboard friendly
+  Files: apps/web/src/components/chat-widget.tsx:238–311,344
+  Symptom: Centered dialog + keyboard = composer hidden; FAB ignores safe-area; textarea 14px triggers zoom.
+  Fix: Mobile breakpoint → full-screen bottom sheet (`inset-x-0 bottom-0 rounded-t-2xl h-[85dvh]`); `visualViewport` resize handler; FAB `bottom-[max(1.5rem,env(safe-area-inset-bottom))]`.
+  Effort: M
+  Ref: scout 06 [2.2], AI_COACH [3.5].
+
+[2.7] Several modals lack max-height scroll on small screens
+  Files: apps/web/src/components/ui/dialog.tsx:37; portal/pipeline/page.tsx:287; forening/page.tsx:329; forening/lag/page.tsx:271; portal/medlemmar/page.tsx:127
+  Symptom: Tall forms (create team, new lead, invite member) can extend past 360×740; close button off-screen; no inner scroll.
+  Fix: Default DialogContent `max-h-[90dvh] overflow-y-auto` or per-modal class like order dialogs.
+  Effort: S
+
+[2.8] Checkout missing autocomplete attributes on supporter fields
+  File: apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx:259–286,337–365
+  Symptom: Name/email/phone/address fields lack `autoComplete="name"`, `email`, `tel`, `street-address`, etc. — slower mobile checkout, more typos.
+  Fix: Add standard autocomplete tokens; use `inputMode="numeric"` on postal code.
+  Effort: S
+  Ref: SUPPORTER [3.10] — STILL OPEN.
+
+[2.9] Fundraising mobile nav lacks modal semantics / scroll lock
+  File: apps/web/src/app/(fundraising)/layout.tsx:231–271
+  Symptom: Expanded nav pushes content but background still scrolls; no focus trap; screen reader may not announce menu state.
+  Fix: Full-screen overlay pattern matching portal/marketing; `aria-controls` + body overflow hidden.
+  Effort: M
+
+[2.10] Portal AI page textarea 14px (iOS zoom) despite 44px send button
+  File: apps/web/src/app/(portal)/portal/ai/page.tsx:348
+  Symptom: Club/sales users chatting on phone get zoom jump on focus.
+  Fix: `text-base` on textarea; page already uses full-width layout — good mobile pattern to extend to public chat.
+  Effort: S
+
+[2.11] Wide portal tables require awkward two-finger pan on 360px
+  Files: apps/web/src/app/(portal)/portal/saljare/page.tsx:135–188; portal/bestallningar, audit-log, statistik (Table usage)
+  Symptom: 6–7 column tables pan inside card — functional but not MVP-grade mobile admin UX.
+  Fix: Responsive card list below `md` (stack name/email/metrics); keep table `md+` only.
+  Effort: M
+  Ref: SALES_REP [4.5], CLUB_MEMBER [3.13].
+
+[2.12] Pipeline kanban stacks 5 full-width columns — extreme vertical scroll
+  File: apps/web/src/app/(portal)/portal/pipeline/page.tsx:257–283
+  Symptom: Sales rep on phone scrolls ~5 screen-heights to scan pipeline; no horizontal board swipe.
+  Fix: Mobile horizontal scroll snap for stages OR accordion per stage; hide empty columns.
+  Effort: M
+  Ref: SALES_REP [3.16] — UX not breakage but field-sales MVP gap.
+
+================================================================
+P3 — MEDIUM
+================================================================
+
+[3.1] Hero dual `priority` images — slow LCP on 360px cellular
+  File: apps/web/src/components/sections/hero.tsx:10–30
+  Symptom: Blank/skeleton hero on 3G; not horizontal scroll but mobile first impression.
+  Fix: Single responsive image WebP; one priority branch (scout 01 [1.2]).
+  Effort: M
+
+[3.2] Marketing header hides Logga in / search until menu open
+  File: apps/web/src/components/header.tsx:127–176 vs 234–260
+  Symptom: Extra tap for auth on mobile; acceptable IA but friction for returning sellers/coaches.
+  Fix: Persistent icon row or sticky bottom shortcut (PUBLIC [2.12] suggestion).
+  Effort: M
+
+[3.3] Shop layout footer legal links in horizontal row at 360px
+  File: apps/web/src/app/(shop)/layout.tsx:21–39
+  Symptom: Three underlined links + compact identity — wraps to 2 lines; tight tap spacing.
+  Fix: `flex-col gap-2` default, `sm:flex-row` at wider breakpoints.
+  Effort: S
+
+[3.4] Hair-analysis wizard photo grid `grid-cols-3` on narrow phones
+  File: apps/web/src/components/hair-analysis-lead-dialog.tsx:753
+  Symptom: Thumbnail targets small inside modal at 360px width.
+  Fix: `grid-cols-2 sm:grid-cols-3` or scroll row.
+  Effort: S
+
+[3.5] Portal main padding `p-6` on 360px — reduces usable width for tables
+  File: apps/web/src/app/(portal)/portal/layout.tsx:257
+  Symptom: 360 − 48px padding − sidebar header = tight data columns.
+  Fix: `px-4 py-6 md:p-8` on main.
+  Effort: S
+
+[3.6] Seller min-shop share row — same URL overflow class as [1.2] but mitigated if [1.2] fixed globally via shared `CopyLinkField` component
+  Effort: S (bundle with [1.2])
+
+[3.7] Lag/saljare goal-edit controls `h-7 w-7` / `h-8` inputs
+  File: apps/web/src/app/(fundraising)/lag/saljare/page.tsx:496–527
+  Symptom: Coach edits goals on phone with sub-44px controls.
+  Fix: Stack edit row on mobile; full-width inputs.
+  Effort: S
+
+[3.8] No global `overflow-x: clip` on body — future regressions unguarded
+  File: apps/web/src/app/globals.css (body rule 177–183)
+  Fix: `html, body { overflow-x: clip; }` as safety net after fixing URL rows.
+  Effort: S
+
+================================================================
+P4 — LOW
+================================================================
+
+[4.1] Shop product `<Image>` missing `sizes` attribute — bandwidth only
+  File: apps/web/src/app/(shop)/shop/[slug]/page.tsx:239–244
+
+[4.2] Portal AI suggestion chips `text-xs py-1.5` — small tap targets (portal/ai/page.tsx:287)
+  Mitigated by full-width wrap; optional `min-h-11` on chips.
+
+[4.3] Theme toggle / desktop header icons exactly 40×40px — borderline (theme-toggle.tsx:34; header.tsx:163)
+  Acceptable on desktop-first chrome; bump to 44px for consistency.
+
+[4.4] Fundraising seller lacks sticky “Dela min shop” bottom bar (min-shop/page.tsx) — scroll-to-share on long dashboard
+  Ref: SELLER first-sale accelerator; pattern exists on shop cart bar.
+
+================================================================
+PAGE-BY-PAGE SNAPSHOT (360px)
+================================================================
+
+PUBLIC (marketing layout + header/footer/chat)
+  /                          PASS layout; FAIL perf (hero LCP), chat/FAB overlap N/A on home
+  /produkter, /foreningsliv  PASS stack; px-6 OK
+  /produkter/[slug]          FAIL sticky CTA + chat overlap, no safe-area
+  /kontakt, /om-oss, legal   PASS
+  /haranalys                 PASS grids collapse md:grid-cols-3 → 1 col
+
+AUTH
+  /login                     FAIL iOS input zoom; OK tap targets on submit (h-11)
+  /registrera (+ tokens)     FAIL keyboard/centering + iOS zoom + wizard non-form
+
+SHOP (supporter)
+  /shop/[slug]               FAIL content under cart bar; qty buttons small; URL N/A
+  /shop/[slug]/kassa         FAIL iOS zoom + missing autocomplete; layout OK
+
+FUNDRAISING
+  /min-shop                  FAIL URL row overflow; no sticky share
+  /lag, /lag/saljare         FAIL invite URL overflow (/lag); small edit controls
+  /forening/lag              FAIL invite URL overflow
+  /installningar             FAIL seller URL row if SELLER role
+
+PORTAL (B2B club / sales / admin)
+  layout                     FAIL menu tap targets; OK drawer pattern
+  /portal/saljare            FAIL table pan UX
+  /portal/pipeline           FAIL long vertical kanban
+  /portal/ai                 FAIL textarea zoom; else OK full-page chat
+  /portal/* tables           PASS overflow-auto containment
+
+================================================================
+MVP READINESS BREAKDOWN (mobile 360–414px)
+================================================================
+- Layout / no horizontal scroll:  14/25  (URL rows break contract on fundraising paths)
+- Touch / thumb ergonomics:       11/25  (systemic sub-44px icon controls)
+- Forms / keyboard / iOS:         10/25  (14px inputs; auth centering; checkout autocomplete)
+- Fixed chrome / safe-area:       12/25  (shop bar improved; product/chat/footer offsets missing)
+- Navigation patterns:            17/25  (drawers work; fundraising menu weakest)
+
+NOTES FOR THE TEAM
+------------------
+Resolved / improved since April 2026 flow audits (do not re-audit as open):
+- Shop sticky cart bar now includes `env(safe-area-inset-bottom)` on the bar itself (SUPPORTER [3.3] partial fix).
+- Many seller/leader rows use `min-w-0` + `truncate` on names (lag/saljare list) — invite URL inputs remain the gap.
+- Default Button/Input height h-11 (44px) aligns with Apple HIG for primary actions when default size is used.
+
+Highest-impact mobile sprint (ordered):
+1. Input `text-base` + optional global 16px guard ([1.1]) — one-line fix, all roles.
+2. Shared `CopyLinkField` with `min-w-0 flex-1 truncate` ([1.2]) — fixes 4 fundraising pages.
+3. Shop main `pb` when cart visible ([1.3]) + product sticky safe-area ([2.5]).
+4. Auth layout `items-start` on mobile ([1.4]).
+5. Burger/menu `h-11 w-11` sweep (header, portal, fundraising) ([2.1]–[2.3]).
+
+Cross-scout dependencies:
+- Scout 22 (cart): content padding pairs with cart persistence on kassa reload.
+- Scout 06 (chat): full-screen mobile chat should coordinate with product sticky bar hide/offset ([1.5]).
+- Scout 01 (landing): hero weight affects mobile LCP separately from layout scroll.
+
+--- END SCOUT 33 ---

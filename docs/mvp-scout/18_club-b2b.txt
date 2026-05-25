@@ -1,0 +1,305 @@
+================================================================
+SCOUT 18 — B2B club portal (CLUB_ADMIN, CLUB_MEMBER)
+================================================================
+Date: 2026-05-25
+Scope: apps/web/src/app/(portal)/portal/* (club branch), apps/api/src/routes/portal.ts,
+       apps/api/src/trpc/routers/club.ts, packages/db/src/schema/orders.ts,
+       packages/db/src/schema/subscriptions.ts, apps/api/src/routes/fortnox-webhook.ts
+Roles: CLUB_ADMIN, CLUB_MEMBER
+
+NOTE: The legacy `(club)/club/*` shell from the April audit is **gone** — canonical
+B2B path is `/portal/*` only. Login sends CLUB_* roles to `/portal` (login/page.tsx:52).
+
+SUMMARY
+-------
+Portal B2B ordering partially works via REST (`POST /v1/portal/orders`), dashboard KPIs
+fetch live data, fakturor/beställningar list orders with CSV export, and member invite
+creates DB rows. MVP-blocking gaps: produkter→beställningar cart is disconnected;
+order dialog always shows success on failure; fallback SKUs use fake IDs that persist
+0 kr ghost orders; no delivery address / PO on orders; recurring subscriptions have no
+UI or org-scoped API; invited members cannot accept or log in; Fortnox invoicing is not
+wired for club orders (webhook stub); order-status UI maps the wrong field.
+Findings: 22 (P1:8 P2:9 P3:4 P4:1)
+MVP readiness: 42/100
+
+CHECKLIST (pass / partial / fail)
+---------------------------------
+| Item                              | Status  | Notes |
+|-----------------------------------|---------|-------|
+| Dashboard: members, orders, revenue, next delivery | PARTIAL | Live fetch; labels wrong; nextDelivery always null |
+| Place wholesale order: picker, qty, delivery address | PARTIAL | Dialog on /bestallningar works; no address; catalog cart broken |
+| Recurring orders / subscriptions  | FAIL    | DB schema is D2C/seller-scoped; zero portal UI or API |
+| Member management (CLUB_ADMIN)    | PARTIAL | Invite API exists; no email/accept; CLUB_MEMBER sees invite button |
+| Billing address, invoice history  | PARTIAL | /fakturor lists orders; no billing-address UI; Fortnox never updates |
+| Order status tracking               | FAIL    | Maps order.status with PAID check; ignores invoiceStatus + fulfillment |
+| Fortnox customer linking          | FAIL    | org.fortnoxCustomerId in schema only; no UI; webhook does not write DB |
+| Mobile UX                         | PARTIAL | Responsive layout OK; sticky cart bar overlaps thumb zone on produkter |
+| Empty states                      | PASS    | Dashboard, beställningar, fakturor, medlemmar have honest empty copy |
+
+P1 — CRITICAL (blocks MVP)
+
+[1.1] Produkter → beställningar drops cart — multi-SKU flow broken
+  File: apps/web/src/app/(portal)/portal/produkter/page.tsx:165-181
+  Symptom: User picks quantities on `/portal/produkter`; sticky bar navigates via
+  `window.location.href = "/portal/bestallningar"` with no query, sessionStorage, or POST.
+  Cart state is page-local `useState` — selections vanish on navigation.
+  Root cause: No shared cart bridge between catalog and order dialog.
+  Fix: Pass cart via sessionStorage/URL params, or merge ordering into produkter page,
+  or open PortalOrderDialog pre-filled from catalog state.
+  Effort: M
+  Ref audit: CLUB_MEMBER [1.5] — STILL UNRESOLVED
+
+[1.2] Order submit always shows success — failures silent to user
+  File: apps/web/src/app/(portal)/portal/bestallningar/page.tsx:141-183
+  Symptom: `handleSubmit` catches API errors (console only) then unconditionally runs
+  `setSubmitted(true)` and clears cart. User sees "Beställning skickad!" even when
+  `portalFetch` threw (401, 400 org missing, network error).
+  Root cause: Success UI not gated on `created.order`.
+  Fix: Only set `submitted` when response contains order; show toast/alert on failure;
+  keep cart on error.
+  Effort: S
+  Ref audit: new (regression risk in Sprint E12 work)
+
+[1.3] Fallback catalog IDs create 0 kr ghost orders when API unavailable
+  File: apps/web/src/app/(portal)/portal/bestallningar/page.tsx:39-43, 86-88, 145-151
+        apps/api/src/routes/portal.ts:455-493
+  Symptom: `CATALOG_FALLBACK_PRODUCTS` uses ids `"1"`, `"2"`, `"3"` (not UUIDs). If
+  `/products` fails, user can submit; API skips unknown IDs (`continue`), inserts order
+  with `totalOre: 0` and zero line rows.
+  Root cause: Client fallback not aligned with server UUID validation; server accepts
+  empty line arrays after skip loop.
+  Fix: Disable submit when products not loaded from API; server reject when
+  `lines.length === 0` or `totalOre === 0`; use real seed UUIDs in fallback or none.
+  Effort: S
+  Ref audit: CLUB_MEMBER [2.6] silent skip — STILL UNRESOLVED
+
+[1.4] No delivery address, PO, or ship-to on B2B orders
+  File: apps/api/src/routes/portal.ts:437-440 (body `{ items }` only)
+        packages/db/src/schema/orders.ts:30-50 (no address columns)
+        packages/db/src/schema/organizations.ts (no address book)
+  Symptom: Wholesale buyer cannot specify delivery location, reference, or instructions.
+  Order dialog collects qty only. Ops cannot fulfill without manual follow-up.
+  Root cause: Order schema and CreateOrder contract never extended for B2B logistics.
+  Fix: Add org delivery address (or address book), ship-to snapshot on order, optional
+  PO/reference fields; collect in order dialog before POST.
+  Effort: L
+  Ref audit: CLUB_MEMBER [1.8], [1.10] — STILL UNRESOLVED
+
+[1.5] Recurring / subscription orders — not implemented for clubs
+  File: packages/db/src/schema/subscriptions.ts (sellerId/teamId/campaignId, no orgId)
+        apps/web/src/app/(portal)/portal/* (no prenumeration route)
+        apps/api/src/routes/portal.ts (no subscription endpoints)
+  Symptom: Checklist item "set up, pause, cancel recurring orders" has zero surface.
+  Subscriptions table targets supporter D2C flows, not org wholesale cadence.
+  Root cause: Feature never scoped to B2B portal; AI copy references "kvartalsleverans"
+  without backing data model.
+  Fix: Add org-scoped subscription model (or reuse orders + cron), CRUD API, portal page
+  with pause/cancel; wire dashboard `nextDelivery` from subscription schedule.
+  Effort: L
+  Ref audit: CLUB_MEMBER [1.3 area], [2.1] — STILL UNRESOLVED
+
+[1.6] Invited club members cannot log in — no accept-invite flow
+  File: apps/api/src/routes/portal.ts:744-748, 676-684
+        apps/web/src/app/(portal)/portal/medlemmar/page.tsx:105-117
+  Symptom: CLUB_ADMIN clicks "Skicka inbjudan" → row appears in table, toast success,
+  **no email**. Invitee gets `passwordHash: invite-pending-{uuid}…` — login fails forever.
+  Root cause: MVP defers token email; no accept-invite / set-password route (see Scout 11 [1.2]).
+  Fix: Send invite email with token link; accept page sets password and creates session.
+  Effort: M
+  Ref audit: CLUB_MEMBER [1.13]; Scout 11 [1.2] — STILL UNRESOLVED
+
+[1.7] Fortnox invoicing not wired for club B2B orders — fakturor page misleading
+  File: apps/api/src/routes/portal.ts:470-495 (POST orders — no invoice trigger)
+        apps/api/src/routes/fortnox-webhook.ts:68-72 ("Would update invoice status")
+        apps/api/src/jobs/sync-invoice-status.ts (stub comments)
+        apps/web/src/app/(portal)/portal/fakturor/page.tsx:6-11 (claims webhook mirror)
+  Symptom: All club orders stay `invoiceStatus: NONE`, `fortnoxInvoiceId: null`. Fakturor
+  UI promises Fortnox sync via webhook; webhook only logs. `getInvoiceProvider()` used
+  on settlement/payout path only, not portal orders.
+  Root cause: B2B invoice pipeline never connected end-to-end.
+  Fix: On order confirm, create Fortnox invoice when org.fortnoxCustomerId set; webhook
+  writes invoiceStatus; or honest UI copy until integration live.
+  Effort: L
+  Ref audit: CLUB_MEMBER [1.9] partial (UI exists, data never moves) — PARTIALLY FIXED UI ONLY
+
+[1.8] Order list status mapping uses wrong field — tracking misleading
+  File: apps/web/src/app/(portal)/portal/bestallningar/page.tsx:96-108
+  Symptom: Maps `o.status === "PAID"` → "Levererad", but API `orders.status` enum is
+  PENDING|CONFIRMED|SHIPPED|DELIVERED|CANCELLED — never PAID. `invoiceStatus` PAID is
+  ignored. DELIVERED orders show "Under behandling". KPI cards count wrong buckets.
+  Root cause: Confused fulfillment status with invoice status (April audit [1.11]).
+  Fix: Map `order.status` to delivery labels; show `invoiceStatus` separately; fix KPI filters.
+  Effort: S
+  Ref audit: CLUB_MEMBER [1.11] — STILL UNRESOLVED
+
+P2 — HIGH (must fix before MVP launch)
+
+[2.1] Dashboard KPI labels do not match API semantics
+  File: apps/web/src/app/(portal)/portal/page.tsx:105-107
+        apps/api/src/routes/portal.ts:89-116
+  Symptom: Card says "Beställningar denna månad" but API returns **lifetime** order count.
+  Card says "Intäkter till klubben" but API sums **PAID invoice spend** (buyer outlay),
+  not fundraising revenue to the club.
+  Root cause: UI labels copied from fundraising framing; API never added monthly filter.
+  Fix: Rename labels ("Totalt antal beställningar", "Betalt inköp") or add monthly query param.
+  Effort: S
+  Ref audit: CLUB_MEMBER [1.1] dashboard — PARTIALLY FIXED (fetch works, labels wrong)
+
+[2.2] `nextDelivery` always null — dashboard promise empty
+  File: apps/api/src/routes/portal.ts:116 (`nextDelivery: null`)
+        apps/web/src/app/(portal)/portal/page.tsx:107
+  Symptom: "Nästa leverans" card permanently "—" even with active orders.
+  Root cause: No subscription/shipment schedule computed server-side.
+  Fix: Derive from subscriptions or latest CONFIRMED order + SLA; tie to [1.5].
+  Effort: M
+  Ref audit: CLUB_MEMBER [1.8] — STILL UNRESOLVED
+
+[2.3] CLUB_MEMBER can open invite UI — API returns 403 without UI guard
+  File: apps/web/src/app/(portal)/portal/medlemmar/page.tsx:246-249
+        apps/api/src/routes/portal.ts:692-697
+  Symptom: Both roles see "Bjud in medlem" button and dialog; only CLUB_ADMIN succeeds.
+  CLUB_MEMBER gets error after filling form.
+  Root cause: No role check in medlemmar page (usePortalUser).
+  Fix: Hide invite button unless `user.role === "CLUB_ADMIN"`.
+  Effort: S
+  Ref audit: CLUB_MEMBER [1.12] RBAC nuance — PARTIALLY FIXED (API guards invite POST)
+
+[2.4] `/portal/intakter` uses fundraising payout framing for B2B buyers
+  File: apps/web/src/app/(portal)/portal/intakter/page.tsx:91-128
+        apps/web/src/app/(portal)/portal/layout.tsx:43 (in CLUB_NAV)
+  Symptom: Copy says "Följ era intäkter från Roots-försäljningen", "Nästa utbetalning".
+  For club wholesale buyers this is **purchase spend**, not seller payout income.
+  Root cause: Same page reused across roles without B2B copy fork.
+  Fix: Rename nav to "Inköp"/"Kostnad" for CLUB_* or hide intakter from CLUB_NAV.
+  Effort: S
+  Ref audit: CLUB_MEMBER [3.8] — STILL UNRESOLVED
+
+[2.5] No reorder / buy-again from order history
+  File: apps/web/src/app/(portal)/portal/bestallningar/page.tsx (table rows — view only)
+        apps/web/src/app/(portal)/portal/page.tsx:38 ("Beställ igen" → list page, not reorder)
+  Symptom: User must manually re-pick SKUs every time; no "Beställ samma igen" action.
+  Root cause: Order lines not exposed in list mapping (`items: ""` on fetch); no reorder API.
+  Fix: Fetch line items in list or detail; add reorder button pre-filling dialog cart.
+  Effort: M
+  Ref audit: CLUB_MEMBER [2.1], [2.5] — STILL UNRESOLVED
+
+[2.6] Order history capped at 100 with no pagination
+  File: apps/api/src/routes/portal.ts:303-310
+  Symptom: Clubs with >100 orders lose older history in UI and CSV export.
+  Root cause: Hard `.limit(100)` on GET /orders.
+  Fix: Cursor pagination + "load more" or date-range query params.
+  Effort: M
+  Ref audit: CLUB_MEMBER [2.3] — STILL UNRESOLVED
+
+[2.7] No billing / invoice address management in settings
+  File: apps/web/src/app/(portal)/portal/installningar/page.tsx:196-218 (read-only identity)
+        packages/db/src/schema/organizations.ts (orgNumber only, no billing address fields)
+  Symptom: B2B buyer cannot view or edit fakturaadress, org.nr display, or Fortnox link.
+  Root cause: Settings page is account prefs only; org billing not modeled in UI.
+  Fix: Editable org billing block for CLUB_ADMIN; show fortnoxCustomerId status read-only.
+  Effort: M
+  Ref audit: CLUB_MEMBER [1.8], [2.9] — STILL UNRESOLVED
+
+[2.8] Notification preferences shown as "Aktiv" without backend
+  File: apps/web/src/app/(portal)/portal/installningar/page.tsx:236-256
+  Symptom: "E-postaviseringar" and "Leveransnotiser" badges always green "Aktiv" — no
+  toggle, no persistence, contradicts actual email job absence.
+  Root cause: Static marketing copy in settings card.
+  Fix: Remove fake badges or wire to user/org notification prefs table.
+  Effort: S
+  Ref audit: new
+
+[2.9] tRPC `club` router still stubbed — dead alternate path
+  File: apps/api/src/trpc/routers/club.ts:18-44
+  Symptom: `orders` returns `[]`, `createOrder` returns random UUID without DB write.
+  No web caller found today, but contract invites future misuse / mobile client drift.
+  Root cause: Legacy shell never deleted from API layer.
+  Fix: Delete or delegate to same service as REST `/v1/portal/orders`.
+  Effort: S
+  Ref audit: CLUB_MEMBER [1.2] — PARTIALLY FIXED (UI moved to REST; tRPC stub remains)
+
+P3 — MEDIUM
+
+[3.1] Club dashboard lacks `DataSourceBadge` / `isDemo` handling
+  File: apps/web/src/app/(portal)/portal/page.tsx:93-114 vs SalesDashboard:214+
+  Symptom: Sales/Admin dashboards show demo pill when `isDemo`; ClubDashboard ignores
+  `isDemo` field from API — empty org looks like real zeros.
+  Root cause: Club branch not updated in Fas 1 kontraktsreparation.
+  Fix: Read `isDemo` from `/dashboard`; render `<DataSourceBadge demo={isDemo} />`.
+  Effort: S
+  Ref audit: MASTER_PLAN T1 — PARTIALLY FIXED elsewhere
+
+[3.2] Hardcoded AI tip claims order-pattern insight without data
+  File: apps/web/src/app/(portal)/portal/page.tsx:193-197
+  Symptom: "Baserat på ert ordermönster… kvartalsleverans" shown even with zero orders.
+  Root cause: Static copy in ClubDashboard.
+  Fix: Gate on `orders > 0` or remove until analytics exist.
+  Effort: S
+  Ref audit: CLUB_MEMBER [2.20] adjacent
+
+[3.3] Produktkatalog: no search, SKU display, or MOQ
+  File: apps/web/src/app/(portal)/portal/produkter/page.tsx:96-163
+        apps/api/src/routes/portal.ts:455-458 (any positive qty)
+  Symptom: ERP buyers cannot search by SKU; cards hide article numbers; no minimum qty.
+  Root cause: MVP catalog is marketing grid only.
+  Fix: Show SKU, add filter input, enforce MOQ in API if business rules exist.
+  Effort: M
+  Ref audit: CLUB_MEMBER [1.6], [1.7], [2.6] — STILL UNRESOLVED
+
+[3.4] Mobile: sticky checkout bar on produkter may overlap content / thumb zone
+  File: apps/web/src/app/(portal)/portal/produkter/page.tsx:82, 165-166
+  Symptom: `sticky bottom-6` bar plus `pb-28` padding — on small screens primary CTA
+  competes with scroll end; no safe-area inset.
+  Root cause: Fixed offset not tuned for iOS home indicator.
+  Fix: `bottom-safe` padding, reduce sticky elevation on xs breakpoints.
+  Effort: S
+  Ref audit: CLUB_MEMBER [3.11] club shell — N/A (shell removed); pattern persists on portal
+
+P4 — LOW
+
+[4.1] `Badge` import unused on produkter page
+  File: apps/web/src/app/(portal)/portal/produkter/page.tsx:15
+  Symptom: Lint noise only.
+  Effort: S
+  Ref audit: CLUB_MEMBER [4.1] — STILL UNRESOLVED
+
+PROGRESS SINCE APRIL AUDIT (CLUB_MEMBER_2026-04-18)
+----------------------------------------------------
+FIXED / IMPROVED:
+  - `(club)/club/*` demo shell removed; `/portal` is canonical (T2 rotorsak delvis stängd).
+  - Club dashboard fetches `GET /v1/portal/dashboard` with real member/order/revenue counts.
+  - `POST /v1/portal/members/invite` + medlemmar dialog (replaces toast-only stub).
+  - `/portal/fakturor` added with invoiceStatus filters + CSV export.
+  - `/portal/bestallningar` gained search, date filters, CSV, order detail dialog.
+  - Portal layout: mobile sidebar, notification bell, help link.
+  - RBAC: club roles require orgId on dashboard/income (400 not global leak).
+
+STILL OPEN (P1 from April): cart disconnect, delivery/PO, subscriptions, Fortnox E2E,
+  status mapping, invite accept, volume pricing.
+
+ROLE SURFACE MAP
+----------------
+| Route                    | CLUB_ADMIN | CLUB_MEMBER | API backing |
+|--------------------------|------------|-------------|-------------|
+| /portal                  | yes        | yes         | GET /dashboard |
+| /portal/bestallningar    | yes        | yes         | GET/POST /orders |
+| /portal/produkter        | yes        | yes         | GET /products |
+| /portal/fakturor         | yes        | yes         | GET /orders |
+| /portal/medlemmar        | yes        | yes (view)  | GET /members; POST invite admin-only |
+| /portal/intakter         | yes        | yes         | GET /income (misleading copy) |
+| /portal/installningar    | yes        | yes         | change-password only |
+| /portal/ai               | yes        | yes         | public-chat (no org context) |
+
+MVP READINESS BREAKDOWN
+- Core ordering:           10/25  (single-page dialog OK; catalog path broken; false success)
+- Subscriptions / recurring: 0/25  (absent)
+- Members & RBAC:         12/25  (invite creates row; no login path; member can see invite UI)
+- Invoicing / Fortnox:     5/25   (read-only list; status never advances)
+- Dashboard / reporting:    15/25  (live counts; wrong labels; no next delivery)
+
+REFERENCES
+- docs/flow-audits/CLUB_MEMBER_2026-04-18_1249.txt
+- docs/flow-audits/MASTER_PLAN_2026-04-18.md — T2 (/club vs /portal), T8 (stubs)
+- docs/mvp-scout/11_auth-misc.txt — [1.2] invite accept-invite gap
+
+--- END SCOUT 18 ---

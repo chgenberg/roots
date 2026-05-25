@@ -1,0 +1,323 @@
+================================================================
+SCOUT 27 — Fortnox + invoicing integration
+================================================================
+Date: 2026-05-25
+Scope: apps/api/src/lib/invoicing/*, packages/db/src/schema/orders.ts (invoiceStatus,
+       fortnoxInvoiceId), packages/db/src/schema/organizations.ts (fortnoxCustomerId),
+       apps/api/src/routes/settlement.ts, apps/api/src/routes/fortnox-webhook.ts,
+       apps/api/src/jobs/sync-invoice-status.ts, packages/db/src/schema/payouts.ts,
+       packages/db/src/schema/integrations.ts, packages/contracts/src/invoicing.ts
+Roles: System (back-office), INTERNAL_ADMIN, ASSOCIATION_ADMIN (settlement)
+
+REFERENCE: docs/flow-audits/INTERNAL_ADMIN_2026-04-18_1310.txt — audit_logs unused;
+settlement drill-in exists but no portal discovery; revenue KPIs mislabeled (adjacent).
+
+SUMMARY
+-------
+InvoiceProvider abstraction exists (Fortnox vs Null, env-gated) and schema fields are
+ready, but **no production-ready invoice path works end-to-end**. B2B club orders never
+call the provider; settlement `create-invoice` sends invalid Fortnox customer data;
+`createOrUpdateCustomer` is never invoked and `fortnoxCustomerId` is never written;
+webhook and sync job are stubs (no DB writes); PAID status never flows back to
+`orders.invoiceStatus` or `payouts.status`. Settlement invoice creation is not
+idempotent. VAT/account codes and PDF download are absent from the provider contract.
+Findings: 24 (P1:9 P2:10 P3:4 P4:1)
+MVP readiness: 18/100
+
+CHECKLIST (pass / partial / fail)
+---------------------------------
+| Item                                      | Status  | Notes |
+|-------------------------------------------|---------|-------|
+| Provider abstraction (real vs stub, env)  | PARTIAL | getInvoiceProvider() OK; silent Null fallback when token missing |
+| Customer flow: lookup fortnoxCustomerId   | FAIL    | createOrUpdateCustomer never called; no lookup-before-create |
+| Customer flow: create if missing + persist| FAIL    | POST /customers only; errors swallowed; org column never updated |
+| Invoice numbering ownership               | PASS    | Fortnox DocumentNumber; app stores fortnoxInvoiceId only |
+| Error handling: Fortnox down / timeout    | PARTIAL | 15s abort + generic error result; no classification/retry |
+| Error handling: auth expired              | FAIL    | Static FORTNOX_ACCESS_TOKEN; no refresh; 401 → opaque 502 |
+| Error handling: validation errors         | PARTIAL | Fortnox body logged in thrown Error; not surfaced structurally |
+| Retry logic                               | FAIL    | None on provider or settlement route |
+| VAT + account codes on invoice rows       | FAIL    | No VATPercent, AccountNumber, or CostCenter in API payload |
+| PDF download                              | FAIL    | Not in InvoiceProvider; no proxy endpoint |
+| Audit trail per invoice                   | FAIL    | settlement generate audited; create-invoice and webhook not |
+| Status sync PAID → app                    | FAIL    | sync job empty; webhook logs only; payouts PAID enum unused |
+| Env config sanity (no leaked tokens)      | PARTIAL | No hardcoded secrets in source; OAuth env vars unused/dead |
+| B2B order → invoice trigger               | FAIL    | POST /portal/orders inserts NONE status; no provider call |
+| Settlement integration                    | PARTIAL | create-invoice wired; wrong customer; no idempotency |
+| CSV fallback export                       | PARTIAL | generateOrdersCsv helper exists; portal fakturor rolls own CSV |
+
+================================================================
+P1 — CRITICAL (MVP-blocking)
+================================================================
+
+[1.1] B2B club orders never create Fortnox invoices — invoiceStatus stuck at NONE
+  File: apps/api/src/routes/portal.ts:470-495 (POST /orders — insert only)
+        apps/api/src/lib/invoicing/index.ts (provider never called from portal)
+        packages/db/src/schema/orders.ts:43 (default invoiceStatus NONE)
+  Symptom: Every wholesale order stays `invoiceStatus: NONE`, `fortnoxInvoiceId: null`.
+  Club `/portal/fakturor` and income KPIs (`invoiceStatus = PAID`) never advance from
+  real Fortnox activity.
+  Root cause: Order-confirm path has no invoicing hook after transaction commit.
+  Fix: After order insert, resolve org → customer (see [1.2]), call
+  `createInvoiceFromOrder`, set `invoiceStatus: ISSUED|PENDING`, persist
+  `fortnoxInvoiceId`; on NullProvider set PENDING + ops queue flag.
+  Effort: L
+  Ref: Scout 18 [1.7]; composer-agents/07 §1
+
+[1.2] createOrUpdateCustomer never called — fortnoxCustomerId never populated
+  File: apps/api/src/lib/invoicing/fortnox-provider.ts:52-68
+        packages/db/src/schema/organizations.ts:41
+        (grep: zero call sites for createOrUpdateCustomer)
+  Symptom: `organizations.fortnoxCustomerId` remains null for all orgs. No lookup by
+  stored customer number before invoice create.
+  Root cause: Contract method implemented but unwired; no orchestration layer.
+  Fix: Before first invoice for org: if `fortnoxCustomerId` set use it; else
+  `createOrUpdateCustomer` from org name/orgNumber/billing email, persist returned
+  CustomerNumber on org row.
+  Effort: M
+  Ref: platform-audit [1.19]; composer-agents/07 §3
+
+[1.3] Fortnox invoice uses orgNumber as CustomerNumber — API payload invalid
+  File: apps/api/src/lib/invoicing/fortnox-provider.ts:80-85
+        apps/api/src/routes/settlement.ts:252-256 (customer orgNumber: "")
+  Symptom: `CustomerNumber: order.customer.orgNumber` sends Swedish org.nr (or empty
+  string) where Fortnox expects its internal customer number (e.g. "1001"). Invoice
+  POST fails or attaches to wrong/missing customer when Fortnox enabled.
+  Root cause: Field semantic mismatch; settlement passes placeholder customer.
+  Fix: Pass `fortnoxCustomerId` (Fortnox CustomerNumber) on InvoiceOrder.customer;
+  map in provider as `CustomerNumber`. Never use orgNumber for this field.
+  Effort: S
+  Ref: platform-audit [2.18]
+
+[1.4] Fortnox webhook does not update DB — UI falsely claims mirror via webhook
+  File: apps/api/src/routes/fortnox-webhook.ts:68-72 ("Would update invoice status")
+        apps/web/src/app/(portal)/portal/fakturor/page.tsx:9-11 (comments promise mirror)
+  Symptom: `invoice-paid` / `invoice-cancelled` events logged only. Orders and payouts
+  never flip to PAID/CANCELLED. Notification feed (`INVOICE_PAID`) never fires from
+  real events.
+  Root cause: Stub handler; no lookup by fortnoxInvoiceId on orders/payouts tables.
+  Fix: Parse event payload for document number; UPDATE matching rows; idempotent by
+  eventId + current status; emit auditLog entry.
+  Effort: M
+  Ref: INTERNAL_ADMIN audit (audit trail gap); Scout 18 [1.7]
+
+[1.5] sync-invoice-status job is a no-op — no polling fallback
+  File: apps/api/src/jobs/sync-invoice-status.ts:11-30 (pendingInvoices always [])
+  Symptom: Cron strategy in composer-agents/07 §6 never runs. Issued invoices stay
+  ISSUED forever if webhook missed.
+  Root cause: Job skeleton never queries DB or writes status back.
+  Fix: Select orders/payouts where fortnoxInvoiceId IS NOT NULL AND status not
+  terminal; call getInvoiceStatus; map paid/cancelled → DB enum; schedule via pg-boss
+  (6h per spec).
+  Effort: M
+  Ref: platform-audit [3.20]
+
+[1.6] Settlement create-invoice not idempotent — duplicate Fortnox invoices on retry
+  File: apps/api/src/routes/settlement.ts:225-289
+  Symptom: Re-POST `/create-invoice/:payoutId` after success creates another Fortnox
+  invoice; only latest id stored on payout row. Double billing risk.
+  Root cause: No guard on `payout.status === INVOICED` or existing fortnoxInvoiceId.
+  Fix: Return existing invoiceId if already INVOICED; 409 if in-flight; audit duplicate
+  attempt.
+  Effort: S
+  Ref: platform-audit [1.16]
+
+[1.7] Settlement invoice uses hardcoded placeholder customer — not the association
+  File: apps/api/src/routes/settlement.ts:250-257
+  Symptom: Customer block is `{ name: "Roots AB", orgNumber: "", email: "" }` while
+  billing the association's rootsShareOre. Fortnox customer and legal debtor diverge.
+  Root cause: Placeholder during stub phase never replaced.
+  Fix: Load org by payout.orgId; use org name, orgNumber, billing contact; run customer
+  sync ([1.2]) before invoice.
+  Effort: M
+
+[1.8] NullProvider + FORTNOX_ENABLED=false blocks settlement invoicing with 502
+  File: apps/api/src/lib/invoicing/null-provider.ts:21-30 (externalId: null)
+        apps/api/src/routes/settlement.ts:269-273
+  Symptom: Default deploy returns 502 "Faktura kunde inte skapas hos leverantören"
+  even though NullProvider intentionally returns pending manual processing message.
+  Ops cannot mark payout INVOICED manually via API.
+  Root cause: Route treats null externalId as hard failure; no manual/offline path.
+  Fix: When NullProvider, set payout PENDING + message, return 202 with manual flag; or
+  expose INTERNAL_ADMIN "mark invoiced" with external id input.
+  Effort: S
+
+[1.9] OAuth / integration_fortnox table unused — static token will expire in prod
+  File: packages/db/src/schema/integrations.ts (encrypted tokens — never read)
+        apps/api/src/lib/invoicing/index.ts:16-23 (FORTNOX_ACCESS_TOKEN env only)
+        .env.example:75-77 (CLIENT_ID/SECRET/REDIRECT — no callback route in apps/api)
+  Symptom: Production Fortnox auth expires; no refresh; table and OAuth env vars are
+  dead code. Boot does not warn when FORTNOX_ENABLED=true without token refresh path.
+  Root cause: MVP stopped at env-token shortcut; OAuth callback never built.
+  Fix: Implement OAuth callback → integration_fortnox + token refresh middleware; or
+  document manual token rotation runbook and fail loud when token near expiry.
+  Effort: L
+  Ref: composer-agents/07 §2; platform-audit [2.10]
+
+================================================================
+P2 — HIGH
+================================================================
+
+[2.1] createOrUpdateCustomer swallows errors — silent null return
+  File: apps/api/src/lib/invoicing/fortnox-provider.ts:65-68
+  Symptom: Duplicate customer, validation, or auth errors return null with log only;
+  caller cannot distinguish "disabled" from "Fortnox rejected payload".
+  Fix: Return structured error on InvoiceResult pattern or throw typed FortnoxError.
+  Effort: S
+
+[2.2] createOrUpdateCustomer always POST — no update/lookup for existing Fortnox customer
+  File: apps/api/src/lib/invoicing/fortnox-provider.ts:56-62
+  Symptom: Re-sync creates duplicate Fortnox customers; no GET by OrganisationNumber.
+  Fix: Search Fortnox customers by org number; PUT update when fortnoxCustomerId known.
+  Effort: M
+
+[2.3] No VATPercent or account codes on invoice rows
+  File: apps/api/src/lib/invoicing/fortnox-provider.ts:73-78
+  Symptom: Rows send ArticleNumber, Description, Qty, Price only. Swedish B2B requires
+  correct VAT (25/12/6/0) and ledger accounts for bookkeeping compliance.
+  Fix: Extend InvoiceLine with vatPercent/accountNumber; map from products schema or
+  finance config; validate before POST.
+  Effort: M
+  Ref: site-audit AUDIT_AGENT_07 P2
+
+[2.4] ArticleNumber = product SKU — Fortnox article may not exist
+  File: apps/api/src/lib/invoicing/fortnox-provider.ts:74
+        apps/api/src/routes/settlement.ts:260 (sku: "SETTLEMENT")
+  Symptom: Fortnox rejects invoice when article not pre-registered; settlement uses
+  synthetic SKU with no Fortnox article sync.
+  Fix: Ensure articles in Fortnox or use service row without ArticleNumber per
+  Fortnox docs; product sync job per composer-agents/07 §7.
+  Effort: M
+
+[2.5] payouts.status PAID never set — enum dead after INVOICED
+  File: packages/db/src/schema/payouts.ts:15-18
+        apps/api/src/routes/settlement.ts (no PAID transition)
+  Symptom: Settlement pipeline stops at INVOICED; finance cannot close loop in app even
+  when Fortnox shows paid.
+  Fix: Webhook/sync updates payout.status PAID; optional bank-reference endpoint.
+  Effort: M
+  Ref: Scout 15 [2.6]
+
+[2.6] orders.invoiceStatus never updated anywhere in API
+  File: (grep: no UPDATE orders SET invoice_status outside seed)
+  Symptom: Enum values ISSUED/PAID/CANCELLED/PENDING unused in live code paths; only
+  seed-demo sets PAID for fixtures.
+  Fix: Centralize status transitions in webhook, sync job, and post-create invoice hook.
+  Effort: M
+
+[2.7] No retry on transient Fortnox failures
+  File: apps/api/src/lib/invoicing/fortnox-provider.ts:21-49
+  Symptom: Single fetch attempt; 429/503/network blip → immediate error result; no
+  exponential backoff or pg-boss retry queue.
+  Fix: Retry idempotent GETs; queue invoice create with dedupe key orderId/payoutId.
+  Effort: M
+
+[2.8] Webhook dedup is in-memory only — lost on restart / multi-instance
+  File: apps/api/src/routes/fortnox-webhook.ts:28-62 (processedWebhooks Set)
+  Symptom: Horizontal scale or deploy replay can double-process events before DB
+  idempotency exists.
+  Fix: Persist processed eventIds in Redis/Postgres with TTL.
+  Effort: S
+
+[2.9] create-invoice success path has no auditLog
+  File: apps/api/src/routes/settlement.ts:276-285 (compare generate:147-158)
+  Symptom: Invoice creation invisible to audit_logs (already unused per INTERNAL_ADMIN
+  [1.6]); compliance gap for back-office.
+  Fix: auditLog action `invoice.created` with payoutId, fortnoxInvoiceId, actor.
+  Effort: S
+
+[2.10] FORTNOX_ENABLED=true without token silently degrades to NullProvider
+  File: apps/api/src/lib/invoicing/index.ts:17-21
+  Symptom: Misconfiguration looks "enabled" in env but all calls are no-ops; warn-only
+  log easy to miss in prod.
+  Fix: In production, fail boot or expose /system health flag `fortnox: misconfigured`.
+  Effort: S
+
+================================================================
+P3 — MEDIUM
+================================================================
+
+[3.1] No PDF download / Fortnox document proxy
+  File: packages/contracts/src/invoicing.ts (no getInvoicePdf method)
+  Symptom: Clubs cannot download PDF from portal; must log into Fortnox separately.
+  Fix: Add provider method + authenticated GET proxy or presigned Fortnox print URL.
+  Effort: M
+
+[3.2] generateOrdersCsv in invoicing lib unused — duplicate CSV logic in UI
+  File: apps/api/src/lib/invoicing/csv-export.ts
+        apps/web/src/app/(portal)/portal/fakturor/page.tsx:146-147 (inline CSV)
+  Symptom: INTERNAL_ADMIN SAR/export story cites unwired helper; club page reimplements.
+  Fix: Shared server endpoint using generateOrdersCsv with org scope + auth.
+  Effort: S
+  Ref: INTERNAL_ADMIN [4.2]
+
+[3.3] validate-env recommends FORTNOX_WEBHOOK_SECRET but not FORTNOX_ENABLED/ACCESS_TOKEN
+  File: apps/api/src/lib/validate-env.ts:74-76
+  Symptom: Ops can enable integration in env without webhook or token checklist at boot.
+  Fix: When FORTNOX_ENABLED=true, require ACCESS_TOKEN (or OAuth row) + WEBHOOK_SECRET
+  in prod recommended set.
+  Effort: S
+
+[3.4] InvoiceProvider contract lacks cancelInvoice / credit note hooks
+  File: packages/contracts/src/invoicing.ts:33-37
+  Symptom: CANCELLED enum value with no API path; bokföringslagen credit-invoice flow
+  absent (composer-agents/07 §9).
+  Fix: Add cancel/credit methods for ops; map webhook invoice-cancelled.
+  Effort: L
+
+================================================================
+P4 — LOW
+================================================================
+
+[4.1] resetProvider() only used in tests — hot env reload not supported
+  File: apps/api/src/lib/invoicing/index.ts:32-34
+  Symptom: Token rotation requires process restart.
+  Effort: S
+
+================================================================
+INTEGRATION MAP
+----------------
+| Trigger                         | Provider call? | DB write? | Status sync? |
+|---------------------------------|----------------|-----------|--------------|
+| POST /v1/portal/orders          | No             | NONE      | No           |
+| POST /v1/settlement/create-invoice/:id | Yes       | INVOICED + fortnoxInvoiceId | No PAID |
+| Fortnox webhook invoice-*       | No             | No        | No           |
+| syncInvoiceStatuses job         | Would poll     | No        | No           |
+| NullProvider (default)          | Log only       | No        | No           |
+
+ENV MATRIX
+----------
+| Variable                 | Used by code? | Notes |
+|--------------------------|---------------|-------|
+| FORTNOX_ENABLED          | Yes           | Must be literal "true" |
+| FORTNOX_ACCESS_TOKEN     | Yes           | Static; no refresh |
+| FORTNOX_WEBHOOK_SECRET   | Yes           | Webhook 503 if unset |
+| FORTNOX_CLIENT_ID/SECRET | No            | .env.example only |
+| FORTNOX_REDIRECT_URI     | No            | No callback route |
+| FORTNOX_ENCRYPTION_KEY   | No            | integration_fortnox unused |
+
+MVP READINESS BREAKDOWN
+-----------------------
+- Abstraction + schema:     35/100  (solid types; wiring missing)
+- B2B club invoicing:        0/100  (no trigger)
+- Settlement invoicing:     25/100  (route exists; data bugs)
+- Status sync (webhook/job): 5/100  (stubs)
+- Compliance (VAT/audit/PDF): 10/100
+
+RECOMMENDED MVP SEQUENCE
+------------------------
+1. Wire customer sync + fix CustomerNumber mapping ([1.2], [1.3], [1.7])
+2. Hook B2B order confirm → invoice create + invoiceStatus ([1.1])
+3. Implement webhook + sync job DB write-back ([1.4], [1.5], [2.5], [2.6])
+4. Idempotency + audit on settlement create-invoice ([1.6], [2.9])
+5. Null/manual path for pre-Fortnox ops ([1.8])
+6. VAT/article codes before prod Fortnox ([2.3], [2.4])
+7. OAuth or documented token rotation ([1.9])
+
+REFERENCES
+- docs/composer-agents/07_FORTNOX_COMMERCE.txt
+- docs/flow-audits/INTERNAL_ADMIN_2026-04-18_1310.txt [2.13], [4.2]
+- docs/mvp-scout/18_club-b2b.txt [1.7]
+- docs/mvp-scout/15_association-admin.txt [2.6]
+- docs/site-audit/AUDIT_AGENT_07_FORTNOX_COMMERCE.txt
+
+--- END SCOUT 27 ---
