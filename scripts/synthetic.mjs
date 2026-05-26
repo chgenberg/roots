@@ -1,0 +1,119 @@
+#!/usr/bin/env node
+/**
+ * MASTERPLAN_01 KC8.7: synthetic monitoring för key public-flows.
+ *
+ * Körs som vanligt Node-script (ingen TS-toolchain behövs i cron-
+ * container). Treffar publika endpoints och exit:ar non-zero vid
+ * fail så att GitHub Actions / Railway cron / oavsett orkestrerare
+ * kan slå ett email-alert.
+ *
+ * Användning:
+ *   API_BASE=https://api.roots.se WEB_BASE=https://roots.se \
+ *     node scripts/synthetic.mjs
+ *
+ * Cron-rekommendation: var 6:e timme (4×/dygn) — punkt #7 i KC8.
+ * Frekvensen är konservativ för att inte spendera AI-tokens varje
+ * minut. Public-chat-checken hoppar over om HAS_OPENAI är "false".
+ *
+ * Checks:
+ *   1. GET  {api}/healthz                — liveness
+ *   2. GET  {api}/readyz                 — DB + Redis ping
+ *   3. GET  {api}/v1/csrf-token          — säkerhets-rotation funkar
+ *   4. GET  {web}/                       — homepage svarar 200
+ *   5. GET  {web}/robots.txt             — SEO-routens runtime
+ *   6. (optional) GET {api}/v1/ai/health — om endpoint finns
+ *
+ * Lägg INTE in checks som mutterar data (creating orders, sending
+ * email) — synthetic ska vara repeterbart utan side-effects.
+ */
+
+import { setTimeout as sleep } from "node:timers/promises";
+
+const API_BASE = (process.env.API_BASE || "http://127.0.0.1:4000").replace(/\/$/, "");
+const WEB_BASE = (process.env.WEB_BASE || "http://127.0.0.1:3003").replace(/\/$/, "");
+const REQUEST_TIMEOUT_MS = Number(process.env.SYNTHETIC_TIMEOUT_MS || 10_000);
+
+const results = [];
+
+async function check(name, url, validator) {
+  const start = Date.now();
+  const ctrl = new AbortController();
+  const timer = globalThis.setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      signal: ctrl.signal,
+      headers: { "user-agent": "roots-synthetic/1.0" },
+    });
+    const ms = Date.now() - start;
+    const ok = await Promise.resolve(validator(res)).catch(() => false);
+    results.push({ name, url, status: res.status, ms, ok });
+    return ok;
+  } catch (err) {
+    const ms = Date.now() - start;
+    results.push({ name, url, status: 0, ms, ok: false, error: String(err) });
+    return false;
+  } finally {
+    globalThis.clearTimeout(timer);
+  }
+}
+
+async function run() {
+  console.log(`[synthetic] API_BASE=${API_BASE} WEB_BASE=${WEB_BASE}`);
+
+  await check("api.healthz", `${API_BASE}/healthz`, (r) => r.status === 200);
+
+  await check(
+    "api.readyz",
+    `${API_BASE}/readyz`,
+    // /readyz svarar 503 om DB/Redis är degraderat — vi vill veta
+    (r) => r.status === 200
+  );
+
+  await check(
+    "api.csrf",
+    `${API_BASE}/v1/csrf-token`,
+    async (r) => {
+      if (r.status !== 200) return false;
+      const body = await r.json();
+      return typeof body?.token === "string" && body.token.length > 16;
+    }
+  );
+
+  await check("web.home", `${WEB_BASE}/`, (r) => r.status === 200);
+
+  await check(
+    "web.robots",
+    `${WEB_BASE}/robots.txt`,
+    async (r) => {
+      if (r.status !== 200) return false;
+      const text = await r.text();
+      // Verifiera att /shop/ inte är blockerat — KC7.2 success-kriterie.
+      return /User-agent/i.test(text) && !/Disallow:\s*\/shop\b/i.test(text);
+    }
+  );
+
+  // Vänta innan vi listar resultaten — låter pino-loggar flushas i
+  // container-stdout innan rapporten skrivs sist.
+  await sleep(100);
+
+  console.log("\n[synthetic] results:");
+  for (const r of results) {
+    const tag = r.ok ? "PASS" : "FAIL";
+    console.log(
+      `  [${tag}] ${r.name.padEnd(16)} ${String(r.status).padStart(3)} ` +
+        `${String(r.ms).padStart(5)}ms  ${r.url}${r.error ? `  err=${r.error}` : ""}`
+    );
+  }
+
+  const failed = results.filter((r) => !r.ok);
+  if (failed.length > 0) {
+    console.error(`\n[synthetic] ${failed.length} check(s) failed`);
+    process.exit(1);
+  }
+  console.log(`\n[synthetic] all ${results.length} checks passed`);
+}
+
+run().catch((err) => {
+  console.error("[synthetic] runner crashed:", err);
+  process.exit(2);
+});

@@ -18,6 +18,7 @@ import { verifyKlarnaSignature } from "../lib/payments/klarna-webhook";
 import { getEmailSender } from "../lib/email";
 import { orderConfirmationEmail } from "../lib/email/templates";
 import { childLogger } from "../lib/logger";
+import { auditLog, requestContext } from "../lib/audit";
 
 const log = childLogger("checkout");
 
@@ -363,6 +364,21 @@ checkout.post("/create", async (c) => {
         .set({ status: "FAILED", updatedAt: new Date() })
         .where(eq(customerOrders.id, order.id));
 
+      // MASTERPLAN_01 KC8.4: audit-log failed checkout-creation så ops
+      // kan se i admin om Klarna-staging är nere utan att läsa pino-logs.
+      void auditLog({
+        userId: null,
+        action: "order.failed",
+        entityType: "customer_order",
+        entityId: order.id,
+        meta: {
+          ...requestContext((n) => c.req.header(n)),
+          reason: "klarna_session_creation_failed",
+          orgId: team.orgId,
+          totalOre,
+        },
+      });
+
       log.error({ err: klarnaErr }, "Klarna session creation failed");
       return c.json({ error: "Betalningen kunde inte initieras." }, 502);
     }
@@ -375,6 +391,27 @@ checkout.post("/create", async (c) => {
         updatedAt: new Date(),
       })
       .where(eq(customerOrders.id, order.id));
+
+    // MASTERPLAN_01 KC8.4: order.created — den verkliga "checkout
+    // initierad"-händelsen (inte DB-INSERT, eftersom DRAFT-rader rensas
+    // av Klarna-failure ovan). Säljarens user-id loggas i meta så vi
+    // kan svara "hur många orders gjorde Anna förra helgen?" via en
+    // ren audit-fråga utan att joina customer_orders.
+    void auditLog({
+      userId: null,
+      action: "order.created",
+      entityType: "customer_order",
+      entityId: order.id,
+      meta: {
+        ...requestContext((n) => c.req.header(n)),
+        orgId: team.orgId,
+        sellerId: seller.id,
+        campaignId: seller.campaignId,
+        klarnaOrderId: klarnaSession.orderId,
+        totalOre,
+        itemCount: dbOrderLines.length,
+      },
+    });
 
     return c.json({
       orderId: order.id,
@@ -447,6 +484,24 @@ checkout.post("/webhook/:klarnaOrderId", async (c) => {
 
         await acknowledgeOrder(klarnaOrderId);
 
+        // MASTERPLAN_01 KC8.4: definitiv "pengar in"-händelse. Loggas
+        // även från /confirm-pollingen nedan — `source`-meta skiljer
+        // dem åt så vi kan se hur ofta webhooks faktiskt landar i tid
+        // vs hur ofta vi räddar oss via polling.
+        void auditLog({
+          userId: null,
+          action: "order.paid",
+          entityType: "customer_order",
+          entityId: existingOrder.id,
+          meta: {
+            ...requestContext((n) => c.req.header(n)),
+            source: "klarna_webhook",
+            klarnaOrderId,
+            orgId: existingOrder.orgId,
+            totalOre: existingOrder.totalOre,
+          },
+        });
+
         // Fire-and-forget; helpern är idempotent och loggar internt.
         sendOrderConfirmationIfNeeded(existingOrder.id).catch(() => {});
       }
@@ -484,6 +539,23 @@ checkout.get("/confirm/:orderId", async (c) => {
 
           await acknowledgeOrder(order.klarnaOrderId);
           order.status = "PAID";
+
+          // MASTERPLAN_01 KC8.4: audit också från polling-pathen.
+          // source="confirm_polling" gör att vi kan mäta webhook-
+          // reliability i prod genom att räkna paid-rader per source.
+          void auditLog({
+            userId: null,
+            action: "order.paid",
+            entityType: "customer_order",
+            entityId: order.id,
+            meta: {
+              ...requestContext((n) => c.req.header(n)),
+              source: "confirm_polling",
+              klarnaOrderId: order.klarnaOrderId,
+              orgId: order.orgId,
+              totalOre: order.totalOre,
+            },
+          });
         }
       } catch (klarnaErr) {
         log.error({ err: klarnaErr }, "Klarna confirmation check failed");

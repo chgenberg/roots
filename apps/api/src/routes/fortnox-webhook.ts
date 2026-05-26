@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { createHmac, timingSafeEqual } from "crypto";
 import { childLogger } from "../lib/logger";
+import { wasWebhookEventSeen } from "../lib/webhook-dedup";
 
 const log = childLogger("fortnox-webhook");
 
@@ -25,8 +26,6 @@ function verifySignature(payload: string, signature: string): boolean {
   }
 }
 
-const processedWebhooks = new Set<string>();
-
 fortnoxWebhook.post("/webhook", async (c) => {
   const rawBody = await c.req.text();
   const signature = c.req.header("x-fortnox-signature") || "";
@@ -49,16 +48,13 @@ fortnoxWebhook.post("/webhook", async (c) => {
   }
 
   const eventId = body.eventId as string | undefined;
-  if (eventId && processedWebhooks.has(eventId)) {
-    return c.json({ received: true, duplicate: true });
-  }
-
+  // MASTERPLAN_01 KC8.3: Redis-backed dedup istället för en
+  // process-local Set. Överlever restarts och delas mellan instanser.
   if (eventId) {
-    processedWebhooks.add(eventId);
-    // Prevent unbounded growth
-    if (processedWebhooks.size > 10000) {
-      const first = processedWebhooks.values().next().value;
-      if (first) processedWebhooks.delete(first);
+    const seen = await wasWebhookEventSeen("fortnox", eventId);
+    if (seen) {
+      log.info({ eventId }, "Duplicate Fortnox webhook — skipping");
+      return c.json({ received: true, duplicate: true });
     }
   }
 

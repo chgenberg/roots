@@ -25,6 +25,7 @@ import { generateCsrfToken, verifyCsrfToken } from "./lib/csrf";
 import { checkReadiness } from "./lib/health-checks";
 import { captureException } from "./lib/sentry";
 import { childLogger } from "./lib/logger";
+import { getSession } from "./lib/session";
 
 const errLog = childLogger("hono-error");
 
@@ -32,6 +33,50 @@ export const app = new Hono();
 
 app.use("*", logger());
 app.use("*", securityHeaders);
+
+/**
+ * MASTERPLAN_01 KC8.8 + Sentry user-context: tagg:a varje request med
+ * en kort request-id och, om en session-cookie finns, läs session så
+ * vi kan bifoga userId/role till framtida felrapporter.
+ *
+ * Vi sätter värdena på `c` så `onError` nedan kan plocka ut dem
+ * synchronously utan ny Redis-fråga i 500-pathen. Sessionsläsning är
+ * best-effort — Redis-fel ska inte blocka requests.
+ */
+const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME || "roots_session";
+
+app.use("*", async (c, next) => {
+  // 8 hex chars = 4 bytes; tillräckligt unikt för att korsreferera
+  // mellan API-pino-log och Sentry/web-error-toast.
+  const reqId =
+    c.req.header("x-request-id") ||
+    Math.random().toString(16).slice(2, 10);
+  c.set("requestId" as never, reqId as never);
+  c.header("x-request-id", reqId);
+
+  const cookie = c.req.header("cookie") || "";
+  const match = cookie.match(new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`));
+  if (match) {
+    try {
+      const session = await getSession(match[1]);
+      if (session) {
+        c.set(
+          "sessionUser" as never,
+          {
+            userId: session.userId,
+            role: session.role,
+            orgId: session.orgId,
+          } as never
+        );
+      }
+    } catch {
+      // Redis hick — ignorera så att routen kör vidare. /me-handlern
+      // får själva detektera saknad session.
+    }
+  }
+
+  return next();
+});
 app.use(
   "*",
   cors({
@@ -147,14 +192,42 @@ app.all("/trpc/*", trpcHandler);
 // production — could expose stack/internal table names.
 app.onError((err, c) => {
   const isProd = process.env.NODE_ENV === "production";
+  const reqId = c.get("requestId" as never) as string | undefined;
+  const sessionUser = c.get("sessionUser" as never) as
+    | { userId: string; role: string; orgId: string | null }
+    | undefined;
+
   errLog.error(
-    { err, path: c.req.path, method: c.req.method },
+    {
+      err,
+      path: c.req.path,
+      method: c.req.method,
+      reqId,
+      userId: sessionUser?.userId,
+      role: sessionUser?.role,
+    },
     "unhandled route error"
   );
+
+  // MASTERPLAN_01 KC8 ops-hardening: enrich Sentry-events med
+  // request-id + (när inloggad) userId/role/orgId. Tidigare gav
+  // Sentry en helt anonymisera-d 500 utan vägen tillbaka till
+  // användarens incident-ticket; nu kan supporten klistra in
+  // x-request-id-headern och hitta exakt event.
   captureException(err, {
     tags: {
       route: c.req.path,
       method: c.req.method,
+      ...(reqId ? { reqId } : {}),
+      ...(sessionUser?.role ? { role: sessionUser.role } : {}),
+    },
+    extra: {
+      ...(sessionUser
+        ? {
+            userId: sessionUser.userId,
+            orgId: sessionUser.orgId,
+          }
+        : {}),
     },
   });
   return c.json(
@@ -164,6 +237,7 @@ app.onError((err, c) => {
         : err instanceof Error
           ? err.message
           : String(err),
+      ...(reqId ? { requestId: reqId } : {}),
     },
     500
   );
