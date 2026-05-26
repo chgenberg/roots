@@ -18,6 +18,7 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@radix-ui/react-visually-hidden": "^1.2.4",
     "@roots/contracts": "workspace:*",
+    "@roots/db": "workspace:*",
     "@roots/ui": "workspace:*",
     "@tanstack/react-query": "^5.68",
     "@trpc/client": "^11.0.0-rc.700",

@@ -8,6 +8,12 @@ COPY apps/web/package.json apps/web/
 COPY packages/contracts/package.json packages/contracts/
 COPY packages/config/package.json packages/config/
 COPY packages/ui/package.json packages/ui/
+# Web depends on @roots/db for TYPES ONLY (via tRPC AppRouter type-import).
+# Drizzle/postgres runtime never reaches the browser bundle because the import
+# is `import type` and the AppRouter type graph is fully erased at build time.
+# Adding the workspace package here keeps pnpm's --filter @roots/web... able
+# to resolve the type graph during `next build` typecheck.
+COPY packages/db/package.json packages/db/
 RUN echo "node-linker=hoisted" > .npmrc && \
     pnpm install --frozen-lockfile --filter @roots/web...
 

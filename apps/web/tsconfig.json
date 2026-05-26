@@ -10,7 +10,9 @@
     "paths": {
       "@/*": ["./src/*"],
       "@roots/ui": ["../../packages/ui/src"],
-      "@roots/contracts": ["../../packages/contracts/src"]
+      "@roots/contracts": ["../../packages/contracts/src"],
+      "@roots/db": ["../../packages/db/src"],
+      "@roots/db/schema": ["../../packages/db/src/schema/index.ts"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
