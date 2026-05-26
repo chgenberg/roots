@@ -254,36 +254,44 @@ export default function SellerShopPage() {
                       <p className="text-lg font-semibold">
                         {(product.priceOre / 100).toLocaleString("sv-SE")} kr
                       </p>
-                      <div className="flex items-center gap-2">
+                      {/* MASTERPLAN_01 KC6.1: qty-steppers behöver 44x44
+                          så supportern (oftast på mobil) inte trycker
+                          på fel knapp i shop-listan. */}
+                      <div className="flex items-center gap-1">
                         {qty > 0 && (
                           <Button
                             size="icon"
                             variant="outline"
-                            className="h-8 w-8"
+                            className="h-11 w-11"
                             onClick={() => updateCart(product.id, -1)}
                             disabled={!campaignAcceptsOrders}
+                            aria-label={`Ta bort en ${product.name}`}
                           >
-                            <Minus className="h-3.5 w-3.5" />
+                            <Minus className="h-4 w-4" />
                           </Button>
                         )}
                         {qty > 0 && (
-                          <span className="w-6 text-center text-sm font-medium">
+                          <span
+                            className="min-w-[2rem] text-center text-sm font-medium tabular-nums"
+                            aria-live="polite"
+                            aria-atomic="true"
+                          >
                             {qty}
                           </span>
                         )}
                         <Button
                           size="icon"
                           variant={qty > 0 ? "outline" : "default"}
-                          className="h-8 w-8"
+                          className="h-11 w-11"
                           onClick={() => updateCart(product.id, 1)}
                           disabled={!campaignAcceptsOrders}
                           aria-label={
                             campaignAcceptsOrders
-                              ? "Lägg till"
+                              ? `Lägg till ${product.name}`
                               : "Säljperioden är inte aktiv"
                           }
                         >
-                          <Plus className="h-3.5 w-3.5" />
+                          <Plus className="h-4 w-4" />
                         </Button>
                       </div>
                     </div>

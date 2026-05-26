@@ -126,10 +126,14 @@ export default function SellerRegistrationPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="displayName">Ditt namn *</Label>
+            {/* MASTERPLAN_01 KC6.7: autoComplete="name" så att browsern
+                föreslår användarens namn — kritiskt på mobil där en
+                sellare ofta är 15+ och får invite via SMS-länken. */}
             <Input
               id="displayName"
               placeholder="Förnamn Efternamn"
               required
+              autoComplete="name"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
             />
@@ -164,6 +168,8 @@ export default function SellerRegistrationPage() {
               id="phone"
               type="tel"
               placeholder="070-XXX XX XX"
+              autoComplete="tel"
+              inputMode="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
             />

@@ -328,9 +328,15 @@ export default function AIPage() {
       </div>
 
       <Card className="flex flex-1 flex-col overflow-hidden">
+        {/* MASTERPLAN_01 KC6.9: aria-live="polite" + role="log" så
+            VoiceOver/NVDA läser nya AI-svar utan att avbryta. */}
         <div
           ref={scrollRef}
           className="flex-1 space-y-4 overflow-y-auto px-5 py-5"
+          role="log"
+          aria-live="polite"
+          aria-atomic="false"
+          aria-label="Konversation med Roots AI"
         >
           {messages.map((msg) => (
             <div
@@ -341,7 +347,7 @@ export default function AIPage() {
               )}
             >
               {msg.role === "assistant" && (
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center" aria-hidden="true">
                   <Bot className="h-4 w-4 text-brand-400" />
                 </div>
               )}
@@ -358,13 +364,13 @@ export default function AIPage() {
                   msg.id === messages[messages.length - 1]?.id &&
                   msg.role === "assistant" ? (
                     <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      Tänker...
+                      <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+                      <span>Tänker...</span>
                     </span>
                   ) : null)}
               </div>
               {msg.role === "user" && (
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-inverse-surface">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-inverse-surface" aria-hidden="true">
                   <User className="h-4 w-4 text-inverse-on-surface" />
                 </div>
               )}

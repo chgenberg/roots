@@ -412,6 +412,11 @@ export default function RegisterPage() {
         )}
 
         {/* Shared Step 2: Personal info */}
+        {/* MASTERPLAN_01 KC6.7: autoComplete-tokens så att Safari/Chrome
+            password-manager + adressfyllning faktiskt fungerar. Annars
+            tvingas användaren skriva för hand vilket är friction nr 1
+            på mobil. inputMode="numeric" på postnummer triggar
+            number-keypad. */}
         {step === 2 && (
           <div className="space-y-4">
             <div className="space-y-2">
@@ -420,6 +425,7 @@ export default function RegisterPage() {
                 id="contactName"
                 placeholder="Förnamn Efternamn"
                 required
+                autoComplete="name"
                 value={contactName}
                 onChange={(e) => setContactName(e.target.value)}
               />
@@ -430,6 +436,8 @@ export default function RegisterPage() {
                 id="phone"
                 type="tel"
                 placeholder="070-XXX XX XX"
+                autoComplete="tel"
+                inputMode="tel"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
               />
@@ -439,6 +447,7 @@ export default function RegisterPage() {
               <Input
                 id="address"
                 placeholder="Gatuadress"
+                autoComplete="street-address"
                 value={addressLine1}
                 onChange={(e) => setAddressLine1(e.target.value)}
               />
@@ -449,6 +458,9 @@ export default function RegisterPage() {
                 <Input
                   id="postalCode"
                   placeholder="123 45"
+                  autoComplete="postal-code"
+                  inputMode="numeric"
+                  pattern="\d{3}\s?\d{2}"
                   value={postalCode}
                   onChange={(e) => setPostalCode(e.target.value)}
                 />
@@ -458,6 +470,7 @@ export default function RegisterPage() {
                 <Input
                   id="city"
                   placeholder="Stockholm"
+                  autoComplete="address-level2"
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
                 />

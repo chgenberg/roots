@@ -20,9 +20,13 @@ export function HeroLead() {
         }
       />
 
+      {/* MASTERPLAN_01 KC6.10: text-white/70 failade WCAG AA mot
+          photo-hero. text-white/90 + text-shadow för att kompensera
+          variationer i bakgrund. */}
       <Link
         href="/produkter"
-        className="inline-flex h-11 items-center px-4 text-sm font-medium text-white/70 transition-colors duration-200 hover:text-white"
+        className="inline-flex h-11 items-center px-4 text-sm font-medium text-white/90 transition-colors duration-200 hover:text-white"
+        style={{ textShadow: "0 1px 3px rgba(0,0,0,0.35)" }}
       >
         Se produkterna
       </Link>

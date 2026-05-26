@@ -184,7 +184,10 @@ export default async function ProductDetailPage({ params }: PageProps) {
       </section>
 
       {/* Sticky mobile CTA */}
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border/60 bg-background/80 px-4 py-3 backdrop-blur-xl lg:hidden">
+      {/* MASTERPLAN_01 KC6.2: respect iOS safe-area så home-indikatorn
+          inte täcker köp-knappen på iPhone X+. pb-[max(...)] säkerställer
+          minst 0.75rem padding på äldre enheter utan safe-area-inset. */}
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border/60 bg-background/80 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-xl lg:hidden">
         <div className="mx-auto flex max-w-[1280px] items-center justify-between gap-4">
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold">{product.name}</p>

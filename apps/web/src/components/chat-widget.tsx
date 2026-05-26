@@ -253,10 +253,13 @@ export function ChatWidget() {
               Fråga oss vad som helst
             </p>
           </div>
+          {/* MASTERPLAN_01 KC6.1: 44x44 touch-target. Tidigare 32x32
+              riskerade mis-tap på iPhone där hela widgeten är bredvid
+              tumzonen. */}
           <button
             type="button"
             onClick={() => setOpen(false)}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-brand-50 hover:text-foreground"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-brand-50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             aria-label="Stäng chatt"
           >
             <X className="h-4 w-4" />
@@ -264,9 +267,17 @@ export function ChatWidget() {
         </div>
 
         {/* Messages */}
+        {/* MASTERPLAN_01 KC6.9: aria-live så att skärmläsare hör nya
+            AI-svar när de strömmas in. "polite" avbryter inte
+            pågående screen-reader-output. aria-atomic=false så bara
+            de nya delarna läses upp, inte hela historiken igen. */}
         <div
           ref={scrollRef}
           className="flex-1 space-y-4 overflow-y-auto px-5 py-5"
+          role="log"
+          aria-live="polite"
+          aria-atomic="false"
+          aria-label="Chatt-historik"
         >
           {messages.map((msg, i) => (
             <div
@@ -287,8 +298,8 @@ export function ChatWidget() {
                 {msg.content ||
                   (streaming && i === messages.length - 1 ? (
                     <span className="inline-flex items-center gap-1 text-muted-foreground">
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      Tänker...
+                      <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+                      <span>Tänker...</span>
                     </span>
                   ) : null)}
               </div>

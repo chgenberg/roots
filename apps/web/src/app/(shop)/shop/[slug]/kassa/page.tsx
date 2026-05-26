@@ -327,11 +327,16 @@ export default function CheckoutPage() {
               <CardTitle className="text-base">Dina uppgifter</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* MASTERPLAN_01 KC6.7: autoComplete-tokens enligt WHATWG.
+                  På iOS/Android fyller browsern PII automatiskt — på
+                  mobil där supportrar konverterar är det skillnaden
+                  mellan 30 s checkout och abandon. */}
               <div className="space-y-2">
                 <Label htmlFor="name">Namn *</Label>
                 <Input
                   id="name"
                   required
+                  autoComplete="name"
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
                   placeholder="Förnamn Efternamn"
@@ -343,6 +348,8 @@ export default function CheckoutPage() {
                   id="email"
                   type="email"
                   required
+                  autoComplete="email"
+                  inputMode="email"
                   value={customerEmail}
                   onChange={(e) => setCustomerEmail(e.target.value)}
                   placeholder="din@epost.se"
@@ -353,6 +360,8 @@ export default function CheckoutPage() {
                 <Input
                   id="phone"
                   type="tel"
+                  autoComplete="tel"
+                  inputMode="tel"
                   value={customerPhone}
                   onChange={(e) => setCustomerPhone(e.target.value)}
                   placeholder="070-XXX XX XX"
@@ -410,6 +419,7 @@ export default function CheckoutPage() {
                     <Input
                       id="address"
                       required
+                      autoComplete="street-address"
                       value={addressLine1}
                       onChange={(e) => setAddressLine1(e.target.value)}
                       placeholder="Gatuadress"
@@ -421,6 +431,9 @@ export default function CheckoutPage() {
                       <Input
                         id="postalCode"
                         required
+                        autoComplete="postal-code"
+                        inputMode="numeric"
+                        pattern="\d{3}\s?\d{2}"
                         value={postalCode}
                         onChange={(e) => setPostalCode(e.target.value)}
                         placeholder="123 45"
@@ -431,6 +444,7 @@ export default function CheckoutPage() {
                       <Input
                         id="city"
                         required
+                        autoComplete="address-level2"
                         value={city}
                         onChange={(e) => setCity(e.target.value)}
                         placeholder="Stockholm"

@@ -176,10 +176,13 @@ export function Header() {
           </div>
 
           {/* Mobile burger */}
+          {/* MASTERPLAN_01 KC6.1: 44x44 minimum touch-target (WCAG 2.5.5).
+              Tidigare p-2 runt 24x20 burger gav ~40x36 — fail. */}
           <button
             onClick={() => setMenuOpen(!menuOpen)}
-            className="relative z-[60] p-2 md:hidden"
+            className="relative z-[60] -mr-2 inline-flex h-11 w-11 items-center justify-center rounded-md md:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             aria-label={menuOpen ? "Stäng meny" : "Öppna meny"}
+            aria-expanded={menuOpen}
           >
             <MorphingBurger open={menuOpen} />
           </button>

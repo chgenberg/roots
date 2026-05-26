@@ -40,7 +40,14 @@ export function HeroSection() {
               <br />
               Ren känsla.
             </h1>
-            <p className="mt-3 max-w-xs text-sm leading-relaxed text-white/70 md:text-base">
+            {/* MASTERPLAN_01 KC6.10: text-white/70 mot photo-bg failar
+                WCAG AA contrast (~3.5:1). Höj opacity + lägg på subtle
+                text-shadow för att kompensera ojämn bakgrundsluminans
+                (mörka hörn vs ljusa central-pixels). */}
+            <p
+              className="mt-3 max-w-xs text-sm leading-relaxed text-white/90 md:text-base"
+              style={{ textShadow: "0 1px 3px rgba(0,0,0,0.35)" }}
+            >
               Tre produkter för föreningslivet — utan sulfater, silikoner eller parabener.
             </p>
             <HeroLead />
