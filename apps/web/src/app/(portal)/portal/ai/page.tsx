@@ -15,7 +15,13 @@ interface Message {
   content: string;
 }
 
-const API_URL = `${getBrowserApiBase()}/v1/ai/public-chat`;
+// MASTERPLAN_01 KC5 (Scout 19 P1): tidigare pekade portal-AI:n på
+// /v1/ai/public-chat — samma endpoint som anonym chat-widget. Det
+// betydde att alla role-aware system-prompts vi byggde i Batch 1
+// (buildSystemPrompt + role-specific guidance) ALDRIG kördes för
+// inloggade användare. Nu pratar vi med /v1/ai/chat som läser sessionen
+// och bygger rätt system-prompt per roll.
+const API_URL = `${getBrowserApiBase()}/v1/ai/chat`;
 
 function getWelcomeMessage(role: string, name: string): string {
   switch (role) {
@@ -228,24 +234,54 @@ export default function AIPage() {
     }
   }
 
-  const suggestions =
-    user.role === "CLUB_ADMIN" || user.role === "CLUB_MEMBER"
-      ? [
+  // MASTERPLAN_01 KC5 (Scout 19 P1.2): per-roll-chips matchade tidigare
+  // bara CLUB + SALES — alla fundraising-roller föll igenom till
+  // admin-defaults ("Systemstatus — kort sammanfattning") vilket var
+  // förvirrande för en sellare eller lagledare. Nu har varje roll en
+  // chip-uppsättning som speglar deras faktiska jobb.
+  const suggestions = (() => {
+    switch (user.role) {
+      case "CLUB_ADMIN":
+      case "CLUB_MEMBER":
+        return [
           "Hur fungerar utbetalning till föreningen?",
           "Vilka produkter ingår i paketet?",
           "Tips för att öka försäljningen",
-        ]
-      : user.role === "SALES_REP" || user.role === "SALES_ADMIN"
-        ? [
-            "Sammanfatta min pipeline",
-            "Hur pitchar jag Roots till en ny klubb?",
-            "Vad ska jag följa upp först?",
-          ]
-        : [
-            "Vilka KPI:er ska jag titta på idag?",
-            "Systemstatus — kort sammanfattning",
-            "Trender i håranalyskonvertering",
-          ];
+        ];
+      case "SALES_REP":
+      case "SALES_ADMIN":
+        return [
+          "Sammanfatta min pipeline",
+          "Hur pitchar jag Roots till en ny klubb?",
+          "Vad ska jag följa upp först?",
+        ];
+      case "ASSOCIATION_ADMIN":
+        return [
+          "Hur startar jag en ny kampanj?",
+          "Hur bjuder jag in lagledare?",
+          "När får föreningen sin utbetalning?",
+        ];
+      case "TEAM_LEADER":
+        return [
+          "Hur bjuder jag in mina säljare?",
+          "Tips för att motivera laget den första veckan",
+          "Var ser jag lagets resultat?",
+        ];
+      case "SELLER":
+        return [
+          "Hur delar jag min shop på bästa sätt?",
+          "Skriv ett peppigt meddelande till mina kontakter",
+          "Hur fungerar leveransen för köparen?",
+        ];
+      case "INTERNAL_ADMIN":
+      default:
+        return [
+          "Vilka KPI:er ska jag titta på idag?",
+          "Systemstatus — kort sammanfattning",
+          "Trender i håranalyskonvertering",
+        ];
+    }
+  })();
 
   return (
     <div className="page-enter flex h-[calc(100vh-8rem)] flex-col">

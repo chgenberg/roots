@@ -28,6 +28,41 @@ function isValidImageDataUrl(s: string): boolean {
   return VALID_MIME_PREFIXES.some((p) => s.startsWith(p));
 }
 
+/**
+ * MASTERPLAN_01 KC5.1: strukturerad fallback som matchar samma JSON-form
+ * som AI-svaret. Wizard:en kan rendera den utan att krascha; supportern
+ * får i värsta fall en generisk men hjälpsam Roots-rekommendation
+ * istället för en blank 502-skärm.
+ */
+function buildFallbackAnalysis(reason: "ai-off" | "ai-error"): string {
+  const summary =
+    reason === "ai-off"
+      ? "AI är inte konfigurerat på servern. Kontakta oss på hej@roots.se för personlig rådgivning."
+      : "Vi kunde inte göra en fullständig analys just nu, men du kan börja här. Maila hej@roots.se så återkommer vi med personlig rådgivning.";
+
+  return JSON.stringify({
+    summary,
+    observationsFromImages: [],
+    hairProfile: { texture: "—", shine: "—", scalpNotes: "—" },
+    lifestyleTips: [
+      "Tvätta håret 2–3 gånger i veckan med ett milt schampo.",
+      "Undvik överdriven värme (föna på låg temp, hoppa över plattången när det går).",
+      "Använd balsam regelbundet — fokusera på längderna, inte hårbotten.",
+    ],
+    nutritionGeneralTips: [
+      "Drick tillräckligt med vatten varje dag.",
+      "Ät varierat med fokus på protein, omega-3 och järnrika livsmedel.",
+    ],
+    rootsProductRecommendation: {
+      packageName: "Roots Underhåll",
+      description:
+        "Roots Complete Kit fungerar som en enkel trestegsrutin för dagligt underhåll.",
+    },
+    disclaimer:
+      "Indikativ information — ersätter inte professionell vård av frisör eller hudläkare.",
+  });
+}
+
 hairAnalysis.post("/hair-analysis", async (c) => {
   let body: {
     consentAccepted?: boolean;
@@ -78,16 +113,21 @@ hairAnalysis.post("/hair-analysis", async (c) => {
   };
 
   const ip = clientIp(c);
-  try {
-    const rl = await hairAnalysisIpRateLimit(ip);
-    if (!rl.allowed) {
-      return c.json(
-        { error: "Du har nått maxgränsen för analyser idag. Försök igen imorgon.", retryAfter: rl.resetInSeconds },
-        429
-      );
-    }
-  } catch {
-    // Redis unavailable — allow in development
+  // MASTERPLAN_01 KC5.2: rate-limit hanterar nu Redis-fel internt
+  // (fail-closed i prod, fail-open i dev). Vi behöver bara honorera
+  // resultatet — tidigare svalde routen rate-limit-error och släppte
+  // ALLT igenom även i prod.
+  const rl = await hairAnalysisIpRateLimit(ip);
+  if (!rl.allowed) {
+    return c.json(
+      {
+        error: rl.degraded
+          ? "Tjänsten är tillfälligt överbelastad. Försök igen om en stund."
+          : "Du har nått maxgränsen för analyser idag. Försök igen imorgon.",
+        retryAfter: rl.resetInSeconds,
+      },
+      429
+    );
   }
 
   const idempotencyKey =
@@ -115,21 +155,10 @@ hairAnalysis.post("/hair-analysis", async (c) => {
   if (!flags.aiEnabled() || !isAiConfigured()) {
     return c.json({
       fallback: true,
-      analysis: JSON.stringify({
-        summary:
-          "AI är inte konfigurerat på servern. Kontakta oss på hej@roots.se för personlig rådgivning.",
-        observationsFromImages: [],
-        hairProfile: { texture: "—", shine: "—", scalpNotes: "—" },
-        lifestyleTips: ["Välj milda produkter och undvik överdriven värme."],
-        nutritionGeneralTips: ["Ät varierat och se till att få i dig tillräckligt med vätska."],
-        rootsProductRecommendation: {
-          packageName: "Roots Underhåll",
-          description:
-            "Roots Complete Kit passar som en enkel trestegsrutin för dagligt underhåll.",
-        },
-        disclaimer: "Indikativ information — ersätter inte professionell vård.",
-      }),
+      analysis: buildFallbackAnalysis("ai-off"),
       model: "none",
+      disclaimer:
+        "Indikativ information — ersätter inte professionell vård.",
     });
   }
 
@@ -146,7 +175,19 @@ hairAnalysis.post("/hair-analysis", async (c) => {
         "AI-genererad analys — verifiera viktig information. Ersätter inte professionell vård.",
     });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Analys misslyckades";
-    return c.json({ error: msg }, 502);
+    // MASTERPLAN_01 KC5.1: tidigare returnerade vi 502 med råa
+    // OpenAI-felmeddelanden — wizard:en kraschade och supportern såg
+    // en blank skärm. Nu loggar vi felet server-side (för ops/Sentry)
+    // och returnerar samma JSON-form som ett lyckat svar, med
+    // fallback=true så frontenden kan visa "vi kunde inte göra full
+    // analys" istället för "OpenAI 503: …".
+    log.error({ err: e, ip }, "hair-analysis vision call failed");
+    return c.json({
+      fallback: true,
+      analysis: buildFallbackAnalysis("ai-error"),
+      model: "fallback",
+      disclaimer:
+        "Indikativ information — ersätter inte professionell vård.",
+    });
   }
 });

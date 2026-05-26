@@ -1,11 +1,29 @@
 import { redis } from "./redis";
+import { childLogger } from "./logger";
+
+const log = childLogger("rate-limit");
+const IS_PROD = process.env.NODE_ENV === "production";
 
 interface RateLimitResult {
   allowed: boolean;
   remaining: number;
   resetInSeconds: number;
+  /** True when the limit decision was a degraded-mode fallback (Redis down). */
+  degraded?: boolean;
 }
 
+/**
+ * MASTERPLAN_01 KC5.2: fail-CLOSED i prod.
+ *
+ * Tidigare: Redis-hick → `allowed: true` på allt → obegränsad public-chat,
+ * hair-analysis och login. Kostnadsexplosion + möjlig brute-force.
+ *
+ * Nu:
+ *   - prod: Redis-error → `allowed: false` med kort retryAfter (30 s).
+ *     Logga en warn så ops ser. Klienten ser "tjänsten tillfälligt
+ *     överbelastad" istället för obegränsad åtkomst.
+ *   - dev: behåll fail-open så `pnpm dev` funkar utan Redis.
+ */
 export async function checkRateLimit(
   key: string,
   maxAttempts: number,
@@ -26,8 +44,21 @@ export async function checkRateLimit(
       remaining: Math.max(0, maxAttempts - current),
       resetInSeconds: ttl > 0 ? ttl : windowSeconds,
     };
-  } catch {
-    return { allowed: true, remaining: maxAttempts, resetInSeconds: windowSeconds };
+  } catch (err) {
+    if (IS_PROD) {
+      log.error(
+        { err, key: key.slice(0, 60) },
+        "rate-limit Redis lookup failed — failing closed"
+      );
+      return { allowed: false, remaining: 0, resetInSeconds: 30, degraded: true };
+    }
+    log.warn({ err, key: key.slice(0, 60) }, "rate-limit Redis unavailable — allowing in dev");
+    return {
+      allowed: true,
+      remaining: maxAttempts,
+      resetInSeconds: windowSeconds,
+      degraded: true,
+    };
   }
 }
 
