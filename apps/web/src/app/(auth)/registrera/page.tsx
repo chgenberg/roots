@@ -137,7 +137,10 @@ export default function RegisterPage() {
       setSuccess(true);
       setTimeout(() => {
         if (type === "association") {
-          router.push("/forening");
+          // MASTERPLAN_01 KC3.1: skicka ASSOCIATION_ADMIN till kom-igång-
+          // sidan istället för en tom dashboard. ?onboarding=1 låter
+          // sidan visa en specifik welcome-header för fresh signups.
+          router.push("/forening/kom-igang?onboarding=1");
         } else {
           router.push("/lag");
         }

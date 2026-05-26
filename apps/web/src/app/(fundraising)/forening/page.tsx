@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams, useRouter } from "next/navigation";
+import { OnboardingBanner } from "@/components/onboarding-banner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -48,7 +50,9 @@ interface TeamData {
   inviteToken: string;
 }
 
-export default function AssociationDashboard() {
+function AssociationDashboardInner() {
+  const router = useRouter();
+  const params = useSearchParams();
   const [data, setData] = useState<AssociationDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -56,7 +60,25 @@ export default function AssociationDashboard() {
   // Sprint E9: ASSOCIATION_ADMIN can now start new campaigns from the
   // dashboard. Form state is local to the modal so a half-typed campaign
   // never leaks into the page's main render.
-  const [campaignDialogOpen, setCampaignDialogOpen] = useState(false);
+  // MASTERPLAN_01 KC3.1: ?openCampaign=1 triggar auto-open så att
+  // kom-igång-checklistan kan länka rakt in i campaign-create-flödet.
+  const [campaignDialogOpen, setCampaignDialogOpen] = useState(
+    () => params.get("openCampaign") === "1"
+  );
+
+  // När user kommer från checklist:en med ?openCampaign=1 vill vi rensa
+  // query-strängen efter att dialogen har triggats — så att en
+  // F5/refresh inte spammar dialogen igen och URL-baren blir städad.
+  useEffect(() => {
+    if (params.get("openCampaign") === "1") {
+      const next = new URLSearchParams(params.toString());
+      next.delete("openCampaign");
+      const qs = next.toString();
+      router.replace(`/forening${qs ? `?${qs}` : ""}`);
+    }
+    // intentionally only run on first mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [submitting, setSubmitting] = useState(false);
   const [newName, setNewName] = useState("");
   const [newGoalValue, setNewGoalValue] = useState("50000");
@@ -186,6 +208,10 @@ export default function AssociationDashboard() {
 
   return (
     <div className="page-enter space-y-6">
+      {/* MASTERPLAN_01 KC3.1: persistent onboarding-nudge. Gömmer sig
+          själv när alla steg är klara — vi behöver inte tracking-flag. */}
+      <OnboardingBanner />
+
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Förenings-dashboard</h1>
@@ -421,5 +447,24 @@ export default function AssociationDashboard() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+/**
+ * useSearchParams kräver Suspense-boundary i Next 15 app router.
+ * Vi wrappar därför inner-komponenten med en tunn loading-fallback
+ * som matchar tonen i resten av portalen.
+ */
+export default function AssociationDashboard() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-[300px] items-center justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      }
+    >
+      <AssociationDashboardInner />
+    </Suspense>
   );
 }

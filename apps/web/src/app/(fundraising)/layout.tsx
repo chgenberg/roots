@@ -19,6 +19,7 @@ import {
   LogOut,
   Settings,
   HelpCircle,
+  Sparkles,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getBrowserApiBase } from "@/lib/api-base";
@@ -104,6 +105,11 @@ export default function FundraisingLayout({
   const navItems = isAssociation
     ? [
         { href: "/forening", label: "Översikt", icon: BarChart3 },
+        // MASTERPLAN_01 KC3.1: kom-igång alltid synlig i sidebar så
+        // användaren kan hitta tillbaka även efter att de hoppat över
+        // den vid signup. Banner-komponenten gör att det dessutom är
+        // tydligt när checklistan inte är klar.
+        { href: "/forening/kom-igang", label: "Kom igång", icon: Sparkles },
         { href: "/forening/lag", label: "Lag", icon: Users },
         { href: "/forening/mal", label: "Mål", icon: Target },
         { href: "/forening/avrakning", label: "Avräkning", icon: CreditCard },

@@ -15,7 +15,7 @@
  */
 
 import { Hono } from "hono";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql, gt, isNull } from "drizzle-orm";
 import { hash } from "@node-rs/argon2";
 import { randomBytes } from "crypto";
 import { db } from "@roots/db";
@@ -25,6 +25,7 @@ import {
   teams,
   teamInvites,
   users,
+  customerOrders,
 } from "@roots/db/schema";
 import {
   getSession,
@@ -87,6 +88,165 @@ function generateToken(): string {
   // 32 chars of url-safe hex — collision-resistant + short enough for QR.
   return randomBytes(16).toString("hex");
 }
+
+/**
+ * MASTERPLAN_01 KC3.1 — onboarding-status för ASSOCIATION_ADMIN.
+ *
+ * Returnerar en checklist som /forening/kom-igang renderar. Varje
+ * `step` har en stabil `id` så att UI:t kan animera / fokusera den
+ * specifika punkten utan att jämföra labels.
+ *
+ * Steps räknas som "completed" enligt:
+ *   - `org_details`     — orgNumber satt i organizations
+ *   - `campaign`        — minst en kampanj finns (oavsett status)
+ *   - `team`            — minst ett team finns ELLER en pending invite
+ *   - `team_leader`     — minst en TEAM_LEADER-user i org:en
+ *   - `first_sale`      — minst en PAID customer-order
+ *
+ * `completed: true` om ALLA steg är klara. Front-end använder det för
+ * att gömma onboarding-banner permanent.
+ *
+ * Snabb O(few small queries). Vi joinar inte — separata SELECT:s är
+ * billigare + tydligare.
+ */
+association.get("/onboarding-status", async (c) => {
+  const session = await requireSession(c);
+  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  if (!session.orgId) return c.json({ error: "Ingen organisation" }, 403);
+  if (
+    session.role !== "ASSOCIATION_ADMIN" &&
+    session.role !== "INTERNAL_ADMIN"
+  ) {
+    return c.json({ error: "Behörighet saknas" }, 403);
+  }
+
+  try {
+    const orgId = session.orgId;
+
+    const [org] = await db
+      .select({
+        id: organizations.id,
+        name: organizations.name,
+        displayName: organizations.displayName,
+        orgNumber: organizations.orgNumber,
+      })
+      .from(organizations)
+      .where(eq(organizations.id, orgId))
+      .limit(1);
+
+    if (!org) return c.json({ error: "Organisation hittades inte." }, 404);
+
+    // count() returnerar [{ c: <num> }] — vi använder `sql<number>` så
+    // typen blir korrekt utan en explicit cast.
+    const [campaignCount] = await db
+      .select({ c: sql<number>`COUNT(*)::int` })
+      .from(campaigns)
+      .where(eq(campaigns.orgId, orgId));
+
+    const [teamCount] = await db
+      .select({ c: sql<number>`COUNT(*)::int` })
+      .from(teams)
+      .where(eq(teams.orgId, orgId));
+
+    // Pending invites räknas som "team progress" så att admin som
+    // skickat en TL-invite ser checken bockad även innan claim.
+    const [pendingInviteCount] = await db
+      .select({ c: sql<number>`COUNT(*)::int` })
+      .from(teamInvites)
+      .where(
+        and(
+          eq(teamInvites.orgId, orgId),
+          isNull(teamInvites.usedAt),
+          gt(teamInvites.expiresAt, new Date())
+        )
+      );
+
+    const [teamLeaderCount] = await db
+      .select({ c: sql<number>`COUNT(*)::int` })
+      .from(users)
+      .where(and(eq(users.orgId, orgId), eq(users.role, "TEAM_LEADER")));
+
+    const [paidOrderCount] = await db
+      .select({ c: sql<number>`COUNT(*)::int` })
+      .from(customerOrders)
+      .where(
+        and(
+          eq(customerOrders.orgId, orgId),
+          eq(customerOrders.status, "PAID")
+        )
+      );
+
+    const hasOrgDetails = Boolean(org.orgNumber);
+    const hasCampaign = (campaignCount?.c ?? 0) > 0;
+    const hasTeam =
+      (teamCount?.c ?? 0) > 0 || (pendingInviteCount?.c ?? 0) > 0;
+    const hasTeamLeader = (teamLeaderCount?.c ?? 0) > 0;
+    const firstSaleMade = (paidOrderCount?.c ?? 0) > 0;
+
+    const steps = [
+      {
+        id: "org_details" as const,
+        label: "Fyll i föreningens uppgifter",
+        description:
+          "Vi behöver organisationsnummer för att kunna fakturera och göra utbetalningar.",
+        completed: hasOrgDetails,
+        ctaHref: "/forening/installningar",
+        ctaLabel: hasOrgDetails ? "Visa uppgifter" : "Fyll i nu",
+      },
+      {
+        id: "campaign" as const,
+        label: "Starta din första kampanj",
+        description:
+          "Sätt mål, start- och slutdatum. Den blir er gemensamma försäljningsperiod.",
+        completed: hasCampaign,
+        ctaHref: "/forening?openCampaign=1",
+        ctaLabel: hasCampaign ? "Hantera kampanj" : "Starta kampanj",
+      },
+      {
+        id: "team" as const,
+        label: "Skapa eller bjud in ett lag",
+        description:
+          "Lagansvariga bjuder sedan in säljare. Du kan börja med ett enda lag.",
+        completed: hasTeam,
+        ctaHref: "/forening/lag",
+        ctaLabel: hasTeam ? "Hantera lag" : "Skapa lag",
+      },
+      {
+        id: "team_leader" as const,
+        label: "Få en lagansvarig på plats",
+        description:
+          "När någon klickar på er invite-länk och registrerar sig får ni en lagansvarig.",
+        completed: hasTeamLeader,
+        ctaHref: "/forening/lag",
+        ctaLabel: hasTeamLeader ? "Visa lagansvariga" : "Visa pågående inbjudningar",
+      },
+      {
+        id: "first_sale" as const,
+        label: "Få in er första betalda order",
+        description:
+          "När er första säljare har stängt en order syns den här — då är ni igång på riktigt.",
+        completed: firstSaleMade,
+        ctaHref: "/forening/avrakning",
+        ctaLabel: firstSaleMade ? "Visa beställningar" : "Tips för att komma igång",
+      },
+    ];
+
+    const completedCount = steps.filter((s) => s.completed).length;
+    const completed = completedCount === steps.length;
+
+    return c.json({
+      orgId,
+      orgName: org.displayName ?? org.name,
+      completed,
+      completedCount,
+      totalSteps: steps.length,
+      steps,
+    });
+  } catch (err) {
+    log.error({ err, orgId: session.orgId }, "onboarding-status failed");
+    return c.json({ error: "Kunde inte hämta onboarding-status." }, 500);
+  }
+});
 
 function slugify(input: string): string {
   return (
