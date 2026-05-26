@@ -87,23 +87,48 @@ describe("checkEnv (production)", () => {
     expect(r.recommendedMissing.join("\n")).toMatch(/OPENAI_API_KEY/);
   });
 
-  // Scout fix 2026-05-26 (Integration CRIT-email/HIGH-klarna-spoof):
-  // RESEND_API_KEY och KLARNA_WEBHOOK_SECRET måste vara satta i prod —
-  // mock-mail tyst i prod var en CRITICAL silent-failure-bugg.
-  it("rejects boot when RESEND_API_KEY is missing in prod", () => {
+  // Post-deploy fix 2026-05-26: RESEND_API_KEY är CONDITIONAL — required
+  // när FEATURE_EMAIL_DISABLED inte är satt till "true". Tidigare var det
+  // hårt REQUIRED vilket gjorde att staging-deploys utan mail-konfig
+  // hamnade i boot-loop.
+  it("rejects boot when RESEND_API_KEY is missing and email is not explicitly disabled", () => {
     const env = { ...FULL_PROD_ENV };
     delete env.RESEND_API_KEY;
     const r = checkEnv(env, true);
     expect(r.ok).toBe(false);
-    expect(r.missing.join("\n")).toMatch(/RESEND_API_KEY/);
+    expect(r.conditionalMissing.join("\n")).toMatch(/RESEND_API_KEY/);
   });
 
-  it("rejects boot when KLARNA_WEBHOOK_SECRET is missing in prod", () => {
+  it("allows boot without RESEND_API_KEY when FEATURE_EMAIL_DISABLED=true", () => {
+    const env: NodeJS.ProcessEnv = {
+      ...FULL_PROD_ENV,
+      FEATURE_EMAIL_DISABLED: "true",
+    };
+    delete env.RESEND_API_KEY;
+    const r = checkEnv(env, true);
+    expect(r.ok).toBe(true);
+    expect(r.conditionalMissing.join("\n")).not.toMatch(/RESEND_API_KEY/);
+  });
+
+  // Post-deploy fix 2026-05-26: KLARNA_WEBHOOK_SECRET är CONDITIONAL —
+  // required ENDAST när Klarna är aktivt (KLARNA_USERNAME satt).
+  // Utan Klarna har vi inget att HMAC-verifiera.
+  it("rejects boot when Klarna is active but KLARNA_WEBHOOK_SECRET is missing", () => {
     const env = { ...FULL_PROD_ENV };
     delete env.KLARNA_WEBHOOK_SECRET;
     const r = checkEnv(env, true);
     expect(r.ok).toBe(false);
-    expect(r.missing.join("\n")).toMatch(/KLARNA_WEBHOOK_SECRET/);
+    expect(r.conditionalMissing.join("\n")).toMatch(/KLARNA_WEBHOOK_SECRET/);
+  });
+
+  it("allows boot without KLARNA_WEBHOOK_SECRET when Klarna is not configured (no KLARNA_USERNAME)", () => {
+    const env = { ...FULL_PROD_ENV };
+    delete env.KLARNA_USERNAME;
+    delete env.KLARNA_PASSWORD;
+    delete env.KLARNA_WEBHOOK_SECRET;
+    const r = checkEnv(env, true);
+    expect(r.ok).toBe(true);
+    expect(r.conditionalMissing.join("\n")).not.toMatch(/KLARNA_WEBHOOK_SECRET/);
   });
 
   it("treats placeholder recommended vars same as missing for the warning list", () => {

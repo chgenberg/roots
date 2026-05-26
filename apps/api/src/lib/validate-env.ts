@@ -59,26 +59,14 @@ const REQUIRED_IN_PROD: ReadonlyArray<EnvVar> = [
     name: "SESSION_SECRET",
     purpose: "HMAC base for deletion-cancel + order-view tokens (fallback when dedicated secrets saknas)",
   },
-  // Scout fix 2026-05-26 (Integration CRIT-email): tidigare var
-  // RESEND_API_KEY bara RECOMMENDED, vilket lät MockEmailSender köra i
-  // prod med success:true men inga riktiga mail. Order-bekräftelser,
-  // payout-mail, invites etc. försvann tyst. Vi gör nu nyckeln
-  // obligatorisk så boot failar snabbt vid felkonfiguration. Behöver
-  // staging-miljö skicka mail? sätt nyckeln; vill ni stänga av email
-  // helt? lägg till FEATURE_EMAIL_DISABLED=true (vi har redan flag).
-  {
-    name: "RESEND_API_KEY",
-    purpose: "Transactional email — utan denna failar order-bekräftelser, invites, payout-mail tyst",
-  },
-  // Scout fix 2026-05-26 (Integration HIGH-klarna-spoof): tidigare
-  // accepterades prod-konfig med ENBART KLARNA_WEBHOOK_IPS. Om reverse
-  // proxyn inte sanerar x-forwarded-for kan angripare spoofa Klarna-IP
-  // och mark:a ordrar PAID. HMAC är vår defense-in-depth — kräv den i
-  // prod, behåll IP som extra lager.
-  {
-    name: "KLARNA_WEBHOOK_SECRET",
-    purpose: "HMAC-verifiering av Klarna webhooks (IP allowlist räcker inte ensam)",
-  },
+  // Scout fix 2026-05-26 (Integration CRIT-email + post-deploy 2026-05-26):
+  // RESEND_API_KEY hanteras conditionally längre ner — required när
+  // FEATURE_EMAIL_DISABLED inte är "true". Annars blev en "Klarna+mail
+  // off"-deploy en boot-loop bara för att man inte hunnit konfa Resend.
+  //
+  // KLARNA_WEBHOOK_SECRET hanteras likadant — krävs ENDAST när Klarna
+  // faktiskt är aktiverat (KLARNA_USERNAME satt). Utan Klarna har vi
+  // inget att HMAC-verifiera.
 ];
 
 /**
@@ -236,6 +224,40 @@ export function checkEnv(
       if (!pw || pw.trim() === "" || looksLikePlaceholder(pw)) {
         conditionalMissing.push(
           "SITE_PREVIEW_PASSWORD (Lösenord till pre-launch-gaten) — krävs när PREVIEW_GATE_DISABLED inte är 'true'"
+        );
+      }
+    }
+
+    // Post-deploy fix 2026-05-26: RESEND_API_KEY var hårt REQUIRED men
+    // det blockerade boot för deploys som inte vill skicka mail än
+    // (staging-miljöer, pre-launch). Vi gör det conditional på
+    // FEATURE_EMAIL_DISABLED. Default = email på → krav på nyckel
+    // (annars MockEmailSender = silent failure). Opt-out via
+    // FEATURE_EMAIL_DISABLED=true → vi tillåter att bootta utan nyckel,
+    // men email/index.ts faller tillbaka till mock och loggar varning.
+    const emailDisabled =
+      env.FEATURE_EMAIL_DISABLED?.trim().toLowerCase() === "true";
+    if (!emailDisabled) {
+      const apiKey = env.RESEND_API_KEY;
+      if (!apiKey || apiKey.trim() === "" || looksLikePlaceholder(apiKey)) {
+        conditionalMissing.push(
+          "RESEND_API_KEY (Transactional email) — krävs när FEATURE_EMAIL_DISABLED inte är 'true'. " +
+            "Sätt nyckeln för riktig mail, eller FEATURE_EMAIL_DISABLED=true för att tillfälligt stänga av mail."
+        );
+      }
+    }
+
+    // Post-deploy fix 2026-05-26: KLARNA_WEBHOOK_SECRET behövs ENDAST
+    // när Klarna är aktivt. Triggas av KLARNA_USERNAME (vi har inga
+    // sessions att verifiera om vi inte ens kan skapa dem). HMAC är
+    // defense-in-depth ovanpå IP-allowlist.
+    const klarnaUser = env.KLARNA_USERNAME?.trim();
+    if (klarnaUser) {
+      const hmac = env.KLARNA_WEBHOOK_SECRET;
+      if (!hmac || hmac.trim() === "" || looksLikePlaceholder(hmac)) {
+        conditionalMissing.push(
+          "KLARNA_WEBHOOK_SECRET (HMAC-verifiering av Klarna webhooks) — krävs när KLARNA_USERNAME är satt. " +
+            "Utan HMAC kan spoofad x-forwarded-for-header markera ordrar som PAID."
         );
       }
     }
