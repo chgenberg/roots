@@ -588,6 +588,146 @@ dashboard.post("/team/:teamId/sellers", async (c) => {
   }
 });
 
+/**
+ * MASTERPLAN_01 KC3.4: rotera säljar-invite-token för ett lag.
+ *
+ * Behörighet:
+ *   - TEAM_LEADER (om de leder laget)
+ *   - ASSOCIATION_ADMIN (samma org)
+ *   - INTERNAL_ADMIN
+ *
+ * Body (alla optional):
+ *   - expiresInDays?: number   (default 30, max 365, 0 = ingen utgång)
+ *   - maxUses?: number         (default null = obegränsat)
+ *
+ * Sidoeffekter:
+ *   - Genererar ny token (gamla blir omedelbart ogiltig).
+ *   - Nollar inviteTokenUseCount till 0.
+ *   - Sätter inviteTokenCreatedAt till now.
+ *   - Audit-loggar rotationen (vem, varför inte — vi vet bara att den hänt).
+ *
+ * Demo-block redan upptaget av isDemoSession (importerades i KC2.1).
+ */
+dashboard.post("/team/:teamId/rotate-invite-token", async (c) => {
+  const session = await requireSession(c);
+  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  if (isDemoSession(session)) {
+    return c.json(
+      { error: "Demoläget kan inte rotera riktiga invite-tokens." },
+      403
+    );
+  }
+
+  const teamId = c.req.param("teamId");
+  if (!/^[0-9a-f-]{36}$/i.test(teamId)) {
+    return c.json({ error: "Ogiltigt lag-ID." }, 400);
+  }
+
+  let body: { expiresInDays?: number; maxUses?: number } = {};
+  try {
+    body = await c.req.json();
+  } catch {
+    // Body är valfri.
+  }
+
+  // expiresInDays: 0 = "ingen utgång", default 30, cap 365 för att
+  // motverka oavsiktlig "evig token".
+  const rawDays =
+    typeof body.expiresInDays === "number" && Number.isFinite(body.expiresInDays)
+      ? Math.floor(body.expiresInDays)
+      : 30;
+  if (rawDays < 0 || rawDays > 365) {
+    return c.json(
+      { error: "expiresInDays måste vara 0–365 (0 = ingen utgång)." },
+      400
+    );
+  }
+  const expiresAt =
+    rawDays === 0 ? null : new Date(Date.now() + rawDays * 24 * 60 * 60 * 1000);
+
+  // maxUses: positiv int eller null. 0 vore "inga användningar"
+  // vilket är meningslöst → behandla som 400.
+  const rawMaxUses = body.maxUses;
+  let maxUses: number | null = null;
+  if (rawMaxUses !== undefined && rawMaxUses !== null) {
+    if (
+      typeof rawMaxUses !== "number" ||
+      !Number.isFinite(rawMaxUses) ||
+      rawMaxUses < 1 ||
+      rawMaxUses > 10_000
+    ) {
+      return c.json(
+        { error: "maxUses måste vara mellan 1 och 10000 (eller utelämnat)." },
+        400
+      );
+    }
+    maxUses = Math.floor(rawMaxUses);
+  }
+
+  try {
+    const [team] = await db
+      .select()
+      .from(teams)
+      .where(eq(teams.id, teamId))
+      .limit(1);
+    if (!team) return c.json({ error: "Lag hittades inte" }, 404);
+
+    const hasAccess =
+      session.role === "INTERNAL_ADMIN" ||
+      (session.role === "ASSOCIATION_ADMIN" && session.orgId === team.orgId) ||
+      (session.role === "TEAM_LEADER" && team.leaderId === session.userId);
+    if (!hasAccess) {
+      return c.json({ error: "Behörighet saknas" }, 403);
+    }
+
+    // 32 chars hex = 128 bits entropy. Samma form som existerande
+    // tokens (auth.ts:711) så frontenden inte ser någon skillnad.
+    const newToken = crypto.randomUUID().replace(/-/g, "").slice(0, 32);
+    const now = new Date();
+
+    const [updated] = await db
+      .update(teams)
+      .set({
+        inviteToken: newToken,
+        inviteTokenExpiresAt: expiresAt,
+        inviteTokenMaxUses: maxUses,
+        inviteTokenUseCount: 0,
+        inviteTokenCreatedAt: now,
+        updatedAt: now,
+      })
+      .where(eq(teams.id, teamId))
+      .returning();
+
+    void (async () => {
+      const { auditLog, requestContext } = await import("../lib/audit");
+      void auditLog({
+        userId: session.userId,
+        action: "team.invite_token.rotated",
+        entityType: "team",
+        entityId: teamId,
+        meta: {
+          ...requestContext((n) => c.req.header(n)),
+          orgId: team.orgId,
+          expiresAt: expiresAt?.toISOString() ?? null,
+          maxUses,
+        },
+      });
+    })();
+
+    return c.json({
+      ok: true,
+      inviteToken: updated.inviteToken,
+      expiresAt: updated.inviteTokenExpiresAt?.toISOString() ?? null,
+      maxUses: updated.inviteTokenMaxUses,
+      useCount: 0,
+      rotatedAt: updated.inviteTokenCreatedAt.toISOString(),
+    });
+  } catch (err) {
+    log.error({ err }, "team invite-token rotate failed");
+    return c.json({ error: "Kunde inte rotera inbjudningslänken just nu." }, 500);
+  }
+});
+
 dashboard.get("/seller", async (c) => {
   const session = await requireSession(c);
   if (!session) return c.json({ error: "Ej inloggad" }, 401);

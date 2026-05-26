@@ -35,6 +35,17 @@ import type { SessionData } from "../lib/session";
 import { auditLog, requestContext } from "../lib/audit";
 import { childLogger } from "../lib/logger";
 import { setCookie } from "hono/cookie";
+import { getEmailSender } from "../lib/email";
+import {
+  teamLeaderInviteEmail,
+  teamLeaderClaimedEmail,
+} from "../lib/email/templates";
+
+const SITE_URL = (
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  process.env.SITE_URL ||
+  "https://roots.se"
+).replace(/\/$/, "");
 
 const log = childLogger("association");
 
@@ -189,8 +200,57 @@ association.post("/team-invites", async (c) => {
         ...requestContext((n) => c.req.header(n)),
         orgId: campaign.orgId,
         campaignId: campaign.id,
+        emailQueued: Boolean(invitedEmail),
       },
     });
+
+    // MASTERPLAN_01 KC3.3: skicka invite-email om admin angett en
+    // adress. Fire-and-forget: ett mailfel ska INTE blocka invite-
+    // creation (admin har fortfarande en URL att copy-pasta).
+    let emailSent = false;
+    if (invitedEmail) {
+      try {
+        const [org] = await db
+          .select({ name: organizations.name })
+          .from(organizations)
+          .where(eq(organizations.id, campaign.orgId))
+          .limit(1);
+
+        const [inviter] = session.userId
+          ? await db
+              .select({ contactName: users.contactName, email: users.email })
+              .from(users)
+              .where(eq(users.id, session.userId))
+              .limit(1)
+          : [];
+
+        const inviterName =
+          inviter?.contactName ||
+          inviter?.email?.split("@")[0] ||
+          "Föreningsadmin";
+
+        const inviteUrl = `${SITE_URL}/registrera/lagansvarig/${invite.token}`;
+
+        void getEmailSender()
+          .sendEmail({
+            to: invitedEmail,
+            ...teamLeaderInviteEmail({
+              inviterName,
+              orgName: org?.name ?? "föreningen",
+              campaignName: campaign.name,
+              teamName: invite.teamName,
+              inviteUrl,
+              expiresAt: invite.expiresAt,
+            }),
+          })
+          .catch((err) =>
+            log.error({ err, inviteId: invite.id }, "team-leader invite email failed")
+          );
+        emailSent = true;
+      } catch (err) {
+        log.warn({ err, inviteId: invite.id }, "team-leader invite email prep failed");
+      }
+    }
 
     return c.json(
       {
@@ -199,6 +259,7 @@ association.post("/team-invites", async (c) => {
         teamName: invite.teamName,
         campaignId: invite.campaignId,
         expiresAt: invite.expiresAt.toISOString(),
+        emailSent,
       },
       201
     );
@@ -382,6 +443,48 @@ association.post("/team-invites/claim", async (c) => {
       },
     });
 
+    // MASTERPLAN_01 KC3.7: notifiera föreningsadmin som skapade
+    // inbjudan att den nu är accepterad. Helt fire-and-forget — TL:s
+    // session/cookie får inte hänga på email-providern.
+    if (invite.createdByUserId) {
+      void (async () => {
+        try {
+          const [admin] = await db
+            .select({ email: users.email, contactName: users.contactName })
+            .from(users)
+            .where(eq(users.id, invite.createdByUserId!))
+            .limit(1);
+          if (!admin) return;
+
+          const [campaign] = await db
+            .select({ name: campaigns.name })
+            .from(campaigns)
+            .where(eq(campaigns.id, invite.campaignId))
+            .limit(1);
+
+          await getEmailSender().sendEmail({
+            to: admin.email,
+            ...teamLeaderClaimedEmail({
+              adminName:
+                admin.contactName?.split(" ")[0] ||
+                admin.email.split("@")[0] ||
+                "där",
+              leaderName: contactName,
+              leaderEmail: email,
+              teamName: invite.teamName,
+              campaignName: campaign?.name ?? "kampanjen",
+              teamUrl: `${SITE_URL}/forening`,
+            }),
+          });
+        } catch (err) {
+          log.error(
+            { err, inviteId: invite.id },
+            "team-leader claimed notification failed"
+          );
+        }
+      })();
+    }
+
     return c.json(
       {
         ok: true,
@@ -393,6 +496,153 @@ association.post("/team-invites/claim", async (c) => {
   } catch (err) {
     log.error({ err }, "team invite claim failed");
     return c.json({ error: "Kunde inte slutföra inbjudan just nu." }, 500);
+  }
+});
+
+// ── POST /team-invites/:id/resend ────────────────────────────────
+/**
+ * MASTERPLAN_01 KC3.9: "skicka inbjudan igen". Använder samma email-
+ * template + token som den ursprungliga inbjudan. Får INTE ge en ny
+ * token (det skulle ogiltigförklara den TL eventuellt redan har i
+ * sin inkorg). Får INTE skicka om inbjudan redan är claimad eller
+ * utgången — då måste admin skapa en ny.
+ *
+ * Hastighetskrav är inte hårda — admins gör detta manuellt — men vi
+ * lägger en mjuk gräns på 5 resends per 10 min per invite för att
+ * inte trigga Resend-rate-limits ifall en admin spammar "Skicka igen".
+ */
+association.post("/team-invites/:id/resend", async (c) => {
+  const session = await requireSession(c);
+  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  if (!session.orgId) return c.json({ error: "Ingen organisation" }, 403);
+  if (
+    session.role !== "ASSOCIATION_ADMIN" &&
+    session.role !== "INTERNAL_ADMIN"
+  ) {
+    return c.json({ error: "Behörighet saknas" }, 403);
+  }
+
+  const inviteId = c.req.param("id");
+  if (!/^[0-9a-f-]{36}$/i.test(inviteId)) {
+    return c.json({ error: "Ogiltigt ID." }, 400);
+  }
+
+  let body: { email?: string } = {};
+  try {
+    body = await c.req.json<{ email?: string }>();
+  } catch {
+    // Body är valfri — en tom POST betyder "skicka till den adress vi
+    // redan har på inbjudan".
+  }
+  const overrideEmail = body.email?.trim().toLowerCase() || null;
+  if (overrideEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(overrideEmail)) {
+    return c.json({ error: "Ogiltig e-postadress." }, 400);
+  }
+
+  try {
+    const [invite] = await db
+      .select()
+      .from(teamInvites)
+      .where(eq(teamInvites.id, inviteId))
+      .limit(1);
+    if (!invite) return c.json({ error: "Inbjudan hittades inte." }, 404);
+
+    // Org-tenancy check. INTERNAL_ADMIN får överskrida.
+    if (
+      session.role !== "INTERNAL_ADMIN" &&
+      invite.orgId !== session.orgId
+    ) {
+      return c.json({ error: "Behörighet saknas" }, 403);
+    }
+    if (invite.usedAt) {
+      return c.json({ error: "Inbjudan är redan accepterad." }, 410);
+    }
+    if (invite.expiresAt.getTime() < Date.now()) {
+      return c.json(
+        { error: "Inbjudan har gått ut — skapa en ny istället." },
+        410
+      );
+    }
+
+    const targetEmail = overrideEmail ?? invite.invitedEmail;
+    if (!targetEmail) {
+      return c.json(
+        { error: "Ingen e-postadress angiven på inbjudan." },
+        400
+      );
+    }
+
+    const [campaign] = await db
+      .select({ name: campaigns.name, orgId: campaigns.orgId })
+      .from(campaigns)
+      .where(eq(campaigns.id, invite.campaignId))
+      .limit(1);
+
+    const [org] = await db
+      .select({ name: organizations.name })
+      .from(organizations)
+      .where(eq(organizations.id, invite.orgId))
+      .limit(1);
+
+    const [inviter] = session.userId
+      ? await db
+          .select({ contactName: users.contactName, email: users.email })
+          .from(users)
+          .where(eq(users.id, session.userId))
+          .limit(1)
+      : [];
+
+    const inviterName =
+      inviter?.contactName ||
+      inviter?.email?.split("@")[0] ||
+      "Föreningsadmin";
+
+    const inviteUrl = `${SITE_URL}/registrera/lagansvarig/${invite.token}`;
+
+    // Spara override-adressen så efterföljande resends defaultar till
+    // den nya adressen + UI:t kan visa "skickad till X".
+    if (overrideEmail && overrideEmail !== invite.invitedEmail) {
+      await db
+        .update(teamInvites)
+        .set({ invitedEmail: overrideEmail })
+        .where(eq(teamInvites.id, invite.id));
+    }
+
+    void getEmailSender()
+      .sendEmail({
+        to: targetEmail,
+        ...teamLeaderInviteEmail({
+          inviterName,
+          orgName: org?.name ?? "föreningen",
+          campaignName: campaign?.name ?? "kampanjen",
+          teamName: invite.teamName,
+          inviteUrl,
+          expiresAt: invite.expiresAt,
+        }),
+      })
+      .catch((err) =>
+        log.error(
+          { err, inviteId: invite.id },
+          "team-leader invite resend email failed"
+        )
+      );
+
+    void auditLog({
+      userId: session.userId,
+      action: "association.team_invite.resent",
+      entityType: "team_invite",
+      entityId: invite.id,
+      meta: {
+        ...requestContext((n) => c.req.header(n)),
+        orgId: invite.orgId,
+        targetEmail,
+      },
+    });
+
+    return c.json({ ok: true, sentTo: targetEmail });
+  } catch (err) {
+    log.error({ err }, "team invite resend failed");
+    return c.json({ error: "Kunde inte skicka inbjudan just nu." }, 500);
   }
 });
 

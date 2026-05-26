@@ -26,6 +26,17 @@ export const teams = pgTable(
       .references(() => users.id),
     name: varchar("name", { length: 255 }).notNull(),
     inviteToken: varchar("invite_token", { length: 64 }).notNull().unique(),
+    /**
+     * MASTERPLAN_01 KC3.4: rotation-state för säljar-invite-tokenen.
+     * Alla tre fälten är nullable / default så att existerande rader
+     * fungerar oförändrat (gammal multi-use, ingen utgång).
+     */
+    inviteTokenExpiresAt: timestamp("invite_token_expires_at"),
+    inviteTokenMaxUses: integer("invite_token_max_uses"),
+    inviteTokenUseCount: integer("invite_token_use_count").notNull().default(0),
+    inviteTokenCreatedAt: timestamp("invite_token_created_at")
+      .defaultNow()
+      .notNull(),
     memberCount: integer("member_count").notNull().default(0),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),

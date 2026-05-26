@@ -153,6 +153,91 @@ export function orderConfirmationEmail(params: {
   };
 }
 
+/**
+ * MASTERPLAN_01 KC3.3: invite-email till en utsedd lagansvarig. Skickas
+ * direkt från `association.post(/team-invites)` när admin angett en
+ * `invitedEmail`. Tonen: kort förklaring av rollen → tydligt CTA.
+ *
+ * `inviterName` och `orgName` brukas för att personalisera "från vem"
+ * — sänker risken att tas för spam. `inviteUrl` är en absolut URL
+ * eftersom mail-klienter inte tolkar relativa länkar.
+ */
+export function teamLeaderInviteEmail(params: {
+  inviterName: string;
+  orgName: string;
+  campaignName: string;
+  teamName: string;
+  inviteUrl: string;
+  expiresAt: Date;
+}): { subject: string; html: string } {
+  const dateFmt = params.expiresAt.toLocaleDateString("sv-SE", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+
+  return {
+    subject: `Du är inbjuden att leda ${params.teamName} — ${params.orgName}`,
+    html: wrap(`
+      <h2 style="margin:0 0 16px;color:${BRAND_COLOR};font-size:22px">
+        Du är inbjuden att leda ${params.teamName}
+      </h2>
+      <p style="color:#444;line-height:1.6;margin:0 0 16px">
+        ${params.inviterName} från <strong>${params.orgName}</strong> har bjudit in
+        dig att vara lagansvarig för kampanjen
+        <strong>${params.campaignName}</strong>.
+      </p>
+      <p style="color:#444;line-height:1.6;margin:0 0 24px">
+        Som lagansvarig bjuder du in säljare till ditt lag, följer
+        resultaten och stöttar laget under hela kampanjen. Det tar 2
+        minuter att komma igång.
+      </p>
+      <a href="${params.inviteUrl}" style="display:inline-block;background:${BRAND_COLOR};color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">
+        Skapa konto och kom igång
+      </a>
+      <p style="color:#888;font-size:13px;line-height:1.6;margin:24px 0 0">
+        Länken är giltig till och med ${dateFmt}. Vill du inte ta rollen
+        — ignorera mejlet, ingen åtgärd krävs.
+      </p>
+    `),
+  };
+}
+
+/**
+ * MASTERPLAN_01 KC3.7: bekräftelse till föreningsadmin när en TL har
+ * claimat en invite. Stänger feedback-loopen så assoc-admin slipper
+ * pinga lagledaren manuellt och fråga "har du registrerat dig?".
+ */
+export function teamLeaderClaimedEmail(params: {
+  adminName: string;
+  leaderName: string;
+  leaderEmail: string;
+  teamName: string;
+  campaignName: string;
+  teamUrl: string;
+}): { subject: string; html: string } {
+  return {
+    subject: `${params.leaderName} har accepterat och leder nu ${params.teamName}`,
+    html: wrap(`
+      <h2 style="margin:0 0 16px;color:${BRAND_COLOR};font-size:22px">
+        Klart! ${params.teamName} har en lagansvarig.
+      </h2>
+      <p style="color:#444;line-height:1.6;margin:0 0 16px">
+        Hej ${params.adminName}, <strong>${params.leaderName}</strong>
+        (${params.leaderEmail}) har accepterat din inbjudan till
+        kampanjen <strong>${params.campaignName}</strong>.
+      </p>
+      <p style="color:#444;line-height:1.6;margin:0 0 24px">
+        Nästa steg: laget kan börja bjuda in säljare. Du följer
+        progressen från föreningsadminvyn.
+      </p>
+      <a href="${params.teamUrl}" style="display:inline-block;background:${BRAND_COLOR};color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">
+        Visa laget
+      </a>
+    `),
+  };
+}
+
 export function milestoneEmail(params: {
   teamName: string;
   milestoneLabel: string;

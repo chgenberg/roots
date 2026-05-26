@@ -813,6 +813,29 @@ auth.post("/register/seller", async (c) => {
       return c.json({ error: "Ogiltig inbjudningslänk." }, 404);
     }
 
+    // MASTERPLAN_01 KC3.4: token-rotation. Existerande rader har
+    // inviteTokenExpiresAt = null + inviteTokenMaxUses = null vilket
+    // är "backward-compatible" (samma evig+multi-use som tidigare).
+    // Roterade tokens har konkreta värden — då måste vi validera.
+    if (
+      team.inviteTokenExpiresAt &&
+      team.inviteTokenExpiresAt.getTime() < Date.now()
+    ) {
+      return c.json(
+        { error: "Inbjudningslänken har gått ut. Be lagledaren skapa en ny." },
+        410
+      );
+    }
+    if (
+      team.inviteTokenMaxUses !== null &&
+      team.inviteTokenUseCount >= team.inviteTokenMaxUses
+    ) {
+      return c.json(
+        { error: "Inbjudningslänken är förbrukad. Be lagledaren skapa en ny." },
+        410
+      );
+    }
+
     const [existing] = await db
       .select()
       .from(users)
@@ -850,9 +873,15 @@ auth.post("/register/seller", async (c) => {
         displayName,
       });
 
+      // MASTERPLAN_01 KC3.4: räkna invite-token-användning samtidigt
+      // som memberCount bumpar. Båda är atomiska sql`+1` så vi kan
+      // inte race:a oss förbi max_uses-gränsen.
       await tx
         .update(teams)
-        .set({ memberCount: sql`${teams.memberCount} + 1` })
+        .set({
+          memberCount: sql`${teams.memberCount} + 1`,
+          inviteTokenUseCount: sql`${teams.inviteTokenUseCount} + 1`,
+        })
         .where(eq(teams.id, team.id));
 
       return user;
