@@ -308,21 +308,25 @@ function NyOffertDialog({
                 return (
                   <div
                     key={p.id}
-                    className="flex items-center justify-between rounded-md border p-3"
+                    className="flex items-center justify-between gap-3 rounded-md border p-3"
                   >
-                    <div>
-                      <p className="text-sm font-medium">{p.name}</p>
+                    {/* Scout fix 2026-05-26: min-w-0 + truncate skyddar
+                        mot långa SKU-namn som annars trycker bort qty-
+                        steppern i smala dialoger. */}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{p.name}</p>
                       <p className="text-xs text-muted-foreground">
                         {formatSek(p.priceOre)} / st
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-shrink-0 items-center gap-2">
                       <Button
                         type="button"
                         size="icon"
                         variant="outline"
                         onClick={() => updateQty(p.id, -1)}
                         disabled={qty === 0}
+                        aria-label={`Minska ${p.name}`}
                       >
                         <Minus className="h-4 w-4" />
                       </Button>
@@ -334,6 +338,7 @@ function NyOffertDialog({
                         size="icon"
                         variant="outline"
                         onClick={() => updateQty(p.id, 1)}
+                        aria-label={`Öka ${p.name}`}
                       >
                         <Plus className="h-4 w-4" />
                       </Button>

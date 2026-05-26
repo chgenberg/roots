@@ -281,7 +281,7 @@ export default function TeamsManagementPage() {
           </DialogHeader>
 
           {createdInvite ? (
-            <div className="space-y-4">
+            <div className="space-y-4 px-6 py-2">
               <div className="rounded-lg border bg-brand-50 p-4">
                 <p className="text-xs font-medium text-muted-foreground">
                   Lag
@@ -319,7 +319,7 @@ export default function TeamsManagementPage() {
               </div>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-4 px-6 py-2">
               <div>
                 <Label htmlFor="teamName">Lagnamn</Label>
                 <Input

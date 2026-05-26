@@ -360,7 +360,9 @@ function AssociationDashboardInner() {
               in lag och säljare. Detaljer kan justeras senare.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
+          {/* Scout fix 2026-05-26 (UX dialog-overflow): wrappa form-fält
+              i px-6 pb-2 så inputs inte glider in i dialog-kanten. */}
+          <div className="space-y-4 px-6 py-2">
             <div>
               <Label htmlFor="campaignName">Kampanjnamn</Label>
               <Input

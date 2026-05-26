@@ -10,6 +10,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogBody,
 } from "@/components/ui/dialog";
 import {
   Table,
@@ -204,29 +205,39 @@ export default function BestallningarPage() {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={closeDialog}>
-        <DialogContent className="sm:max-w-md">
+        {/* Scout fix 2026-05-26 (UX dialog-overflow): dialogen var
+            tidigare `sm:max-w-md` (448px) och content saknade horisontal
+            padding → produktnamn + pris + qty-stepper trycktes in i
+            varandra och hamnade utanför kortet. Vi vidgar till `lg`
+            (512px) och använder DialogBody-helpern som garanterar
+            px-6 pb-6. `min-w-0`/`truncate` på namnblocket skyddar mot
+            extra långa SKU-namn. */}
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{submitted ? "Beställning skickad!" : "Ny beställning"}</DialogTitle>
           </DialogHeader>
 
           {submitted ? (
-            <div className="flex flex-col items-center gap-4 py-6">
+            <DialogBody className="flex flex-col items-center gap-4 py-6">
               <CheckCircle2 className="h-12 w-12 text-brand-500" />
               <p className="text-sm text-muted-foreground text-center">
                 Din beställning har registrerats och behandlas nu.
               </p>
               <Button onClick={closeDialog}>Stäng</Button>
-            </div>
+            </DialogBody>
           ) : (
-            <div className="space-y-4">
+            <DialogBody className="space-y-4">
               {apiProducts.map((p) => {
                 const qty = cart[p.id] || 0;
                 return (
-                  <div key={p.id} className="flex items-center justify-between rounded-lg border p-3">
-                    <div>
+                  <div
+                    key={p.id}
+                    className="flex items-center justify-between gap-3 rounded-lg border p-3"
+                  >
+                    <div className="min-w-0 flex-1">
                       <Link
                         href={publicProductHref(p.slug)}
-                        className="text-sm font-medium hover:text-brand-800 hover:underline"
+                        className="block truncate text-sm font-medium hover:text-brand-800 hover:underline"
                       >
                         {p.name}
                       </Link>
@@ -234,22 +245,29 @@ export default function BestallningarPage() {
                         {(p.priceOre / 100).toLocaleString("sv-SE")} kr / st
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-shrink-0 items-center gap-2">
                       <Button
                         variant="outline"
                         size="icon"
                         className="h-8 w-8"
                         onClick={() => updateQty(p.id, -1)}
                         disabled={qty === 0}
+                        aria-label={`Minska ${p.name}`}
                       >
                         <Minus className="h-3 w-3" />
                       </Button>
-                      <span className="w-6 text-center text-sm font-medium">{qty}</span>
+                      <span
+                        className="w-6 text-center text-sm font-medium tabular-nums"
+                        aria-live="polite"
+                      >
+                        {qty}
+                      </span>
                       <Button
                         variant="outline"
                         size="icon"
                         className="h-8 w-8"
                         onClick={() => updateQty(p.id, 1)}
+                        aria-label={`Öka ${p.name}`}
                       >
                         <Plus className="h-3 w-3" />
                       </Button>
@@ -262,7 +280,7 @@ export default function BestallningarPage() {
                 <p className="text-sm text-muted-foreground">
                   {cartCount} {cartCount === 1 ? "produkt" : "produkter"}
                 </p>
-                <p className="font-semibold">
+                <p className="font-semibold tabular-nums">
                   {(cartTotal / 100).toLocaleString("sv-SE")} kr
                 </p>
               </div>
@@ -271,7 +289,7 @@ export default function BestallningarPage() {
                 <ShoppingCart className="h-4 w-4" />
                 {submitting ? "Skickar..." : "Skicka beställning"}
               </Button>
-            </div>
+            </DialogBody>
           )}
         </DialogContent>
       </Dialog>

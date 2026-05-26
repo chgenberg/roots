@@ -342,7 +342,9 @@ export default function PipelinePage() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
+          {/* Scout fix 2026-05-26 (UX dialog-overflow): inputs satt
+              tidigare i dialog-kanten utan padding. */}
+          <div className="space-y-4 px-6 py-2">
             <div>
               <Label htmlFor="leadName">Klubbnamn</Label>
               <Input

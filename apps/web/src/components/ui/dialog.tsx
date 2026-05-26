@@ -55,6 +55,16 @@ const DialogHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivEleme
 const DialogFooter = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
   <div className={cn("flex flex-col-reverse gap-2 px-6 pb-6 pt-2 sm:flex-row sm:justify-end", className)} {...props} />
 );
+// Scout fix 2026-05-26 (UX dialog-overflow): DialogContent har `p-0`
+// som default (för att DialogHeader/-Footer ska kunna styra sin egen
+// padding). Konsekvensen var att body-innehåll utan `px-6` lade sig
+// helt i kanten av dialogen och fick text/knappar att klippas (se
+// /portal/bestallningar "Ny beställning"). DialogBody är en helper
+// som alltid ger korrekt sid-padding + en sane default bottom-padding
+// så samma misstag inte uppstår igen.
+const DialogBody = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div className={cn("px-6 pb-6 pt-2", className)} {...props} />
+);
 
 const DialogTitle = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Title>,
@@ -80,4 +90,4 @@ const DialogDescription = React.forwardRef<
 ));
 DialogDescription.displayName = DialogPrimitive.Description.displayName;
 
-export { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription, DialogClose };
+export { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogFooter, DialogBody, DialogTitle, DialogDescription, DialogClose };
