@@ -382,8 +382,19 @@ export function HairAnalysisLeadDialog({
           )}
 
           {/* STEG 1: E-post + godkännande */}
+          {/* MASTERPLAN_01 KC6.8: wrap i <form> så att Enter i email-fältet
+              triggar Fortsätt-knappen via native form-submit. Tidigare
+              gjorde Enter ingenting → mobile-keyboarden visade "Go"-tangent
+              som inte hade någon effekt. */}
           {step === "gate" && (
-            <div className="space-y-5">
+            <form
+              className="space-y-5"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (gateReady) setStep("intro");
+              }}
+              noValidate
+            >
               <div className="grid gap-2">
                 <Label htmlFor="gate-email">E-postadress</Label>
                 <Input
@@ -415,14 +426,14 @@ export function HairAnalysisLeadDialog({
               </label>
 
               <Button
+                type="submit"
                 className="w-full"
                 size="lg"
                 disabled={!gateReady}
-                onClick={() => setStep("intro")}
               >
                 Fortsätt
               </Button>
-            </div>
+            </form>
           )}
 
           {/* STEG 2: Intro */}

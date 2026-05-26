@@ -128,66 +128,80 @@ function BjudInMedlemDialog({
         <DialogHeader>
           <DialogTitle>Bjud in medlem</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4 px-6 py-2">
-          <div className="space-y-2">
-            <Label htmlFor="invite-email">E-postadress</Label>
-            <Input
-              id="invite-email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="namn@klubb.se"
-              autoFocus
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="invite-name">Namn (valfritt)</Label>
-            <Input
-              id="invite-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Anna Lindgren"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Roll</Label>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant={role === "CLUB_MEMBER" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setRole("CLUB_MEMBER")}
-              >
-                Medlem
-              </Button>
-              <Button
-                type="button"
-                variant={role === "CLUB_ADMIN" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setRole("CLUB_ADMIN")}
-              >
-                Klubbadmin
-              </Button>
+        {/* MASTERPLAN_01 KC6.8: wrap fält + footer i <form> så Enter
+            submitar inbjudan via native form-submit. Mobile-keyboarden
+            visar nu "Go" som faktiskt fungerar. */}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!submitting) handleSubmit();
+          }}
+          noValidate
+        >
+          <div className="space-y-4 px-6 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="invite-email">E-postadress</Label>
+              <Input
+                id="invite-email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="namn@klubb.se"
+                autoFocus
+                autoComplete="email"
+              />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="invite-name">Namn (valfritt)</Label>
+              <Input
+                id="invite-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Anna Lindgren"
+                autoComplete="name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Roll</Label>
+              <div className="flex gap-2" role="group" aria-label="Välj roll">
+                <Button
+                  type="button"
+                  variant={role === "CLUB_MEMBER" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setRole("CLUB_MEMBER")}
+                >
+                  Medlem
+                </Button>
+                <Button
+                  type="button"
+                  variant={role === "CLUB_ADMIN" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setRole("CLUB_ADMIN")}
+                >
+                  Klubbadmin
+                </Button>
+              </div>
+            </div>
+            {error && (
+              <p className="text-xs text-red-600" role="alert">
+                {error}
+              </p>
+            )}
           </div>
-          {error && (
-            <p className="text-xs text-red-600" role="alert">
-              {error}
-            </p>
-          )}
-        </div>
-        <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={submitting}
-          >
-            Avbryt
-          </Button>
-          <Button onClick={handleSubmit} disabled={submitting}>
-            {submitting ? "Bjuder in…" : "Skicka inbjudan"}
-          </Button>
-        </DialogFooter>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={submitting}
+            >
+              Avbryt
+            </Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting ? "Bjuder in…" : "Skicka inbjudan"}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

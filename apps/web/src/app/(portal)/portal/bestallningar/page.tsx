@@ -394,66 +394,126 @@ export default function BestallningarPage() {
 
       <Card>
         <CardContent className="p-5">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Order-ID</TableHead>
-                <TableHead>Datum</TableHead>
-                <TableHead>Produkter</TableHead>
-                <TableHead>Totalt</TableHead>
-                <TableHead className="text-right">Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((o) => (
-                <TableRow
-                  key={o.id}
+          {/* MASTERPLAN_01 KC6.5: 5-kolums-tabellen är bekväm på desktop
+              men en mobile-supporter (vanligaste use-case för CLUB_ADMIN
+              som checkar leveransstatus från soffan) får horizontal
+              scroll. Mobile-listan visar samma data tappable. */}
+          <ul
+            className="space-y-3 lg:hidden"
+            aria-label="Beställningar (lista)"
+          >
+            {filtered.map((o) => (
+              <li key={o.id}>
+                <button
+                  type="button"
                   onClick={() => {
                     setDetailOrderId(o.id);
                     setDetailOpen(true);
                   }}
-                  className="cursor-pointer transition-colors hover:bg-brand-50/50"
+                  className="w-full rounded-xl border border-border p-4 text-left transition-colors hover:bg-brand-50/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   aria-label={`Visa detaljer för order ${o.id.slice(0, 8)}`}
                 >
-                  <TableCell>
+                  <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-2">
                       {statusIcon(o.status)}
-                      <span className="font-mono text-xs">{o.id.slice(0, 8).toUpperCase()}</span>
+                      <span className="font-mono text-xs">
+                        {o.id.slice(0, 8).toUpperCase()}
+                      </span>
                     </div>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{o.date}</TableCell>
-                  <TableCell className="max-w-[300px] truncate text-sm">
-                    {o.items || "—"}
-                  </TableCell>
-                  <TableCell className="font-medium">{o.total}</TableCell>
-                  <TableCell className="text-right">
                     {statusBadge(o.status)}
-                  </TableCell>
-                </TableRow>
-              ))}
-              {!loadingOrders && filtered.length === 0 && orders.length > 0 && (
+                  </div>
+                  <div className="mt-2 line-clamp-2 text-sm">
+                    {o.items || "—"}
+                  </div>
+                  <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+                    <span>{o.date}</span>
+                    <span className="font-medium text-foreground">
+                      {o.total}
+                    </span>
+                  </div>
+                </button>
+              </li>
+            ))}
+            {!loadingOrders && filtered.length === 0 && orders.length > 0 && (
+              <li className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                Inga beställningar matchade dina filter.
+              </li>
+            )}
+            {!loadingOrders && orders.length === 0 && (
+              <li className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                Inga beställningar ännu. Klicka på &ldquo;Ny beställning&rdquo; för
+                att lägga er första.
+              </li>
+            )}
+            {loadingOrders && (
+              <li className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                Hämtar beställningar…
+              </li>
+            )}
+          </ul>
+
+          <div className="hidden lg:block">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
-                    Inga beställningar matchade dina filter.
-                  </TableCell>
+                  <TableHead>Order-ID</TableHead>
+                  <TableHead>Datum</TableHead>
+                  <TableHead>Produkter</TableHead>
+                  <TableHead>Totalt</TableHead>
+                  <TableHead className="text-right">Status</TableHead>
                 </TableRow>
-              )}
-              {!loadingOrders && orders.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
-                    Inga beställningar ännu. Klicka på "Ny beställning" för att lägga er första.
-                  </TableCell>
-                </TableRow>
-              )}
-              {loadingOrders && (
-                <TableRow>
-                  <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
-                    Hämtar beställningar…
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filtered.map((o) => (
+                  <TableRow
+                    key={o.id}
+                    onClick={() => {
+                      setDetailOrderId(o.id);
+                      setDetailOpen(true);
+                    }}
+                    className="cursor-pointer transition-colors hover:bg-brand-50/50"
+                    aria-label={`Visa detaljer för order ${o.id.slice(0, 8)}`}
+                  >
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        {statusIcon(o.status)}
+                        <span className="font-mono text-xs">{o.id.slice(0, 8).toUpperCase()}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{o.date}</TableCell>
+                    <TableCell className="max-w-[300px] truncate text-sm">
+                      {o.items || "—"}
+                    </TableCell>
+                    <TableCell className="font-medium">{o.total}</TableCell>
+                    <TableCell className="text-right">
+                      {statusBadge(o.status)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {!loadingOrders && filtered.length === 0 && orders.length > 0 && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                      Inga beställningar matchade dina filter.
+                    </TableCell>
+                  </TableRow>
+                )}
+                {!loadingOrders && orders.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                      Inga beställningar ännu. Klicka på &ldquo;Ny beställning&rdquo; för att lägga er första.
+                    </TableCell>
+                  </TableRow>
+                )}
+                {loadingOrders && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                      Hämtar beställningar…
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
           </>

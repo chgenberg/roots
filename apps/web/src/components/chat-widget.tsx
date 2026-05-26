@@ -233,14 +233,27 @@ export function ChatWidget() {
       )}
 
       {/* Dialog */}
+      {/* MASTERPLAN_01 KC6.3: bottom-sheet på mobil.
+          ≤ sm: full bredd, slidar upp från botten, 85vh hög, rounded
+                bara på top-hörnen, pb=safe-area så home-indikatorn
+                inte täcker input.
+          ≥ sm: oförändrad centrerad dialog (samma som tidigare).
+          Skälet: tum-zonen på en hand-held iPhone når inte mitten på
+          skärmen. Bottom-sheet ger 0–95% touch-area + känns native
+          (samma pattern som iOS share-sheet, Maps, Instagram comments). */}
       <div
         className={cn(
-          "fixed left-1/2 top-1/2 z-50 flex w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl border border-border bg-background shadow-[var(--shadow-dialog)] transition-all duration-200",
+          "fixed z-50 flex flex-col overflow-hidden border-border bg-background shadow-[var(--shadow-dialog)] transition-all duration-200",
+          // Mobile: full-width bottom-sheet, 85vh hög, safe-area-padding
+          // via Tailwind arbitrary value på pb (matchar (marketing)/produkter
+          // sticky-CTA-mönstret från KC6.2).
+          "inset-x-0 bottom-0 h-[85vh] max-h-[85vh] rounded-t-2xl border-t pb-[max(0px,env(safe-area-inset-bottom))]",
+          // Desktop (sm+): centered dialog (override mobile positioning)
+          "sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:h-[min(580px,calc(100vh-4rem))] sm:max-h-none sm:w-[calc(100%-2rem)] sm:max-w-lg sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-xl sm:border sm:pb-0",
           open
-            ? "scale-100 opacity-100"
-            : "pointer-events-none scale-95 opacity-0"
+            ? "translate-y-0 opacity-100 sm:scale-100"
+            : "pointer-events-none translate-y-full opacity-0 sm:translate-y-0 sm:scale-95"
         )}
-        style={{ height: "min(580px, calc(100vh - 4rem))" }}
         role="dialog"
         aria-modal="true"
         aria-label="Roots AI-chatt"

@@ -13,6 +13,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { Users, TrendingUp, Target, Award } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface SalesRep {
   id: string;
@@ -132,60 +133,124 @@ export default function SaljarePage() {
               registreras och börjar bygga pipeline.
             </p>
           )}
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>#</TableHead>
-                <TableHead>Säljare</TableHead>
-                <TableHead>E-post</TableHead>
-                <TableHead>Klubbar</TableHead>
-                <TableHead>Pipeline</TableHead>
-                <TableHead>Stängt</TableHead>
-                <TableHead className="text-right">Konvertering</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sellers.map((s, i) => (
-                <TableRow key={s.id}>
-                  <TableCell>
-                    {i < 3 ? (
-                      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-50 text-xs font-bold">
-                        {i + 1}
-                      </span>
-                    ) : (
-                      <span className="flex h-7 w-7 items-center justify-center text-xs text-muted-foreground">
-                        {i + 1}
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell className="font-medium">
-                    {s.name ?? s.email}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{s.email}</TableCell>
-                  <TableCell>{s.clubs}</TableCell>
-                  <TableCell className="font-medium">{formatSek(s.pipelineOre)}</TableCell>
-                  <TableCell className="font-medium">{formatSek(s.closedOre)}</TableCell>
-                  <TableCell className="text-right">
-                    {s.conversion !== null ? (
-                      <Badge
-                        variant={
-                          s.conversion >= 50
-                            ? "success"
-                            : s.conversion >= 25
-                              ? "secondary"
-                              : "destructive"
-                        }
-                      >
-                        {s.conversion}%
-                      </Badge>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
+
+          {/* MASTERPLAN_01 KC6.5: 7-kolums-tabellen kraschar i layout
+              under ~900 px (horizontal scroll, oläsbart). Vi visar den
+              bara på lg+ och renderar en cards-stack på mobil där varje
+              säljare blir en tappable rad med samma data men i två
+              rader istället för sju kolumner. */}
+          <ul className="space-y-3 lg:hidden" aria-label="Säljare (lista)">
+            {sellers.map((s, i) => (
+              <li
+                key={s.id}
+                className="rounded-xl border border-border p-4"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <span
+                      className={cn(
+                        "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold",
+                        i < 3 ? "bg-brand-50" : "text-muted-foreground"
+                      )}
+                      aria-label={`Plats ${i + 1}`}
+                    >
+                      {i + 1}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">{s.name ?? s.email}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {s.email}
+                      </p>
+                    </div>
+                  </div>
+                  {s.conversion !== null && (
+                    <Badge
+                      variant={
+                        s.conversion >= 50
+                          ? "success"
+                          : s.conversion >= 25
+                            ? "secondary"
+                            : "destructive"
+                      }
+                    >
+                      {s.conversion}%
+                    </Badge>
+                  )}
+                </div>
+                <dl className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                  <div>
+                    <dt className="text-muted-foreground">Klubbar</dt>
+                    <dd className="font-medium">{s.clubs}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Pipeline</dt>
+                    <dd className="font-medium">{formatSek(s.pipelineOre)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Stängt</dt>
+                    <dd className="font-medium">{formatSek(s.closedOre)}</dd>
+                  </div>
+                </dl>
+              </li>
+            ))}
+          </ul>
+
+          <div className="hidden lg:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>#</TableHead>
+                  <TableHead>Säljare</TableHead>
+                  <TableHead>E-post</TableHead>
+                  <TableHead>Klubbar</TableHead>
+                  <TableHead>Pipeline</TableHead>
+                  <TableHead>Stängt</TableHead>
+                  <TableHead className="text-right">Konvertering</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {sellers.map((s, i) => (
+                  <TableRow key={s.id}>
+                    <TableCell>
+                      {i < 3 ? (
+                        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-50 text-xs font-bold">
+                          {i + 1}
+                        </span>
+                      ) : (
+                        <span className="flex h-7 w-7 items-center justify-center text-xs text-muted-foreground">
+                          {i + 1}
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      {s.name ?? s.email}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{s.email}</TableCell>
+                    <TableCell>{s.clubs}</TableCell>
+                    <TableCell className="font-medium">{formatSek(s.pipelineOre)}</TableCell>
+                    <TableCell className="font-medium">{formatSek(s.closedOre)}</TableCell>
+                    <TableCell className="text-right">
+                      {s.conversion !== null ? (
+                        <Badge
+                          variant={
+                            s.conversion >= 50
+                              ? "success"
+                              : s.conversion >= 25
+                                ? "secondary"
+                                : "destructive"
+                          }
+                        >
+                          {s.conversion}%
+                        </Badge>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
     </div>

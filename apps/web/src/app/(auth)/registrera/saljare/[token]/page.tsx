@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { FormField } from "@/components/ui/form-field";
 import {
   Card,
   CardHeader,
@@ -123,49 +123,51 @@ export default function SellerRegistrationPage() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="displayName">Ditt namn *</Label>
-            {/* MASTERPLAN_01 KC6.7: autoComplete="name" så att browsern
-                föreslår användarens namn — kritiskt på mobil där en
-                sellare ofta är 15+ och får invite via SMS-länken. */}
+        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+          {/* MASTERPLAN_01 KC6.6: FormField sköter id↔htmlFor + aria-
+              describedby + aria-invalid + aria-required åt oss. Tidigare
+              handcraftade <div><Label/><Input/></div>-block saknade
+              describedby vilket gjorde att skärmläsaren aldrig hörde
+              hjälptexterna. */}
+          <FormField
+            label="Ditt namn"
+            description="Visas som säljarnamn i din shop."
+            required
+          >
             <Input
-              id="displayName"
               placeholder="Förnamn Efternamn"
-              required
               autoComplete="name"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
             />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="email">E-post *</Label>
+          </FormField>
+          <FormField label="E-post" required>
             <Input
-              id="email"
               type="email"
               placeholder="din@epost.se"
               autoComplete="email"
-              required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">Lösenord *</Label>
+          </FormField>
+          <FormField
+            label="Lösenord"
+            description="Minst 8 tecken — använd gärna en lösenordshanterare."
+            required
+          >
             <Input
-              id="password"
               type="password"
               placeholder="Minst 8 tecken"
               autoComplete="new-password"
-              required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="phone">Telefon</Label>
+          </FormField>
+          <FormField
+            label="Telefon"
+            description="Frivilligt — vi använder det bara om vi behöver nå dig om en leverans."
+          >
             <Input
-              id="phone"
               type="tel"
               placeholder="070-XXX XX XX"
               autoComplete="tel"
@@ -173,10 +175,13 @@ export default function SellerRegistrationPage() {
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
             />
-          </div>
+          </FormField>
 
           {error && (
-            <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
+            <p
+              role="alert"
+              className="rounded-lg bg-red-50 p-3 text-sm text-red-700"
+            >
               {error}
             </p>
           )}

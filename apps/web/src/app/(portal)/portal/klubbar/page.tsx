@@ -159,46 +159,92 @@ export default function KlubbarPage() {
             </div>
           </div>
 
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Klubb</TableHead>
-                <TableHead>Medlemmar</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Senaste order</TableHead>
-                <TableHead className="text-right">Intäkter</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((c) => (
-                <TableRow key={c.id}>
-                  <TableCell className="font-medium">{c.name}</TableCell>
-                  <TableCell>{c.members ?? "—"}</TableCell>
-                  <TableCell>
-                    <Badge variant={statusVariant(c.status)}>{c.status}</Badge>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{c.lastOrder}</TableCell>
-                  <TableCell className="text-right font-medium">{formatSek(c.revenueOre)}</TableCell>
-                </TableRow>
-              ))}
-              {!loading && filtered.length === 0 && (
+          {/* MASTERPLAN_01 KC6.5: mobile-cards-stack istället för
+              horizontal-scrollande tabell. SALES_REP-rollen jobbar ofta
+              i bilen mellan möten och vill snabbt kolla en klubbs status
+              utan att vrida på telefonen. */}
+          <ul className="space-y-3 lg:hidden" aria-label="Klubbar (lista)">
+            {filtered.map((c) => (
+              <li
+                key={c.id}
+                className="rounded-xl border border-border p-4"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <p className="min-w-0 truncate font-medium">{c.name}</p>
+                  <Badge variant={statusVariant(c.status)}>{c.status}</Badge>
+                </div>
+                <dl className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                  <div>
+                    <dt className="text-muted-foreground">Medlemmar</dt>
+                    <dd className="font-medium">{c.members ?? "—"}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Senaste order</dt>
+                    <dd className="truncate">{c.lastOrder}</dd>
+                  </div>
+                  <div className="text-right">
+                    <dt className="text-muted-foreground">Intäkter</dt>
+                    <dd className="font-medium">{formatSek(c.revenueOre)}</dd>
+                  </div>
+                </dl>
+              </li>
+            ))}
+            {!loading && filtered.length === 0 && (
+              <li className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                {clubs.length === 0
+                  ? "Inga klubbar registrerade ännu. Listan fylls på när er första förening kopplas till ert säljterritorium."
+                  : "Inga klubbar matchade sökningen."}
+              </li>
+            )}
+            {loading && (
+              <li className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                Hämtar klubbar…
+              </li>
+            )}
+          </ul>
+
+          <div className="hidden lg:block">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
-                    {clubs.length === 0
-                      ? "Inga klubbar registrerade ännu. Listan fylls på när er första förening kopplas till ert säljterritorium."
-                      : "Inga klubbar matchade sökningen."}
-                  </TableCell>
+                  <TableHead>Klubb</TableHead>
+                  <TableHead>Medlemmar</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Senaste order</TableHead>
+                  <TableHead className="text-right">Intäkter</TableHead>
                 </TableRow>
-              )}
-              {loading && (
-                <TableRow>
-                  <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
-                    Hämtar klubbar…
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filtered.map((c) => (
+                  <TableRow key={c.id}>
+                    <TableCell className="font-medium">{c.name}</TableCell>
+                    <TableCell>{c.members ?? "—"}</TableCell>
+                    <TableCell>
+                      <Badge variant={statusVariant(c.status)}>{c.status}</Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{c.lastOrder}</TableCell>
+                    <TableCell className="text-right font-medium">{formatSek(c.revenueOre)}</TableCell>
+                  </TableRow>
+                ))}
+                {!loading && filtered.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                      {clubs.length === 0
+                        ? "Inga klubbar registrerade ännu. Listan fylls på när er första förening kopplas till ert säljterritorium."
+                        : "Inga klubbar matchade sökningen."}
+                    </TableCell>
+                  </TableRow>
+                )}
+                {loading && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                      Hämtar klubbar…
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
     </div>
