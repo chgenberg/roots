@@ -1,15 +1,11 @@
-import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Gratis håranalys online | Roots",
+export const metadata = pageMetadata({
+  title: "Gratis håranalys online",
   description:
     "Få en personlig AI-driven håranalys helt gratis. Ladda upp två bilder, svara på frågor om dina vanor och få skräddarsydda rekommendationer med nordiska ingredienser.",
-  openGraph: {
-    title: "Gratis håranalys online | Roots",
-    description:
-      "Personlig AI-håranalys på under 2 minuter. Helt gratis, inga dolda kostnader.",
-  },
-};
+  path: "/haranalys",
+});
 
 export default function HaranalysLayout({
   children,

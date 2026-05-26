@@ -1,15 +1,11 @@
-import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: "Kontakt",
   description:
     "Kontakta Roots Nordic — vi hjälper er komma igång med föreningsförsäljning av naturlig hårvård.",
-  openGraph: {
-    title: "Kontakta Roots",
-    description:
-      "Kontakta Roots Nordic — vi hjälper er komma igång med föreningsförsäljning av naturlig hårvård.",
-  },
-};
+  path: "/kontakt",
+});
 
 export default function KontaktLayout({
   children,

@@ -1,29 +1,42 @@
 import type { Metadata } from "next";
 
-interface Params {
-  slug: string;
+/**
+ * MASTERPLAN_01 KC7.2: per-shop OG/canonical-metadata.
+ *
+ * page.tsx är "use client" så vi kan inte exportera generateMetadata
+ * därifrån. Layouten är server-side, hämtar säljardata via samma API
+ * som page.tsx, och bygger en delningskort-vänlig OG + canonical.
+ *
+ * Tidigare: shop-länkar i Slack/WhatsApp visade root-OG ("Roots —
+ * Föreningsnära hudvård") för ALLA säljares shops → omöjligt att se
+ * skillnad på Anna-och Bertas länk när vänner får dem.
+ *
+ * Nu: title = "<displayName> säljer Roots", description = kort
+ * org+kampanj-sammanfattning. Fail-soft: om API:t inte svarar returnar
+ * vi en generic metadata istället för 500 — Next renderar då page
+ * ändå, men utan personlig OG.
+ */
+
+interface ShopMetaData {
+  seller?: { displayName?: string };
+  organization?: { name?: string } | null;
+  campaign?: { name?: string; description?: string } | null;
 }
 
-async function fetchShopName(slug: string): Promise<string | null> {
+async function fetchShop(slug: string): Promise<ShopMetaData | null> {
+  const base =
+    process.env.API_BACKEND_URL ||
+    process.env.API_URL ||
+    "http://127.0.0.1:4000";
   try {
-    const base =
-      process.env.NEXT_PUBLIC_API_BASE_URL ||
-      process.env.API_BASE_URL ||
-      "http://localhost:4000";
-    const res = await fetch(`${base}/v1/shop/by-slug/${slug}`, {
-      // Supporter pages change only when the seller edits their shop, so a
-      // short ISR-style cache is plenty.
+    const res = await fetch(`${base.replace(/\/$/, "")}/v1/shop/by-slug/${slug}`, {
+      // Edge-cache i 5 min — säljardata ändras sällan och delningskort
+      // får aldrig blocka shop-besöket. revalidate=300 är en
+      // medelväg mellan färskhet och latency.
       next: { revalidate: 300 },
     });
     if (!res.ok) return null;
-    const data = (await res.json()) as {
-      seller?: { displayName?: string };
-      campaign?: { name?: string };
-    };
-    const seller = data.seller?.displayName;
-    const campaign = data.campaign?.name;
-    if (seller && campaign) return `${seller} — ${campaign}`;
-    return seller || campaign || null;
+    return (await res.json()) as ShopMetaData;
   } catch {
     return null;
   }
@@ -32,26 +45,37 @@ async function fetchShopName(slug: string): Promise<string | null> {
 export async function generateMetadata({
   params,
 }: {
-  params: Promise<Params>;
+  params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const name = await fetchShopName(slug);
-  const title = name
-    ? `${name} | Stötta via Roots`
-    : "Stötta en förening via Roots";
-  const description = name
-    ? `Beställ naturlig hårvård och kroppstvätt från ${name}. En del av köpet går tillbaka till föreningen.`
-    : "Beställ naturlig hårvård och kroppstvätt direkt via en säljares personliga shop. En del av köpet går tillbaka till föreningen.";
+  const data = await fetchShop(slug);
+
+  const displayName = data?.seller?.displayName ?? null;
+  const orgName = data?.organization?.name ?? null;
+  const campaignName = data?.campaign?.name ?? null;
+
+  const title = displayName
+    ? `${displayName} säljer Roots${orgName ? ` för ${orgName}` : ""}`
+    : "Personlig Roots-shop";
+
+  const description = campaignName
+    ? `Stötta ${displayName ?? "säljaren"} och ${orgName ?? "föreningen"} — köp naturlig hårvård och bidra till "${campaignName}".`
+    : "Köp Roots naturliga hudvård direkt från säljarens personliga shop. Del av vinsten går till föreningslivet.";
+
+  const canonical = `/shop/${slug}`;
 
   return {
     title,
     description,
-    alternates: { canonical: `/shop/${slug}` },
+    alternates: { canonical },
     openGraph: {
+      type: "website",
+      url: canonical,
       title,
       description,
-      url: `/shop/${slug}`,
-      type: "website",
+      // Root-layoutens default-image används om vi inte specificerar
+      // en egen — det blir en konsekvent Roots-photo istället för
+      // en personlig avatar som vi ännu inte lagrar.
     },
     twitter: {
       card: "summary_large_image",
@@ -61,10 +85,6 @@ export async function generateMetadata({
   };
 }
 
-export default function SellerShopLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function ShopLayout({ children }: { children: React.ReactNode }) {
   return children;
 }

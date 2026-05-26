@@ -90,8 +90,31 @@ interface PageProps {
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
   const product = PRODUCTS[slug];
-  if (!product) return { title: "Produkt hittades inte" };
-  return { title: product.name, description: product.tagline };
+  if (!product) {
+    return { title: "Produkt hittades inte", robots: { index: false } };
+  }
+  // MASTERPLAN_01 KC7.4 + KC7.5: canonical + per-produkt OG-image så
+  // produktdelningar i Slack/iMessage visar rätt produktbild istället
+  // för site-default. Inline:ar pageMetadata() här för att slippa
+  // import-cykel mellan PRODUCTS-data och seo-helpern.
+  return {
+    title: product.name,
+    description: product.tagline,
+    alternates: { canonical: `/produkter/${slug}` },
+    openGraph: {
+      type: "website",
+      url: `/produkter/${slug}`,
+      title: product.name,
+      description: product.tagline,
+      images: [{ url: product.image, alt: product.name }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: product.name,
+      description: product.tagline,
+      images: [product.image],
+    },
+  };
 }
 
 export function generateStaticParams() {

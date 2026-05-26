@@ -6,7 +6,23 @@ interface OrganizationLdProps {
   description?: string;
 }
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://roots.se";
+const SITE_URL = (
+  process.env.NEXT_PUBLIC_SITE_URL || "https://roots.se"
+).replace(/\/$/, "");
+
+/**
+ * MASTERPLAN_01 KC7.3: Google ignorerar JSON-LD images som inte är
+ * absolute URLs. Den här helpern prefixar med SITE_URL om värdet
+ * börjar med "/" — men låter redan-absoluta URLer (eller protocol-
+ * relative) passera oförändrade.
+ */
+function absoluteUrl(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  if (value.startsWith("http://") || value.startsWith("https://")) return value;
+  if (value.startsWith("//")) return `https:${value}`;
+  if (value.startsWith("/")) return `${SITE_URL}${value}`;
+  return value;
+}
 
 export function OrganizationJsonLd({
   name = LEGAL_IDENTITY.tradingName,
@@ -64,18 +80,24 @@ export function ProductJsonLd({
   image,
   url,
 }: ProductLdProps) {
+  // MASTERPLAN_01 KC7.3: image + url måste vara absolute för att
+  // Google ska godkänna rich-result. ProductJsonLd kallas från
+  // (marketing)/produkter/[slug] med relativa image-paths som
+  // "/images/m3.jpg" — utan denna fix tappar vi product rich snippets.
+  const absImage = absoluteUrl(image);
+  const absUrl = absoluteUrl(url) ?? url;
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Product",
     name,
     description,
     sku,
-    image,
-    url,
+    image: absImage,
+    url: absUrl,
     brand: { "@type": "Brand", name: LEGAL_IDENTITY.tradingName },
     offers: {
       "@type": "Offer",
-      url,
+      url: absUrl,
       price: (price / 100).toFixed(2),
       priceCurrency: currency,
       availability: "https://schema.org/InStock",
@@ -86,6 +108,41 @@ export function ProductJsonLd({
     },
   };
 
+  return (
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+    />
+  );
+}
+
+/**
+ * MASTERPLAN_01 KC7.10: WebSite + SearchAction så Google sitelink-
+ * search-box renderas under varumärket vid brand-sökning.
+ * Search-target pekar på vår public-search-route — den finns ännu
+ * inte men URL-shape är public-API:t och kan stå redo.
+ */
+export function SiteJsonLd() {
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: LEGAL_IDENTITY.tradingName,
+    alternateName: LEGAL_IDENTITY.legalName,
+    url: SITE_URL,
+    inLanguage: "sv-SE",
+    publisher: {
+      "@type": "Organization",
+      name: LEGAL_IDENTITY.legalName,
+    },
+    potentialAction: {
+      "@type": "SearchAction",
+      target: {
+        "@type": "EntryPoint",
+        urlTemplate: `${SITE_URL}/sok?q={search_term_string}`,
+      },
+      "query-input": "required name=search_term_string",
+    },
+  };
   return (
     <script
       type="application/ld+json"

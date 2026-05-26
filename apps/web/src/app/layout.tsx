@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Script from "next/script";
-import { OrganizationJsonLd } from "@/components/json-ld";
+import { OrganizationJsonLd, SiteJsonLd } from "@/components/json-ld";
 import { Providers } from "./providers";
 import { inter, alanSans } from "@/lib/fonts";
 import "./globals.css";
@@ -63,6 +63,9 @@ export default function RootLayout({
     >
       <head>
         <OrganizationJsonLd />
+        {/* MASTERPLAN_01 KC7.10: site-wide WebSite + SearchAction JSON-LD
+            så Google kan rendera brand-search-box i sitelinks. */}
+        <SiteJsonLd />
         {plausibleDomain && (
           <Script
             defer

@@ -1,16 +1,17 @@
-import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArrowUpRight, Leaf, Droplets, Sparkles } from "lucide-react";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: "Produkter",
   description:
     "Tre noggrant formulerade produkter med nordiska ingredienser. Utan sulfater, silikoner eller parabener.",
-};
+  path: "/produkter",
+});
 
 const PRODUCTS = [
   {

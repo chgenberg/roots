@@ -1,15 +1,16 @@
-import type { Metadata } from "next";
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Heart, Leaf, Shield } from "lucide-react";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: "Om oss",
   description:
     "Tre grundare, ett mål: stärka svenskt föreningsliv med naturlig hårvård utvecklad i Norden.",
-};
+  path: "/om-oss",
+});
 
 const VALUES = [
   {

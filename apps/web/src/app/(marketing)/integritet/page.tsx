@@ -1,10 +1,11 @@
-import type { Metadata } from "next";
 import { LegalIdentityBlock } from "@/components/legal-identity-block";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: "Integritetspolicy",
   description: "Så hanterar Roots dina personuppgifter enligt GDPR.",
-};
+  path: "/integritet",
+});
 
 export default function IntegritetPage() {
   return (

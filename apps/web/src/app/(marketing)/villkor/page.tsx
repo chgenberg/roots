@@ -1,10 +1,11 @@
-import type { Metadata } from "next";
 import { LegalIdentityBlock } from "@/components/legal-identity-block";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: "Köpvillkor",
   description: "Köpvillkor för Roots — ångerrätt, leverans, reklamation och mer.",
-};
+  path: "/villkor",
+});
 
 export default function VillkorPage() {
   return (
