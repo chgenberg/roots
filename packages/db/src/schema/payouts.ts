@@ -36,6 +36,17 @@ export const payouts = pgTable(
     teamShareOre: integer("team_share_ore").notNull().default(0),
     status: payoutStatusEnum("status").notNull().default("PENDING"),
     fortnoxInvoiceId: varchar("fortnox_invoice_id", { length: 100 }),
+    /**
+     * MASTERPLAN_01 KC1.5: PAID-metadata. Sätts av
+     * PATCH /v1/payouts/:id/status. Alla tre är nullable så befintliga
+     * rader behåller sin sanning — endast nya PAID-transitioner skriver.
+     * paidByUserId refererar users(id) i SQL men hålls utanför Drizzle-
+     * referensgrafen för att undvika circular import (samma mönster som
+     * organizations.assignedAsmUserId).
+     */
+    paidAt: timestamp("paid_at"),
+    paidByUserId: uuid("paid_by_user_id"),
+    paymentReference: varchar("payment_reference", { length: 64 }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },

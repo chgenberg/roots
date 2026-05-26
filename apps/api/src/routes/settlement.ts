@@ -6,6 +6,8 @@ import {
   teams,
   customerOrders,
   payouts,
+  organizations,
+  users,
 } from "@roots/db/schema";
 import { getSession, isDemoSession, SESSION_COOKIE_NAME } from "../lib/session";
 import { getInvoiceProvider } from "../lib/invoicing";
@@ -318,21 +320,79 @@ settlement.post("/create-invoice/:payoutId", async (c) => {
       return c.json({ error: "Behörighet saknas" }, 403);
     }
 
+    // MASTERPLAN_01 KC1.4: ladda faktisk klubb-data istället för
+    // hårdkodat "Roots AB". Tidigare blev customer-namnet tomt i
+    // Fortnox vilket gjorde att bok-export inte gick att tilldela
+    // någon kund. Använd masterdata-fälten (displayName, postalCode)
+    // när de finns, annars legacy `name`. Address-fält som street/city
+    // saknas i organizations-schemat — schema-utvidgning är egen story
+    // (se docs/runbooks/onboard-fortnox.md). Fortnox accepterar
+    // kunden utan postadress; vi fyller den senare via /forening UI.
+    const [org] = await db
+      .select({
+        id: organizations.id,
+        name: organizations.name,
+        displayName: organizations.displayName,
+        orgNumber: organizations.orgNumber,
+        postalCode: organizations.postalCode,
+        municipality: organizations.municipality,
+      })
+      .from(organizations)
+      .where(eq(organizations.id, payout.orgId))
+      .limit(1);
+
+    if (!org) {
+      return c.json({ error: "Föreningen hittades inte" }, 404);
+    }
+    if (!org.orgNumber) {
+      return c.json(
+        {
+          error:
+            "Föreningen saknar organisationsnummer — fyll i det i inställningar innan fakturering.",
+        },
+        422
+      );
+    }
+
+    // Billing-mail: vi har inget dedicerat org-fält idag, använd
+    // primär assoc-admins e-post. När /forening/installningar exposeas
+    // en billingEmail-input räcker det att lägga till en organizations.billing_email-
+    // kolumn + byta SELECT-listan ovan.
+    let billingEmail = "";
+    const [admin] = await db
+      .select({ email: users.email })
+      .from(users)
+      .where(and(eq(users.orgId, payout.orgId), eq(users.role, "ASSOCIATION_ADMIN")))
+      .limit(1);
+    billingEmail = admin?.email ?? "";
+
     const invoiceProvider = getInvoiceProvider();
     const result = await invoiceProvider.createInvoiceFromOrder({
       orderId: payout.id,
       customer: {
         orgId: payout.orgId,
-        name: "Roots AB",
-        orgNumber: "",
-        email: "",
+        name: org.displayName ?? org.name ?? "Okänd förening",
+        orgNumber: org.orgNumber,
+        email: billingEmail,
+        address: {
+          postalCode: org.postalCode ?? undefined,
+          city: org.municipality ?? undefined,
+          countryCode: "SE",
+        },
       },
       lines: [
         {
+          // OBS: vi fakturerar Roots-andelen (= avtalad fee). Den
+          // utbetalda team-andelen är bara en transfer och ska INTE
+          // faktureras tillbaka. Tidigare kod använde rootsShareOre
+          // korrekt — vi behåller det och förtydligar i description.
           sku: "SETTLEMENT",
-          description: "Föreningsförsäljning — Roots",
+          description: `Roots-andel kampanj ${payout.id.slice(0, 8)} (avtalad fee)`,
           qty: 1,
           unitPriceOre: payout.rootsShareOre,
+          // Sverige standard 25%. AccountNumber 3001 = försäljning SE.
+          vatPercent: 25,
+          accountNumber: 3001,
         },
       ],
       totalOre: payout.rootsShareOre,
@@ -353,6 +413,21 @@ settlement.post("/create-invoice/:payoutId", async (c) => {
         updatedAt: new Date(),
       })
       .where(eq(payouts.id, payoutId));
+
+    // MASTERPLAN_01 KC8.4: audit-log på payout-state-transition.
+    void auditLog({
+      userId: session.userId,
+      action: "payout.invoiced",
+      entityType: "payout",
+      entityId: payoutId,
+      meta: {
+        ...requestContext((n) => c.req.header(n)),
+        orgId: payout.orgId,
+        campaignId: payout.campaignId,
+        invoiceExternalId: result.externalId,
+        rootsShareOre: payout.rootsShareOre,
+      },
+    });
 
     return c.json({ ok: true, invoiceId: result.externalId });
   } catch (err: any) {

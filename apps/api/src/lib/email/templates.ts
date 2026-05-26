@@ -238,6 +238,76 @@ export function teamLeaderClaimedEmail(params: {
   };
 }
 
+/**
+ * MASTERPLAN_01 KC1.5: notifiera assoc-admin när en utbetalning
+ * (= deras föreningsandel av kampanjförsäljningen) har markerats som
+ * betald. Tonen ska vara *kvitto* — bekräftande, inte tjatigt: "klart,
+ * pengarna är på väg / på ditt konto". Datumet anges som svensk
+ * locale eftersom mailen alltid går till svenska föreningar.
+ *
+ * `paymentReference` är optionellt — det visas bara om admin angav
+ * en bank-referens när de markerade payouten PAID (typiskt OCR-nr
+ * eller fakturanummer).
+ */
+export function payoutPaidEmail(params: {
+  adminName: string;
+  orgName: string;
+  campaignName: string;
+  amountOre: number;
+  paidAt: Date;
+  paymentReference?: string | null;
+  payoutsUrl: string;
+}): { subject: string; html: string } {
+  const amountSek = (params.amountOre / 100).toLocaleString("sv-SE", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  });
+  const dateFmt = params.paidAt.toLocaleDateString("sv-SE", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+
+  return {
+    subject: `Utbetalning ${amountSek} kr från Roots — ${params.campaignName}`,
+    html: wrap(`
+      <h2 style="margin:0 0 16px;color:${BRAND_COLOR};font-size:22px">
+        ${amountSek} kr är på väg till ${params.orgName}
+      </h2>
+      <p style="color:#444;line-height:1.6;margin:0 0 16px">
+        Hej ${params.adminName}, vi har idag (${dateFmt}) betalat ut er andel
+        för kampanjen <strong>${params.campaignName}</strong>.
+      </p>
+      <table style="width:100%;border-collapse:collapse;margin:0 0 24px;background:#f9f7f5;border-radius:8px">
+        <tr>
+          <td style="padding:12px 16px;color:#666;font-size:13px">Belopp</td>
+          <td style="padding:12px 16px;text-align:right;font-weight:600">${amountSek} kr</td>
+        </tr>
+        <tr>
+          <td style="padding:12px 16px;color:#666;font-size:13px;border-top:1px solid #eee">Datum</td>
+          <td style="padding:12px 16px;text-align:right;border-top:1px solid #eee">${dateFmt}</td>
+        </tr>
+        ${
+          params.paymentReference
+            ? `<tr>
+                 <td style="padding:12px 16px;color:#666;font-size:13px;border-top:1px solid #eee">Referens</td>
+                 <td style="padding:12px 16px;text-align:right;border-top:1px solid #eee;font-family:monospace">${params.paymentReference}</td>
+               </tr>`
+            : ""
+        }
+      </table>
+      <p style="color:#444;line-height:1.6;margin:0 0 24px">
+        Pengarna är överförda till det konto ni angav vid registreringen.
+        Beroende på er bank kan det ta 1–2 arbetsdagar innan beloppet
+        syns på kontot.
+      </p>
+      <a href="${params.payoutsUrl}" style="display:inline-block;background:${BRAND_COLOR};color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">
+        Visa alla utbetalningar
+      </a>
+    `),
+  };
+}
+
 export function milestoneEmail(params: {
   teamName: string;
   milestoneLabel: string;
