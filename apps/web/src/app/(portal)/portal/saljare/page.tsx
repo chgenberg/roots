@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { portalFetch } from "@/lib/portal-api";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -12,8 +11,10 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
-import { Users, TrendingUp, Target, Award } from "lucide-react";
+import { Users, TrendingUp, Target, Award, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useApiData } from "@/lib/use-api-data";
+import { Button } from "@/components/ui/button";
 
 interface SalesRep {
   id: string;
@@ -41,28 +42,20 @@ function formatSek(ore: number): string {
 }
 
 export default function SaljarePage() {
-  const [sellers, setSellers] = useState<SalesRep[]>([]);
-  const [totals, setTotals] = useState<SellersResponse["totals"]>({
+  // P3.2 + P3.11 + P3.79 (audit 2026-05-26): useApiData ger cancel-guard,
+  // error-state och loading-state utan att vi behöver göra det manuellt.
+  const { data, error, loading, refetch } =
+    useApiData<SellersResponse>("/sellers");
+
+  const sellers = useMemo(() => {
+    if (!data?.sellers) return [] as SalesRep[];
+    return [...data.sellers].sort((a, b) => b.closedOre - a.closedOre);
+  }, [data]);
+  const totals = data?.totals ?? {
     pipelineOre: 0,
     closedOre: 0,
     avgConversion: null,
-  });
-
-  useEffect(() => {
-    portalFetch<SellersResponse>("/sellers")
-      .then((data) => {
-        if (data.sellers) {
-          // API returns rows ordered by name; sort here by closed (DESC)
-          // so the top 3 actually map to the leaderboard medal styling.
-          const sorted = [...data.sellers].sort(
-            (a, b) => b.closedOre - a.closedOre
-          );
-          setSellers(sorted);
-        }
-        if (data.totals) setTotals(data.totals);
-      })
-      .catch(() => {});
-  }, []);
+  };
 
   return (
     <div className="page-enter space-y-6">
@@ -72,6 +65,34 @@ export default function SaljarePage() {
           Säljteamets prestation och resultat.
         </p>
       </div>
+
+      {error && (
+        <div
+          role="alert"
+          className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm"
+        >
+          <p className="font-semibold text-destructive">
+            Kunde inte hämta säljardata
+          </p>
+          <p className="mt-1 text-muted-foreground">{error}</p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={refetch}
+            className="mt-3"
+          >
+            Försök igen
+          </Button>
+        </div>
+      )}
+
+      {loading && !data && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span>Hämtar säljare…</span>
+        </div>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>

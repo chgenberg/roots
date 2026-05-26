@@ -1,10 +1,37 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { getBankIdAdapter } from "../lib/bankid/adapter";
 import { childLogger } from "../lib/logger";
+import {
+  bankidStartRateLimit,
+  bankidCollectRateLimit,
+} from "../lib/rate-limit";
 
 const log = childLogger("bankid");
 
 export const bankid = new Hono();
+
+// P3.25 (audit 2026-05-26): tidigare hade /auth/start, /collect, /cancel
+// inga rate limits. Pre-push fix 2026-05-26: skilj på start/cancel
+// (sällsynta, dyra) och collect (frekvent polling 2s-intervall under
+// 180s). Annars nås limiten efter 60s legitim BankID-användning.
+async function enforceBankIdRateLimit(
+  c: Context,
+  kind: "start" | "collect",
+): Promise<Response | null> {
+  const ip =
+    c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const rl = kind === "collect"
+    ? await bankidCollectRateLimit(ip)
+    : await bankidStartRateLimit(ip);
+  if (!rl.allowed) {
+    c.header("Retry-After", String(rl.resetInSeconds));
+    return c.json(
+      { error: "För många BankID-försök. Försök igen om en stund." },
+      429
+    );
+  }
+  return null;
+}
 
 bankid.get("/status", async (c) => {
   const hasCert = Boolean(process.env.BANKID_PFX_PATH);
@@ -19,6 +46,9 @@ bankid.get("/status", async (c) => {
 });
 
 bankid.post("/auth/start", async (c) => {
+  const limited = await enforceBankIdRateLimit(c, "start");
+  if (limited) return limited;
+
   const ip =
     c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "127.0.0.1";
 
@@ -38,6 +68,9 @@ bankid.post("/auth/start", async (c) => {
 });
 
 bankid.post("/auth/collect", async (c) => {
+  const limited = await enforceBankIdRateLimit(c, "collect");
+  if (limited) return limited;
+
   let body: { orderRef: string };
   try {
     body = await c.req.json<{ orderRef: string }>();
@@ -61,6 +94,9 @@ bankid.post("/auth/collect", async (c) => {
 });
 
 bankid.post("/auth/cancel", async (c) => {
+  const limited = await enforceBankIdRateLimit(c, "start");
+  if (limited) return limited;
+
   let body: { orderRef: string };
   try {
     body = await c.req.json<{ orderRef: string }>();

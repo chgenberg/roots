@@ -123,6 +123,9 @@ export function ProductJsonLd({
  * inte men URL-shape är public-API:t och kan stå redo.
  */
 export function SiteJsonLd() {
+  // P3.4 (audit 2026-05-26): tidigare deklarerade vi en SearchAction
+  // som pekade på /sok som inte finns → 404 i Google sitelink-search.
+  // Vi tar bort SearchAction tills vi har en riktig sök-route.
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "WebSite",
@@ -133,14 +136,6 @@ export function SiteJsonLd() {
     publisher: {
       "@type": "Organization",
       name: LEGAL_IDENTITY.legalName,
-    },
-    potentialAction: {
-      "@type": "SearchAction",
-      target: {
-        "@type": "EntryPoint",
-        urlTemplate: `${SITE_URL}/sok?q={search_term_string}`,
-      },
-      "query-input": "required name=search_term_string",
     },
   };
   return (

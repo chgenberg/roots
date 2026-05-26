@@ -8,6 +8,7 @@ import {
   type ChatMessage,
 } from "../lib/ai/openclaw-client";
 import { PUBLIC_CHAT_SYSTEM_PROMPT } from "../lib/ai/system-prompt";
+import { recordAiUsage, recordAiIncident } from "../lib/ai/usage";
 import { flags } from "../lib/flags";
 import { childLogger } from "../lib/logger";
 
@@ -31,6 +32,11 @@ publicChat.post("/public-chat", async (c) => {
 
   const rateCheck = await publicChatRateLimit(ip);
   if (!rateCheck.allowed) {
+    recordAiIncident({
+      surface: "public_chat",
+      kind: "rate_limited",
+      meta: { ip: ip.slice(0, 32) },
+    });
     return c.json(
       {
         error: "Du har skickat för många meddelanden. Försök igen om en stund.",
@@ -62,6 +68,11 @@ publicChat.post("/public-chat", async (c) => {
     "Vår AI-assistent är inte tillgänglig just nu. Kontakta oss på hej@roots.se så hjälper vi dig.";
 
   if (!flags.aiEnabled() || !isAiConfigured()) {
+    recordAiIncident({
+      surface: "public_chat",
+      kind: "fallback",
+      meta: { reason: !flags.aiEnabled() ? "kill_switch" : "not_configured" },
+    });
     if (body.stream) {
       return streamSSE(c, async (stream) => {
         await stream.writeSSE({
@@ -98,13 +109,21 @@ publicChat.post("/public-chat", async (c) => {
   ];
 
   if (body.stream) {
+    // P2.31 (audit 2026-05-26): forwarda klientens disconnect-signal
+    // till upstream OpenAI så vi inte fortsätter token-spend efter
+    // att en publik chatt-flik stängts.
+    const upstreamSignal = c.req.raw.signal;
     return streamSSE(c, async (stream) => {
       try {
-        for await (const chunk of chatCompletionStream(messages)) {
+        for await (const chunk of chatCompletionStream(messages, upstreamSignal)) {
+          if (upstreamSignal.aborted) break;
           await stream.writeSSE({ data: JSON.stringify({ content: chunk }) });
         }
-        await stream.writeSSE({ data: "[DONE]" });
+        if (!upstreamSignal.aborted) {
+          await stream.writeSSE({ data: "[DONE]" });
+        }
       } catch (err) {
+        if (upstreamSignal.aborted) return;
         log.error({ err, ip }, "public-chat streaming error");
         await stream.writeSSE({
           data: JSON.stringify({
@@ -120,6 +139,12 @@ publicChat.post("/public-chat", async (c) => {
 
   try {
     const response = await chatCompletion(messages);
+    recordAiUsage({
+      surface: "public_chat",
+      model: response.model,
+      promptTokens: response.usage?.promptTokens,
+      completionTokens: response.usage?.completionTokens,
+    });
     return c.json({
       reply: response.content,
       disclaimer: DISCLAIMER,
@@ -127,6 +152,12 @@ publicChat.post("/public-chat", async (c) => {
     });
   } catch (err) {
     log.error({ err, ip }, "public-chat completion error");
+    recordAiIncident({
+      surface: "public_chat",
+      kind: "upstream_error",
+      status: (err as { status?: number })?.status,
+      meta: { message: (err as Error)?.message },
+    });
     return c.json({
       reply:
         "Något gick fel. Försök igen eller kontakta oss på hej@roots.se.",

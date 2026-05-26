@@ -1,12 +1,118 @@
 import { redis } from "./redis";
 import type { Role } from "@roots/contracts";
 import { childLogger } from "./logger";
+import { db } from "@roots/db";
+import { users } from "@roots/db/schema";
+import { eq } from "drizzle-orm";
 
 const log = childLogger("session");
 
 const SESSION_PREFIX = "sess:";
 export const SESSION_TTL = 60 * 60 * 24 * 7; // 7 days
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
+
+/**
+ * P2.7 (audit 2026-05-26): in-process cache för fresh role/orgId.
+ *
+ * Tidigare snapshotades role+orgId vid login och lästes vidare ur
+ * Redis tills sessionen expirerade — så en admin som downgrad:ade
+ * eller flyttade en användare fick vänta upp till 7 dagar på att
+ * den nya rollen slog igenom. En `users.deletedAt`-rensning gav
+ * samma problem och behöll session-zombies.
+ *
+ * Vi syncar därför role + orgId + deletedAt från DB i `getSession`
+ * men med en per-process TTL på 30 s så vi inte gör 1 DB-anrop
+ * per request på heta routes. Det räcker för att rätta nya RBAC-
+ * beslut inom samma minut.
+ */
+const USER_SYNC_TTL_MS = 30 * 1000;
+const userSyncCache = new Map<
+  string,
+  {
+    role: Role;
+    orgId: string | null;
+    deletedAt: Date | null;
+    isDemoAccount: boolean;
+    expiresAt: number;
+  }
+>();
+function pruneUserSyncCache() {
+  if (userSyncCache.size < 2000) return;
+  const now = Date.now();
+  for (const [k, v] of userSyncCache) {
+    if (v.expiresAt < now) userSyncCache.delete(k);
+  }
+}
+
+// P3.28 (audit 2026-05-26): DB-seeded demo accounts (klubb@demo.se,
+// *@demo-if.se, *@demo.se etc.) hade tidigare ingen demoProfile-flagga,
+// så isDemoSession returnerade false och de slank igenom våra
+// mutation-guards när ROOTS_ENABLE_DEMO_ACCOUNTS=true i staging/prod.
+// Vi taggar dem nu baserat på email-mönster så samma guards gäller.
+const DEMO_EMAIL_PATTERNS: RegExp[] = [
+  /@demo\.se$/i,
+  /@demo-if\.se$/i,
+];
+function isDemoEmail(email: string | null | undefined): boolean {
+  if (!email) return false;
+  return DEMO_EMAIL_PATTERNS.some((re) => re.test(email));
+}
+
+async function syncUserAuthFromDb(
+  userId: string
+): Promise<{
+  role: Role;
+  orgId: string | null;
+  deletedAt: Date | null;
+  isDemoAccount: boolean;
+} | null> {
+  const now = Date.now();
+  const cached = userSyncCache.get(userId);
+  if (cached && cached.expiresAt > now) {
+    return {
+      role: cached.role,
+      orgId: cached.orgId,
+      deletedAt: cached.deletedAt,
+      isDemoAccount: cached.isDemoAccount,
+    };
+  }
+  try {
+    const [row] = await db
+      .select({
+        role: users.role,
+        orgId: users.orgId,
+        deletedAt: users.deletedAt,
+        email: users.email,
+      })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    if (!row) {
+      userSyncCache.delete(userId);
+      return null;
+    }
+    const fresh = {
+      role: row.role as Role,
+      orgId: row.orgId,
+      deletedAt: row.deletedAt,
+      isDemoAccount: isDemoEmail(row.email),
+    };
+    userSyncCache.set(userId, { ...fresh, expiresAt: now + USER_SYNC_TTL_MS });
+    pruneUserSyncCache();
+    return fresh;
+  } catch (err) {
+    // DB hiccup ska inte logga ut alla — fall back på cachad
+    // session-data och försök igen nästa request.
+    log.warn({ err, userId }, "session DB sync failed; using cached values");
+    return null;
+  }
+}
+
+/** Invalidera per-process syncen för en user. Anropas när vi medvetet
+ *  ändrar role/orgId/deletedAt så vi inte väntar 30s på TTL. */
+export function invalidateUserAuthSync(userId: string): void {
+  userSyncCache.delete(userId);
+}
 
 /**
  * MASTERPLAN_01 KC2.4: rolling-window-refresh tröskel.
@@ -25,6 +131,12 @@ export interface SessionData {
   createdAt: number;
   /** In-memory demo login (no DB row); used by /me when userId is not in DB. */
   demoProfile?: { email: string; name: string; orgName: string };
+  /**
+   * P3.28: true för DB-seeded demo-accounts (matchar email-pattern). Sätts
+   * via syncUserAuthFromDb i getSession. Mutations-guards ska behandla
+   * dessa som demo även när userId är riktig.
+   */
+  isDemoAccount?: boolean;
 }
 
 // In-memory fallback for development when Redis is unavailable
@@ -58,28 +170,57 @@ export async function createSession(data: SessionData): Promise<string> {
 }
 
 export async function getSession(id: string): Promise<SessionData | null> {
+  let session: SessionData | null = null;
+
   if (await isRedisAvailable()) {
     const raw = await redis.get(`${SESSION_PREFIX}${id}`);
     if (!raw) return null;
     try {
-      return JSON.parse(raw) as SessionData;
+      session = JSON.parse(raw) as SessionData;
     } catch {
       log.warn({ sessionId: id.slice(0, 8) }, "corrupt session data");
       return null;
     }
+  } else {
+    const entry = memoryStore.get(id);
+    if (!entry) return null;
+    if (Date.now() > entry.expiresAt) {
+      memoryStore.delete(id);
+      return null;
+    }
+    try {
+      session = JSON.parse(entry.data) as SessionData;
+    } catch {
+      return null;
+    }
   }
 
-  const entry = memoryStore.get(id);
-  if (!entry) return null;
-  if (Date.now() > entry.expiresAt) {
-    memoryStore.delete(id);
-    return null;
+  if (!session) return null;
+
+  // P2.7: hämta färska role/orgId från DB för icke-demo-sessioner.
+  // Om användaren har raderats (deletedAt satt) returnerar vi null
+  // så att gamla session-zombies inte fortsätter ha åtkomst. Demo-
+  // sessioner har ingen DB-rad och bypass:ar syncen.
+  if (session.userId && !session.demoProfile) {
+    const fresh = await syncUserAuthFromDb(session.userId);
+    if (fresh) {
+      if (fresh.deletedAt) {
+        return null;
+      }
+      // Returnera en kopia med uppdaterad role/orgId så caller alltid
+      // ser DB-sanningen. Vi skriver inte tillbaka till Redis för att
+      // hålla skrivkostnaden nere — TTL:n på Redis-sessionen styr
+      // session-livscykeln, in-memory syncen styr fresh authz.
+      session = {
+        ...session,
+        role: fresh.role,
+        orgId: fresh.orgId,
+        isDemoAccount: fresh.isDemoAccount,
+      };
+    }
   }
-  try {
-    return JSON.parse(entry.data) as SessionData;
-  } catch {
-    return null;
-  }
+
+  return session;
 }
 
 export async function destroySession(id: string): Promise<void> {
@@ -163,7 +304,10 @@ export async function destroyUserSessions(
  * Fortnox sync, settlement, account deletion, system settings).
  */
 export function isDemoSession(session: SessionData | null | undefined): boolean {
-  return Boolean(session?.demoProfile);
+  if (!session) return false;
+  // P3.28: blockera BÅDE in-memory demoProfile-sessions OCH DB-seeded
+  // demo-accounts (matchade på email-pattern i syncUserAuthFromDb).
+  return Boolean(session.demoProfile) || Boolean(session.isDemoAccount);
 }
 
 /**

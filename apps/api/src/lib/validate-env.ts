@@ -50,6 +50,15 @@ const REQUIRED_IN_PROD: ReadonlyArray<EnvVar> = [
     name: "NEXT_PUBLIC_SITE_URL",
     purpose: "Canonical site URL used in payment redirects + emails",
   },
+  // P1.8 (audit 2026-05-26): SESSION_SECRET används idag som
+  // fallback-HMAC i deletion-tokens.ts och order-view-tokens.ts. Om
+  // varken DELETION_TOKEN_SECRET eller ORDER_VIEW_TOKEN_SECRET finns
+  // ramlar koden tillbaka hit. Måste finnas i prod så vi inte minter
+  // signaturer mot en hårdkodad dev-default.
+  {
+    name: "SESSION_SECRET",
+    purpose: "HMAC base for deletion-cancel + order-view tokens (fallback when dedicated secrets saknas)",
+  },
 ];
 
 /**
@@ -86,12 +95,27 @@ const RECOMMENDED_IN_PROD: ReadonlyArray<EnvVar> = [
     purpose: "HMAC verification of Fortnox invoice webhooks (no fallback)",
   },
   {
-    name: "FORTNOX_TOKEN",
+    // Audit 2.43 (2026-05-26): runtime-koden i invoicing/index.ts
+    // läser FORTNOX_ACCESS_TOKEN. Tidigare warnade vi på fel namn
+    // (FORTNOX_TOKEN) vilket gjorde att Fortnox-onboarding glided
+    // igenom validate-env men sedan föll tillbaka till NullProvider.
+    name: "FORTNOX_ACCESS_TOKEN",
     purpose: "Bearer-token för Fortnox API. Om FORTNOX_ENABLED=true men token saknas degraderas vi tyst till NullProvider",
   },
   {
     name: "SENTRY_DSN",
     purpose: "Error tracking + alerting (no DSN → uncaught errors only land in stdout)",
+  },
+  // P3.52 (audit 2026-05-26): INTERNAL_CRON_TOKEN är RECOMMENDED, inte
+  // REQUIRED. Anledning: vi vill INTE blockera API-boot på Railway om
+  // ops råkar saknas variabel — då blir det boot-loop och hela sajten
+  // går ner. Istället låter vi internal-cron.ts svara 503 vid
+  // anropet (se internal-cron.ts authorize()), så att synthetic-checken
+  // larmar utan att äta hela trafiken. Lägg till variabeln i Railway
+  // INNAN ni schemalägger cron-jobben.
+  {
+    name: "INTERNAL_CRON_TOKEN",
+    purpose: "Bearer-token för /v1/internal/cron/* — utan denna failar cron-jobben med 503 men API:t bootar fortfarande",
   },
 ];
 
@@ -111,7 +135,10 @@ const CONDITIONAL_REQUIREMENTS: ReadonlyArray<ConditionalRequirement> = [
     enabledByEnv: "FORTNOX_ENABLED",
     enabledValue: "true",
     requires: [
-      { name: "FORTNOX_TOKEN", purpose: "Fortnox bearer-token" },
+      // Audit 2.43: matchar invoicing/index.ts som läser
+      // FORTNOX_ACCESS_TOKEN. Felaktig FORTNOX_TOKEN-validering
+      // tidigare lät Fortnox bli silent NullProvider.
+      { name: "FORTNOX_ACCESS_TOKEN", purpose: "Fortnox bearer-token" },
       { name: "FORTNOX_CLIENT_SECRET", purpose: "Fortnox client secret" },
     ],
   },
@@ -183,6 +210,21 @@ export function checkEnv(
             `${v.name} (${v.purpose}) — krävs när ${cr.enabledByEnv}=${cr.enabledValue}`
           );
         }
+      }
+    }
+
+    // P1.7 (audit 2026-05-26): preview-gate-lösenord måste finnas i
+    // prod om inte gaten explicit är avstängd via
+    // PREVIEW_GATE_DISABLED=true. Annars defaultade vi tidigare till
+    // ett hårdkodat lösenord vilket både gate:ade publika sajten
+    // bakom ett gissningsbart secret och blockerade crawlers.
+    const gateDisabled = env.PREVIEW_GATE_DISABLED?.trim().toLowerCase() === "true";
+    if (!gateDisabled) {
+      const pw = env.SITE_PREVIEW_PASSWORD;
+      if (!pw || pw.trim() === "" || looksLikePlaceholder(pw)) {
+        conditionalMissing.push(
+          "SITE_PREVIEW_PASSWORD (Lösenord till pre-launch-gaten) — krävs när PREVIEW_GATE_DISABLED inte är 'true'"
+        );
       }
     }
   }

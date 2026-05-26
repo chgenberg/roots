@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useRef } from "react";
+import { Suspense, useEffect, useMemo, useState, useRef } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,7 +36,25 @@ interface CheckoutShop {
   } | null;
 }
 
+// P2.28 (audit 2026-05-26): useSearchParams kräver <Suspense>-wrap i
+// Next 15. Default-exporten wrappar, inner-componenten gör jobbet.
 export default function CheckoutPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-brand-50/30">
+          <main className="mx-auto max-w-2xl px-4 py-16 text-center text-muted-foreground">
+            Laddar kassa...
+          </main>
+        </div>
+      }
+    >
+      <CheckoutPageInner />
+    </Suspense>
+  );
+}
+
+function CheckoutPageInner() {
   const params = useParams();
   const searchParams = useSearchParams();
   const slug = params.slug as string;
@@ -178,18 +196,44 @@ export default function CheckoutPage() {
   }
 
   useEffect(() => {
-    if (klarnaHtml && klarnaRef.current) {
-      klarnaRef.current.innerHTML = klarnaHtml;
-      const scripts = klarnaRef.current.querySelectorAll("script");
-      scripts.forEach((oldScript) => {
-        const newScript = document.createElement("script");
-        Array.from(oldScript.attributes).forEach((attr) =>
-          newScript.setAttribute(attr.name, attr.value)
-        );
-        newScript.appendChild(document.createTextNode(oldScript.innerHTML));
-        oldScript.parentNode?.replaceChild(newScript, oldScript);
-      });
+    if (!klarnaHtml || !klarnaRef.current) return;
+
+    // P2.1 (audit 2026-05-26): innerHTML-injection av Klarna's snippet
+    // är by-design (Klarna shipper själv inline script-handlers) men
+    // det betyder att vi måste lita på att källan ÄR Klarna's snippet.
+    // Defense-in-depth: vi gör en strikt sanity-validering på att
+    // texten ser ut som Klarna's snippet och avvisar allt annat.
+    // Detta stoppar t.ex. en komprometterad downstream-respons från
+    // att injektera <script>alert(1)</script> rakt in i DOM:en.
+    const looksLikeKlarnaSnippet =
+      /klarna-checkout|klarna\.com|class="klarna/i.test(klarnaHtml) &&
+      !/javascript:/i.test(klarnaHtml);
+    if (!looksLikeKlarnaSnippet) {
+      console.error("Refusing to render non-Klarna checkout snippet");
+      setError(
+        "Kassan kunde inte initieras. Kontakta supporten om problemet kvarstår."
+      );
+      setKlarnaHtml("");
+      return;
     }
+
+    klarnaRef.current.innerHTML = klarnaHtml;
+    const scripts = klarnaRef.current.querySelectorAll("script");
+    scripts.forEach((oldScript) => {
+      // Block externa script-källor som inte är Klarna's CDN. Inline-
+      // script lämnas igenom — det är vad Klarna behöver för att
+      // hooke postMessage-bryggan.
+      const src = oldScript.getAttribute("src");
+      if (src && !/^https:\/\/([a-z0-9-]+\.)*klarna(cdn)?\.com\//i.test(src)) {
+        return;
+      }
+      const newScript = document.createElement("script");
+      Array.from(oldScript.attributes).forEach((attr) =>
+        newScript.setAttribute(attr.name, attr.value)
+      );
+      newScript.appendChild(document.createTextNode(oldScript.innerHTML));
+      oldScript.parentNode?.replaceChild(newScript, oldScript);
+    });
   }, [klarnaHtml]);
 
   if (klarnaHtml) {

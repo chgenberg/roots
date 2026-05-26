@@ -27,7 +27,7 @@
  */
 
 import { Hono } from "hono";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { db } from "@roots/db";
 import {
   payouts,
@@ -50,10 +50,17 @@ const log = childLogger("payouts");
 
 export const payoutsRoute = new Hono();
 
-const SITE_URL =
+// P2.26 (audit 2026-05-26): tidigare fallback:ade alla länkar till
+// http://localhost om varken NEXT_PUBLIC_SITE_URL eller SITE_URL var
+// satta — i prod betydde det att email-länkar kunde bli "click here
+// to view: http://localhost:3003/...". Fall tillbaka på roots.se.
+const SITE_URL = (
   process.env.NEXT_PUBLIC_SITE_URL ||
   process.env.SITE_URL ||
-  "http://localhost:3003";
+  (process.env.NODE_ENV === "production"
+    ? "https://roots.se"
+    : "http://localhost:3003")
+).replace(/\/$/, "");
 
 // Lokal helper-pattern matchar dashboard.ts/settlement.ts — vi exporterar
 // inte en delad `requireSession` ännu (skulle vara en egen story att
@@ -233,6 +240,21 @@ payoutsRoute.patch("/:id/status", async (c) => {
         200
       );
     }
+    // P2.16 (audit 2026-05-26): tidigare tilläts PENDING→PAID rakt
+    // av om man hade rätt RBAC, vilket bypass:ade INVOICED-stegets
+    // syfte: 1) ingen Fortnox-faktura är skapad (= ingen MOMS
+    // rapporterad), 2) ingen extern referens. Tvinga vägen
+    // PENDING → INVOICED → PAID så ASSOCIATION_ADMIN-mailet
+    // ("din faktura är betald") alltid följer en faktiskt utfärdad
+    // faktura.
+    if (targetStatus === "PAID" && payout.status !== "INVOICED") {
+      return c.json(
+        {
+          error: `Utbetalning måste vara INVOICED innan den kan markeras PAID (är: ${payout.status}).`,
+        },
+        409
+      );
+    }
 
     const now = new Date();
     const [updated] = await db
@@ -275,6 +297,8 @@ payoutsRoute.patch("/:id/status", async (c) => {
     if (targetStatus === "PAID") {
       void (async () => {
         try {
+          // P3.32 (audit 2026-05-26): exkludera GDPR-tombstones så
+          // payment-notifieringar inte hamnar i en anonymiserad inbox.
           const [admin] = await db
             .select({
               email: users.email,
@@ -284,7 +308,8 @@ payoutsRoute.patch("/:id/status", async (c) => {
             .where(
               and(
                 eq(users.orgId, payout.orgId),
-                eq(users.role, "ASSOCIATION_ADMIN")
+                eq(users.role, "ASSOCIATION_ADMIN"),
+                isNull(users.deletedAt)
               )
             )
             .limit(1);

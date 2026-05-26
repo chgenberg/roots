@@ -14,7 +14,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
           <RootsLogo variant="black" className="h-7 w-[70px]" />
         </Link>
       </header>
-      <main className="flex flex-1 items-center justify-center px-6 pb-16 animate-fade-in">
+      <main id="main-content" className="flex flex-1 items-center justify-center px-6 pb-16 animate-fade-in">
         {children}
       </main>
     </div>

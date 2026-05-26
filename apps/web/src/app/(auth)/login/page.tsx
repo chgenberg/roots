@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,21 @@ function pickSafeNext(raw: string | null): string | null {
   // disallow protocol smuggling like "/\\evil.com" or "/javascript:..."
   if (/^\/[\\]/.test(raw)) return null;
   if (/^\/+javascript:/i.test(raw)) return null;
+  // P3.61 (audit 2026-05-26): tidigare nappade vi inte percent-encoded
+  // slashes — /%2F%2Fevil.com kunde slinka igenom så att Next router
+  // decode:ade det och redirectade till en extern host. Decode först
+  // och re-checka allt vi precis avvisat ovan.
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(raw);
+  } catch {
+    return null;
+  }
+  if (decoded !== raw) {
+    if (!decoded.startsWith("/") || decoded.startsWith("//")) return null;
+    if (/^\/[\\]/.test(decoded)) return null;
+    if (/^\/+javascript:/i.test(decoded)) return null;
+  }
   return raw;
 }
 
@@ -47,7 +62,32 @@ function roleHome(role: string | undefined): string {
   }
 }
 
+// P2.28 (audit 2026-05-26): Next 15 kräver att useSearchParams ligger
+// bakom <Suspense> så builden inte fallerar. Wrappa innehållet i en
+// inre komponent och låt page-default rendera Suspense + skeleton.
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginPageSkeleton />}>
+      <LoginPageInner />
+    </Suspense>
+  );
+}
+
+function LoginPageSkeleton() {
+  return (
+    <Card className="w-full max-w-md shadow-lg">
+      <CardHeader className="text-center">
+        <CardTitle className="text-2xl">Logga in</CardTitle>
+        <CardDescription>För föreningar, lag och säljare</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="h-40 animate-pulse rounded-md bg-muted" aria-hidden="true" />
+      </CardContent>
+    </Card>
+  );
+}
+
+function LoginPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const safeNext = pickSafeNext(searchParams.get("next"));

@@ -47,16 +47,23 @@ export const orders = pgTable("orders", {
   index("orders_org_id_idx").on(table.orgId),
   index("orders_user_id_idx").on(table.userId),
   index("orders_created_at_idx").on(table.createdAt),
+  // P3.22 (audit 2026-05-26): /portal/income filtrerar invoice_status.
+  index("orders_invoice_status_idx").on(table.invoiceStatus),
 ]);
 
-export const orderLines = pgTable("order_lines", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  orderId: uuid("order_id")
-    .notNull()
-    .references(() => orders.id),
-  productId: uuid("product_id")
-    .notNull()
-    .references(() => products.id),
-  qty: integer("qty").notNull(),
-  unitPriceOre: integer("unit_price_ore").notNull(),
-});
+export const orderLines = pgTable(
+  "order_lines",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orderId: uuid("order_id")
+      .notNull()
+      .references(() => orders.id),
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => products.id),
+    qty: integer("qty").notNull(),
+    unitPriceOre: integer("unit_price_ore").notNull(),
+  },
+  // P3.20 (audit 2026-05-26): /portal/statistics joinar via order_id.
+  (table) => [index("order_lines_order_id_idx").on(table.orderId)]
+);

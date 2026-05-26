@@ -166,7 +166,11 @@ export function Header() {
                 <User className="h-[18px] w-[18px] text-muted-foreground transition-colors duration-200 group-hover:text-foreground" />
               </Link>
               <Link
-                href="/foreningsliv"
+                // P3.72 (audit 2026-05-26): CalendarCheck-ikonen hade
+                // aria-label "Boka demo" men pekade på /foreningsliv.
+                // Användare med skärmläsare/keyboard fick fel mål.
+                // Skicka till /kontakt där demo-bokningen sker.
+                href="/kontakt?intent=demo"
                 className="group relative flex h-10 w-10 items-center justify-center rounded-full transition-colors duration-200 hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 aria-label="Boka demo"
               >
@@ -244,7 +248,7 @@ export function Header() {
               Sök
             </button>
             <Link
-              href="/foreningsliv"
+              href="/kontakt?intent=demo"
               onClick={() => setMenuOpen(false)}
               className="flex items-center gap-2 rounded-md text-lg font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
@@ -257,6 +261,16 @@ export function Header() {
               className="rounded-md text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               Logga in →
+            </Link>
+            {/* P3.73 (audit 2026-05-26): mobile menu saknade Hjälp;
+                desktop sidebar har det redan. Telefon-användare ska
+                inte behöva kunna URL:en utantill. */}
+            <Link
+              href="/hjalp"
+              onClick={() => setMenuOpen(false)}
+              className="rounded-md text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              Hjälp & FAQ
             </Link>
             <div className="mt-2">
               <ThemeToggle />

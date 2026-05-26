@@ -17,6 +17,40 @@ const log = childLogger("shop");
 
 export const shop = new Hono();
 
+/**
+ * P2.47 (audit 2026-05-26): tidigare exkluderade vår statiska
+ * sitemap.ts alla seller-shops vilket gjorde dem osökbara — varje
+ * personal shop är en värdefull long-tail SEO-yta. Endpointen
+ * returnerar slug + sista uppdaterade ord-datum (heuristik på
+ * senaste order) för aktiva sellers i ACTIVE-kampanjer. Vi
+ * begränsar till 5 000 rader så Next-sitemap:en håller sig under
+ * Google's 50 000-gränsen även när vi växer.
+ */
+shop.get("/sitemap-shops", async (c) => {
+  try {
+    const rows = await db
+      .select({
+        slug: sellers.shopSlug,
+        updatedAt: sellers.updatedAt,
+      })
+      .from(sellers)
+      .innerJoin(campaigns, eq(sellers.campaignId, campaigns.id))
+      .where(
+        and(
+          eq(sellers.status, "ACTIVE"),
+          eq(campaigns.status, "ACTIVE")
+        )
+      )
+      .limit(5000);
+
+    c.header("Cache-Control", "public, s-maxage=3600, stale-while-revalidate=86400");
+    return c.json({ shops: rows });
+  } catch (err) {
+    log.error({ err }, "sitemap-shops fetch failed");
+    return c.json({ shops: [] }, 200);
+  }
+});
+
 shop.get("/by-slug/:slug", async (c) => {
   const slug = c.req.param("slug");
 

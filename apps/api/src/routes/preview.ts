@@ -20,6 +20,7 @@ import {
   PREVIEW_COOKIE_NAME,
   getPreviewPassword,
   getPreviewToken,
+  isPreviewGateDisabled,
 } from "../lib/preview-gate";
 
 const log = childLogger("preview-gate");
@@ -35,6 +36,14 @@ function getClientIp(c: { req: { header: (k: string) => string | undefined } }):
 }
 
 preview.post("/unlock", async (c) => {
+  // P1.7: när gaten är avstängd ska unlock inte kunna sätta cookie
+  // (skulle vara ett verkningslöst men förvirrande API-anrop) och
+  // när SITE_PREVIEW_PASSWORD saknas ska vi fail:a tydligt 503
+  // istället för att jämföra mot ett tomt strängvärde.
+  if (isPreviewGateDisabled()) {
+    return c.json({ error: "Gaten är inaktiverad." }, 410);
+  }
+
   let body: { password?: unknown };
   try {
     body = await c.req.json();
@@ -56,7 +65,20 @@ preview.post("/unlock", async (c) => {
     return c.json({ error: "För många försök. Försök igen om en stund." }, 429);
   }
 
-  if (password !== getPreviewPassword()) {
+  let expectedPassword: string;
+  let cookieToken: string;
+  try {
+    expectedPassword = getPreviewPassword();
+    cookieToken = getPreviewToken(expectedPassword);
+  } catch (err) {
+    log.error(
+      { err: err instanceof Error ? err.message : String(err) },
+      "preview-gate: misconfigured — refusing unlock"
+    );
+    return c.json({ error: "Förhandsvisningen är felkonfigurerad." }, 503);
+  }
+
+  if (password !== expectedPassword) {
     log.info({ ip }, "preview-gate: failed unlock attempt");
     return c.json({ error: "Fel lösenord." }, 401);
   }
@@ -68,7 +90,7 @@ preview.post("/unlock", async (c) => {
   const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
   c.header(
     "Set-Cookie",
-    `${PREVIEW_COOKIE_NAME}=${getPreviewToken()}; Path=/; Max-Age=${PREVIEW_COOKIE_MAX_AGE_SECONDS}; HttpOnly; SameSite=Lax${secure}`
+    `${PREVIEW_COOKIE_NAME}=${cookieToken}; Path=/; Max-Age=${PREVIEW_COOKIE_MAX_AGE_SECONDS}; HttpOnly; SameSite=Lax${secure}`
   );
 
   return c.json({ ok: true });

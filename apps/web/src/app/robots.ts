@@ -13,10 +13,15 @@ export default function robots(): MetadataRoute.Robots {
         // blocked from crawlers.
         disallow: [
           "/api/",
+          "/trpc/",
           "/portal/",
           "/forening/",
           "/lag/",
           "/min-shop/",
+          // P3.57 (audit 2026-05-26): /konto/avbryt-radering länkar
+          // innehåller HMAC-token; crawler-besök som följer länken
+          // riskerar att aktivera token:en eller exponera den i logs.
+          "/konto/",
           "/login",
           "/registrera",
         ],

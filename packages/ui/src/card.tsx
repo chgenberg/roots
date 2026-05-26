@@ -11,11 +11,13 @@ export function Card({
   className = "",
   variant = "default",
 }: CardProps) {
-  const base = "rounded-lg border border-[#E8E4E0] bg-white";
-  const shadow =
-    variant === "elevated"
-      ? "shadow-[0_1px_3px_rgba(28,20,16,0.06),0_4px_12px_rgba(28,20,16,0.04)]"
-      : "";
+  // P2.55 (audit 2026-05-26): tidigare hardcodade vi pre-E13 hex
+  // (#E8E4E0, #FFF) vilket innebar att Card och Input inte följde
+  // theme-token-systemet och inte respekterade dark-mode/branded
+  // surfaces. Använd border-border + bg-card så Tailwind theme +
+  // CSS-variabler styr.
+  const base = "rounded-lg border border-border bg-card";
+  const shadow = variant === "elevated" ? "shadow-md" : "";
 
   return (
     <div className={`${base} ${shadow} p-6 ${className}`}>{children}</div>

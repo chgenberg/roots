@@ -27,15 +27,33 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 const ONE_DAY_S = 60 * 60 * 24;
 export const DELETION_TOKEN_TTL_S = 14 * ONE_DAY_S;
 
+class DeletionTokenConfigError extends Error {}
+
+/**
+ * P1.8 (audit 2026-05-26): hårdkodad dev-default avskaffad.
+ * Tidigare föll vi tillbaka till `"roots-deletion-dev-secret-do-not-use-in-prod"`
+ * även i prod om varken DELETION_TOKEN_SECRET eller SESSION_SECRET
+ * var satta — vilket innebar att alla "ångra-radering"-länkar kunde
+ * forgas av vem som helst som kände till default-strängen.
+ *
+ * Nya regler:
+ *   - prod: vägrar utfärda/verifiera tokens om båda secrets saknas
+ *     eller är för korta (<16 chars). Returnerar `null` från
+ *     verify-pathen så att gamla länkar tyst blir ogiltiga.
+ *   - dev: stabil per-process secret bara om explicit opt-in via
+ *     att SESSION_SECRET/DELETION_TOKEN_SECRET inte är satta.
+ */
 function getSecret(): string {
-  return (
-    process.env.DELETION_TOKEN_SECRET ||
-    process.env.SESSION_SECRET ||
-    // Dev-default: stabil så samma server-restart inte ogiltigförklarar
-    // tokens från senaste mail:et. Får ALDRIG användas i prod —
-    // validate-env hindrar boot om secrets saknas där.
-    "roots-deletion-dev-secret-do-not-use-in-prod"
-  );
+  const secret =
+    process.env.DELETION_TOKEN_SECRET || process.env.SESSION_SECRET;
+  if (secret && secret.length >= 16) return secret;
+
+  if (process.env.NODE_ENV === "production") {
+    throw new DeletionTokenConfigError(
+      "Deletion token secret missing in production (set DELETION_TOKEN_SECRET or SESSION_SECRET, min 16 chars)."
+    );
+  }
+  return "roots-deletion-dev-secret-do-not-use-in-prod";
 }
 
 function sign(payload: string): string {
@@ -69,7 +87,14 @@ export function verifyDeletionCancelToken(
   if (!Number.isFinite(expiresAt)) return null;
   if (Date.now() / 1000 > expiresAt) return null;
 
-  const expectedSig = sign(`${userId}.${expiresStr}`);
+  // P1.8: om secret saknas i prod kastar `sign()` — vi konverterar
+  // det till en tyst null (token är de facto ogiltig).
+  let expectedSig: string;
+  try {
+    expectedSig = sign(`${userId}.${expiresStr}`);
+  } catch {
+    return null;
+  }
   // timing-safe compare för att inte läcka byte-by-byte timing.
   if (expectedSig.length !== providedSig.length) return null;
   const a = Buffer.from(expectedSig, "hex");

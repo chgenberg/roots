@@ -131,7 +131,13 @@ function CancelDeletionInner() {
 
 export default function CancelDeletionPage() {
   return (
-    <main className="mx-auto max-w-xl px-4 py-16">
+    // P3.75 (audit 2026-05-26): tidigare saknade sidan #main-content
+    // (skip-länk landade ingenstans) och pageMetadata (browsertab fick
+    // default-rubriken). Lägg båda + noindex så crawlers inte indexerar.
+    <main
+      id="main-content"
+      className="mx-auto max-w-xl px-4 py-16"
+    >
       <Suspense
         fallback={
           <div className="flex min-h-[200px] items-center justify-center">

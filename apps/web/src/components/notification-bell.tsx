@@ -116,8 +116,18 @@ export default function NotificationBell() {
         setOpen(false);
       }
     }
+    // P3.66 (audit 2026-05-26): keyboard-användare ska kunna stänga
+    // popovern med Escape. Tidigare fanns ingen handler — bara click-
+    // outside funkade.
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
     document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onClick);
+      document.removeEventListener("keydown", onKeyDown);
+    };
   }, [open]);
 
   const unreadCount = useMemo(() => {
@@ -143,6 +153,9 @@ export default function NotificationBell() {
         type="button"
         onClick={handleOpen}
         aria-label="Notifikationer"
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        aria-controls="notification-bell-popover"
         className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-brand-50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <Bell className="h-4 w-4" />
@@ -154,7 +167,12 @@ export default function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 z-50 mt-2 w-80 max-w-[calc(100vw-2rem)] origin-top-right rounded-xl border bg-background shadow-xl">
+        <div
+          id="notification-bell-popover"
+          role="dialog"
+          aria-label="Notifikationer"
+          className="absolute right-0 z-50 mt-2 w-80 max-w-[calc(100vw-2rem)] origin-top-right rounded-xl border bg-background shadow-xl"
+        >
           <div className="flex items-center justify-between border-b px-4 py-3">
             <div className="flex items-center gap-2">
               <Inbox className="h-4 w-4 text-brand-600" />
@@ -163,8 +181,8 @@ export default function NotificationBell() {
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="text-muted-foreground hover:text-foreground"
-              aria-label="Stäng"
+              className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label="Stäng notifikationer"
             >
               <X className="h-3.5 w-3.5" />
             </button>

@@ -68,6 +68,18 @@ export function ChatWidget() {
     }
   }, [open]);
 
+  // P3.71 (audit 2026-05-26): tidigare kunde användaren på mobil
+  // scrolla sidan bakom bottom-sheet:en eftersom vi inte lockade
+  // body-scroll. Pattern speglar header-mobilmenyn som redan gör det.
+  useEffect(() => {
+    if (!open) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [open]);
+
   useEffect(() => {
     if (!open) return;
     function handleKeyDown(e: KeyboardEvent) {
@@ -354,21 +366,32 @@ export function ChatWidget() {
               </button>
             )}
           </div>
-          <p className="mt-2 text-center text-[10px] text-muted-foreground/60">
+          {/* P2.49 (audit 2026-05-26): tidigare 10 px text på 60 %
+              opacity var oläsligt — i praktiken en dold disclaimer
+              vilket är problematiskt (AI-svar måste vara tydligt
+              markerade). Använder vanlig muted-foreground och text-xs. */}
+          <p className="mt-2 text-center text-xs text-muted-foreground">
             AI-genererat svar — verifiera viktig information
           </p>
         </div>
       </div>
 
       {/* Floating trigger button */}
+      {/* P2.48 (audit 2026-05-26): tidigare låg FAB på z-50 vilket
+          gjorde att den hamnade ovanpå bottom-sheets, sticky kassa-
+          CTA och dialog-overlays. Sänker till z-30 så att den ligger
+          under modaler men över vanlig innehåll. Vi gömmer den också
+          medan chat-dialogen är öppen så den inte täcker stäng-knappen. */}
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          "fixed bottom-6 right-6 z-50 flex h-12 w-12 items-center justify-center rounded-full shadow-lg transition-all duration-200 hover:shadow-xl active:scale-95",
-          "bg-inverse-surface text-inverse-on-surface"
+          "fixed bottom-6 right-6 z-30 flex h-12 w-12 items-center justify-center rounded-full shadow-lg transition-all duration-200 hover:shadow-xl active:scale-95",
+          "bg-inverse-surface text-inverse-on-surface",
+          open && "pointer-events-none opacity-0 sm:opacity-100 sm:pointer-events-auto sm:z-[60]"
         )}
         aria-label={open ? "Stäng chatt" : "Öppna chatt"}
+        aria-hidden={open ? "true" : undefined}
       >
         {open ? (
           <X className="h-5 w-5" />

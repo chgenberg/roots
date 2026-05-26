@@ -104,8 +104,9 @@ export default function IntegritetPage() {
             <li>Betalningsleverantör — för att hantera transaktioner.</li>
             <li>Fraktbolag — för leverans av fysiska produkter.</li>
             <li>Fortnox — bokföring och fakturering.</li>
-            <li>OpenAI — håranalys (data skickas krypterat och lagras inte av
-              OpenAI för träning).</li>
+            <li>OpenAI — håranalys samt AI-chatt (både publik chatt-widget
+              och portal-assistent). Data skickas krypterat och lagras
+              inte av OpenAI för träning enligt vår enterprise-konfig.</li>
             <li>Hosting-leverantör (Railway) — infrastruktur inom EU/EES.</li>
           </ul>
         </section>

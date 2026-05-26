@@ -17,9 +17,9 @@ export async function getCsrfToken(): Promise<string> {
 
 export async function apiFetch<T>(
   path: string,
-  options: { method?: string; body?: unknown } = {}
+  options: { method?: string; body?: unknown; signal?: AbortSignal } = {}
 ): Promise<{ ok: boolean; status: number; data: T }> {
-  const { method = "GET", body } = options;
+  const { method = "GET", body, signal } = options;
 
   const headers: Record<string, string> = {};
   if (body) headers["Content-Type"] = "application/json";
@@ -34,6 +34,7 @@ export async function apiFetch<T>(
     credentials: "include",
     headers,
     body: body ? JSON.stringify(body) : undefined,
+    signal,
   });
 
   const data = await res.json().catch(() => ({} as T));

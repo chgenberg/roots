@@ -7,6 +7,18 @@ const log = childLogger("contact");
 
 export const contact = new Hono();
 
+// P3.24 (audit 2026-05-26): tidigare interpolerades användarens
+// fritext rakt in i HTML-mailet till staffen — submittern kunde
+// injecta <script>/<a>/etc i operations-inbox.
+function escapeHtml(input: string): string {
+  return input
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 contact.post("/", async (c) => {
   let body: { name: string; email: string; subject: string; message: string };
   try {
@@ -43,16 +55,20 @@ contact.post("/", async (c) => {
     // `{ success }` return value, so a Resend rejection (rate-limit,
     // invalid sender, 4xx) returned `{ok:true}` to the visitor while the
     // mail silently vanished.
+    const safeName = escapeHtml(name);
+    const safeEmail = escapeHtml(email);
+    const safeSubject = escapeHtml(subject);
+    const safeMessage = escapeHtml(message).replace(/\n/g, "<br />");
     const result = await sender.sendEmail({
       to: recipientEmail,
-      subject: `Kontaktformulär: ${subject}`,
+      subject: `Kontaktformulär: ${safeSubject}`,
       html: `
         <h2>Nytt meddelande via kontaktformuläret</h2>
-        <p><strong>Namn:</strong> ${name}</p>
-        <p><strong>E-post:</strong> ${email}</p>
-        <p><strong>Ämne:</strong> ${subject}</p>
+        <p><strong>Namn:</strong> ${safeName}</p>
+        <p><strong>E-post:</strong> ${safeEmail}</p>
+        <p><strong>Ämne:</strong> ${safeSubject}</p>
         <hr />
-        <p>${message.replace(/\n/g, "<br />")}</p>
+        <p>${safeMessage}</p>
       `,
       text: `Namn: ${name}\nE-post: ${email}\nÄmne: ${subject}\n\n${message}`,
     });

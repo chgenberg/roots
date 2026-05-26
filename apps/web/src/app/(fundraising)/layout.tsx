@@ -99,6 +99,11 @@ export default function FundraisingLayout({
     );
   }
 
+  // P3.3 (audit 2026-05-26): tidigare flashade säljar-nav (/min-shop)
+  // i en frame innan redirect till /login om auth-anropet faillade.
+  // Portal-layout har samma guard på rad 156 — speglar den här.
+  if (!user) return null;
+
   const isAssociation = user?.role === "ASSOCIATION_ADMIN";
   const isTeamLeader = user?.role === "TEAM_LEADER";
 
@@ -291,7 +296,11 @@ export default function FundraisingLayout({
           </nav>
         )}
 
-        <main className="flex-1 p-4 sm:p-6 lg:p-8">{children}</main>
+        {/* P2.56 (audit 2026-05-26): id="main-content" så skip-link
+            från root layout fungerar även på fundraising-sidor. */}
+        <main id="main-content" className="flex-1 p-4 sm:p-6 lg:p-8">
+          {children}
+        </main>
       </div>
     </div>
   );

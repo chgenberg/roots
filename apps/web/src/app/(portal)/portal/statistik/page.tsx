@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   TrendingUp,
   TrendingDown,
@@ -242,11 +243,14 @@ export default function StatistikPage() {
                 </div>
                 <Separator className="my-4" />
               </>
+            ) : loading ? (
+              <div className="mt-6 space-y-2" aria-live="polite" aria-busy="true">
+                <Skeleton className="h-32 w-full" />
+                <Skeleton className="h-4 w-2/3" />
+              </div>
             ) : (
               <p className="mt-6 rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-                {loading
-                  ? "Laddar omsättningshistorik …"
-                  : "Ingen omsättningshistorik ännu. Diagrammet fylls i automatiskt när ni får era första betalda ordrar."}
+                Ingen omsättningshistorik ännu. Diagrammet fylls i automatiskt när ni får era första betalda ordrar.
               </p>
             )}
           </CardContent>
@@ -257,11 +261,17 @@ export default function StatistikPage() {
           <CardContent className="p-5">
             <h2 className="font-semibold">Toppprodukter</h2>
             {topProducts.length === 0 && (
-              <p className="mt-4 rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
-                {loading
-                  ? "Laddar toppprodukter …"
-                  : "Listan fylls på när ni har fått ordrar de senaste 90 dagarna."}
-              </p>
+              loading ? (
+                <div className="mt-4 space-y-2" aria-live="polite" aria-busy="true">
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-4/5" />
+                  <Skeleton className="h-10 w-3/5" />
+                </div>
+              ) : (
+                <p className="mt-4 rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+                  Listan fylls på när ni har fått ordrar de senaste 90 dagarna.
+                </p>
+              )
             )}
             <div className="mt-4 space-y-4">
               {topProducts.map((p) => (
@@ -333,9 +343,16 @@ export default function StatistikPage() {
               </div>
             </div>
           ) : (
-            <p className="mt-6 rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-              {loading ? "Laddar …" : "Inga ordrar registrerade ännu."}
-            </p>
+            loading ? (
+              <div className="mt-6 space-y-2" aria-live="polite" aria-busy="true">
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+              </div>
+            ) : (
+              <p className="mt-6 rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                Inga ordrar registrerade ännu.
+              </p>
+            )
           )}
         </CardContent>
       </Card>

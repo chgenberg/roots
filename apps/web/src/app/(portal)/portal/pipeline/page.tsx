@@ -303,7 +303,10 @@ export default function PipelinePage() {
             className={`group overflow-hidden rounded-xl border bg-card shadow-sm ${col.color} border-t-4`}
           >
             <summary
-              className={`flex cursor-pointer list-none items-center gap-2 px-4 py-3 ${col.headerBg} [&::-webkit-details-marker]:hidden`}
+              // P3.77 (audit 2026-05-26): saknade hover/focus-feedback.
+              // Lägg subtil bg-shift och focus-ring så användaren ser
+              // var de står (särskilt keyboard-användare).
+              className={`flex cursor-pointer list-none items-center gap-2 rounded-md px-4 py-3 outline-none transition-colors hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring group-open:bg-transparent ${col.headerBg} [&::-webkit-details-marker]:hidden`}
             >
               <col.icon className="h-4 w-4 text-brand-400" />
               <span className="text-sm font-semibold">{col.stage}</span>

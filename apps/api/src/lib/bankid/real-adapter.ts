@@ -32,7 +32,14 @@ export class RealBankIdAdapter implements BankIdAdapter {
     if (this.initialized) return this.client;
 
     try {
-      const { BankIdClientV6 } = await import("bankid");
+      // Pre-push fix 2026-05-26: `bankid`-paketet är ett optional
+      // peer-dependency (lägger man INTE in BANKID_PFX_PATH körs
+      // istället mock-adaptern). Vi vill ändå att typecheck passerar
+      // i de miljöer där paketet inte är installerat — därför
+      // dynamisk variable-import + ts-expect-error på saknad typ.
+      // @ts-expect-error -- runtime-only optional dep, inte deklarerad i package.json
+      const bankidMod = await import("bankid");
+      const { BankIdClientV6 } = bankidMod as { BankIdClientV6: new (opts: unknown) => unknown };
       const fs = await import("fs");
 
       const pfxPath = process.env.BANKID_PFX_PATH;

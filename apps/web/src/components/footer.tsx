@@ -28,6 +28,10 @@ const FOOTER_LINKS = [
     links: [
       { href: "/integritet", label: "Integritetspolicy" },
       { href: "/villkor", label: "Köpvillkor" },
+      // P3.76 (audit 2026-05-26): footer-spec listar "cookies" som
+      // separat länk under Juridik. Vi använder samma anchor som
+      // privacy-policyn ger i sin cookie-sektion.
+      { href: "/integritet#cookies", label: "Cookies" },
     ],
   },
 ];

@@ -116,8 +116,11 @@ function NyOffertDialog({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load clubs + products once the dialog opens. Reset state every time
-  // it re-opens so the previous draft can't bleed into the next quote.
+  // P3.12 + P3.15 (audit 2026-05-26): tidigare gick fetch:arna parallellt
+  // utan abort vid dialog-stängning, och fel hamnade i console utan att
+  // användaren såg något. Nu cancellar vi via AbortController och visar
+  // inline-fel istället för att lämna dialog:en i tomt state.
+  const [loadError, setLoadError] = useState<string | null>(null);
   useEffect(() => {
     if (!open) return;
     setSelectedOrgId(null);
@@ -125,19 +128,32 @@ function NyOffertDialog({
     setSearch("");
     setSendNow(false);
     setError(null);
+    setLoadError(null);
 
-    portalFetch("/clubs", { schema: clubsListResponseSchema })
+    let cancelled = false;
+    const controller = new AbortController();
+
+    portalFetch("/clubs", {
+      schema: clubsListResponseSchema,
+      signal: controller.signal,
+    })
       .then((data) => {
+        if (cancelled) return;
         setClubs(
           (data.clubs ?? []).map((c) => ({ id: c.id, name: c.name }))
         );
       })
       .catch((err) => {
+        if (cancelled || (err as Error)?.name === "AbortError") return;
         console.error("Failed to load clubs", err);
+        setLoadError("Kunde inte hämta klubbar. Stäng och försök igen.");
       });
 
-    portalFetch<{ products: ProductOption[] }>("/products")
+    portalFetch<{ products: ProductOption[] }>("/products", {
+      signal: controller.signal,
+    })
       .then((data) => {
+        if (cancelled) return;
         setProducts(
           (data.products ?? []).map((p) => ({
             id: p.id,
@@ -147,8 +163,15 @@ function NyOffertDialog({
         );
       })
       .catch((err) => {
+        if (cancelled || (err as Error)?.name === "AbortError") return;
         console.error("Failed to load products", err);
+        setLoadError("Kunde inte hämta produkter. Stäng och försök igen.");
       });
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
   }, [open]);
 
   const filteredClubs = useMemo(() => {
@@ -228,6 +251,14 @@ function NyOffertDialog({
         </DialogHeader>
 
         <div className="space-y-5 px-6 py-2">
+          {loadError && (
+            <div
+              role="alert"
+              className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
+            >
+              {loadError}
+            </div>
+          )}
           {/* Klubbpicker */}
           <div className="space-y-2">
             <Label htmlFor="club-search">Förening</Label>

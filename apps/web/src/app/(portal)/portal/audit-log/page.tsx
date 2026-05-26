@@ -197,7 +197,7 @@ export default function AuditLogPage() {
       <Card>
         <CardContent className="p-0">
           <details className="group" open={false}>
-            <summary className="flex cursor-pointer list-none items-center gap-2 px-5 py-4 [&::-webkit-details-marker]:hidden">
+            <summary className="flex cursor-pointer list-none items-center gap-2 px-5 py-4 outline-none transition-colors hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
               <Search className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm font-medium">Filter</span>
               {(actionFilter || entityType || userId || fromDate || toDate) && (

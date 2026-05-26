@@ -27,6 +27,7 @@ export interface HairAnswers {
 export interface HairAnalysisResult {
   raw: string;
   model: string;
+  usage?: { promptTokens: number; completionTokens: number };
 }
 
 function buildBranchingContext(answers: HairAnswers): string {
@@ -147,6 +148,13 @@ export async function runHairAnalysisVision(input: {
     return {
       raw,
       model: data.model || VISION_MODEL,
+      // P3.35: exponera usage så routern kan loggge `ai.usage`.
+      usage: data.usage
+        ? {
+            promptTokens: data.usage.prompt_tokens as number,
+            completionTokens: data.usage.completion_tokens as number,
+          }
+        : undefined,
     };
   } finally {
     clearTimeout(timeout);

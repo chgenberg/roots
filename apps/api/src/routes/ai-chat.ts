@@ -9,6 +9,7 @@ import {
   type ChatMessage,
 } from "../lib/ai/openclaw-client";
 import { buildSystemPrompt } from "../lib/ai/system-prompt";
+import { recordAiUsage, recordAiIncident } from "../lib/ai/usage";
 import { childLogger } from "../lib/logger";
 import { flags } from "../lib/flags";
 
@@ -83,6 +84,12 @@ aiChat.post("/chat", async (c) => {
 
   const rateCheck = await aiRateLimit(session.userId);
   if (!rateCheck.allowed) {
+    recordAiIncident({
+      surface: "portal_chat",
+      kind: "rate_limited",
+      userId: session.userId,
+      orgId: session.orgId,
+    });
     return c.json(
       {
         error: "Du har skickat för många meddelanden. Försök igen om en stund.",
@@ -111,6 +118,13 @@ aiChat.post("/chat", async (c) => {
   // that rolling AI off does not break any UI that assumes the endpoint
   // responds 200.
   if (!flags.aiEnabled() || !isAiConfigured()) {
+    recordAiIncident({
+      surface: "portal_chat",
+      kind: "fallback",
+      userId: session.userId,
+      orgId: session.orgId,
+      meta: { reason: !flags.aiEnabled() ? "kill_switch" : "not_configured" },
+    });
     const fallback = pickFallback();
     if (body.stream) {
       return streamSSE(c, async (stream) => {
@@ -136,13 +150,21 @@ aiChat.post("/chat", async (c) => {
   ];
 
   if (body.stream) {
+    // P2.31 (audit 2026-05-26): forwarda klientens disconnect-signal
+    // till OpenAI så att vi inte fortsätter generera (= betala för)
+    // tokens efter att browsern stängt.
+    const upstreamSignal = c.req.raw.signal;
     return streamSSE(c, async (stream) => {
       try {
-        for await (const chunk of chatCompletionStream(messages)) {
+        for await (const chunk of chatCompletionStream(messages, upstreamSignal)) {
+          if (upstreamSignal.aborted) break;
           await stream.writeSSE({ data: JSON.stringify({ content: chunk }) });
         }
-        await stream.writeSSE({ data: "[DONE]" });
+        if (!upstreamSignal.aborted) {
+          await stream.writeSSE({ data: "[DONE]" });
+        }
       } catch (err) {
+        if (upstreamSignal.aborted) return;
         log.error({ err }, "Streaming error");
         await stream.writeSSE({
           data: JSON.stringify({
@@ -157,6 +179,14 @@ aiChat.post("/chat", async (c) => {
 
   try {
     const response = await chatCompletion(messages);
+    recordAiUsage({
+      surface: "portal_chat",
+      model: response.model,
+      promptTokens: response.usage?.promptTokens,
+      completionTokens: response.usage?.completionTokens,
+      userId: session.userId,
+      orgId: session.orgId,
+    });
     return c.json({
       reply: response.content,
       disclaimer: DISCLAIMER,
@@ -164,6 +194,14 @@ aiChat.post("/chat", async (c) => {
     });
   } catch (err) {
     log.error({ err }, "Completion error");
+    recordAiIncident({
+      surface: "portal_chat",
+      kind: "upstream_error",
+      status: (err as { status?: number })?.status,
+      userId: session.userId,
+      orgId: session.orgId,
+      meta: { message: (err as Error)?.message },
+    });
     return c.json({
       reply: pickFallback(),
       disclaimer: DISCLAIMER,

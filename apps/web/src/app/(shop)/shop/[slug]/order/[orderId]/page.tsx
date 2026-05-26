@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -45,34 +45,49 @@ function getStepIndex(status: string): number {
   return idx >= 0 ? idx : 0;
 }
 
-export default function OrderStatusPage() {
+function OrderStatusPageInner() {
   const params = useParams();
+  // P1.5 (audit 2026-05-26): signerad token från `?t=` krävs av
+  // `/v1/checkout/order-status/:orderId`. Tokens utfärdas vid
+  // checkout-create + i bekräftelse-mailet.
+  const searchParams = useSearchParams();
   const slug = params.slug as string;
   const orderId = params.orderId as string;
+  const viewToken = searchParams.get("t");
 
   const [order, setOrder] = useState<OrderData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<"missing-token" | "other" | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     async function load() {
+      if (!viewToken) {
+        setError("missing-token");
+        setLoading(false);
+        return;
+      }
       try {
         const res = await fetch(
-          `${API_URL}/v1/checkout/order-status/${orderId}`
+          `${API_URL}/v1/checkout/order-status/${orderId}?t=${encodeURIComponent(viewToken)}`
         );
+        if (cancelled) return;
         if (res.ok) {
           setOrder(await res.json());
         } else {
-          setError(true);
+          setError(res.status === 401 ? "missing-token" : "other");
         }
       } catch {
-        setError(true);
+        if (!cancelled) setError("other");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
     load();
-  }, [orderId]);
+    return () => {
+      cancelled = true;
+    };
+  }, [orderId, viewToken]);
 
   if (loading) {
     return (
@@ -83,16 +98,22 @@ export default function OrderStatusPage() {
   }
 
   if (error || !order) {
+    const isMissingToken = error === "missing-token";
     return (
       <div className="min-h-screen bg-brand-50/30">
         <main className="mx-auto flex max-w-lg flex-col items-center px-4 py-16">
           <Card className="w-full shadow-lg">
             <CardContent className="flex flex-col items-center gap-5 py-10">
               <AlertCircle className="h-14 w-14 text-destructive" />
-              <h1 className="text-2xl font-semibold">Order hittades inte</h1>
+              <h1 className="text-2xl font-semibold">
+                {isMissingToken
+                  ? "Länken är ogiltig eller utgången"
+                  : "Order hittades inte"}
+              </h1>
               <p className="text-sm text-muted-foreground text-center">
-                Vi kunde inte hitta denna order. Kontrollera länken och försök
-                igen.
+                {isMissingToken
+                  ? "Öppna länken i orderbekräftelsen vi mailade dig — den innehåller koden som krävs för att visa din order. Saknar du mailet? Kontakta oss på hej@roots.se."
+                  : "Vi kunde inte hitta denna order. Kontrollera länken och försök igen."}
               </p>
               <Link href={`/shop/${slug}`} className="w-full">
                 <Button variant="outline" className="w-full">
@@ -257,5 +278,21 @@ export default function OrderStatusPage() {
         </Card>
       </main>
     </div>
+  );
+}
+
+export default function OrderStatusPage() {
+  // P1.5: Suspense-wrap så `useSearchParams` inte bailar ut hela
+  // sidan till CSR (Next 15-krav). Matchar mönstret i `/forening` m.fl.
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-brand-400" />
+        </div>
+      }
+    >
+      <OrderStatusPageInner />
+    </Suspense>
   );
 }

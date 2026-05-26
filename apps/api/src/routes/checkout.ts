@@ -1,5 +1,6 @@
 import { Hono } from "hono";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
+import { createHash } from "node:crypto";
 import { db } from "@roots/db";
 import {
   sellers,
@@ -19,12 +20,25 @@ import { getEmailSender } from "../lib/email";
 import { orderConfirmationEmail } from "../lib/email/templates";
 import { childLogger } from "../lib/logger";
 import { auditLog, requestContext } from "../lib/audit";
+import {
+  issueOrderViewToken,
+  verifyOrderViewToken,
+} from "../lib/order-view-tokens";
+import { checkoutCreateRateLimit } from "../lib/rate-limit";
+import { wasWebhookEventSeen, clearWebhookEventSeen } from "../lib/webhook-dedup";
 
 const log = childLogger("checkout");
 
 export const checkout = new Hono();
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3003";
+// P2.26 (audit 2026-05-26): fall tillbaka på roots.se i prod så
+// Klarna-confirmation-redirect inte pekar på localhost.
+const SITE_URL = (
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  (process.env.NODE_ENV === "production"
+    ? "https://roots.se"
+    : "http://localhost:3003")
+).replace(/\/$/, "");
 
 // Klarna production webhook IPs.
 // See: https://docs.klarna.com/api/webhooks/#ip-addresses
@@ -42,29 +56,18 @@ const KLARNA_ALLOWED_IPS = new Set(
 const KLARNA_WEBHOOK_SECRET = process.env.KLARNA_WEBHOOK_SECRET || "";
 
 /**
- * MASTERPLAN_01 KC1.7: order-confirmation måste skickas oavsett om
- * PAID-transitionen sker via Klarna-webhook eller /confirm-polling.
- * Tidigare gick mailen bara från webhook → om webhook fail/CSRF/IP
- * stoppade pushen, fick kunden ingen bekräftelse alls trots PAID order.
+ * MASTERPLAN_01 KC1.7 + P2.17 (audit 2026-05-26): order-confirmation
+ * måste skickas oavsett om PAID-transitionen sker via Klarna-webhook
+ * eller /confirm-polling, men aldrig dubbelt — inte ens med två
+ * API-replicas som race:ar på samma PAID-händelse.
  *
- * Helpern är idempotent: vi UPDATE:ar ett `confirmationEmailSentAt`-
- * flag på order-raden om vi kan, men för MVP gör vi enklare dedupe
- * via en process-local set (per-instance) — `_sentOrderIds`. Om en
- * order skulle få mail från båda paths inom 60s ses bara den första.
- * Acceptabelt tradeoff tills vi har en mail-event-tabell.
+ * Tidigare gjordes dedup av en process-local Set vilket inte
+ * skyddade mot andra processer. Nu gör vi en konditional UPDATE
+ * `SET confirmation_email_sent_at = now() WHERE id = $1 AND
+ * confirmation_email_sent_at IS NULL` och skickar bara mailet om
+ * raden ändrades. Det är atomiskt över processer.
  */
-const _sentOrderIds = new Set<string>();
-function markSent(orderId: string) {
-  _sentOrderIds.add(orderId);
-  // bound the set to avoid memory growth in a long-lived process
-  if (_sentOrderIds.size > 2000) {
-    const first = _sentOrderIds.values().next().value;
-    if (first) _sentOrderIds.delete(first);
-  }
-}
-
 async function sendOrderConfirmationIfNeeded(orderId: string): Promise<void> {
-  if (_sentOrderIds.has(orderId)) return;
   const [order] = await db
     .select()
     .from(customerOrders)
@@ -72,6 +75,22 @@ async function sendOrderConfirmationIfNeeded(orderId: string): Promise<void> {
     .limit(1);
   if (!order || !order.customerEmail) return;
   if (order.status !== "PAID" && order.status !== "CONFIRMED") return;
+  if (order.confirmationEmailSentAt) return;
+
+  // P2.17: atomisk "ta first dibs på mailet". Det är OK att vi sätter
+  // sent_at innan mailet faktiskt går iväg — alternativet (sätt efter)
+  // race:ar dubbelmail om båda replicas hinner select:a.
+  const claimed = await db
+    .update(customerOrders)
+    .set({ confirmationEmailSentAt: new Date() })
+    .where(
+      and(
+        eq(customerOrders.id, orderId),
+        isNull(customerOrders.confirmationEmailSentAt)
+      )
+    )
+    .returning({ id: customerOrders.id });
+  if (claimed.length === 0) return;
 
   const orderLines = await db
     .select({
@@ -88,8 +107,6 @@ async function sendOrderConfirmationIfNeeded(orderId: string): Promise<void> {
     .from(sellers)
     .where(eq(sellers.id, order.sellerId))
     .limit(1);
-
-  markSent(order.id);
   try {
     await getEmailSender().sendEmail({
       to: order.customerEmail,
@@ -99,24 +116,78 @@ async function sendOrderConfirmationIfNeeded(orderId: string): Promise<void> {
         totalOre: order.totalOre,
         shopSlug: seller?.shopSlug || "",
         items: orderLines,
+        // P1.5: signera order-status-länken så den inte är åtkomlig
+        // för någon annan än mailmottagaren.
+        viewToken: issueOrderViewToken(order.id),
       }),
     });
   } catch (err) {
-    // On send-failure, clear the dedupe so a retry can try again.
-    _sentOrderIds.delete(order.id);
+    // P2.17: vid send-failure, rollback:a vår claim så att en retry
+    // kan försöka igen. Konditional UPDATE skyddar mot att vi
+    // skriver över en eventuell parallell successfull claim.
+    await db
+      .update(customerOrders)
+      .set({ confirmationEmailSentAt: null })
+      .where(eq(customerOrders.id, order.id))
+      .catch(() => {});
     log.error({ err, orderId }, "Order confirmation email failed");
   }
 }
 
 checkout.post("/create", async (c) => {
+  // P2.42 (audit 2026-05-26): rate-limit publika checkout-create.
+  // 60/h/IP är generöst för familjedelad WiFi men stoppar abuse.
+  const ip = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const rl = await checkoutCreateRateLimit(ip);
+  if (!rl.allowed) {
+    c.header("Retry-After", String(rl.resetInSeconds));
+    return c.json(
+      { error: "För många kassa-försök från denna IP. Försök igen om en stund." },
+      429
+    );
+  }
+
+  // Vi behöver raw body för att bygga idempotency-nyckeln (P2.13)
+  // och får inte konsumera streamen två gånger.
+  const rawBody = await c.req.text();
   let body: any;
   try {
-    body = await c.req.json();
+    body = JSON.parse(rawBody);
   } catch {
     return c.json({ error: "Ogiltig JSON i request body." }, 400);
   }
 
+  // P2.13 (audit 2026-05-26): klient-skickad Idempotency-Key (RFC-stil)
+  // eller fallback till hash av request body. Två POST /create från
+  // samma klient med samma nyckel returnerar exakt samma order utan
+  // att spawn:a en ny Klarna-session.
+  const headerKey = c.req.header("idempotency-key")?.trim() ?? "";
+  const idempotencyKey = (
+    headerKey.length > 0
+      ? headerKey
+      : createHash("sha256").update(rawBody).digest("hex")
+  ).slice(0, 120);
+
   try {
+    // Snabbcheck: finns en order redan med denna nyckel? Returnera den
+    // utan att skapa något nytt.
+    const [existingByKey] = await db
+      .select()
+      .from(customerOrders)
+      .where(eq(customerOrders.idempotencyKey, idempotencyKey))
+      .limit(1);
+    if (existingByKey) {
+      return c.json({
+        orderId: existingByKey.id,
+        klarnaOrderId: existingByKey.klarnaOrderId,
+        // htmlSnippet kan vi inte återhämta från Klarna utan ett nytt
+        // session-anrop; klienten kan poll:a /confirm för status.
+        htmlSnippet: null,
+        viewToken: issueOrderViewToken(existingByKey.id),
+        idempotent: true,
+      });
+    }
+
     const {
       sellerSlug,
       customerName,
@@ -191,6 +262,16 @@ checkout.post("/create", async (c) => {
 
     if (!seller) {
       return c.json({ error: "Säljare hittades inte." }, 404);
+    }
+
+    // P2.12 (audit 2026-05-26): tidigare accepterades order även om
+    // säljaren satts till INACTIVE (avslutad/avstängd). Spegla den
+    // public seller-profilen som redan döljer shoppen.
+    if (seller.status !== "ACTIVE") {
+      return c.json(
+        { error: "Säljaren tar inte längre emot beställningar." },
+        410
+      );
     }
 
     const [team] = await db
@@ -304,41 +385,68 @@ checkout.post("/create", async (c) => {
     const normPostal = (v: unknown) =>
       typeof v === "string" ? v.replace(/\s+/g, "").trim() || null : null;
 
-    const [order] = await db.transaction(async (tx) => {
-      const [newOrder] = await tx
-        .insert(customerOrders)
-        .values({
-          orgId: team.orgId,
-          campaignId: seller.campaignId,
-          teamId: seller.teamId,
-          sellerId: seller.id,
-          customerName: String(customerName).trim(),
-          customerEmail: trimmedEmail.toLowerCase(),
-          customerPhone: customerPhone ? String(customerPhone).trim() : null,
-          shippingAddressLine1: normAddr(shippingAddressLine1),
-          shippingAddressLine2: normAddr(shippingAddressLine2),
-          shippingCity: normAddr(shippingCity),
-          shippingPostalCode: normPostal(shippingPostalCode),
-          deliveryType: deliveryType || "BULK",
-          paymentMethod: "KLARNA",
-          status: "DRAFT",
-          totalOre,
-          shippingOre,
-          note: note ? String(note).trim() : null,
-        })
-        .returning();
+    let order: typeof customerOrders.$inferSelect;
+    try {
+      const [created] = await db.transaction(async (tx) => {
+        const [newOrder] = await tx
+          .insert(customerOrders)
+          .values({
+            orgId: team.orgId,
+            campaignId: seller.campaignId,
+            teamId: seller.teamId,
+            sellerId: seller.id,
+            customerName: String(customerName).trim(),
+            customerEmail: trimmedEmail.toLowerCase(),
+            customerPhone: customerPhone ? String(customerPhone).trim() : null,
+            shippingAddressLine1: normAddr(shippingAddressLine1),
+            shippingAddressLine2: normAddr(shippingAddressLine2),
+            shippingCity: normAddr(shippingCity),
+            shippingPostalCode: normPostal(shippingPostalCode),
+            deliveryType: deliveryType || "BULK",
+            paymentMethod: "KLARNA",
+            status: "DRAFT",
+            totalOre,
+            shippingOre,
+            note: note ? String(note).trim() : null,
+            idempotencyKey,
+          })
+          .returning();
 
-      for (const line of dbOrderLines) {
-        await tx.insert(customerOrderLines).values({
-          orderId: newOrder.id,
-          productId: line.productId,
-          qty: line.qty,
-          unitPriceOre: line.unitPriceOre,
-        });
+        for (const line of dbOrderLines) {
+          await tx.insert(customerOrderLines).values({
+            orderId: newOrder.id,
+            productId: line.productId,
+            qty: line.qty,
+            unitPriceOre: line.unitPriceOre,
+          });
+        }
+
+        return [newOrder];
+      });
+      order = created;
+    } catch (err: any) {
+      // P2.13: kollision på unique(idempotencyKey) — en parallell
+      // request har precis vunnit racet. Returnera den befintliga.
+      const isUniqueViolation =
+        err?.code === "23505" || /unique/i.test(String(err?.message));
+      if (isUniqueViolation) {
+        const [winner] = await db
+          .select()
+          .from(customerOrders)
+          .where(eq(customerOrders.idempotencyKey, idempotencyKey))
+          .limit(1);
+        if (winner) {
+          return c.json({
+            orderId: winner.id,
+            klarnaOrderId: winner.klarnaOrderId,
+            htmlSnippet: null,
+            viewToken: issueOrderViewToken(winner.id),
+            idempotent: true,
+          });
+        }
       }
-
-      return [newOrder];
-    });
+      throw err;
+    }
 
     let klarnaSession;
     try {
@@ -417,6 +525,10 @@ checkout.post("/create", async (c) => {
       orderId: order.id,
       klarnaOrderId: klarnaSession.orderId,
       htmlSnippet: klarnaSession.htmlSnippet,
+      // P1.5: ge frontend en token så bekräftelse-sidan kan länka
+      // vidare till `/shop/[slug]/order/[orderId]?t=…` utan att
+      // exponera /order-status öppet.
+      viewToken: issueOrderViewToken(order.id),
     });
   } catch (err: any) {
     log.error({ err }, "Checkout creation failed");
@@ -433,21 +545,36 @@ checkout.post("/webhook/:klarnaOrderId", async (c) => {
   const isProd = process.env.NODE_ENV === "production";
   const hasSecret = KLARNA_WEBHOOK_SECRET.length > 0;
   const hasIpAllowlist = KLARNA_ALLOWED_IPS.size > 0;
+  // P2.19 (audit 2026-05-26): tidigare föll dev/test igenom med en
+  // helt öppen endpoint. En forskare/scanner som råkar pinga staging
+  // kunde flippa orders till PAID. Kräv explicit opt-in om man vill
+  // ha öppen webhook utanför prod.
+  const devAllowUnsigned = process.env.ROOTS_ALLOW_UNSIGNED_KLARNA_WEBHOOK === "true";
 
-  if (isProd && !hasSecret && !hasIpAllowlist) {
-    log.error(
-      "Klarna webhook called in production with neither KLARNA_WEBHOOK_SECRET nor KLARNA_WEBHOOK_IPS configured — refusing"
-    );
-    return c.json({ error: "Webhook not configured" }, 503);
+  if (!hasSecret && !hasIpAllowlist) {
+    if (isProd) {
+      log.error(
+        "Klarna webhook called in production with neither KLARNA_WEBHOOK_SECRET nor KLARNA_WEBHOOK_IPS configured — refusing"
+      );
+      return c.json({ error: "Webhook not configured" }, 503);
+    }
+    if (!devAllowUnsigned) {
+      log.warn(
+        "Klarna webhook hit in non-prod without secret/IP allowlist and without ROOTS_ALLOW_UNSIGNED_KLARNA_WEBHOOK=true — refusing"
+      );
+      return c.json({ error: "Webhook not configured" }, 503);
+    }
   }
 
   // Read the raw body up-front so we can HMAC it before parsing JSON.
   const rawBody = await c.req.text();
   const signatureHeader = c.req.header("klarna-signature") || "";
 
-  // If a signing secret is configured, require a valid signature. The
-  // signature path takes precedence over IP allowlist because spoofed
-  // X-Forwarded-For is easy without HMAC.
+  // P2.18 (audit 2026-05-26): om båda mekanismerna är konfigurerade
+  // ska BÅDA passera — inte "OR". Det matchar defense-in-depth-
+  // intentionen: HMAC stoppar spoofed X-Forwarded-For och IP-listan
+  // stoppar lyckad nyckelkomprimering. Om bara en är konfigurerad
+  // räcker den (tidigare beteende).
   if (hasSecret) {
     if (!verifyKlarnaSignature(rawBody, signatureHeader, KLARNA_WEBHOOK_SECRET)) {
       log.warn(
@@ -456,7 +583,8 @@ checkout.post("/webhook/:klarnaOrderId", async (c) => {
       );
       return c.json({ error: "Invalid signature" }, 401);
     }
-  } else if (hasIpAllowlist) {
+  }
+  if (hasIpAllowlist) {
     const clientIp =
       c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "";
     if (!KLARNA_ALLOWED_IPS.has(clientIp)) {
@@ -464,7 +592,26 @@ checkout.post("/webhook/:klarnaOrderId", async (c) => {
       return c.json({ error: "Forbidden" }, 403);
     }
   }
-  // Non-prod with neither configured falls through (dev/test convenience).
+
+  // P3.43 (audit 2026-05-26): Klarna ger oss inget eventId i payload,
+  // men signaturen är HMAC av body så unik per delivery. Med fallback
+  // till SHA256(body) om signaturen saknas. 24h TTL räcker — Klarna
+  // ger upp retry-stormar långt innan dess. Saves the duplicate
+  // getCheckoutOrder() round-trip när Klarna pushar samma event 3-4
+  // gånger innan vi hinner svara 200.
+  const dedupKey = signatureHeader
+    ? `${klarnaOrderId}:${signatureHeader}`
+    : `${klarnaOrderId}:${createHash("sha256").update(rawBody).digest("hex").slice(0, 32)}`;
+  if (await wasWebhookEventSeen("klarna", dedupKey)) {
+    return c.json({ received: true, duplicate: true });
+  }
+
+  // Pre-push fix 2026-05-26: tidigare implementation markerade dedup-
+  // keyen INNAN bearbetning. Vid 5xx fastnade ordern i evig "duplicate"-
+  // loop eftersom Klarnas retries klassades som dups utan att vi
+  // någonsin lyckats processa. Tag/track om vi har "consumed" keyen
+  // så vi kan släppa den i catch-blocket vid fel.
+  let dedupConsumed = true;
 
   try {
     const klarnaOrder = await getCheckoutOrder(klarnaOrderId);
@@ -476,40 +623,126 @@ checkout.post("/webhook/:klarnaOrderId", async (c) => {
         .where(eq(customerOrders.klarnaOrderId, klarnaOrderId))
         .limit(1);
 
-      if (existingOrder && existingOrder.status !== "PAID") {
-        await db
-          .update(customerOrders)
-          .set({ status: "PAID", updatedAt: new Date() })
-          .where(eq(customerOrders.klarnaOrderId, klarnaOrderId));
+      if (!existingOrder) {
+        return c.json({ received: true });
+      }
 
-        await acknowledgeOrder(klarnaOrderId);
-
-        // MASTERPLAN_01 KC8.4: definitiv "pengar in"-händelse. Loggas
-        // även från /confirm-pollingen nedan — `source`-meta skiljer
-        // dem åt så vi kan se hur ofta webhooks faktiskt landar i tid
-        // vs hur ofta vi räddar oss via polling.
+      // P1.3 (audit 2026-05-26): verifiera att Klarna verkligen
+      // capturerade det belopp vi tror att ordern är värd. Tidigare
+      // räckte status === "checkout_complete" — en mismatch (manuell
+      // ändring i Klarna, race, kompromettat snippet) skulle flytas
+      // rakt in i settlement utan att någon märkte det.
+      if (
+        klarnaOrder.orderAmount !== null &&
+        klarnaOrder.orderAmount !== existingOrder.totalOre
+      ) {
+        log.error(
+          {
+            orderId: existingOrder.id,
+            klarnaOrderId,
+            klarnaAmount: klarnaOrder.orderAmount,
+            klarnaCurrency: klarnaOrder.purchaseCurrency,
+            expectedAmount: existingOrder.totalOre,
+          },
+          "Klarna order_amount mismatch — refusing PAID transition"
+        );
+        if (existingOrder.status === "PENDING") {
+          await db
+            .update(customerOrders)
+            .set({ status: "FAILED", updatedAt: new Date() })
+            .where(
+              and(
+                eq(customerOrders.id, existingOrder.id),
+                eq(customerOrders.status, "PENDING")
+              )
+            );
+        }
         void auditLog({
           userId: null,
-          action: "order.paid",
+          action: "order.failed",
           entityType: "customer_order",
           entityId: existingOrder.id,
           meta: {
             ...requestContext((n) => c.req.header(n)),
+            reason: "klarna_amount_mismatch",
             source: "klarna_webhook",
             klarnaOrderId,
+            klarnaAmountOre: klarnaOrder.orderAmount,
+            klarnaCurrency: klarnaOrder.purchaseCurrency,
+            expectedAmountOre: existingOrder.totalOre,
             orgId: existingOrder.orgId,
-            totalOre: existingOrder.totalOre,
           },
         });
-
-        // Fire-and-forget; helpern är idempotent och loggar internt.
-        sendOrderConfirmationIfNeeded(existingOrder.id).catch(() => {});
+        return c.json({ error: "Amount mismatch" }, 409);
       }
+
+      if (
+        klarnaOrder.purchaseCurrency &&
+        klarnaOrder.purchaseCurrency !== "SEK"
+      ) {
+        log.error(
+          { orderId: existingOrder.id, currency: klarnaOrder.purchaseCurrency },
+          "Klarna currency mismatch — refusing PAID transition"
+        );
+        return c.json({ error: "Currency mismatch" }, 409);
+      }
+
+      // P1.3 + audit 2.14/2.15: konditional UPDATE så bara PENDING
+      // → PAID går igenom. FAILED/CANCELLED/REFUNDED kan därmed
+      // inte längre flippas tillbaka till PAID av en sen Klarna-push.
+      const updated = await db
+        .update(customerOrders)
+        .set({ status: "PAID", updatedAt: new Date() })
+        .where(
+          and(
+            eq(customerOrders.klarnaOrderId, klarnaOrderId),
+            eq(customerOrders.status, "PENDING")
+          )
+        )
+        .returning({ id: customerOrders.id });
+
+      if (updated.length === 0) {
+        // Antingen redan PAID (idempotent retry) eller i ett status
+        // vi inte vill flippa från (FAILED/CANCELLED/REFUNDED).
+        // Båda är inte fel — vi ack:ar Klarna ändå för att stoppa
+        // retry-stormen, men hoppar audit + email.
+        await acknowledgeOrder(klarnaOrderId);
+        return c.json({ received: true });
+      }
+
+      await acknowledgeOrder(klarnaOrderId);
+
+      // MASTERPLAN_01 KC8.4: definitiv "pengar in"-händelse. Loggas
+      // även från /confirm-pollingen nedan — `source`-meta skiljer
+      // dem åt så vi kan se hur ofta webhooks faktiskt landar i tid
+      // vs hur ofta vi räddar oss via polling.
+      void auditLog({
+        userId: null,
+        action: "order.paid",
+        entityType: "customer_order",
+        entityId: existingOrder.id,
+        meta: {
+          ...requestContext((n) => c.req.header(n)),
+          source: "klarna_webhook",
+          klarnaOrderId,
+          orgId: existingOrder.orgId,
+          totalOre: existingOrder.totalOre,
+          klarnaAmountOre: klarnaOrder.orderAmount,
+        },
+      });
+
+      // Fire-and-forget; helpern är idempotent och loggar internt.
+      sendOrderConfirmationIfNeeded(existingOrder.id).catch(() => {});
     }
 
     return c.json({ received: true });
   } catch (err) {
     log.error({ err }, "Webhook processing failed");
+    // Pre-push fix 2026-05-26: släpp dedup-keyen så Klarnas retry kan
+    // göra ett nytt försök. Annars sitter ordern fast i 24h.
+    if (dedupConsumed) {
+      await clearWebhookEventSeen("klarna", dedupKey);
+    }
     return c.json({ error: "Webhook processing failed" }, 500);
   }
 });
@@ -532,30 +765,90 @@ checkout.get("/confirm/:orderId", async (c) => {
       try {
         const klarnaOrder = await getCheckoutOrder(order.klarnaOrderId);
         if (klarnaOrder.status === "checkout_complete") {
-          await db
-            .update(customerOrders)
-            .set({ status: "PAID", updatedAt: new Date() })
-            .where(eq(customerOrders.id, orderId));
+          // P1.3: samma amount + currency-gate som i webhook-pathen
+          // ovan. Polling kan inte heller släppa förbi orders där
+          // Klarna säger en annan summa än vi räknade ut lokalt.
+          if (
+            klarnaOrder.orderAmount !== null &&
+            klarnaOrder.orderAmount !== order.totalOre
+          ) {
+            log.error(
+              {
+                orderId: order.id,
+                klarnaOrderId: order.klarnaOrderId,
+                klarnaAmount: klarnaOrder.orderAmount,
+                expectedAmount: order.totalOre,
+              },
+              "Klarna order_amount mismatch on confirm polling — refusing PAID transition"
+            );
+            await db
+              .update(customerOrders)
+              .set({ status: "FAILED", updatedAt: new Date() })
+              .where(
+                and(
+                  eq(customerOrders.id, orderId),
+                  eq(customerOrders.status, "PENDING")
+                )
+              );
+            order.status = "FAILED";
+            void auditLog({
+              userId: null,
+              action: "order.failed",
+              entityType: "customer_order",
+              entityId: order.id,
+              meta: {
+                ...requestContext((n) => c.req.header(n)),
+                reason: "klarna_amount_mismatch",
+                source: "confirm_polling",
+                klarnaOrderId: order.klarnaOrderId,
+                klarnaAmountOre: klarnaOrder.orderAmount,
+                expectedAmountOre: order.totalOre,
+                orgId: order.orgId,
+              },
+            });
+          } else if (
+            klarnaOrder.purchaseCurrency &&
+            klarnaOrder.purchaseCurrency !== "SEK"
+          ) {
+            log.error(
+              { orderId: order.id, currency: klarnaOrder.purchaseCurrency },
+              "Klarna currency mismatch on confirm polling — refusing PAID transition"
+            );
+          } else {
+            const updated = await db
+              .update(customerOrders)
+              .set({ status: "PAID", updatedAt: new Date() })
+              .where(
+                and(
+                  eq(customerOrders.id, orderId),
+                  eq(customerOrders.status, "PENDING")
+                )
+              )
+              .returning({ id: customerOrders.id });
 
-          await acknowledgeOrder(order.klarnaOrderId);
-          order.status = "PAID";
+            if (updated.length > 0) {
+              await acknowledgeOrder(order.klarnaOrderId);
+              order.status = "PAID";
 
-          // MASTERPLAN_01 KC8.4: audit också från polling-pathen.
-          // source="confirm_polling" gör att vi kan mäta webhook-
-          // reliability i prod genom att räkna paid-rader per source.
-          void auditLog({
-            userId: null,
-            action: "order.paid",
-            entityType: "customer_order",
-            entityId: order.id,
-            meta: {
-              ...requestContext((n) => c.req.header(n)),
-              source: "confirm_polling",
-              klarnaOrderId: order.klarnaOrderId,
-              orgId: order.orgId,
-              totalOre: order.totalOre,
-            },
-          });
+              // MASTERPLAN_01 KC8.4: audit också från polling-pathen.
+              // source="confirm_polling" gör att vi kan mäta webhook-
+              // reliability i prod genom att räkna paid-rader per source.
+              void auditLog({
+                userId: null,
+                action: "order.paid",
+                entityType: "customer_order",
+                entityId: order.id,
+                meta: {
+                  ...requestContext((n) => c.req.header(n)),
+                  source: "confirm_polling",
+                  klarnaOrderId: order.klarnaOrderId,
+                  orgId: order.orgId,
+                  totalOre: order.totalOre,
+                  klarnaAmountOre: klarnaOrder.orderAmount,
+                },
+              });
+            }
+          }
         }
       } catch (klarnaErr) {
         log.error({ err: klarnaErr }, "Klarna confirmation check failed");
@@ -579,6 +872,9 @@ checkout.get("/confirm/:orderId", async (c) => {
       totalOre: order.totalOre,
       customerName: order.customerName?.split(" ")[0] || null,
       customerEmail: maskedEmail,
+      // P1.5: även /confirm utfärdar token så bekraftelse-sidan kan
+      // skicka kunden vidare till en låst order-status-vy.
+      viewToken: issueOrderViewToken(order.id),
     });
   } catch (err) {
     log.error({ err }, "Order confirmation failed");
@@ -588,6 +884,17 @@ checkout.get("/confirm/:orderId", async (c) => {
 
 checkout.get("/order-status/:orderId", async (c) => {
   const orderId = c.req.param("orderId");
+
+  // P1.5 (audit 2026-05-26): endpointen returnerade tidigare full
+  // kund-PII till alla som kände till UUID:n. Vi kräver nu en
+  // signerad token (`?t=…`) som vi själva utfärdar vid checkout-
+  // create + i bekräftelse-mailet. Token är HMAC(orderId|exp) så
+  // den binder till en specifik order och kan inte återanvändas.
+  const token = c.req.query("t");
+  if (!verifyOrderViewToken(orderId, token)) {
+    log.warn({ orderId, hasToken: Boolean(token) }, "order-status rejected: invalid token");
+    return c.json({ error: "Ogiltig eller utgången länk." }, 401);
+  }
 
   try {
     const [order] = await db

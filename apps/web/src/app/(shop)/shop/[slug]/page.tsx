@@ -23,6 +23,7 @@ import {
 
 import { getBrowserApiBase } from "@/lib/api-base";
 import { useCart } from "@/lib/use-cart";
+import { ProductJsonLd } from "@/components/json-ld";
 
 const API_URL = getBrowserApiBase();
 
@@ -145,6 +146,21 @@ export default function SellerShopPage() {
 
   return (
     <div className="min-h-screen bg-brand-50/30">
+      {/* P3.54 (audit 2026-05-26): emit Product JSON-LD per produkt så
+          shop-sidor får samma rich-result-stöd som marketing/produkter.
+          Vi använder seller-slug:en som canonical URL. */}
+      {shop.products.map((p) => (
+        <ProductJsonLd
+          key={p.id}
+          name={p.name}
+          description={p.description}
+          sku={p.sku}
+          price={p.priceOre}
+          currency={p.currency || "SEK"}
+          image={PRODUCT_IMAGES[p.slug]}
+          url={`/shop/${slug}#${p.slug}`}
+        />
+      ))}
       {/* Header */}
       <header className="border-b bg-background">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4">

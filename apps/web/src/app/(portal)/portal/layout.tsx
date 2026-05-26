@@ -113,17 +113,39 @@ export default function PortalLayout({
   }, []);
 
   useEffect(() => {
-    fetch(`${API_URL}/v1/auth/me`, { credentials: "include" })
+    // P2.27 (audit 2026-05-26): tidigare saknades cancel-guard på
+    // bootstrap-fetch:en — om användaren navigerade snabbt vidare
+    // hann svaret komma efter unmount och triggade både setUser och
+    // router.replace på en avmontad komponent. AbortController +
+    // cancelled-flag stoppar både fetch och setState.
+    let cancelled = false;
+    const controller = new AbortController();
+
+    fetch(`${API_URL}/v1/auth/me`, {
+      credentials: "include",
+      signal: controller.signal,
+    })
       .then((r) => r.json())
       .then((data) => {
+        if (cancelled) return;
         if (!data.user) {
           router.replace("/login");
         } else {
           setUser(data.user);
         }
       })
-      .catch(() => router.replace("/login"))
-      .finally(() => setLoading(false));
+      .catch((err) => {
+        if (cancelled || (err as Error)?.name === "AbortError") return;
+        router.replace("/login");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
   }, [router]);
 
   async function handleLogout() {
@@ -270,7 +292,11 @@ export default function PortalLayout({
             </div>
             <NotificationBell />
           </header>
-          <main className="flex-1 p-6 md:p-8">{children}</main>
+          {/* P2.56 (audit 2026-05-26): id="main-content" så att den
+              globala skip-link:en i root layout.tsx kan hoppa hit. */}
+          <main id="main-content" className="flex-1 p-6 md:p-8">
+            {children}
+          </main>
         </div>
       </div>
     </PortalUserProvider>

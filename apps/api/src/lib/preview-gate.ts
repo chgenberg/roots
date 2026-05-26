@@ -19,15 +19,39 @@
 
 import { createHash } from "node:crypto";
 
-const DEFAULT_PASSWORD = "Roots123%";
+/**
+ * P1.7 (audit 2026-05-26): gaten får inte längre använda ett
+ * hårdkodat fallback-lösenord. Tidigare versionen defaultade till
+ * `Roots123%` vilket innebar att en prod-deploy där
+ * SITE_PREVIEW_PASSWORD råkat ut för att inte sättas gate:ade hela
+ * publika sajten bakom ett gissningsbart shared secret — och
+ * blockerade SEO/crawlers helt.
+ *
+ * Nya regler:
+ *   - Saknas SITE_PREVIEW_PASSWORD och PREVIEW_GATE_DISABLED !== "true"
+ *     → konfiguration är ogiltig och vi vägrar utfärda en token.
+ *   - Sätt PREVIEW_GATE_DISABLED=true för att stänga av gaten helt
+ *     (post-launch). validate-env tillåter då att lösenordet saknas.
+ */
+class PreviewGateConfigError extends Error {}
 
-export function getPreviewPassword(): string {
-  return process.env.SITE_PREVIEW_PASSWORD?.trim() || DEFAULT_PASSWORD;
+export function isPreviewGateDisabled(): boolean {
+  return process.env.PREVIEW_GATE_DISABLED === "true";
 }
 
-export function getPreviewToken(password: string = getPreviewPassword()): string {
+export function getPreviewPassword(): string {
+  const raw = process.env.SITE_PREVIEW_PASSWORD?.trim();
+  if (raw && raw.length > 0) return raw;
+
+  throw new PreviewGateConfigError(
+    "SITE_PREVIEW_PASSWORD is not set. Set it to enable the preview gate or set PREVIEW_GATE_DISABLED=true to remove the gate."
+  );
+}
+
+export function getPreviewToken(password?: string): string {
+  const pw = password ?? getPreviewPassword();
   return createHash("sha256")
-    .update(`roots-preview-v1:${password}`)
+    .update(`roots-preview-v1:${pw}`)
     .digest("hex")
     .slice(0, 40);
 }

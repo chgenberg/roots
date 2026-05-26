@@ -19,12 +19,16 @@ export function Input({
           {label}
         </label>
       )}
+      {/* P2.54 + P2.55 (audit 2026-05-26): byter hardcodade hex
+          (#D4CCC4, #8C2F2F, #FFF) mot semantiska tokens — border,
+          bg-background, destructive — så error-staten också använder
+          plattformens design-system. */}
       <input
         id={id}
-        className={`h-11 rounded-lg border border-[#D4CCC4] bg-white px-4 text-base text-brand-900 placeholder:text-brand-900/40 focus:border-brand-900 focus:outline-none focus:ring-2 focus:ring-brand-900/20 ${error ? "border-[#8C2F2F]" : ""} ${className}`}
+        className={`h-11 rounded-lg border border-input bg-background px-4 text-base text-brand-900 placeholder:text-muted-foreground focus:border-brand-900 focus:outline-none focus:ring-2 focus:ring-brand-900/20 ${error ? "border-destructive" : ""} ${className}`}
         {...props}
       />
-      {error && <p className="text-sm text-[#8C2F2F]">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
     </div>
   );
 }

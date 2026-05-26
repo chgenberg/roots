@@ -92,6 +92,44 @@ async function run() {
     }
   );
 
+  // P3.56 (audit 2026-05-26): tidigare täckte synthetic-runnern bara
+  // healthz/csrf/home/robots. Sitemap-routens runtime, en konkret
+  // shop-sida och katalog-API:t var oövervakade — om någon av dem
+  // brakade märkte vi det först när konvertering rasade. Lägger
+  // till tre lätta, idempotenta läsningar.
+
+  await check(
+    "web.sitemap",
+    `${WEB_BASE}/sitemap.xml`,
+    async (r) => {
+      if (r.status !== 200) return false;
+      const text = await r.text();
+      return text.includes("<urlset") && text.includes("</urlset>");
+    }
+  );
+
+  await check(
+    "web.products-catalog",
+    `${API_BASE}/v1/products`,
+    async (r) => {
+      if (r.status !== 200) return false;
+      const body = await r.json().catch(() => null);
+      return Array.isArray(body?.products) && body.products.length > 0;
+    }
+  );
+
+  // En representativ shop-sida att smoke-testa. Slug kan över-
+  // styras med SYNTHETIC_SHOP_SLUG om vi inte vill leaka en
+  // demo-säljares URL utåt.
+  const shopSlug = (process.env.SYNTHETIC_SHOP_SLUG || "demo").trim();
+  if (shopSlug) {
+    await check(
+      `web.shop.${shopSlug}`,
+      `${WEB_BASE}/shop/${shopSlug}`,
+      (r) => r.status === 200 || r.status === 404, // 404 är OK om slug medvetet tas bort
+    );
+  }
+
   // MASTERPLAN_01 KC2.7: deletion-purge cron-trigger. Synthetic-runnern
   // är en bra plats att kicka jobbet eftersom den ändå kallas regelbundet
   // (4×/dygn). I prod sätter Railway INTERNAL_CRON_TOKEN och vi skickar

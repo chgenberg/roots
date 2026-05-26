@@ -430,25 +430,35 @@ export default function InstallningarPage() {
             <h2 className="font-semibold">Aviseringar</h2>
           </div>
           <Separator />
+          {/* P3.69 (audit 2026-05-26): tidigare visade vi "Aktiv"-badgar
+              utan toggle eller API som backade dem — användaren trodde
+              inställningarna sparades. Kommunicera istället att vi som
+              standard skickar dessa, och länka till hjälp om man vill
+              ändra. Riktiga toggles tillkommer i E-prefs-sprinten. */}
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">E-postaviseringar</p>
-                <p className="text-xs text-muted-foreground">
-                  Få e-post om nya beställningar och uppdateringar.
-                </p>
-              </div>
-              <Badge variant="success">Aktiv</Badge>
+            <div>
+              <p className="text-sm font-medium">E-postaviseringar</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Vi skickar automatiskt e-post om nya beställningar och
+                uppdateringar till din kontoadress. Inställningen går
+                inte att stänga av i dagsläget — mejla{" "}
+                <a
+                  href="mailto:hej@roots.se"
+                  className="underline underline-offset-2"
+                >
+                  hej@roots.se
+                </a>{" "}
+                om du vill ändra.
+              </p>
             </div>
             <Separator />
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">Leveransnotiser</p>
-                <p className="text-xs text-muted-foreground">
-                  Bli meddelad när leveranser skickas och ankommer.
-                </p>
-              </div>
-              <Badge variant="success">Aktiv</Badge>
+            <div>
+              <p className="text-sm font-medium">Leveransnotiser</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Spårnings-mejl skickas alltid när en leverans skickas
+                och när den ankommer. Konfigurerbara preferenser
+                kommer i ett senare release.
+              </p>
             </div>
           </div>
         </CardContent>

@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { createHmac, timingSafeEqual } from "crypto";
+import { createHash, createHmac, timingSafeEqual } from "crypto";
 import { childLogger } from "../lib/logger";
 import { wasWebhookEventSeen } from "../lib/webhook-dedup";
 
@@ -48,15 +48,27 @@ fortnoxWebhook.post("/webhook", async (c) => {
   }
 
   const eventId = body.eventId as string | undefined;
-  // MASTERPLAN_01 KC8.3: Redis-backed dedup istället för en
-  // process-local Set. Överlever restarts och delas mellan instanser.
-  if (eventId) {
-    const seen = await wasWebhookEventSeen("fortnox", eventId);
-    if (seen) {
-      log.info({ eventId }, "Duplicate Fortnox webhook — skipping");
-      return c.json({ received: true, duplicate: true });
-    }
+  // MASTERPLAN_01 KC8.3 + P3.47 (audit 2026-05-26): Redis-backed dedup
+  // istället för en process-local Set. Tidigare hoppade vi över dedup:en
+  // helt om eventId saknades — då skulle Fortnox kunna re-pusha samma
+  // event efter byte av payload-format eller en proxy-replay och vi
+  // skulle processa det flera gånger. Falla tillbaka på SHA256(body) +
+  // signaturen så vi alltid har en stabil dedup-nyckel.
+  const dedupId =
+    eventId ||
+    `body:${createHash("sha256").update(rawBody).digest("hex").slice(0, 32)}` +
+      `:${signature.slice(0, 16)}`;
+  const seen = await wasWebhookEventSeen("fortnox", dedupId);
+  if (seen) {
+    log.info({ eventId, dedupId }, "Duplicate Fortnox webhook — skipping");
+    return c.json({ received: true, duplicate: true });
   }
+  // Pre-push 2026-05-26: när vi börjar göra verkliga DB-mutations
+  // (invoice-paid, invoice-cancelled) MÅSTE vi följa samma pattern
+  // som checkout.ts — wrap processing i try/catch och anropa
+  // clearWebhookEventSeen("fortnox", dedupId) i catch innan vi
+  // returnerar 5xx. Annars fastnar dedup-keyen i 24h och Fortnox-
+  // retries klassas som dups.
 
   const eventType = body.event as string | undefined;
   log.info({ eventType, eventId }, "Received event");

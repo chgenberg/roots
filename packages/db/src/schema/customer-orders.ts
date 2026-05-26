@@ -7,7 +7,9 @@ import {
   timestamp,
   pgEnum,
   index,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { organizations } from "./organizations";
 import { campaigns } from "./campaigns";
 import { teams } from "./teams";
@@ -70,6 +72,14 @@ export const customerOrders = pgTable(
     totalOre: integer("total_ore").notNull(),
     shippingOre: integer("shipping_ore").notNull().default(0),
     note: text("note"),
+    // P2.13 (audit 2026-05-26): klient-genererad nyckel (sha256 av
+    // body) som dedup:ar /v1/checkout/create-retries. Unikt index i
+    // 0010-migrationen.
+    idempotencyKey: varchar("idempotency_key", { length: 120 }),
+    // P2.17 (audit 2026-05-26): dedup av bekräftelse-mail över
+    // process-replicas. Sätts atomiskt i samma UPDATE som flyttar
+    // status → PAID-flödets follow-up.
+    confirmationEmailSentAt: timestamp("confirmation_email_sent_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
@@ -80,6 +90,21 @@ export const customerOrders = pgTable(
     index("customer_orders_org_id_idx").on(table.orgId),
     index("customer_orders_status_idx").on(table.status),
     index("customer_orders_klarna_order_id_idx").on(table.klarnaOrderId),
+    // P3.21 (audit 2026-05-26): notification + dashboard queries gör
+    // ofta WHERE org_id = ? AND status = ? ORDER BY created_at DESC.
+    // Pre-push fix: matcha SQL-migrationen 0011 (DESC på created_at).
+    index("customer_orders_org_status_created_idx").on(
+      table.orgId,
+      table.status,
+      table.createdAt.desc()
+    ),
+    // Pre-push fix 2026-05-26: schema-drift mellan migration 0010 (som
+    // skapar partial UNIQUE INDEX WHERE idempotency_key IS NOT NULL)
+    // och Drizzle-schemat. Deklarera samma index här så drizzle-kit
+    // inte tror att indexet saknas och försöker återskapa det.
+    uniqueIndex("customer_orders_idempotency_key_uniq")
+      .on(table.idempotencyKey)
+      .where(sql`${table.idempotencyKey} IS NOT NULL`),
   ]
 );
 

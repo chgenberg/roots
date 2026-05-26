@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,11 @@ interface OrderConfirmation {
   totalOre: number;
   customerName: string;
   customerEmail: string;
+  /**
+   * P1.5 (audit 2026-05-26): signerad token vi behöver för att
+   * öppna `/shop/[slug]/order/[orderId]?t=…` — annars 401.
+   */
+  viewToken?: string;
 }
 
 /**
@@ -48,28 +53,55 @@ const ERROR_COPY: Record<Exclude<ErrorKind, null>, { title: string; body: string
   },
 };
 
+// P2.28 (audit 2026-05-26): Next 15 kräver att useSearchParams ligger
+// bakom <Suspense>. Default-exporten gör wrap:en, inner gör jobbet.
 export default function ConfirmationPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-brand-400" />
+        </div>
+      }
+    >
+      <ConfirmationPageInner />
+    </Suspense>
+  );
+}
+
+function ConfirmationPageInner() {
   const params = useParams();
   const searchParams = useSearchParams();
   const slug = params.slug as string;
   const orderId = searchParams.get("order_id");
   // MASTERPLAN_01 KC1.6: rensa cart efter lyckad bekräftelse så
   // användaren inte ser kvarvarande items vid retur till shoppen.
-  const { clear: clearCart } = useCart(slug);
+  const { clear: clearCart, hydrated: cartHydrated } = useCart(slug);
 
   const [order, setOrder] = useState<OrderConfirmation | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorKind, setErrorKind] = useState<ErrorKind>(null);
 
   useEffect(() => {
+    // P2.29 (audit 2026-05-26): explicit cancel-flag så att en
+    // svarande efter unmount inte triggar setState (dev-strict-mode
+    // warning + minnesläcka).
+    let cancelled = false;
+    const controller = new AbortController();
+
     async function confirm() {
       if (!orderId) {
-        setErrorKind("missing");
-        setLoading(false);
+        if (!cancelled) {
+          setErrorKind("missing");
+          setLoading(false);
+        }
         return;
       }
       try {
-        const res = await fetch(`${API_URL}/v1/checkout/confirm/${orderId}`);
+        const res = await fetch(`${API_URL}/v1/checkout/confirm/${orderId}`, {
+          signal: controller.signal,
+        });
+        if (cancelled) return;
         if (res.status === 404) {
           setErrorKind("not-found");
           setLoading(false);
@@ -81,22 +113,45 @@ export default function ConfirmationPage() {
           return;
         }
         const data = await res.json();
+        if (cancelled) return;
         if (data.status === "FAILED" || data.status === "CANCELLED") {
           setErrorKind("failed-payment");
         } else {
           setOrder(data);
-          if (data.status === "PAID" || data.status === "CONFIRMED") {
+          // P2.25 (audit 2026-05-26): rensa bara cart EFTER att
+          // useCart har hydrat:s från sessionStorage. Annars race:ar
+          // hydration-skrivningen vår clear() och kunden hittar gamla
+          // items i nästa besök på shoppen.
+          //
+          // P3.46 (audit 2026-05-26): rensa ÄVEN vid PENDING. Tidigare
+          // väntade vi tills status flippat till PAID/CONFIRMED, men
+          // medan vi visade "Din betalning behandlas…" låg cart:en
+          // kvar i sessionStorage. Backknapp + ny checkout blev en
+          // möjlig dubbel-order. PENDING betyder att Klarna har
+          // accepterat — om något brister kan kunden lägga till
+          // produkterna igen.
+          const cartClearable =
+            data.status === "PAID" ||
+            data.status === "CONFIRMED" ||
+            data.status === "PENDING";
+          if (cartClearable && cartHydrated) {
             clearCart();
           }
         }
-      } catch {
+      } catch (err) {
+        if (cancelled || (err as Error)?.name === "AbortError") return;
         setErrorKind("server");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
     confirm();
-  }, [orderId, clearCart]);
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [orderId, clearCart, cartHydrated]);
 
   if (loading) {
     return (
@@ -181,7 +236,11 @@ export default function ConfirmationPage() {
 
             <div className="mt-2 flex flex-col gap-2 w-full">
               <Link
-                href={`/shop/${slug}/order/${order.orderId}`}
+                href={
+                  order.viewToken
+                    ? `/shop/${slug}/order/${order.orderId}?t=${encodeURIComponent(order.viewToken)}`
+                    : `/shop/${slug}/order/${order.orderId}`
+                }
                 className="w-full"
               >
                 <Button variant="outline" className="w-full">

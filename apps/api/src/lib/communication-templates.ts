@@ -1,4 +1,12 @@
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+// P2.26 (audit 2026-05-26): tidigare fallback:ade alla
+// inbjudningslänkar till localhost — i prod betydde det skadliga
+// "Click here to join: http://localhost:3000/..." mail.
+const SITE_URL = (
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  (process.env.NODE_ENV === "production"
+    ? "https://roots.se"
+    : "http://localhost:3000")
+).replace(/\/$/, "");
 
 export function getInviteTemplate(params: {
   teamName: string;

@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, isNull } from "drizzle-orm";
 import { db } from "@roots/db";
 import {
   campaigns,
@@ -14,6 +14,7 @@ import { getInvoiceProvider } from "../lib/invoicing";
 import type { SessionData } from "../lib/session";
 import { childLogger } from "../lib/logger";
 import { auditLog, requestContext } from "../lib/audit";
+import { redis } from "../lib/redis";
 
 const log = childLogger("settlement");
 
@@ -51,6 +52,25 @@ settlement.post("/generate/:campaignId", async (c) => {
   if (!session) return c.json({ error: "Behörighet saknas" }, 403);
 
   const campaignId = c.req.param("campaignId");
+
+  // P3.48 (audit 2026-05-26): två parallella POST /generate/:campaignId
+  // kunde tidigare båda passera campaign.status === 'ENDED'-checken,
+  // båda upsert:a payouts och båda flippa campaign till SETTLED i
+  // separata transaktioner — vilket race:ar belopp och spammar
+  // audit-loggar. Distribuerat Redis-lås per kampanj med kort TTL.
+  const lockKey = `settlement:generate:${campaignId}`;
+  const acquired = await redis
+    .set(lockKey, "1", "EX", 120, "NX")
+    .catch(() => null);
+  if (acquired === null) {
+    return c.json(
+      {
+        error:
+          "Avräkning körs redan för denna kampanj. Vänta ett par minuter och försök igen.",
+      },
+      409
+    );
+  }
 
   try {
     const [campaign] = await db
@@ -131,6 +151,46 @@ settlement.post("/generate/:campaignId", async (c) => {
         const rootsShareOre = totalSalesOre - teamShareOre;
 
         if (existing) {
+          // P1.1 (audit 2026-05-26): skydda redan fakturerade/utbetalda
+          // payouts mot belopps-drift vid re-run. När en payout har
+          // status INVOICED finns det redan en Fortnox-faktura kopplad
+          // till `existing.rootsShareOre`; PAID-rader är dessutom
+          // pengar som faktiskt transfererats. Vi får ALDRIG silently
+          // skriva över dem med en omräknad summa — ops måste först
+          // makulera fakturan / reversera betalningen manuellt.
+          if (existing.status === "INVOICED" || existing.status === "PAID") {
+            const amountDrift =
+              existing.totalSalesOre !== totalSalesOre ||
+              existing.teamShareOre !== teamShareOre ||
+              existing.rootsShareOre !== rootsShareOre;
+            txResults.push({
+              teamId: team.id,
+              teamName: team.name,
+              totalSalesOre: existing.totalSalesOre,
+              teamShareOre: existing.teamShareOre,
+              rootsShareOre: existing.rootsShareOre,
+              payoutId: existing.id,
+              status: existing.status,
+              skipped: true,
+              reason: existing.status === "INVOICED" ? "already_invoiced" : "already_paid",
+              recalculatedTotalSalesOre: amountDrift ? totalSalesOre : undefined,
+              recalculatedTeamShareOre: amountDrift ? teamShareOre : undefined,
+              recalculatedRootsShareOre: amountDrift ? rootsShareOre : undefined,
+            });
+            if (amountDrift) {
+              log.warn(
+                {
+                  payoutId: existing.id,
+                  status: existing.status,
+                  storedTotalSalesOre: existing.totalSalesOre,
+                  recomputedTotalSalesOre: totalSalesOre,
+                },
+                "settlement re-run found amount drift on locked payout — keeping stored values"
+              );
+            }
+            continue;
+          }
+
           await tx
             .update(payouts)
             .set({
@@ -235,6 +295,8 @@ settlement.post("/generate/:campaignId", async (c) => {
   } catch (err: any) {
     log.error({ err }, "Settlement generation failed");
     return c.json({ error: "Avräkning misslyckades" }, 500);
+  } finally {
+    await redis.del(lockKey).catch(() => {});
   }
 });
 
@@ -320,6 +382,40 @@ settlement.post("/create-invoice/:payoutId", async (c) => {
       return c.json({ error: "Behörighet saknas" }, 403);
     }
 
+    // P1.2 (audit 2026-05-26): idempotency på create-invoice.
+    // Tidigare kunde en dubbel-klick / retry efter Fortnox-timeout
+    // skapa en andra extern faktura medan bara den senaste ID:n
+    // sparades i DB. Vi gate:ar på faktiskt status + befintligt
+    // fortnoxInvoiceId och returnerar det existerande id:t som ett
+    // 200 OK så att UI:t inte tror att något misslyckades.
+    if (payout.status === "INVOICED" || payout.status === "PAID") {
+      if (payout.fortnoxInvoiceId) {
+        return c.json({
+          ok: true,
+          invoiceId: payout.fortnoxInvoiceId,
+          alreadyInvoiced: true,
+          status: payout.status,
+        });
+      }
+      // Status säger INVOICED men fakturan saknar id — det är en
+      // tidigare halv-genomförd skapelse vi inte automatiskt kan
+      // återhämta. Kräv manuell granskning innan vi får trigga
+      // Fortnox igen.
+      return c.json(
+        {
+          error:
+            "Utbetalningen är markerad som fakturerad men saknar Fortnox-ID. Kontakta support innan ny faktura skapas.",
+        },
+        409
+      );
+    }
+    if (payout.status !== "PENDING") {
+      return c.json(
+        { error: `Utbetalningen kan inte faktureras i status ${payout.status}.` },
+        409
+      );
+    }
+
     // MASTERPLAN_01 KC1.4: ladda faktisk klubb-data istället för
     // hårdkodat "Roots AB". Tidigare blev customer-namnet tomt i
     // Fortnox vilket gjorde att bok-export inte gick att tilldela
@@ -366,70 +462,138 @@ settlement.post("/create-invoice/:payoutId", async (c) => {
       .limit(1);
     billingEmail = admin?.email ?? "";
 
-    const invoiceProvider = getInvoiceProvider();
-    const result = await invoiceProvider.createInvoiceFromOrder({
-      orderId: payout.id,
-      customer: {
-        orgId: payout.orgId,
-        name: org.displayName ?? org.name ?? "Okänd förening",
-        orgNumber: org.orgNumber,
-        email: billingEmail,
-        address: {
-          postalCode: org.postalCode ?? undefined,
-          city: org.municipality ?? undefined,
-          countryCode: "SE",
-        },
-      },
-      lines: [
-        {
-          // OBS: vi fakturerar Roots-andelen (= avtalad fee). Den
-          // utbetalda team-andelen är bara en transfer och ska INTE
-          // faktureras tillbaka. Tidigare kod använde rootsShareOre
-          // korrekt — vi behåller det och förtydligar i description.
-          sku: "SETTLEMENT",
-          description: `Roots-andel kampanj ${payout.id.slice(0, 8)} (avtalad fee)`,
-          qty: 1,
-          unitPriceOre: payout.rootsShareOre,
-          // Sverige standard 25%. AccountNumber 3001 = försäljning SE.
-          vatPercent: 25,
-          accountNumber: 3001,
-        },
-      ],
-      totalOre: payout.rootsShareOre,
-    });
-
-    if (result.status === "error" || !result.externalId) {
+    // P2.24 (audit 2026-05-26): tidigare var Fortnox-anropet + DB
+    // UPDATE inte atomiska. Två concurrent requests (admin
+    // dubbel-klick eller automation-retry) kunde båda passera
+    // PENDING-checken och båda skapa en faktura hos Fortnox medan
+    // bara den ena externa ID:n landade i DB → orphan invoice +
+    // dubbel-fakturering av föreningen.
+    //
+    // Vi tar ett distribuerat Redis-lås per payoutId över hela
+    // operationen. Lås-TTL är 5 min så ett crashat API-instance
+    // inte permanent blockar nya försök. Om låset inte kan tas →
+    // 409 (en parallell operation pågår, klienten kan poll:a status).
+    const lockKey = `settlement:invoice:${payoutId}`;
+    const lockAcquired = await redis
+      .set(lockKey, "1", "EX", 300, "NX")
+      .catch(() => null);
+    if (lockAcquired !== "OK") {
       return c.json(
-        { error: result.message || "Faktura kunde inte skapas hos leverantören" },
-        502
+        { error: "Faktura skapas redan — vänta några sekunder och försök igen." },
+        409
       );
     }
 
-    await db
-      .update(payouts)
-      .set({
-        status: "INVOICED",
-        fortnoxInvoiceId: result.externalId,
-        updatedAt: new Date(),
-      })
-      .where(eq(payouts.id, payoutId));
+    try {
+      // Inom låset: re-läs payout-status så vi inte race:ade förbi
+      // idempotency-gaten ovan från en parallell körning.
+      const [latest] = await db
+        .select({ status: payouts.status, fortnoxInvoiceId: payouts.fortnoxInvoiceId })
+        .from(payouts)
+        .where(eq(payouts.id, payoutId))
+        .limit(1);
+      if (!latest || latest.status !== "PENDING") {
+        return c.json(
+          {
+            ok: true,
+            alreadyInvoiced: true,
+            invoiceId: latest?.fortnoxInvoiceId ?? null,
+            status: latest?.status ?? "UNKNOWN",
+          },
+          200
+        );
+      }
 
-    // MASTERPLAN_01 KC8.4: audit-log på payout-state-transition.
-    void auditLog({
-      userId: session.userId,
-      action: "payout.invoiced",
-      entityType: "payout",
-      entityId: payoutId,
-      meta: {
-        ...requestContext((n) => c.req.header(n)),
-        orgId: payout.orgId,
-        campaignId: payout.campaignId,
-        invoiceExternalId: result.externalId,
-        rootsShareOre: payout.rootsShareOre,
-      },
-    });
+      const invoiceProvider = getInvoiceProvider();
+      const result = await invoiceProvider.createInvoiceFromOrder({
+        orderId: payout.id,
+        customer: {
+          orgId: payout.orgId,
+          name: org.displayName ?? org.name ?? "Okänd förening",
+          orgNumber: org.orgNumber,
+          email: billingEmail,
+          address: {
+            postalCode: org.postalCode ?? undefined,
+            city: org.municipality ?? undefined,
+            countryCode: "SE",
+          },
+        },
+        lines: [
+          {
+            sku: "SETTLEMENT",
+            description: `Roots-andel kampanj ${payout.id.slice(0, 8)} (avtalad fee)`,
+            qty: 1,
+            unitPriceOre: payout.rootsShareOre,
+            vatPercent: 25,
+            accountNumber: 3001,
+          },
+        ],
+        totalOre: payout.rootsShareOre,
+      });
 
-    return c.json({ ok: true, invoiceId: result.externalId });
+      if (result.status === "error" || !result.externalId) {
+        return c.json(
+          { error: result.message || "Faktura kunde inte skapas hos leverantören" },
+          502
+        );
+      }
+
+      // P2.24: conditional UPDATE — vi sätter bara INVOICED + extern
+      // ID om raden fortfarande är PENDING och saknar invoice-id.
+      // Om vi får 0 rader tillbaka betyder det att vi har en orphan
+      // faktura hos Fortnox vi inte fick fäst i DB:n; det loggas
+      // CRITICAL så ops kan rensa manuellt med externalId.
+      const updated = await db
+        .update(payouts)
+        .set({
+          status: "INVOICED",
+          fortnoxInvoiceId: result.externalId,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(payouts.id, payoutId),
+            eq(payouts.status, "PENDING"),
+            isNull(payouts.fortnoxInvoiceId)
+          )
+        )
+        .returning({ id: payouts.id });
+
+      if (updated.length === 0) {
+        log.error(
+          {
+            payoutId,
+            orphanInvoiceId: result.externalId,
+          },
+          "CRITICAL: Fortnox invoice created but DB update failed — manual reconciliation required"
+        );
+        return c.json(
+          {
+            error: "Faktura skapades hos leverantören men kunde inte sparas. Kontakta ops.",
+            invoiceId: result.externalId,
+          },
+          500
+        );
+      }
+
+      void auditLog({
+        userId: session.userId,
+        action: "payout.invoiced",
+        entityType: "payout",
+        entityId: payoutId,
+        meta: {
+          ...requestContext((n) => c.req.header(n)),
+          orgId: payout.orgId,
+          campaignId: payout.campaignId,
+          invoiceExternalId: result.externalId,
+          rootsShareOre: payout.rootsShareOre,
+        },
+      });
+
+      return c.json({ ok: true, invoiceId: result.externalId });
+    } finally {
+      await redis.del(lockKey).catch(() => {});
+    }
   } catch (err: any) {
     log.error({ err }, "Invoice creation failed");
     return c.json({ error: "Faktura kunde inte skapas" }, 500);

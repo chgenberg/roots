@@ -181,6 +181,10 @@ export function HairAnalysisLeadDialog({
   const [error, setError] = useState<string | null>(null);
   const [resultText, setResultText] = useState<string | null>(null);
   const [parsed, setParsed] = useState<ParsedAnalysis | null>(null);
+  // P3.40 (audit 2026-05-26): server returnerar `fallback: true` när
+  // OpenAI är nere — vi måste signalera till användaren att svaret är
+  // generiskt istället för att rendera det som en riktig analys.
+  const [isFallback, setIsFallback] = useState(false);
 
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -246,6 +250,7 @@ export function HairAnalysisLeadDialog({
     setError(null);
     setResultText(null);
     setParsed(null);
+    setIsFallback(false);
     sessionStorage.removeItem(SESSION_KEY);
   }, [backPreview, topPreview]);
 
@@ -275,11 +280,23 @@ export function HairAnalysisLeadDialog({
     setPreview(URL.createObjectURL(f));
   }
 
+  // P3.13 (audit 2026-05-26): tidigare körde submitAnalysis() utan
+  // AbortController — stänger användaren dialog:en mitt i en lång
+  // Vision-request fortsatte fetchen leva och setState:ade på en
+  // unmount:ad komponent. Vi sparar controllern i en ref så att
+  // closing-handler kan abort:a den, och varje nytt försök får sin
+  // egen controller.
+  const submitAbortRef = useRef<AbortController | null>(null);
+
   async function submitAnalysis() {
     if (!backFile || !topFile || !consent || !email) return;
     setStep("loading");
     setLoading(true);
     setError(null);
+
+    submitAbortRef.current?.abort();
+    const controller = new AbortController();
+    submitAbortRef.current = controller;
 
     try {
       const [backData, topData] = await Promise.all([
@@ -298,6 +315,7 @@ export function HairAnalysisLeadDialog({
           "x-csrf-token": csrf,
         },
         credentials: "include",
+        signal: controller.signal,
         body: JSON.stringify({
           consentAccepted: true,
           consentVersion: CONSENT_VERSION,
@@ -319,6 +337,7 @@ export function HairAnalysisLeadDialog({
         }),
       });
 
+      if (controller.signal.aborted) return;
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.error || "Något gick fel");
@@ -326,6 +345,7 @@ export function HairAnalysisLeadDialog({
 
       const raw = data.analysis as string;
       setResultText(raw);
+      setIsFallback(Boolean(data.fallback));
       try {
         const j = JSON.parse(raw) as ParsedAnalysis;
         setParsed(j);
@@ -335,10 +355,13 @@ export function HairAnalysisLeadDialog({
       setStep("result");
       sessionStorage.removeItem(SESSION_KEY);
     } catch (e) {
+      if ((e as Error)?.name === "AbortError" || controller.signal.aborted) {
+        return;
+      }
       setError(e instanceof Error ? e.message : "Vi kunde inte slutföra analysen just nu. Försök igen.");
       setStep("confirm");
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
   }
 
@@ -347,6 +370,20 @@ export function HairAnalysisLeadDialog({
       open={open}
       onOpenChange={(o) => {
         setOpen(o);
+        if (!o) {
+          // P3.13: dialog stängd mitt i en pågående vision-request →
+          // avbryt fetchen så vi inte fortsätter rendra i bakgrunden.
+          submitAbortRef.current?.abort();
+          // Pre-push fix 2026-05-26: finally-blocket i submitAnalysis
+          // skippar setLoading(false) när signalen är aborted, vilket
+          // gjorde att vi öppnade dialogen igen i evig spinner. Nolla
+          // state explicit här så wizarden alltid är användbar nästa
+          // gång användaren öppnar den.
+          if (step === "loading") {
+            setLoading(false);
+            setStep("confirm");
+          }
+        }
         if (!o && step === "result") reset();
       }}
     >
@@ -748,12 +785,39 @@ export function HairAnalysisLeadDialog({
           {/* STEG 8: Resultat */}
           {step === "result" && (
             <div className="space-y-6">
+              {/* P3.40: tydlig flagga när servern skickade fallback istället
+                  för en riktig vision-analys, så supportern inte tror det
+                  är en personlig bedömning. */}
+              {isFallback && (
+                <div
+                  role="alert"
+                  className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
+                >
+                  <p className="font-semibold">Generisk rekommendation</p>
+                  <p className="mt-1">
+                    Vår AI-analys är tillfälligt otillgänglig — du ser därför
+                    ett allmänt råd baserat på dina svar, inte en personlig
+                    bedömning av dina bilder. Mejla{" "}
+                    <a
+                      href="mailto:hej@roots.se"
+                      className="underline underline-offset-2"
+                    >
+                      hej@roots.se
+                    </a>{" "}
+                    så hjälper vi dig direkt.
+                  </p>
+                </div>
+              )}
               {parsed ? (
                 <>
                   <div className="flex items-start gap-3">
                     <CheckCircle2 className="mt-0.5 h-6 w-6 shrink-0 text-brand-600" />
                     <div>
-                      <h3 className="text-lg font-semibold">Din håranalys är klar</h3>
+                      <h3 className="text-lg font-semibold">
+                        {isFallback
+                          ? "Allmän hårrekommendation"
+                          : "Din håranalys är klar"}
+                      </h3>
                       <p className="mt-1 text-base leading-relaxed text-muted-foreground">
                         {parsed.summary}
                       </p>

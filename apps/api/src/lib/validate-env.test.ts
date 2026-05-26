@@ -15,6 +15,14 @@ const FULL_PROD_ENV: NodeJS.ProcessEnv = {
   CSRF_SECRET: "0123456789abcdef0123456789abcdef0123456789abcdef",
   CORS_ORIGIN: "https://roots.se",
   NEXT_PUBLIC_SITE_URL: "https://roots.se",
+  // P1.8 (audit 2026-05-26): SESSION_SECRET är nu REQUIRED i prod
+  // eftersom deletion-tokens.ts + order-view-tokens.ts faller tillbaka
+  // till det när de mer specifika *_SECRET-varianterna saknas.
+  SESSION_SECRET: "0123456789abcdef0123456789abcdef",
+  // P3.52 (audit 2026-05-26): INTERNAL_CRON_TOKEN är RECOMMENDED, inte
+  // required. Sätter den ändå i baseline så att recommendedMissing-
+  // testen får ett rent utfall.
+  INTERNAL_CRON_TOKEN: "0123456789abcdef0123456789abcdef0123456789abcdef",
   OPENAI_API_KEY: "sk-real-key",
   RESEND_API_KEY: "re_real_key",
   // MASTERPLAN_01 KC8.1: dessa adderades till RECOMMENDED_IN_PROD och
@@ -24,8 +32,12 @@ const FULL_PROD_ENV: NodeJS.ProcessEnv = {
   KLARNA_PASSWORD: "real-klarna-pass",
   KLARNA_WEBHOOK_SECRET: "real-klarna-webhook",
   FORTNOX_WEBHOOK_SECRET: "real-fortnox-webhook",
-  FORTNOX_TOKEN: "real-fortnox-token",
+  // Audit 2.43: validator + runtime läser nu samma namn.
+  FORTNOX_ACCESS_TOKEN: "real-fortnox-token",
   SENTRY_DSN: "https://abc@sentry.io/1",
+  // P1.7: gaten är avstängd i baseline-testen så vi inte kräver
+  // SITE_PREVIEW_PASSWORD i varje case.
+  PREVIEW_GATE_DISABLED: "true",
 };
 
 describe("checkEnv (production)", () => {
@@ -84,6 +96,58 @@ describe("checkEnv (production)", () => {
     };
     const r = checkEnv(env, true);
     expect(r.recommendedMissing.join("\n")).toMatch(/OPENAI_API_KEY/);
+  });
+
+  // P1.7 (audit 2026-05-26)
+  it("requires SITE_PREVIEW_PASSWORD when the preview gate is not disabled", () => {
+    const env = { ...FULL_PROD_ENV };
+    delete env.PREVIEW_GATE_DISABLED;
+    const r = checkEnv(env, true);
+    expect(r.ok).toBe(false);
+    expect(r.conditionalMissing.join("\n")).toMatch(/SITE_PREVIEW_PASSWORD/);
+  });
+
+  it("does not require SITE_PREVIEW_PASSWORD when the gate is explicitly disabled", () => {
+    const env: NodeJS.ProcessEnv = {
+      ...FULL_PROD_ENV,
+      PREVIEW_GATE_DISABLED: "true",
+    };
+    delete env.SITE_PREVIEW_PASSWORD;
+    const r = checkEnv(env, true);
+    expect(r.ok).toBe(true);
+    expect(r.conditionalMissing.join("\n")).not.toMatch(/SITE_PREVIEW_PASSWORD/);
+  });
+
+  // P1.8 (audit 2026-05-26)
+  it("rejects boot when SESSION_SECRET is missing (deletion + order-view tokens)", () => {
+    const env = { ...FULL_PROD_ENV };
+    delete env.SESSION_SECRET;
+    const r = checkEnv(env, true);
+    expect(r.ok).toBe(false);
+    expect(r.missing.join("\n")).toMatch(/SESSION_SECRET/);
+  });
+
+  // P3.52 pre-push fix (audit 2026-05-26): INTERNAL_CRON_TOKEN är
+  // RECOMMENDED (inte required) så att Railway inte hamnar i boot-loop
+  // om token saknas. Cron-endpoints svarar 503 vid request istället.
+  it("treats missing INTERNAL_CRON_TOKEN as a warning, not a boot failure", () => {
+    const env = { ...FULL_PROD_ENV };
+    delete env.INTERNAL_CRON_TOKEN;
+    const r = checkEnv(env, true);
+    expect(r.ok).toBe(true);
+    expect(r.recommendedMissing.join("\n")).toMatch(/INTERNAL_CRON_TOKEN/);
+  });
+
+  // Audit 2.43
+  it("flags Fortnox conditional misconfig under the correct env-var name", () => {
+    const env: NodeJS.ProcessEnv = {
+      ...FULL_PROD_ENV,
+      FORTNOX_ENABLED: "true",
+      FORTNOX_CLIENT_SECRET: "secret",
+    };
+    delete env.FORTNOX_ACCESS_TOKEN;
+    const r = checkEnv(env, true);
+    expect(r.conditionalMissing.join("\n")).toMatch(/FORTNOX_ACCESS_TOKEN/);
   });
 });
 

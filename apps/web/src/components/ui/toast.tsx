@@ -27,12 +27,17 @@ export function useToast() {
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
+  // P3.68 (audit 2026-05-26): tidigare auto-dismissade vi ALLA toasts
+  // efter 3s, även error-varianten. Det gjorde att validation-fel
+  // försvann innan användaren hann läsa/agera. Vi differentierar nu:
+  // success/default kvar på 4s, error på 7s.
   const toast = useCallback((message: string, variant: ToastVariant = "default") => {
     const id = crypto.randomUUID();
     setToasts((prev) => [...prev, { id, message, variant }]);
+    const ttl = variant === "error" ? 7000 : 4000;
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 3000);
+    }, ttl);
   }, []);
 
   const dismiss = useCallback((id: string) => {
@@ -46,6 +51,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         {toasts.map((t) => (
           <div
             key={t.id}
+            role={t.variant === "error" ? "alert" : "status"}
+            aria-live={t.variant === "error" ? "assertive" : "polite"}
             className={cn(
               "pointer-events-auto flex items-center gap-3 rounded-xl border px-4 py-3 text-sm shadow-[var(--shadow-elevated)] animate-slide-down",
               t.variant === "success" && "border-brand-200 bg-brand-50 text-brand-800",
@@ -55,8 +62,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           >
             <span className="flex-1">{t.message}</span>
             <button
+              type="button"
               onClick={() => dismiss(t.id)}
-              className="shrink-0 rounded-md p-0.5 opacity-60 hover:opacity-100"
+              aria-label="Stäng meddelande"
+              className="shrink-0 rounded-md p-0.5 opacity-60 hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <X className="h-3.5 w-3.5" />
             </button>

@@ -1,6 +1,25 @@
 @import "tailwindcss";
 
 /*
+ * P3.82 (audit 2026-05-26): z-index-strategi.
+ * Tidigare hade vi z-30, z-40, z-50, z-[60], z-[100] sprida över
+ * komponenter utan dokumenterad ordning, vilket gjorde att FAB,
+ * dialogs och toasts kunde överlappa fel. Tier-systemet vi följer:
+ *
+ *   z-20  | sticky table headers, page-level bars
+ *   z-30  | floating action buttons (chat FAB)
+ *   z-40  | full-screen overlays / backdrops bakom paneler
+ *   z-50  | popovers, dropdowns, notification bell, side drawer
+ *   z-[60]| header mobile menu (måste över sticky header)
+ *   z-[70]| modal dialogs (Radix Dialog default)
+ *   z-[80]| chat-widget bottom-sheet (måste över alla dialogs)
+ *   z-[100]| toast layer (alltid överst)
+ *
+ * Om du behöver ett nytt lager — uppdatera tabellen ovan så att vi
+ * inte börjar köra arbitrary z-[NNN] igen.
+ */
+
+/*
  * Sprint E13 — brand palette refresh based on the agency brandbook
  * delivered in public/Roots_lev/ (Maj 2026).
  *

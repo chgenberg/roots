@@ -92,8 +92,14 @@ const PREVIEW_COOKIE_NAME = "roots_preview";
 // SubtleCrypto API which is available on both the Edge and Node
 // runtimes; result is cached at module load to avoid recomputing on
 // every request.
-async function computePreviewToken(): Promise<string> {
-  const password = process.env.SITE_PREVIEW_PASSWORD?.trim() || "Roots123%";
+//
+// P1.7 (audit 2026-05-26): returnerar `null` när SITE_PREVIEW_PASSWORD
+// saknas så middleware:n kan ta säkert beslut. Tidigare defaultade vi
+// till `"Roots123%"` vilket innebar att en misconfig:ad prod-deploy
+// gate:ade hela sajten bakom ett gissningsbart lösenord.
+async function computePreviewToken(): Promise<string | null> {
+  const password = process.env.SITE_PREVIEW_PASSWORD?.trim();
+  if (!password) return null;
   const data = new TextEncoder().encode(`roots-preview-v1:${password}`);
   const hash = await crypto.subtle.digest("SHA-256", data);
   return Array.from(new Uint8Array(hash))
@@ -103,10 +109,16 @@ async function computePreviewToken(): Promise<string> {
 }
 
 let cachedPreviewToken: string | null = null;
-async function getPreviewToken(): Promise<string> {
-  if (cachedPreviewToken) return cachedPreviewToken;
+let previewTokenComputed = false;
+async function getPreviewToken(): Promise<string | null> {
+  if (previewTokenComputed) return cachedPreviewToken;
   cachedPreviewToken = await computePreviewToken();
+  previewTokenComputed = true;
   return cachedPreviewToken;
+}
+
+function isPreviewGateDisabled(): boolean {
+  return process.env.PREVIEW_GATE_DISABLED === "true";
 }
 
 export async function middleware(request: NextRequest) {
@@ -117,9 +129,18 @@ export async function middleware(request: NextRequest) {
     (p) => pathname === p || pathname.startsWith(p + "/") || pathname.startsWith(p)
   );
 
-  if (!isBypassed) {
-    const cookie = request.cookies.get(PREVIEW_COOKIE_NAME);
+  if (!isBypassed && !isPreviewGateDisabled()) {
     const expected = await getPreviewToken();
+    if (!expected) {
+      // P1.7: konfigurationsfel — vi får inte fall back till en
+      // hårdkodad default. Skicka tillbaka 503 så ops märker att
+      // SITE_PREVIEW_PASSWORD måste sättas (eller PREVIEW_GATE_DISABLED).
+      return new NextResponse(
+        "Förhandsvisningen är felkonfigurerad. Kontakta hej@roots.se.",
+        { status: 503, headers: { "content-type": "text/plain; charset=utf-8" } }
+      );
+    }
+    const cookie = request.cookies.get(PREVIEW_COOKIE_NAME);
     if (!cookie || cookie.value !== expected) {
       // Rewrite (not redirect) so the URL bar still shows where the
       // user *intended* to go — they'll land there after unlock.

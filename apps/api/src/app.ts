@@ -27,7 +27,7 @@ import { generateCsrfToken, verifyCsrfToken } from "./lib/csrf";
 import { checkReadiness } from "./lib/health-checks";
 import { captureException } from "./lib/sentry";
 import { childLogger } from "./lib/logger";
-import { getSession } from "./lib/session";
+import { getSession, SESSION_COOKIE_NAME as ACTUAL_SESSION_COOKIE_NAME } from "./lib/session";
 
 const errLog = childLogger("hono-error");
 
@@ -45,7 +45,13 @@ app.use("*", securityHeaders);
  * synchronously utan ny Redis-fråga i 500-pathen. Sessionsläsning är
  * best-effort — Redis-fel ska inte blocka requests.
  */
-const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME || "roots_session";
+// P2.40 (audit 2026-05-26): cookienamnet här var fel — den faktiska
+// sessionscookien heter `rootsSessionId` (se lib/session.ts) men
+// Sentry-context-middleware:n läste från `roots_session` så
+// userId/role/orgId saknades på alla 500-rapporter. Vi importerar
+// nu det auktoritativa namnet från session.ts så de aldrig glider isär.
+const SENTRY_SESSION_COOKIE_NAME =
+  process.env.SESSION_COOKIE_NAME || ACTUAL_SESSION_COOKIE_NAME;
 
 app.use("*", async (c, next) => {
   // 8 hex chars = 4 bytes; tillräckligt unikt för att korsreferera
@@ -57,7 +63,7 @@ app.use("*", async (c, next) => {
   c.header("x-request-id", reqId);
 
   const cookie = c.req.header("cookie") || "";
-  const match = cookie.match(new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`));
+  const match = cookie.match(new RegExp(`${SENTRY_SESSION_COOKIE_NAME}=([^;]+)`));
   if (match) {
     try {
       const session = await getSession(match[1]);
@@ -108,15 +114,24 @@ const CSRF_EXEMPT_PATHS = [
   // Protected instead by per-IP rate limits in routes/preview.ts.
   "/v1/preview/unlock",
   "/v1/preview/waitlist",
-  // MASTERPLAN_01 KC2.7: interna cron-jobb triggas av Railway cron eller
-  // GitHub Actions med Bearer-token. Authentication görs explicit i
-  // routes/internal-cron.ts via INTERNAL_CRON_TOKEN.
-  "/v1/internal/cron",
+  // MASTERPLAN_01 KC2.7 + P3.30 (audit 2026-05-26): interna cron-jobb
+  // triggas av Railway cron eller GitHub Actions med Bearer-token.
+  // Tidigare exempterades hela /v1/internal/cron-prefixet, vilket gjorde
+  // att framtida endpoints under den prefixen automatiskt ärvde CSRF-
+  // bypass. Listet är nu explicit per-endpoint så nya rutter måste
+  // läggas till medvetet och granskas separat.
+  "/v1/internal/cron/deletion-purge",
 ];
+
+// Pre-push fix 2026-05-26: tidigare användes startsWith vilket gjorde
+// att en framtida endpoint som t.ex. /v1/internal/cron/deletion-purge-
+// backup automatiskt skulle ärva CSRF-undantaget utan att läggas till
+// i listan. Exact match tvingar in oss till medvetna review-beslut.
+const CSRF_EXEMPT_PATH_SET = new Set(CSRF_EXEMPT_PATHS);
 
 app.use("*", async (c, next) => {
   if (CSRF_SAFE_METHODS.has(c.req.method)) return next();
-  if (CSRF_EXEMPT_PATHS.some((p) => c.req.path.startsWith(p))) return next();
+  if (CSRF_EXEMPT_PATH_SET.has(c.req.path)) return next();
 
   const token = c.req.header("x-csrf-token");
   if (token && verifyCsrfToken(token)) return next();

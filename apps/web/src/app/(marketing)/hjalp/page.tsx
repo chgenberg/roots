@@ -315,6 +315,26 @@ export default function HelpPage() {
           <p className="mt-2 text-sm text-muted-foreground">
             Inloggad som <span className="font-medium">{meName}</span> · roll:{" "}
             <span className="font-mono">{role}</span>
+            {/* P2.57 (audit 2026-05-26): tidigare tappade /hjalp helt
+                navigation tillbaka till portalen — användaren landade
+                på marketing-chrome med "Logga in / Registrera" trots
+                aktiv session. Visar en uttrycklig länk till hemma-
+                portalen baserat på roll så vägen tillbaka är ett klick. */}
+            {" · "}
+            <a
+              href={
+                role === "ASSOCIATION_ADMIN"
+                  ? "/forening"
+                  : role === "TEAM_LEADER"
+                  ? "/lag"
+                  : role === "SELLER"
+                  ? "/min-shop"
+                  : "/portal"
+              }
+              className="font-medium text-foreground underline-offset-4 hover:underline"
+            >
+              Tillbaka till portalen
+            </a>
           </p>
         )}
       </div>

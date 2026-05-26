@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq, sql, desc, and, gte, lt, count as drizzleCount } from "drizzle-orm";
+import { eq, sql, desc, and, gte, lt, count as drizzleCount, inArray, isNull } from "drizzle-orm";
 import { db } from "@roots/db";
 import {
   users,
@@ -290,6 +290,14 @@ portal.get("/orders", async (c) => {
   const session = await requireSession(c);
   if (!session) return c.json({ error: "Ej inloggad" }, 401);
 
+  // P2.4 (audit 2026-05-26): list-endpointen släppte tidigare alla
+  // sessioner med orgId vidare — fundraising-roller (ASSOCIATION_ADMIN
+  // /TEAM_LEADER/SELLER) kunde enumerera B2B-orders för sin org.
+  // Detail-endpointen ovan gör redan rätt med isPortalRole(); spegla.
+  if (!isPortalRole(session.role)) {
+    return c.json({ error: "Behörighet saknas" }, 403);
+  }
+
   try {
     let orderList: OrderRow[];
     if (
@@ -423,6 +431,13 @@ portal.post("/orders", async (c) => {
   const session = await requireSession(c);
   if (!session) return c.json({ error: "Ej inloggad" }, 401);
 
+  // P2.4 (audit 2026-05-26): create-pathen är gate:ad på orgId men
+  // inte på portal-roll — fundraising-roller med orgId kunde skapa
+  // B2B-orders. isPortalRole spegar list/detail-endpointens kontroll.
+  if (!isPortalRole(session.role)) {
+    return c.json({ error: "Behörighet saknas" }, 403);
+  }
+
   // The `orders` table requires both org_id and user_id (NOT NULL FKs). A
   // session without an org would create an orphan row that violates the
   // schema — fail fast with a 400 instead of letting the DB throw 500.
@@ -443,11 +458,54 @@ portal.post("/orders", async (c) => {
       return c.json({ error: "Inga produkter valda" }, 400);
     }
 
+    // P2.22 (audit 2026-05-26): tidigare hoppades item-validering
+    // helt — NaN/negativa qty fick passera och blev `NaN`-totals.
+    // Spegla checkout.ts: max 100 per rad och högst 200 rader per
+    // beställning för att hindra DoS-storlek.
+    if (body.items.length > 200) {
+      return c.json({ error: "För många rader i beställningen." }, 400);
+    }
+    for (const item of body.items) {
+      if (
+        !item ||
+        typeof item.productId !== "string" ||
+        !/^[0-9a-f-]{36}$/i.test(item.productId) ||
+        typeof item.qty !== "number" ||
+        !Number.isInteger(item.qty) ||
+        item.qty < 1 ||
+        item.qty > 100
+      ) {
+        return c.json(
+          { error: "Ogiltig rad: productId måste vara UUID och qty 1–100." },
+          400
+        );
+      }
+    }
+
     const productIds = body.items.map((i) => i.productId);
+    // P2.23 (audit 2026-05-26): byter raw `IN (${productIds})` mot
+    // Drizzles `inArray` så bindningen är konsekvent med övriga
+    // queries och utan risk för parameter-injection.
     const productList = await db
       .select()
       .from(products)
-      .where(sql`${products.id} = ANY(${productIds})`);
+      .where(inArray(products.id, productIds));
+
+    // P2.21 (audit 2026-05-26): avvisa hela ordern om någon
+    // productId är okänd. Tidigare drop:ades den raden tyst —
+    // klienten trodde "alla items beställda" medan servern
+    // persisterade en partiell order med lägre totalbelopp.
+    const knownIds = new Set(productList.map((p) => p.id));
+    const missingIds = productIds.filter((id) => !knownIds.has(id));
+    if (missingIds.length > 0) {
+      return c.json(
+        {
+          error: `En eller flera produkter hittades inte: ${missingIds.join(", ")}`,
+          missingProductIds: missingIds,
+        },
+        400
+      );
+    }
 
     let totalOre = 0;
     const lines: { productId: string; qty: number; unitPriceOre: number }[] =
@@ -648,7 +706,11 @@ portal.get("/members", async (c) => {
           createdAt: users.createdAt,
         })
         .from(users)
-        .where(eq(users.orgId, session.orgId))
+        // P2.8 (audit 2026-05-26): exkludera GDPR-purgade tombstones
+        // (deleted-{uuid}@roots.invalid). Tidigare visades de
+        // anonymiserade raderna i medlemsdirektoriet vilket motverkar
+        // KC2.7-intentionen.
+        .where(and(eq(users.orgId, session.orgId), isNull(users.deletedAt)))
         .orderBy(users.contactName);
     } else if (session.role === "INTERNAL_ADMIN") {
       memberList = await db
@@ -660,6 +722,7 @@ portal.get("/members", async (c) => {
           createdAt: users.createdAt,
         })
         .from(users)
+        .where(isNull(users.deletedAt))
         .orderBy(users.contactName)
         .limit(100);
     } else {
@@ -1057,10 +1120,12 @@ portal.post("/quotes", async (c) => {
     const productIds = Array.from(
       new Set(cleanedLines.map((l) => l.productId))
     );
+    // P2.23 (audit 2026-05-26): byt sql`… IN ${productIds}` mot
+    // Drizzles `inArray` så bindningen är konsekvent.
     const productRows = await db
       .select({ id: products.id, priceOre: products.priceOre })
       .from(products)
-      .where(sql`${products.id} IN ${productIds}`);
+      .where(inArray(products.id, productIds));
     const priceById = new Map(productRows.map((p) => [p.id, p.priceOre]));
     for (const l of cleanedLines) {
       if (!priceById.has(l.productId)) {

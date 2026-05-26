@@ -1,0 +1,1702 @@
+ROOTS PLATFORM AUDIT
+====================
+Date: 2026-05-26 11:37
+Agents: 8 parallel read-only sub-agents
+Scope: Full monorepo (apps/web, apps/api, packages/*)
+
+Agents:
+  1 — UX, IA & Navigation
+  2 — Visual Design & Motion
+  3 — Frontend Stack
+  4 — Backend, API & Data
+  5 — Auth & RBAC
+  6 — AI & Open Claw
+  7 — Fortnox & Commerce
+  8 — Security, DevOps & SEO
+
+SUMMARY
+-------
+Raw findings: 212
+After dedup:  ~190 unique
+  Priority 1 (Critical):  8
+  Priority 2 (High):      57
+  Priority 3 (Medium):    79
+  Priority 4 (Low):       29
+  Priority 5 (Nice):      17
+
+Top themes:
+  - Money + integrity: settlement re-runs overwriting INVOICED/PAID amounts,
+    create-invoice without idempotency, Klarna PAID with no amount-verification,
+    Klarna stub auto-PAID when creds unset.
+  - Secret hygiene: deletion-token HMAC and site preview gate both silently fall
+    back to hardcoded dev defaults in prod if env vars missing; no boot validation.
+  - PII / RBAC leaks: unauthenticated /order-status leaks full customer data;
+    portal order endpoints accept any role with orgId; org search exposed to all
+    sessions; association dashboard returns raw seller invite tokens.
+  - Race conditions: team-invite TOCTOU, seller-invite max-uses race, Klarna PAID
+    races (webhook + confirm-polling without process-shared dedup), order
+    confirmation email dedup is in-memory only.
+  - Fragmented architecture: tRPC + TanStack Query + @roots/ui all declared but
+    unused; useEffect data layer hand-rolled per page with inconsistent cancel
+    guards; portal/fundraising shells fully client-rendered.
+
+=====================================================
+PRIORITY 1 — CRITICAL
+=====================================================
+
+[1.1] Settlement re-run overwrites payout amounts even when status is INVOICED or PAID
+Agent: 7 — Fortnox & Commerce
+File: apps/api/src/routes/settlement.ts
+Line: 133–142
+Detail: On re-generate, existing payout rows are updated with recalculated
+  totalSalesOre, teamShareOre, and rootsShareOre with no guard on payout.status.
+  A payout already invoiced in Fortnox or marked PAID can silently drift from the
+  booked invoice and the amount actually transferred to the club. Fix: skip rows
+  where status IN ('INVOICED','PAID') or fail the whole re-run if any are.
+
+[1.2] `create-invoice` is not idempotent — retries create duplicate Fortnox invoices
+Agent: 4 + 7 (independently flagged)
+File: apps/api/src/routes/settlement.ts
+Line: 299–415
+Detail: Handler never checks payout.status === 'INVOICED' or an existing
+  fortnoxInvoiceId before calling invoiceProvider.createInvoiceFromOrder.
+  A timeout after Fortnox succeeds but before the DB update, or a double-click,
+  produces a second invoice while only the latest ID is stored. Fix: gate on
+  status + accept Idempotency-Key header, wrap external call in compensating tx.
+
+[1.3] Klarna PAID transition never verifies charged amount matches order.totalOre
+Agent: 7 — Fortnox & Commerce
+File: apps/api/src/routes/checkout.ts
+Line: 470–483, 533–538
+Detail: Webhook and confirm-polling only check klarnaOrder.status ===
+  'checkout_complete'. The response's order_amount is never compared to the DB
+  row. Settlement later sums customerOrders.totalOre, so any Klarna-vs-Roots
+  mismatch flows into payouts undetected. Fix: assert amount match before
+  status transition; otherwise mark order REVIEW + alert ops.
+
+[1.4] Klarna stub mode auto-completes every order when credentials are missing
+Agent: 7 — Fortnox & Commerce
+File: apps/api/src/lib/payments/klarna.ts
+Line: 75–85, 121–130
+Detail: When KLARNA_USERNAME/KLARNA_PASSWORD are unset, getCheckoutOrder always
+  returns checkout_complete. Confirm-polling then marks any PENDING order PAID
+  with no real payment. A prod misconfig (missing env vars) lets supporters reach
+  PAID and enter settlement without money moving. Fix: stub must be gated on
+  NODE_ENV !== 'production' AND require an explicit ROOTS_KLARNA_STUB=true flag.
+
+[1.5] Unauthenticated /order-status/:orderId exposes full customer PII
+Agent: 4 — Backend, API & Data
+File: apps/api/src/routes/checkout.ts
+Line: 589–637
+Detail: GET /order-status/:orderId has no auth and returns customerName, line
+  items, seller info, and order totals to anyone with the UUID. GDPR/privacy
+  leak as soon as order IDs appear in URLs, logs, or referrer headers. Fix:
+  bind to short-lived signed token issued at checkout creation, or require
+  session match.
+
+[1.6] Team-invite claim has TOCTOU race allowing double redemption
+Agent: 4 — Backend, API & Data
+File: apps/api/src/routes/association.ts
+Line: 526–579
+Detail: Invite validity (usedAt, expiry) checked outside the tx, and the in-tx
+  UPDATE omits `WHERE used_at IS NULL`. Two concurrent POST /team-invites/claim
+  with the same token can both create users/teams before either marks the
+  invite used. Fix: single UPDATE … SET used_at = now() WHERE id = ? AND
+  used_at IS NULL RETURNING …; treat zero rows as already claimed.
+
+[1.7] Preview gate middleware falls back to hardcoded default password
+Agent: 3 + 8 (independently flagged)
+File: apps/web/src/middleware.ts (line 96); apps/api/src/lib/preview-gate.ts (22–25)
+Detail: computePreviewToken() uses process.env.SITE_PREVIEW_PASSWORD || "Roots123%"
+  when the env var is unset. A production deploy missing that variable gates
+  the entire site behind a known, guessable password — and blocks SEO/crawlers.
+  There is also no PREVIEW_GATE_DISABLED flag for launch. Fix: fail-closed if
+  unset in prod; add explicit disable flag; rotate before public launch.
+
+[1.8] Deletion cancel tokens can use a hardcoded dev HMAC secret in production
+Agent: 8 — Security, DevOps & SEO
+File: apps/api/src/lib/deletion-tokens.ts
+Line: 30–38
+Detail: getSecret() falls back to "roots-deletion-dev-secret-do-not-use-in-prod"
+  when neither SESSION_SECRET nor DELETION_TOKEN_SECRET is set. validate-env.ts
+  does not require either, so a misconfigured prod could mint/verify predictable
+  cancel-deletion tokens. Anyone knowing the default could forge tokens and
+  cancel other users' deletions. Fix: require boot validation; refuse to start.
+
+=====================================================
+PRIORITY 2 — HIGH
+=====================================================
+
+[2.1] Klarna checkout injects server HTML via innerHTML and re-executes scripts
+Agent: 3 — Frontend Stack
+File: apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx
+Line: 180–192
+Detail: Klarna snippet is written with klarnaRef.current.innerHTML = klarnaHtml
+  and all embedded <script> tags are cloned and re-run. If the API response is
+  ever compromised or malformed, direct XSS execution surface on the checkout
+  page. Fix: use Klarna SDK loader instead of raw HTML injection.
+
+[2.2] No refund API — REFUNDED status is dead; settlement cannot reverse payouts
+Agent: 7 — Fortnox & Commerce
+File: packages/db/src/schema/customer-orders.ts
+Line: 17–27
+Detail: Schema defines REFUNDED and UI labels exist, but no API route calls
+  Klarna Order Management refunds or sets REFUNDED. Settlement aggregates only
+  status = 'PAID' with no subtract/refund logic; post-settlement refunds would
+  over-count sales with no payout reversal path.
+
+[2.3] Fortnox webhook is a no-op stub — invoice-paid does not update payouts
+Agent: 4 + 7 (independently flagged)
+File: apps/api/src/routes/fortnox-webhook.ts
+Line: 64–72
+Detail: Signed and deduped events for invoice-paid/invoice-cancelled only log
+  "Would update invoice status". Payouts stay at INVOICED forever via webhook;
+  PAID must be set manually via PATCH /v1/payouts/:id/status, breaking the
+  intended Fortnox → payout lifecycle automation.
+
+[2.4] B2B portal order endpoints lack CLUB-only role gate
+Agent: 4 + 5 (independently flagged)
+File: apps/api/src/routes/portal.ts
+Line: 289–319 (list), 422–435 (create)
+Detail: GET/POST /portal/orders only require session.orgId, not isPortalRole or
+  CLUB_ADMIN/CLUB_MEMBER. SELLER, TEAM_LEADER, ASSOCIATION_ADMIN with orgId
+  can list and create rows in the B2B orders table, mixing subscription
+  commerce with fundraising data. Detail endpoint correctly enforces
+  isPortalRole — list/create are inconsistent.
+
+[2.5] Open team-leader registration can attach to any existing org via existingOrgId
+Agent: 5 — Auth & RBAC
+File: apps/api/src/routes/auth.ts
+Line: 954–973, 1001–1015
+Detail: /register/team-leader accepts a client-supplied existingOrgId UUID with
+  only an existence check — no invite token, no association-admin approval.
+  An attacker can self-register as TEAM_LEADER under any known org UUID, gaining
+  org-scoped dashboard/API access immediately.
+
+[2.6] /v1/auth/organizations/search exposes cross-tenant org directory to any session
+Agent: 5 — Auth & RBAC
+File: apps/api/src/routes/auth.ts
+Line: 1247–1274
+Detail: Any valid session (SELLER, TEAM_LEADER, CLUB_MEMBER) can fuzzy-search all
+  organizations platform-wide with no role gate or org scoping. Enables
+  cross-tenant enumeration of org names/IDs and supports the open-registration
+  attack in [2.5].
+
+[2.7] Stale session role/orgId in Redis never reconciled with DB after login
+Agent: 5 — Auth & RBAC
+File: apps/api/src/lib/session.ts
+Line: 21–28, 60–82
+Detail: SessionData.role/orgId written once at login and read on every request
+  with no DB lookup to confirm the user still holds that role. Admin demotion or
+  removal leaves the old session with elevated privileges for up to 7 days
+  (with rolling refresh via /me).
+
+[2.8] GDPR-purged users appear in /v1/portal/members listings
+Agent: 5 — Auth & RBAC
+File: apps/api/src/routes/portal.ts
+Line: 641–664
+Detail: Both org-scoped and INTERNAL_ADMIN member queries select from users
+  without deleted_at IS NULL. After purge, tombstone rows
+  (deleted-{uuid}@roots.invalid) remain visible in the member directory,
+  leaking anonymized-but-identifiable account metadata against KC2.7 intent.
+
+[2.9] Login does not reject accounts with deleted_at set
+Agent: 5 — Auth & RBAC
+File: apps/api/src/routes/auth.ts
+Line: 132–147
+Detail: DB login path verifies password but never checks user.deletedAt. Purged
+  accounts rely on the invalid passwordHash sentinel to block login indirectly;
+  a partial purge failure or hash-format change could allow re-authentication.
+
+[2.10] Team-invite claim sets session cookie with wrong SameSite in prod cross-origin
+Agent: 5 — Auth & RBAC
+File: apps/api/src/routes/association.ts
+Line: 60–66, 590–591
+Detail: Local SESSION_COOKIE_OPTIONS uses sameSite: 'Lax', while session.ts
+  uses sameSite: 'none' + secure: true in prod for cross-host setup. On
+  Railway/prod this can prevent the post-claim session cookie from being
+  stored or sent.
+
+[2.11] Association dashboard exposes raw seller invite tokens in API response
+Agent: 4 — Backend, API & Data
+File: apps/api/src/routes/dashboard.ts
+Line: 109–123
+Detail: GET /dashboard/association returns inviteToken for every team to any
+  ASSOCIATION_ADMIN. Any compromised admin session (or XSS) gets live
+  seller-registration secrets without a separate privileged action.
+
+[2.12] Checkout accepts orders for inactive sellers
+Agent: 4 — Backend, API & Data
+File: apps/api/src/routes/checkout.ts
+Line: 186–214
+Detail: After loading the seller, route validates campaign ACTIVE status but
+  never checks sellers.status. A seller marked INACTIVE via PATCH
+  /dashboard/sellers/:id can still receive new Klarna sessions and paid orders.
+
+[2.13] Checkout create has no idempotency — retries spawn duplicate orders
+Agent: 4 + 7 (independently flagged)
+File: apps/api/src/routes/checkout.ts
+Line: 111–425
+Detail: Unlike B2B orders (which have idempotencyKey in schema/contracts),
+  POST /checkout/create always inserts a new customer_orders DRAFT row and
+  opens a new Klarna session. Retries or double-taps produce multiple
+  pending/paid orders for one cart.
+
+[2.14] Klarna PAID transitions use non-conditional updates (race + duplicate side effects)
+Agent: 4 — Backend, API & Data
+File: apps/api/src/routes/checkout.ts
+Line: 479–506, 531–559
+Detail: Webhook and /confirm/:orderId both run UPDATE … SET status='PAID' WHERE
+  klarna_order_id/id = ? without AND status = 'PENDING'. Concurrent paths can
+  both call acknowledgeOrder and both trigger sendOrderConfirmationIfNeeded.
+
+[2.15] PAID transition allows any non-PAID status (incl. FAILED) to become PAID via webhook
+Agent: 7 — Fortnox & Commerce
+File: apps/api/src/routes/checkout.ts
+Line: 479–483
+Detail: Guard is existingOrder.status !== 'PAID' only. A FAILED, future
+  CANCELLED, or REFUNDED row could be flipped back to PAID if Klarna later
+  sends checkout_complete. Confirm-polling correctly gates on 'PENDING'; the
+  webhook does not.
+
+[2.16] Payout PATCH allows PENDING → PAID without passing through INVOICED
+Agent: 4 + 7 (independently flagged)
+File: apps/api/src/routes/payouts.ts
+Line: 214–255
+Detail: State machine gates INVOICED to require PENDING, but PAID is only blocked
+  when already PAID. INTERNAL_ADMIN can mark a payout paid while still PENDING,
+  bypassing invoicing and the intended settlement accounting flow.
+
+[2.17] Order confirmation email dedup is in-memory only, not race-safe across instances
+Agent: 7 — Fortnox & Commerce
+File: apps/api/src/routes/checkout.ts
+Line: 56–92
+Detail: sendOrderConfirmationIfNeeded uses a process-local _sentOrderIds Set;
+  comment references confirmationEmailSentAt on the order row, but that column
+  does not exist. Webhook + confirm-polling racing on two API instances can
+  both pass the Set check and send duplicate confirmation emails.
+
+[2.18] Klarna webhook accepts signature OR IP allowlist, not both when configured
+Agent: 7 — Fortnox & Commerce
+File: apps/api/src/routes/checkout.ts
+Line: 451–466
+Detail: When KLARNA_WEBHOOK_SECRET is set, IP allowlist is skipped entirely. An
+  attacker with a stolen secret can POST from any IP. Defense-in-depth: require
+  valid HMAC AND a Klarna source IP when both are configured.
+
+[2.19] Non-prod Klarna webhook is open when neither secret nor IP list is configured
+Agent: 7 — Fortnox & Commerce
+File: apps/api/src/routes/checkout.ts
+Line: 433–467
+Detail: Production fails closed (503); dev/staging falls through with no auth.
+  Anyone knowing a klarnaOrderId can POST to /v1/checkout/webhook/:id and flip
+  orders to PAID on staging if they can reach the API.
+
+[2.20] Seller invite max-uses enforced outside transaction — concurrent signups exceed cap
+Agent: 4 — Backend, API & Data
+File: apps/api/src/routes/auth.ts
+Line: 1136–1201
+Detail: inviteTokenMaxUses/inviteTokenUseCount validated before db.transaction,
+  but increment happens inside tx without re-checking the limit. Parallel
+  POST /register/seller can both pass pre-check and both increment.
+
+[2.21] Portal POST /orders silently drops unknown products instead of rejecting
+Agent: 4 — Backend, API & Data
+File: apps/api/src/routes/portal.ts
+Line: 455–465
+Detail: Invalid productId values skipped with continue rather than returning
+  400. The client believes all items were ordered while the server persists a
+  partial order at lower totalOre, causing wrong fulfillment and billing.
+
+[2.22] Portal POST /orders lacks qty validation — NaN/negative totals possible
+Agent: 4 — Backend, API & Data
+File: apps/api/src/routes/portal.ts
+Line: 438–465
+Detail: Request body items not validated with Zod or integer bounds (contrast
+  /portal/quotes and /checkout/create). Missing/non-integer qty can yield NaN
+  in totalOre or zero-line orders that still insert a header row.
+
+[2.23] Quote creation uses fragile raw SQL for product IN-clause
+Agent: 4 — Backend, API & Data
+File: apps/api/src/routes/portal.ts
+Line: 1060–1063
+Detail: Product lookup uses sql`${products.id} IN ${productIds}` instead of
+  Drizzle's inArray(). Only such usage in the codebase; may produce invalid
+  SQL or incorrect parameter binding at runtime.
+
+[2.24] Settlement invoice creation is not atomic with external provider call
+Agent: 4 — Backend, API & Data
+File: apps/api/src/routes/settlement.ts
+Line: 369–415
+Detail: Fortnox invoice created first; DB update to INVOICED happens afterward
+  with no compensating transaction. If DB update fails after Fortnox succeeds,
+  orphan external invoice not reflected in payouts.fortnoxInvoiceId/status.
+
+[2.25] Cart-clear race on confirmation page can restore cart from sessionStorage
+Agent: 7 — Fortnox & Commerce
+File: apps/web/src/app/(shop)/shop/[slug]/bekraftelse/page.tsx
+Line: 58–90
+Detail: KC1.6 calls clearCart() after confirm, but useCart hydrates from
+  sessionStorage in a separate mount effect. If confirm resolves before
+  hydration, the hydration effect can repopulate the cart from storage after
+  clear, enabling accidental duplicate checkout sessions.
+
+[2.26] Fundraising invite links fall back to localhost when SITE_URL is unset
+Agent: 3 — Frontend Stack
+File: apps/web/src/app/(fundraising)/forening/lag/page.tsx
+Line: 31 (also lag/saljare/page.tsx, min-shop/page.tsx)
+Detail: SITE_URL defaults to http://localhost:3000. Copied invite URLs would
+  point at localhost in production if NEXT_PUBLIC_SITE_URL is missing,
+  breaking seller/leader onboarding. Other parts of the app correctly default
+  to https://roots.se.
+
+[2.27] Portal auth bootstrap fetch has no unmount/cancel guard
+Agent: 3 — Frontend Stack
+File: apps/web/src/app/(portal)/portal/layout.tsx
+Line: 115–127 (also (fundraising)/layout.tsx 52–75)
+Detail: /v1/auth/me effect calls setUser/router.replace without a cancelled
+  flag. Fast navigation away or Strict Mode double-mount can apply stale auth
+  state or trigger redirects after unmount.
+
+[2.28] useSearchParams used without Suspense boundary — login, kassa, bekraftelse
+Agent: 1 + 3 (independently flagged)
+File: apps/web/src/app/(auth)/login/page.tsx (50–53)
+      apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx (39–42)
+      apps/web/src/app/(shop)/shop/[slug]/bekraftelse/page.tsx (51–55)
+Detail: Next 15 requires Suspense around useSearchParams in client components.
+  Already fixed on /forening and /kom-igang; missing on login + entire
+  supporter checkout path. Can cause prerender failures and full CSR bailout.
+
+[2.29] Order confirmation fetch can set state after unmount
+Agent: 3 — Frontend Stack
+File: apps/web/src/app/(shop)/shop/[slug]/bekraftelse/page.tsx
+Line: 64–99
+Detail: confirm() async effect has no cancelled flag. Slow network + user
+  navigating away calls setOrder/setErrorKind/setLoading on an unmounted
+  component, causing React warnings and possible UI flicker.
+
+[2.30] OpenClaw gateway not implemented — backend calls OpenAI directly
+Agent: 6 — AI & Open Claw
+File: apps/api/src/lib/ai/openclaw-client.ts
+Line: 1–132
+Detail: Strategy doc specifies BFF → OpenClaw gateway with MCP tools and model
+  routing; openclaw-client.ts is a thin wrapper around OpenAI's chat completions
+  endpoint. No OPENCLAW_BASE_URL, no gateway auth, no path to multi-model or
+  tool-use orchestration.
+
+[2.31] Server SSE streams do not abort upstream OpenAI fetch on client disconnect
+Agent: 6 — AI & Open Claw
+File: apps/api/src/routes/ai-chat.ts (138–155); apps/api/src/routes/public-chat.ts (100–118)
+Detail: Clients abort via AbortController, but the route never forwards
+  c.req.raw.signal into chatCompletionStream. Server keeps consuming the OpenAI
+  stream until timeout (30s), wasting tokens and compute on every tab-close.
+
+[2.32] Hair-analysis idempotency key does not dedupe expensive vision calls
+Agent: 4 + 6 (independently flagged)
+File: apps/api/src/routes/hair-analysis.ts
+Line: 133–170
+Detail: Duplicate idempotency-key values cause a DB unique-constraint failure
+  that is caught and logged, then execution continues to runHairAnalysisVision.
+  Retries/double-clicks trigger multiple vision API calls — the most expensive
+  endpoint in the stack.
+
+[2.33] Hair-analysis accepts ~6.5M-char base64 payloads (far above client 4MB cap)
+Agent: 6 — AI & Open Claw
+File: apps/api/src/routes/hair-analysis.ts
+Line: 12, 97–99
+Detail: MAX_IMAGE_CHARS = 6_500_000 allows very large images through to the
+  vision model even though the wizard caps at 4MB. Two huge images per
+  request consume massive vision tokens before the 15/day IP limit matters.
+
+[2.34] Free-text notes injected into vision prompt without sanitization
+Agent: 6 — AI & Open Claw
+File: apps/api/src/lib/ai/hair-analysis-run.ts
+Line: 54–89, 112
+Detail: User-supplied answers.notes (up to 2000 chars) embedded verbatim via
+  JSON.stringify(answers) and buildBranchingContext. Prompt-injection /
+  exfiltration surface; only the static system prompt resists this.
+
+[2.35] Biometric hair photos sent to OpenAI with no server-side retention/TTL controls
+Agent: 6 — AI & Open Claw
+File: apps/api/src/lib/ai/hair-analysis-run.ts
+Line: 105–107
+Detail: Two user head/hair images forwarded as image_url data URLs on every
+  analysis. Roots does not persist images (good), but no code-level
+  data-minimization, blur/redaction, or post-call purge hook — reliance is
+  entirely on vendor DPA and privacy copy.
+
+[2.36] No CI/CD pipeline exists despite deploy runbook requiring green CI
+Agent: 8 — Security, DevOps & SEO
+File: docs/runbooks/deploy.md
+Line: 8
+Detail: Repo has no .github/workflows/ (or other CI config). Deploy runbook
+  assumes main is green on typecheck/lint/tests, but nothing enforces that.
+  Regressions can ship via manual Railway/Docker deploys with no gate.
+
+[2.37] Content-Security-Policy is report-only, not enforced, on the web app
+Agent: 8 — Security, DevOps & SEO
+File: apps/web/next.config.ts
+Line: 45–48
+Detail: Headers set Content-Security-Policy-Report-Only only. Browsers do not
+  block XSS/injection payloads; they only log violations. Strategy doc §1
+  expects an enforcing CSP before launch.
+
+[2.38] Production Docker builds skip TypeScript checking
+Agent: 8 — Security, DevOps & SEO
+File: apps/web/Dockerfile
+Line: 27–33
+Detail: ENV SKIP_TYPECHECK=true before next build, and next.config.ts honors it
+  via ignoreBuildErrors. Container images can ship with type errors that CI/
+  local builds would catch — including portal/API field drift.
+
+[2.39] Next.js build also skips ESLint
+Agent: 3 + 8 (independently flagged)
+File: apps/web/next.config.ts
+Line: 12–14
+Detail: eslint.ignoreDuringBuilds: true means lint violations never fail
+  production builds. Combined with missing CI, code-quality regressions reach
+  prod silently.
+
+[2.40] Sentry user-context middleware reads the wrong session cookie name
+Agent: 8 — Security, DevOps & SEO
+File: apps/api/src/app.ts
+Line: 48, 59–60
+Detail: Defaults to cookie name "roots_session", but session.ts sets/reads
+  "rootsSessionId" (unless SESSION_COOKIE_NAME overrides). KC8.8 user tagging
+  on errors likely never attaches userId/role — undermining incident correlation.
+
+[2.41] /v1/auth/cancel-deletion has no rate limiting (token brute-force / abuse)
+Agent: 8 — Security, DevOps & SEO
+File: apps/api/src/routes/auth.ts
+Line: 607–623
+Detail: Unlike login, registration, contact, and preview endpoints, cancel-deletion
+  accepts unauthenticated POSTs with a token body and no checkRateLimit. Impact
+  is worse if deletion HMAC secret is weak (see [1.8]).
+
+[2.42] /v1/checkout/create has no rate limiting
+Agent: 8 — Security, DevOps & SEO
+File: apps/api/src/routes/checkout.ts
+Line: 111–136
+Detail: Checkout session creation is unauthenticated and uncapped. Attackers
+  can spam Klarna session creation, DB order rows, and confirmation-email paths.
+
+[2.43] Fortnox env validation checks wrong variable name vs runtime code
+Agent: 8 — Security, DevOps & SEO
+File: apps/api/src/lib/validate-env.ts
+Line: 89–90, 114
+Detail: Validator requires/warns on FORTNOX_TOKEN, but invoicing reads
+  FORTNOX_ACCESS_TOKEN (invoicing/index.ts:16). Boot can pass validation while
+  Fortnox silently falls back to NullProvider when FORTNOX_ENABLED=true.
+
+[2.44] No frontend error tracking (Sentry) on the Next.js app
+Agent: 8 — Security, DevOps & SEO
+File: apps/web/package.json
+Line: 12–33
+Detail: Sentry integrated only in apps/api (@sentry/node). Client-side portal/
+  checkout failures, hydration errors, and marketing-page JS crashes are
+  invisible in the same observability stack ops uses for API 500s.
+
+[2.45] No Sentry source-map upload step in CI/build
+Agent: 8 — Security, DevOps & SEO
+File: apps/api/tsup.config.ts
+Line: 24
+Detail: API bundle sets sourcemap: false and no CI workflow uploads maps.
+  Production stack traces in Sentry will be minified/unreadable.
+
+[2.46] Account-deletion cancel links put signed tokens in URL query strings
+Agent: 5 + 8 (independently flagged)
+File: apps/api/src/routes/auth.ts (533)
+      apps/web/src/app/konto/avbryt-radering/page.tsx (24–25, 37–49)
+Detail: Tokens arrive via ?token= and are sent in POST bodies. URLs can leak via
+  Referer headers, browser history, server/access logs, and analytics. /konto/
+  is not disallowed in robots.ts and the page has no noindex metadata. Use a
+  fragment + JS read, or POST-only short flow with one-time exchange.
+
+[2.47] Static sitemap excludes all dynamic seller shop pages
+Agent: 8 — Security, DevOps & SEO
+File: apps/web/src/app/sitemap.ts
+Line: 5–18
+Detail: Sitemap is a hardcoded list of marketing URLs only. /shop/[slug] pages
+  (explicitly allowed in robots.ts) are never emitted, so Google must discover
+  shops only via inbound links — major SEO gap for viral seller sharing.
+
+[2.48] Chat FAB stays at z-50 and stacks above open bottom sheet, obscuring send button
+Agent: 2 — Visual Design & Motion
+File: apps/web/src/components/chat-widget.tsx
+Line: 244–378
+Detail: Panel and floating trigger both use z-50, FAB rendered after the sheet,
+  so it paints on top of the input row when chat is open. On mobile bottom-sheet
+  layout this places a 48×48 close button directly over the send/stop controls
+  — core interaction conflict introduced by the KC6.3 bottom-sheet pattern.
+
+[2.49] AI disclaimer text at 10px / 60% muted opacity likely fails WCAG AA contrast
+Agent: 2 — Visual Design & Motion
+File: apps/web/src/components/chat-widget.tsx
+Line: 357–359
+Detail: text-[10px] text-muted-foreground/60 blends #7F715B to ~40% effective
+  contrast on white. Below the 4.5:1 AA threshold for body text at 10px and
+  easy to miss on mobile outdoors. Same pattern on portal AI page footnote.
+
+[2.50] Hero primary CTA bypasses brand tokens with raw neutral-* and hardcoded white pulse
+Agent: 2 — Visual Design & Motion
+File: apps/web/src/components/sections/hero-lead.tsx
+Line: 12–18
+Detail: Hair-analysis trigger uses bg-white text-neutral-900 hover:bg-neutral-100
+  plus arbitrary rgba(255,255,255,0.3) pulse animation instead of bg-background
+  text-foreground / primary button tokens. The highest-visibility homepage CTA
+  reads as a generic Tailwind template rather than the locked sand/ink palette.
+
+[2.51] Global error boundary renders entirely in neutral gray, off-brand when app breaks
+Agent: 2 — Visual Design & Motion
+File: apps/web/src/app/global-error.tsx
+Line: 18–38
+Detail: bg-white, text-neutral-900/400/500, bg-neutral-900 bypass all semantic
+  tokens defined in globals.css. This page replaces the root layout on
+  catastrophic failure; users see a cold gray screen instead of the warm
+  sand/ink brand — worst possible moment for brand drift.
+
+[2.52] Order status stepper uses Tailwind gray scale instead of brand muted tokens
+Agent: 2 — Visual Design & Motion
+File: apps/web/src/app/(shop)/shop/[slug]/order/[orderId]/page.tsx
+Line: 165–186
+Detail: Inactive steps use bg-gray-200 text-gray-400 and connector track is
+  bg-gray-200; active steps correctly use bg-brand-700. Supporter-facing
+  post-purchase flow, the only element on the page still on cool zinc/gray.
+
+[2.53] Portal cart sticky bar CTA overrides Button with neutral white styling
+Agent: 2 — Visual Design & Motion
+File: apps/web/src/app/(portal)/portal/produkter/page.tsx
+Line: 179–181
+Detail: Checkout action uses className="bg-white text-neutral-900 shadow-sm
+  hover:bg-neutral-100" on an inverse-surface sticky card. Cold white pill
+  floating on ink chrome instead of secondary/outline variants.
+
+[2.54] Semantic warning/success/destructive tokens exist but components use raw amber/emerald/red
+Agent: 2 — Visual Design & Motion
+File: apps/web/src/components/data-source-badge.tsx (and shop/[slug]/page.tsx,
+      kassa/page.tsx, lag/bestallningar/page.tsx)
+Line: see above
+Detail: globals.css defines --color-warning/success/destructive but live UI uses
+  Tailwind amber-*/emerald-*/red-* palettes. Demo/live badges, supporter
+  warnings, and failed-order chips look like a different product than portal
+  badges that already use Badge variant="destructive".
+
+[2.55] packages/ui Card and Input still hardcode pre-E13 hex values from old strategy doc
+Agent: 2 — Visual Design & Motion
+File: packages/ui/src/card.tsx, packages/ui/src/input.tsx
+Line: 14–17 (card); 24–27 (input)
+Detail: Card uses border-[#E8E4E0] and old brown rgba shadows; Input uses
+  border-[#D4CCC4], text-[#8C2F2F], focus:ring-brand-900/20. @roots/ui is a
+  declared workspace package and would silently reintroduce brand drift if wired.
+
+[2.56] Skip-link "Hoppa till innehåll" only works on marketing pages
+Agent: 1 — UX, IA & Navigation
+File: apps/web/src/app/layout.tsx
+Line: 82–87
+Detail: Root layout links to #main-content, but only (marketing)/layout.tsx
+  sets id="main-content". Auth, portal, fundraising, shop, and konto/ lack it
+  — keyboard users activating the skip link land without focus change.
+
+[2.57] /hjalp tappar inloggad app-kontext, visar public header/footer
+Agent: 1 — UX, IA & Navigation
+File: apps/web/src/app/(marketing)/layout.tsx
+Line: 11–18
+Detail: Portal and fundraising layouts link to /hjalp, but the page lives under
+  (marketing) and renders public Header, Footer, and ChatWidget. Logged-in
+  users lose sidebar, role context, and a clear way back to /portal or /forening.
+
+=====================================================
+PRIORITY 3 — MEDIUM
+=====================================================
+
+[3.1] Portal dashboard swallow:ar API-fel tyst — visar "—" istället för felstate
+Agent: 1 — UX, IA & Navigation
+File: apps/web/src/app/(portal)/portal/page.tsx
+Line: 97–113, 216–234, 430–439
+Detail: All three dashboard variants call portalFetch("/dashboard") and swallow
+  errors with .catch(() => {}). On 500/network failure, user sees "—" — same
+  as "no data". Standardize on inline role="alert" + retry (already done on
+  fakturor/page.tsx).
+
+[3.2] Många portal-sidor swallow:ar API-fel tyst (saljare/klubbar/bestallningar/produkter/intakter/offerter/medlemmar/system)
+Agent: 1 — UX, IA & Navigation
+File: apps/web/src/app/(portal)/portal/saljare/page.tsx
+Line: 51–64
+Detail: Same .catch(() => {}) pattern across ~10 portal pages. Standardize on
+  portalFetch errors with inline alert + retry button.
+
+[3.3] Fundraising-layout renderar fel navigation när user är null
+Agent: 1 — UX, IA & Navigation
+File: apps/web/src/app/(fundraising)/layout.tsx
+Line: 94–134, 152
+Detail: After failed auth, layout sets loading=false but lacks `if (!user)
+  return null` (portal-layout has it on 156). Seller nav (/min-shop) flashes
+  before redirect to /login.
+
+[3.4] JSON-LD SearchAction pekar på /sok som inte finns (404)
+Agent: 1 + 8 (independently flagged)
+File: apps/web/src/components/json-ld.tsx
+Line: 137–144
+Detail: SiteJsonLd declares urlTemplate: …/sok?q={search_term_string} but no
+  /sok route exists. Google sitelink-search → 404. Implement /sok or remove
+  SearchAction.
+
+[3.5] ESLint fully disabled during production builds
+Agent: 3 — Frontend Stack
+File: apps/web/next.config.ts
+Line: 12–14
+Detail: eslint: { ignoreDuringBuilds: true } means lint violations never block
+  builds — including @next/next/no-img-element, hook deps, a11y rules. Strategy
+  doc lists ESLint as required CI check.
+
+[3.6] Portal dashboard uses untyped `stats: any` and no Zod schema
+Agent: 3 — Frontend Stack
+File: apps/web/src/app/(portal)/portal/page.tsx
+Line: 98, 217, 405
+Detail: All three role dashboards fetch /dashboard with stats: any and no
+  portalFetch schema. API field renames silently produce empty/wrong KPIs.
+
+[3.7] Most portal list endpoints skip runtime schema validation
+Agent: 3 — Frontend Stack
+File: apps/web/src/lib/portal-api.ts (call sites)
+Detail: Endpoints like /products, /orders, /sellers, /system, /statistics
+  fetched with generic type params but no @roots/contracts schema. Only
+  /members, /clubs, /pipeline, /income, some quote paths validate.
+
+[3.8] TanStack Query installed but never wired — all data via raw useEffect fetch
+Agent: 3 — Frontend Stack
+File: apps/web/package.json
+Line: 22–24
+Detail: @tanstack/react-query, @trpc/client, @trpc/react-query are
+  dependencies, but providers.tsx only wraps ToastProvider. Every portal/
+  fundraising page hand-rolls fetch+cache+loading in useEffect.
+
+[3.9] @roots/ui package is dead weight — web app never imports it
+Agent: 3 — Frontend Stack
+File: packages/ui/src/index.ts
+Line: 1–7
+Detail: next.config.ts transpiles @roots/ui, but zero imports exist under
+  apps/web/. App maintains parallel apps/web/src/components/ui/ shadcn layer
+  instead.
+
+[3.10] Entire portal shell is a client layout — no RSC data fetching for authed routes
+Agent: 3 — Frontend Stack
+File: apps/web/src/app/(portal)/portal/layout.tsx (and (fundraising)/layout.tsx)
+Line: 1
+Detail: Portal layout is "use client" and fetches auth client-side before
+  rendering children. Every /portal/* and /forening/* route ships full sidebar
+  JS bundle and waits for client waterfall before content appears.
+
+[3.11] Widespread async useEffect fetches lack cancelled/unmount guards
+Agent: 3 — Frontend Stack
+File: ~15 portal/fundraising pages (representative: saljare/page.tsx 51–65)
+Detail: portalFetch(...).then(setState) without cancelled flag. statistik and
+  installningar show the correct pattern. Stale responses can overwrite
+  fresher data after tab switches.
+
+[3.12] Quote creation dialog fires parallel fetches without abort on close
+Agent: 3 — Frontend Stack
+File: apps/web/src/app/(portal)/portal/offerter/page.tsx
+Line: 121–151
+Detail: Clubs and products load in parallel with no cleanup; closing dialog
+  before fetches complete still calls setClubs/setProducts on unmounted subtree.
+
+[3.13] Hair analysis submission cannot be cancelled if dialog closes mid-request
+Agent: 3 — Frontend Stack
+File: apps/web/src/components/hair-analysis-lead-dialog.tsx
+Line: 278–342
+Detail: submitAnalysis() sets step "loading" and awaits long-running Vision API
+  with no AbortController. Closing dialog mid-flight leaves fetch running.
+
+[3.14] Marketing FAQ/help/kontakt/haranalys pages fully client-rendered despite static content
+Agent: 3 — Frontend Stack
+File: apps/web/src/app/(marketing)/hjalp/page.tsx (and kontakt, haranalys)
+Line: 1
+Detail: "use client" with hardcoded FAQ arrays and only client state for
+  toggles/contact form. Ships unnecessary JS to anonymous visitors.
+
+[3.15] Production console.error without user-facing error surfacing
+Agent: 3 — Frontend Stack
+File: apps/web/src/app/(portal)/portal/offerter/page.tsx
+Line: 136, 150 (also bestallningar/page.tsx 177)
+Detail: Failed club/product loads log to console but leave dialog in broken
+  empty state with no toast or inline error.
+
+[3.16] Registration endpoints accept arbitrarily weak passwords
+Agent: 4 + 5 (independently flagged)
+File: apps/api/src/routes/auth.ts
+Line: 772–823 (association), 903–952 (team-leader), 1093–1165 (seller)
+Detail: /register/association, /register/team-leader, /register/seller hash
+  whatever password is supplied with no length/complexity check (unlike
+  /change-password). Strategy doc recommends min 12 characters.
+
+[3.17] REST portal order creation ignores contracts Zod schema and idempotency
+Agent: 4 — Backend, API & Data
+File: packages/contracts/src/orders.ts
+Line: 33–44
+Detail: CreateOrderSchema requires idempotencyKey and typed line items, but
+  POST /portal/orders uses untyped manual parsing and never reads
+  Idempotency-Key. Contracts diverge from shipped REST path.
+
+[3.18] State-changing portal/dashboard endpoints still missing audit-log calls
+Agent: 4 — Backend, API & Data
+File: apps/api/src/routes/portal.ts (422–499, 685–794, 975–1128)
+      apps/api/src/routes/dashboard.ts (138–223, 365–472, 475–588, 611–728)
+Detail: KC8.4 added audit broadly, but POST /portal/orders, /portal/members/
+  invite, /portal/quotes, PATCH /association/team-goals, /sellers/:id,
+  POST /team/:teamId/sellers, /rotate-invite-token mutate without auditLog().
+
+[3.19] audit_logs table has no indexes for admin list/filter queries
+Agent: 4 — Backend, API & Data
+File: packages/db/src/schema/audit.ts
+Line: 3–11
+Detail: Admin GET /admin/audit-log orders by created_at DESC and filters on
+  action, entity_type, date range, but schema defines no indexes. Will degrade
+  to full table scans as KC8 volume grows.
+
+[3.20] order_lines missing index on order_id (unlike customer_order_lines)
+Agent: 4 — Backend, API & Data
+File: packages/db/src/schema/orders.ts
+Line: 52–62
+Detail: /portal/statistics joins order_lines → orders grouped by product, but
+  order_lines.order_id has no index in schema or migrations (while
+  customer_order_lines_order_id_idx exists).
+
+[3.21] Missing composite index on customer_orders for notification/dashboard filters
+Agent: 4 — Backend, API & Data
+File: packages/db/src/schema/customer-orders.ts
+Line: 76–83
+Detail: Frequent (org_id|team_id|seller_id) + status + created_at filters; only
+  single-column indexes exist. No composite (org_id, status, created_at).
+
+[3.22] Missing index on orders.invoice_status for income/statistics queries
+Agent: 4 — Backend, API & Data
+File: packages/db/src/schema/orders.ts
+Line: 46–50
+Detail: /portal/income and club notifications filter invoice_status IN
+  ('ISSUED','PAID') with optional org_id; only org_id, user_id, created_at
+  indexed.
+
+[3.23] Internal-admin notifications query wrong audit action names
+Agent: 4 — Backend, API & Data
+File: apps/api/src/routes/notifications.ts
+Line: 287–293
+Detail: High-signal filter includes auth.login.fail, but auth routes emit
+  auth.login.failed. Failed-login events never appear in INTERNAL_ADMIN feed.
+
+[3.24] Contact form interpolates user input into HTML email without escaping
+Agent: 4 — Backend, API & Data
+File: apps/api/src/routes/contact.ts
+Line: 49–57
+Detail: name, email, subject, message embedded directly into HTML body sent
+  to ops. Submitter can inject HTML/script into staff inbox (HTML injection /
+  phishing within internal mail clients).
+
+[3.25] BankID auth endpoints are public with no rate limiting
+Agent: 4 — Backend, API & Data
+File: apps/api/src/routes/bankid.ts
+Line: 21–82
+Detail: POST /auth/start, /collect, /cancel require no session and have no IP
+  rate limits. Attacker can spam BankID adapter calls, exhausting provider
+  quota.
+
+[3.26] Team-invite resend documents rate limit but does not implement it
+Agent: 4 — Backend, API & Data
+File: apps/api/src/routes/association.ts
+Line: 671–672, 674–807
+Detail: Comment claims "5 resends per 10 min per invite", but POST
+  /team-invites/:id/resend has no Redis/checkRateLimit guard.
+
+[3.27] requireSession duplicated across 8+ route files with behavioral drift
+Agent: 5 — Auth & RBAC
+File: apps/api/src/routes/portal.ts, dashboard.ts, association.ts, payouts.ts,
+      admin.ts, notifications.ts, sharing.ts, sales.ts, settlement.ts
+Detail: Each file re-implements cookie parsing + getSession() independently.
+  Only settlement.ts embeds role + demo checks inside its helper.
+
+[3.28] isDemoSession only blocks in-memory demoProfile sessions, not DB-seeded demo accounts
+Agent: 5 — Auth & RBAC
+File: apps/api/src/lib/session.ts
+Line: 165–167
+Detail: When ROOTS_ENABLE_DEMO_ACCOUNTS=true in staging/prod, demo users log in
+  via DB with real userId/orgId and no demoProfile flag. They pass
+  isDemoSession() and can mutate production data via routes lacking demo guards.
+
+[3.29] Association/dashboard mutation routes missing isDemoSession guards
+Agent: 5 — Auth & RBAC
+File: apps/api/src/routes/association.ts (288–294, 815–821)
+      apps/api/src/routes/dashboard.ts (138–147)
+Detail: POST /campaigns, /team-invites, PATCH /association/team-goals mutate
+  real DB state but lack the demo blocks present on payouts, settlement,
+  portal quotes, sales leads.
+
+[3.30] Entire /v1/internal/cron prefix is CSRF-exempt
+Agent: 5 — Auth & RBAC
+File: apps/api/src/app.ts
+Line: 111–114, 117–119
+Detail: CSRF middleware skips all mutating requests under /v1/internal/cron/*.
+  Future endpoint added under this prefix inherits CSRF exemption automatically.
+
+[3.31] Onboarding team_leader step counts purged users
+Agent: 5 — Auth & RBAC
+File: apps/api/src/routes/association.ts
+Line: 164–167, 183
+Detail: teamLeaderCount queries users with org + role filter but no
+  deleted_at IS NULL. Purged team leaders still satisfy onboarding checklist.
+
+[3.32] Payout-paid notification may target purged association admin
+Agent: 5 — Auth & RBAC
+File: apps/api/src/routes/payouts.ts
+Line: 278–290
+Detail: When marking payout PAID, email lookup selects first ASSOCIATION_ADMIN
+  for org without filtering deleted_at. Tombstone email could receive payment
+  notifications.
+
+[3.33] No RAG / vector retrieval — chat answers from static prompts only
+Agent: 6 — AI & Open Claw
+File: apps/api/src/lib/ai/system-prompt.ts
+Line: 26–60
+Detail: Strategy doc §4 calls for pgvector RAG over product docs/FAQ with
+  cite-or-defer guardrails. Implementation bakes product/company context into
+  hardcoded strings with no retrieval pipeline.
+
+[3.34] MCP tools defined but never wired into any chat route
+Agent: 6 — AI & Open Claw
+File: apps/api/src/lib/ai/mcp-tools.ts
+Line: 13–43
+Detail: lookup_product and check_order_status exist as read-only stubs but not
+  imported by ai-chat.ts, public-chat.ts, or the OpenAI client. Portal UI chips
+  like "Sammanfatta min pipeline" cannot be grounded in real data.
+
+[3.35] Token usage parsed but never logged, persisted, or exposed to ops
+Agent: 6 — AI & Open Claw
+File: apps/api/src/lib/ai/openclaw-client.ts
+Line: 59–64
+Detail: chatCompletion returns usage.promptTokens/completionTokens, but
+  ai-chat.ts and public-chat.ts discard it. /portal/system hardcodes
+  tokensToday/Month as null. No cost visibility or abuse detection.
+
+[3.36] No audit_logs entries for AI rate limits, fallbacks, or errors
+Agent: 6 — AI & Open Claw
+File: apps/api/src/routes/ai-chat.ts
+Line: 84–92, 145–171
+Detail: Auth and campaign flows use auditLog(); AI routes only emit pino logs.
+  Rate-limit 429s, fallback:true responses, and OpenAI failures leave no
+  immutable trail for compliance, cost investigation, or admin /portal/system
+  event feed.
+
+[3.37] No OpenAI Moderation or output filter on any AI surface
+Agent: 6 — AI & Open Claw
+File: apps/api/src/lib/ai/openclaw-client.ts
+Line: 26–69
+Detail: User messages and model outputs pass straight through with no pre/post
+  moderation. For a public guest widget and a lead-magnet sending photos, this
+  leaves harmful content handling entirely to base model refusal.
+
+[3.38] OpenAI errors collapsed to generic throw — no 429 retry/backoff or model fallback
+Agent: 6 — AI & Open Claw
+File: apps/api/src/lib/ai/openclaw-client.ts
+Line: 51–52, 97–98
+Detail: Non-OK responses become throw new Error(`OpenAI API error: ${res.status}`)
+  with no distinction for 429, 503, or deprecated-model. No retry-with-backoff
+  or alternate-model routing.
+
+[3.39] tRPC ai.chat is a dead stub that always returns "not activated yet"
+Agent: 6 — AI & Open Claw
+File: apps/api/src/trpc/routers/ai.ts
+Line: 16–33
+Detail: Even when isAiConfigured() is true, the mutation returns a hardcoded
+  placeholder instead of calling the real chat pipeline. Misleading second API
+  surface alongside the working REST endpoints.
+
+[3.40] Hair-analysis frontend ignores fallback:true — degraded results shown as full analysis
+Agent: 6 — AI & Open Claw
+File: apps/web/src/components/hair-analysis-lead-dialog.tsx
+Line: 322–335
+Detail: When OpenAI is down the API correctly returns HTTP 200 with
+  fallback:true and generic JSON, but the wizard parses and renders it
+  identically to a real analysis. Users see "Din håranalys är klar".
+
+[3.41] Privacy policy discloses OpenAI for hair analysis but not for public/portal chat
+Agent: 6 — AI & Open Claw
+File: apps/web/src/app/(marketing)/integritet/page.tsx
+Line: 107–108
+Detail: Section 5 lists OpenAI only under "håranalys". Marketing chat widget
+  and portal AI also send messages to OpenAI but are not mentioned. GDPR
+  transparency gap.
+
+[3.42] Free-text notes may contain PII forwarded verbatim to OpenAI
+Agent: 6 — AI & Open Claw
+File: apps/api/src/lib/ai/hair-analysis-run.ts
+Line: 86–87
+Detail: Optional notes ("T.ex. kliar hårbotten…") passed raw into the model
+  prompt. Users may include names, phone numbers, medical details; no PII
+  scrubbing before third-party transmission.
+
+[3.43] Klarna webhook does not use wasWebhookEventSeen (KC8.3) — only Fortnox does
+Agent: 7 — Fortnox & Commerce
+File: apps/api/src/routes/checkout.ts
+Line: 427–515
+Detail: Fortnox webhook uses Redis-backed dedup via wasWebhookEventSeen, but
+  Klarna push notifications have no equivalent. Each retry re-runs
+  acknowledgeOrder, re-emits order.paid audit logs, re-triggers email send.
+
+[3.44] Fortnox VAT back-calculation uses toFixed(2) on SEK — öre mismatch vs rootsShareOre
+Agent: 7 — Fortnox & Commerce
+File: apps/api/src/lib/invoicing/fortnox-provider.ts
+Line: 183–189
+Detail: Invoice row Price is computed as (unitPriceOre/100/1.25).toFixed(2)
+  before sending to Fortnox ex-VAT. Rounding to 2 decimal SEK can make
+  Fortnox's recomputed line total differ by 1–2 öre from payout.rootsShareOre.
+
+[3.45] Checkout Klarna tax lines use per-line Math.round — can diverge from Klarna's aggregate
+Agent: 7 — Fortnox & Commerce
+File: apps/api/src/routes/checkout.ts
+Line: 247, 288–296
+Detail: Each line's total_tax_amount is Math.round(lineTotal - lineTotal/1.25)
+  and summed. Klarna may round tax differently at order level on multi-line
+  carts with shipping, causing session-creation rejections.
+
+[3.46] Cart is not cleared while order remains PENDING on confirmation page
+Agent: 7 — Fortnox & Commerce
+File: apps/web/src/app/(shop)/shop/[slug]/bekraftelse/page.tsx
+Line: 88–90, 148–161
+Detail: KC1.6 only clears the cart when status is PAID or CONFIRMED. While
+  page shows "Din betalning behandlas…", cart stays in sessionStorage. User
+  navigating back can initiate a second checkout.
+
+[3.47] Fortnox webhook dedup skipped when eventId is absent
+Agent: 7 — Fortnox & Commerce
+File: apps/api/src/routes/fortnox-webhook.ts
+Line: 50–59
+Detail: wasWebhookEventSeen runs only when body.eventId is truthy. If Fortnox
+  omits or renames the field, duplicate deliveries would be processed twice
+  once the handler is wired to mutate payout status.
+
+[3.48] Settlement generate has no concurrency lock — parallel runs can double-process
+Agent: 7 — Fortnox & Commerce
+File: apps/api/src/routes/settlement.ts
+Line: 49–184
+Detail: Two concurrent POST /generate/:campaignId both pass campaign.status !==
+  'ENDED' check, both upsert payouts, both set campaign SETTLED in separate
+  transactions. Amounts can race; audit logs duplicate.
+
+[3.49] CSP draft allows unsafe-inline and unsafe-eval for scripts
+Agent: 8 — Security, DevOps & SEO
+File: apps/web/next.config.ts
+Line: 46–47
+Detail: Even report-only policy permits inline scripts and eval. When switched
+  to enforcing mode, weakens XSS protection substantially. Plausible
+  (layout.tsx:70–74) will also require explicit script-src https://plausible.io.
+
+[3.50] API security headers include unsafe-inline for scripts/styles
+Agent: 8 — Security, DevOps & SEO
+File: apps/api/src/middleware/security-headers.ts
+Line: 14–15
+Detail: JSON API responses carry CSP with 'unsafe-inline' on script/style
+  sources. Less impactful than HTML, but inconsistent with stricter target.
+
+[3.51] Missing Cross-Origin-Opener-Policy and Cross-Origin-Embedder-Policy headers
+Agent: 8 — Security, DevOps & SEO
+File: apps/web/next.config.ts
+Line: 19–51
+Detail: Neither web nor API sets COOP/COEP. Recommended for modern isolation,
+  especially if payment widgets or third-party scripts expand.
+
+[3.52] INTERNAL_CRON_TOKEN, DELETION_TOKEN_SECRET, SITE_PREVIEW_PASSWORD missing from .env.example
+Agent: 8 — Security, DevOps & SEO
+File: .env.example
+Line: 45–142
+Detail: Recent KC2/KC8 batches introduced these secrets, but they are
+  undocumented and not validated at boot (except cron failing closed when
+  token absent).
+
+[3.53] SESSION_SECRET documented as required but unused for sessions and not validated
+Agent: 8 — Security, DevOps & SEO
+File: .env.example
+Line: 46–48
+Detail: .env.example says SESSION_SECRET is for session HMAC, but session.ts
+  stores opaque UUIDs in Redis without signing. Only deletion tokens consume it.
+
+[3.54] Seller shop pages lack Product JSON-LD (only marketing product pages have it)
+Agent: 8 — Security, DevOps & SEO
+File: apps/web/src/app/(shop)/shop/[slug]/page.tsx
+Line: 73–99
+Detail: Marketing /produkter/[slug] renders ProductJsonLd, but seller shops
+  client-rendered with no structured data for listed products.
+
+[3.55] Shop product content is client-only ("use client"), limiting crawler-visible HTML
+Agent: 8 — Security, DevOps & SEO
+File: apps/web/src/app/(shop)/shop/[slug]/page.tsx
+Line: 1, 82–99
+Detail: Shop inventory loads via client fetch in useEffect. Crawlers that don't
+  execute JS see mostly shell content despite OG metadata in layout.
+
+[3.56] Synthetic monitor does not verify sitemap, shop pages, or checkout health
+Agent: 8 — Security, DevOps & SEO
+File: scripts/synthetic.mjs
+Line: 18–28, 82–93
+Detail: Checks cover healthz/readyz/csrf/home/robots only. Homepage check
+  returns 200 even when preview gate is active (rewrite, not real homepage)
+  — false-positive risk.
+
+[3.57] robots.txt omits sensitive web paths /api/, /trpc/, /konto/
+Agent: 8 — Security, DevOps & SEO
+File: apps/web/src/app/robots.ts
+Line: 14–22
+Detail: Portal/auth blocked, but same-origin API proxy (/api/) and tRPC proxy
+  are not. /konto/avbryt-radering?token=... can be crawled if linked.
+
+[3.58] Auth pages lack pageMetadata / explicit noindex (rely on robots.txt only)
+Agent: 8 — Security, DevOps & SEO
+File: apps/web/src/app/(auth)/login/layout.tsx
+Line: 3–10
+Detail: Login/registrera use hand-written metadata without noindex. Page-level
+  robots tags are the defense-in-depth pattern used elsewhere.
+
+[3.59] /v1/auth/delete-account has no rate limit on password attempts
+Agent: 8 — Security, DevOps & SEO
+File: apps/api/src/routes/auth.ts
+Line: 404–489
+Detail: Authenticated deletion requires password verification but no throttle
+  beyond session auth. Stolen session enables online password guessing.
+
+[3.60] Internal cron endpoint has no brute-force protection on Bearer token
+Agent: 8 — Security, DevOps & SEO
+File: apps/api/src/routes/internal-cron.ts
+Line: 24–38, 42–48
+Detail: Failed Bearer attempts return 401 with no IP-based rate limit. Short or
+  leaked INTERNAL_CRON_TOKEN enables online guessing.
+
+[3.61] Open-redirect hardening may miss encoded slash smuggling in ?next=
+Agent: 8 — Security, DevOps & SEO
+File: apps/web/src/app/(auth)/login/page.tsx
+Line: 28–34
+Detail: pickSafeNext blocks // prefixes but not paths like /%2F%2Fevil.com
+  before decode. Could become open redirect depending on Next router decoding.
+
+[3.62] /v1/portal/orders detail/list inconsistency — list exposes B2B to fundraising
+Agent: 5 — Auth & RBAC
+File: apps/api/src/routes/portal.ts
+Line: 289–313 (list) vs 335–340 (detail)
+Detail: List returns all orders for session.orgId for any role; detail blocks
+  non-portal via isPortalRole(). Fundraising user can enumerate B2B
+  subscription orders/invoices.
+
+[3.63] Deletion cancel token transmitted in URL query string (related to [2.46])
+Agent: 5 — Auth & RBAC
+File: apps/api/src/routes/auth.ts (533); apps/web/src/app/konto/avbryt-radering/page.tsx
+Detail: Cancel links embed HMAC token in ?token=, exposing to history/logs/
+  referrer. Token is reusable until deletion executes.
+
+[3.64] Sökdialog saknar DialogTitle (Radix/a11y-krav)
+Agent: 1 — UX, IA & Navigation
+File: apps/web/src/components/search-dialog.tsx
+Line: 151–166
+Detail: SearchDialog renders DialogContent with input but no DialogTitle/
+  DialogDescription. Screen readers announce dialog without name.
+
+[3.65] Mobil header-meny saknar fokusfälla
+Agent: 1 — UX, IA & Navigation
+File: apps/web/src/components/header.tsx
+Line: 198–208
+Detail: Overlay has role="dialog" + aria-modal="true" and body scroll-lock,
+  but Tab can reach content behind overlay. Portal sidebar has same gap.
+
+[3.66] Notifikationsklockan saknar aria-expanded och Escape-stängning
+Agent: 1 + 2 (independently flagged)
+File: apps/web/src/components/notification-bell.tsx
+Line: 142–170 (1); 163–169 (2)
+Detail: Dropdown togglas utan aria-expanded; no Escape keydown handler; close
+  button lacks explicit focus ring classes.
+
+[3.67] Portal/fundraising/shop pages saknar unika sidtitlar (browser tabs)
+Agent: 1 — UX, IA & Navigation
+File: apps/web/src/app/(portal)/portal/layout.tsx
+Line: 96–100
+Detail: KC7 pageMetadata covers marketing, but all portal pages are "use
+  client" without generateMetadata. 10+ tabs show same default title.
+
+[3.68] Valideringsfel via toast försvinner efter 3s (svårt att läsa/korrigera)
+Agent: 1 — UX, IA & Navigation
+File: apps/web/src/components/ui/toast.tsx
+Line: 30–35
+Detail: Toasts auto-dismiss after 3000ms regardless of variant. Validation
+  errors in toast disappear while form stays — use inline role="alert".
+
+[3.69] Portal inställningar visar "Aktiv" notiser utan faktiska kontroller
+Agent: 1 — UX, IA & Navigation
+File: apps/web/src/app/(portal)/portal/installningar/page.tsx
+Line: 426–454
+Detail: Hardcoded green "Aktiv" badges for e-post/leverans without toggles or
+  API. Users think settings save when they don't — trust issue.
+
+[3.70] Håranalys-dialog saknar mobil bottom-sheet (KC6.3-mönster)
+Agent: 1 — UX, IA & Navigation
+File: apps/web/src/components/hair-analysis-lead-dialog.tsx
+Line: 354
+Detail: ChatWidget got KC6.3 bottom-sheet; håranalys still uses centered
+  DialogContent (max-h-[92vh], max-w-2xl). Multi-step wizard with photo upload
+  hard to reach on iPhone.
+
+[3.71] Chat-widget låser inte body-scroll på mobil när öppen
+Agent: 1 — UX, IA & Navigation
+File: apps/web/src/components/chat-widget.tsx
+Line: 226–233
+Detail: Backdrop exists but document.body.style.overflow never set (header-menu
+  does it). Mobile users can scroll page behind bottom-sheet.
+
+[3.72] Desktop "Boka demo"-ikon leder till /foreningsliv, inte kontakt/demo
+Agent: 1 — UX, IA & Navigation
+File: apps/web/src/components/header.tsx
+Line: 168–174, 246–252
+Detail: CalendarCheck button has aria-label="Boka demo" but href="/foreningsliv".
+  Identical CTA labels with different intent confuse users.
+
+[3.73] Fundraising mobilmeny saknar Hjälp-länk; portal mobil-header saknar Hjälp
+Agent: 1 — UX, IA & Navigation
+File: apps/web/src/app/(fundraising)/layout.tsx (171–178)
+      apps/web/src/app/(portal)/portal/layout.tsx (256–272)
+Detail: Desktop sidebar shows /hjalp + NotificationBell; mobile top-bar only
+  shows bell + hamburger. Phone users cannot reach FAQ without knowing URL.
+
+[3.74] 404-sida saknar site navigation och metadata
+Agent: 1 — UX, IA & Navigation
+File: apps/web/src/app/not-found.tsx
+Line: 4–28
+Detail: not-found.tsx renders outside marketing layout — no header, footer,
+  skip target, or pageMetadata. Broken internal links → isolated white page.
+
+[3.75] konto/avbryt-radering saknar metadata och main-content landmark
+Agent: 1 — UX, IA & Navigation
+File: apps/web/src/app/konto/avbryt-radering/page.tsx
+Line: 67–147
+Detail: GDPR-critical page has neither pageMetadata nor #main-content. Email
+  links → generic tab title; skip link doesn't work.
+
+[3.76] Footer saknar cookies-länk som strategin/spec kräver
+Agent: 1 — UX, IA & Navigation
+File: apps/web/src/components/footer.tsx
+Line: 26–31
+Detail: Agent 01 footer-spec lists "cookies" under Juridik; footer has only
+  Integritet + Köpvillkor.
+
+[3.77] New <details>/<summary> accordions lack hover/focus surface feedback
+Agent: 2 — Visual Design & Motion
+File: apps/web/src/app/(portal)/portal/pipeline/page.tsx (305–317);
+      apps/web/src/app/(portal)/portal/audit-log/page.tsx (200–212)
+Detail: Summaries have cursor-pointer and chevron rotation but no hover:bg-*,
+  focus-visible:ring-*, or group-open: background shift.
+
+[3.78] Loading affordances split three ways — Loader2, border-ring, plain text
+Agent: 2 — Visual Design & Motion
+File: portal/layout.tsx (151), (fundraising)/layout.tsx (97),
+      portal/intakter/page.tsx (138), portal/bestallningar/page.tsx (448)
+Detail: Portal auth uses CSS border spinner with one color pair; fundraising
+  uses different pair; most data pages use Loader2; tables show only "Hämtar…".
+
+[3.79] Säljare dashboard renders zero KPIs during fetch with no loading state
+Agent: 2 — Visual Design & Motion
+File: apps/web/src/app/(portal)/portal/saljare/page.tsx
+Line: 43–65, 76–124
+Detail: Unlike siblings, no loading flag or spinner — immediately shows 0
+  säljare, 0 kr pipeline, empty table while /sellers resolves.
+
+[3.80] Border-radius scale drifts — lg vs xl vs 2xl vs 3xl used interchangeably
+Agent: 2 — Visual Design & Motion
+File: ui/card.tsx (9), ui/button.tsx (25–27), produkter/page.tsx (90)
+Detail: Agent 02 locks cards at 8px or 12px; tokens define --radius-lg: 12px.
+  Cards use rounded-xl (16), default buttons rounded-lg (12), lg buttons
+  rounded-xl, marketing product heroes rounded-3xl (24), hair-analysis
+  dropzones rounded-2xl.
+
+[3.81] Hero CTA pulse animation not covered by explicit motion-reduce guard
+Agent: 2 — Visual Design & Motion
+File: apps/web/src/components/sections/hero-lead.tsx
+Line: 14–16
+Detail: Floating shapes use motion-reduce:animate-none, but hero CTA's
+  arbitrary animate-[pulse-shadow-light_…] is absent from named list in
+  globals.css. Global prefers-reduced-motion only limits iteration to 1.
+
+[3.82] z-index stack puts chat, dialog, sidebar, and notification popover at same tier
+Agent: 2 — Visual Design & Motion
+File: chat-widget.tsx (246), notification-bell.tsx (157), ui/dialog.tsx (20,37),
+      portal/layout.tsx (167,175)
+Detail: Overlays z-40; panels/dropdowns/dialogs/sidebar/chat all compete at
+  z-50; toasts and skip-link z-[100]. Stacking is DOM-dependent rather than
+  layered by purpose.
+
+=====================================================
+PRIORITY 4 — LOW
+=====================================================
+
+[4.1] Raw <img> for user photo previews instead of next/image (4 sites)
+Agent: 3 — Frontend Stack
+File: apps/web/src/components/hair-analysis-lead-dialog.tsx
+Line: 502, 554, 707, 714
+Detail: Four photo preview <img> tags use eslint-disable. Missing width/height
+  → layout shift risk.
+
+[4.2] QR code rendered with raw <img> instead of next/image
+Agent: 3 — Frontend Stack
+File: apps/web/src/app/(fundraising)/min-shop/page.tsx
+Line: 296–300
+Detail: Seller QR uses data-URL <img> without dimensions optimization.
+
+[4.3] eslint-disable suppresses exhaustive-deps on mount-only router effect
+Agent: 3 — Frontend Stack
+File: apps/web/src/app/(fundraising)/forening/page.tsx
+Line: 72–81 (also forening/lag/page.tsx line 96)
+Detail: openCampaign URL cleanup effect captures stale params/router from
+  first mount.
+
+[4.4] Chat messages keyed by array index — reorder bugs on streaming
+Agent: 3 — Frontend Stack
+File: apps/web/src/components/chat-widget.tsx
+Line: 295–297
+Detail: messages.map((msg, i) => ... key={i}) causes React to reuse DOM nodes
+  incorrectly when messages inserted mid-stream. Portal AI page correctly
+  uses id-based keys.
+
+[4.5] Suspense boundaries present but no error boundaries around lazy regions
+Agent: 3 — Frontend Stack
+File: apps/web/src/app/(fundraising)/forening/page.tsx
+Line: 458–469
+Detail: useSearchParams wrapped in Suspense (good), but no nested error
+  boundary. Throw falls through to route-level error.tsx and loses page chrome.
+
+[4.6] useParams slug cast with `as string` — unsafe if param is array
+Agent: 3 — Frontend Stack
+File: apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx
+Line: 42 (also shop page, bekraftelse, token registration)
+Detail: params.slug as string assumes Next always returns string. In catch-all
+  routes slug could be string[], producing broken API URLs like /…/a,b.
+
+[4.7] Dead tRPC client module with hardcoded localhost SSR fallback
+Agent: 3 — Frontend Stack
+File: apps/web/src/lib/trpc.ts
+Line: 14–18
+Detail: Exports a client pointing at http://127.0.0.1:4000 on server, but
+  nothing imports it. Dead code with misleading fallback.
+
+[4.8] Base migration 0000 is not idempotent (no IF NOT EXISTS on types/tables)
+Agent: 4 — Backend, API & Data
+File: packages/db/drizzle/0000_premium_photon.sql
+Line: 1–26
+Detail: Initial migration uses bare CREATE TYPE/CREATE TABLE while later
+  migrations adopted IF NOT EXISTS. Re-applying against 0000 fails hard.
+
+[4.9] Widespread manual validation instead of shared Zod/contracts on REST routes
+Agent: 4 — Backend, API & Data
+File: apps/api/src/routes/
+Detail: Strategy doc §4 mandates Zod; packages/contracts defines Zod for
+  orders/auth/etc., but REST handlers almost exclusively use ad-hoc
+  await c.req.json() + manual checks.
+
+[4.10] Dashboard inline seller creation uses naive slug logic (non-ASCII names break slugs)
+Agent: 4 — Backend, API & Data
+File: apps/api/src/routes/dashboard.ts
+Line: 530–533
+Detail: POST /team/:teamId/sellers builds shopSlug with [^a-z0-9] stripping
+  instead of shared makeShopSlug() used in /register/seller.
+
+[4.11] /v1/portal/products has no role restriction
+Agent: 5 — Auth & RBAC
+File: apps/api/src/routes/portal.ts
+Line: 272–278
+Detail: Any authenticated session can fetch the full product catalog including
+  wholesale pricing.
+
+[4.12] INTERNAL_CRON_TOKEN compared with non-timing-safe !==
+Agent: 5 — Auth & RBAC
+File: apps/api/src/routes/internal-cron.ts
+Line: 34–37
+Detail: Plain string equality. Diverges from timing-safe comparisons used in
+  CSRF and deletion-token verification.
+
+[4.13] Cross-tab logout hook not wired in all authenticated shells
+Agent: 5 — Auth & RBAC
+File: apps/web/src/lib/use-cross-tab-logout.ts
+Line: 95–127 (only wired in portal/layout.tsx and (fundraising)/layout.tsx)
+Detail: Future authenticated shells won't broadcast logout to sibling tabs.
+
+[4.14] Password reset stub has no session-revocation path (pre-implementation gap)
+Agent: 5 — Auth & RBAC
+File: apps/api/src/trpc/routers/auth.ts
+Line: 105–113
+Detail: requestPasswordReset is a no-op stub. When implemented, must follow
+  KC2.6 pattern or stolen reset tokens leave old sessions alive.
+
+[4.15] /v1/ai/status ignores AI_ENABLED kill switch (tRPC variant)
+Agent: 6 — AI & Open Claw
+File: apps/api/src/routes/ai-chat.ts
+Line: 175–179
+Detail: Status returns enabled: flags.aiEnabled() && isAiConfigured() on GET,
+  but tRPC ai.status at ai.ts:35–39 only checks isAiConfigured(). tRPC
+  consumers would report AI enabled even when ops flipped AI_ENABLED=false.
+
+[4.16] No SSE keepalive/comments during long OpenAI streams
+Agent: 6 — AI & Open Claw
+File: apps/api/src/routes/public-chat.ts
+Line: 100–106
+Detail: SSE emits data events only when OpenAI yields chunks. Proxies/LBs with
+  idle timeouts (30–60s) may sever long streams.
+
+[4.17] Duplicate OpenAI client configuration between chat and vision modules
+Agent: 6 — AI & Open Claw
+File: apps/api/src/lib/ai/hair-analysis-run.ts
+Line: 3–14
+Detail: Re-declares OPENAI_BASE_URL, OPENAI_API_KEY, timeout, model env reads
+  separately from openclaw-client.ts. Future changes can drift.
+
+[4.18] agent.playbook-embed-reindex job registered as no-op — RAG pipeline unstarted
+Agent: 6 — AI & Open Claw
+File: apps/api/src/workers/index.ts
+Line: 48–57
+Detail: Handler is a placeholder logger. No embedding generation, vector
+  store, or reindex logic exists anywhere.
+
+[4.19] customer_orders FKs use ON DELETE NO ACTION — no cascade, blocks cleanup
+Agent: 7 — Fortnox & Commerce
+File: packages/db/drizzle/0000_premium_photon.sql
+Line: 320–325
+Detail: Deleting a seller/team/campaign/org with orders fails. Safe for money
+  integrity but painful for GDPR/test cleanup.
+
+[4.20] Klarna acknowledgeOrder failure does not block PAID transition
+Agent: 7 — Fortnox & Commerce
+File: apps/api/src/routes/checkout.ts
+Line: 480–485
+Detail: Order set to PAID before acknowledgeOrder; errors only logged. Klarna
+  may keep retrying push notifications indefinitely.
+
+[4.21] confirmationEmailSentAt documented but not implemented in schema or code
+Agent: 7 — Fortnox & Commerce
+File: apps/api/src/routes/checkout.ts
+Line: 50–54
+Detail: KC1.7 comment says helper will UPDATE confirmationEmailSentAt, but
+  customer_orders schema has no such column.
+
+[4.22] Payout audit amountOre logs teamShareOre while Fortnox invoices rootsShareOre
+Agent: 7 — Fortnox & Commerce
+File: apps/api/src/routes/payouts.ts
+Line: 267–268
+Detail: Audit-vs-Fortnox reconciliation footgun — ops must know which share
+  each event refers to.
+
+[4.23] Fortnox customer lookup uses bare query param, not documented filter syntax
+Agent: 7 — Fortnox & Commerce
+File: apps/api/src/lib/invoicing/fortnox-provider.ts
+Line: 80–83
+Detail: Comment references ?filter=organisationnumber=… but code calls
+  /customers?organisationnumber=…. Silent empty results cause unnecessary
+  customer POSTs.
+
+[4.24] Deploy/rollback runbooks reference CI and infra files that do not exist
+Agent: 8 — Security, DevOps & SEO
+File: docs/runbooks/deploy.md
+Line: 8, 50
+Detail: Assumes green CI and Railway/Vercel flows, but no .github/workflows/,
+  railway.toml, or render.yaml in repo.
+
+[4.25] Draft CSP connect-src hardcodes https://*.railway.app only
+Agent: 8 — Security, DevOps & SEO
+File: apps/web/next.config.ts
+Line: 47
+Detail: When CSP moves to enforcing mode, API calls to non-Railway hosts will
+  be blocked. Easy prod outage during CSP rollout.
+
+[4.26] Web Docker healthcheck hits / which may be preview-gate, not homepage
+Agent: 8 — Security, DevOps & SEO
+File: apps/web/Dockerfile
+Line: 49–50
+Detail: Treats any 200 on / as healthy. With preview gate active, orchestrator
+  marks service healthy while public site still gated.
+
+[4.27] No railway.toml / render.yaml for reproducible deploy configuration
+Agent: 8 — Security, DevOps & SEO
+File: repo root
+Detail: Deploy config lives only in hosting UI, reducing auditability.
+
+[4.28] Pipeline REJECTED stage uses rose palette while all other stages use brand ramp
+Agent: 2 — Visual Design & Motion
+File: apps/web/src/app/(portal)/portal/pipeline/page.tsx
+Line: 69
+Detail: REJECTED styled with border-t-rose-400 + bg-rose-50 while
+  LEAD→ACCEPTED use border-t-brand-*. Introduces third color family.
+
+[4.29] Portal AI header icon uses gradient fill against "no gradient" motion strategy
+Agent: 2 — Visual Design & Motion
+File: apps/web/src/app/(portal)/portal/ai/page.tsx
+Line: 290
+Detail: bg-gradient-to-br from-inverse-surface to-brand-700 on Sparkles avatar
+  — only gradient icon treatment in portal chrome.
+
+[4.30] Onboarding banner uses gradient card background
+Agent: 2 — Visual Design & Motion
+File: apps/web/src/components/onboarding-banner.tsx
+Line: 60
+Detail: bg-gradient-to-br from-brand-50 to-brand-100/50 adds diagonal wash
+  where adjacent portal cards are flat bg-card.
+
+[4.31] Portal and fundraising layout spinners use different brand color pairs
+Agent: 2 — Visual Design & Motion
+File: portal/layout.tsx (151), (fundraising)/layout.tsx (97)
+Detail: Two different loading chromes for the same "session resolving" moment.
+
+[4.32] Sheet slide animation uses animate-slide-down for horizontal drawer motion
+Agent: 2 — Visual Design & Motion
+File: apps/web/src/components/ui/sheet.tsx
+Line: 39–40
+Detail: Right/left sheets apply data-[state=open]:animate-slide-down while
+  closed state correctly translates on X.
+
+[4.33] Marketing product/hero images use ring-black/5 inset ring instead of ink-based token
+Agent: 2 — Visual Design & Motion
+File: produkter/page.tsx (98), produkter/[slug]/page.tsx (169),
+      foreningsliv/page.tsx (69, 106)
+Detail: Cool black ring reads slightly off compared to brand-tinted borders
+  used on cards.
+
+[4.34] Hair-analysis product promo card uses bg-foreground which inverts in dark mode
+Agent: 2 — Visual Design & Motion
+File: apps/web/src/components/hair-analysis-lead-dialog.tsx
+Line: 833
+Detail: In .dark, --color-foreground becomes warm cream (#F1EBE2), so card
+  flips to a light surface on a dark page — opposite of intended inverse panel.
+
+[4.35] Portal sidebar mobil-overlay saknar body scroll-lock
+Agent: 1 — UX, IA & Navigation
+File: apps/web/src/app/(portal)/portal/layout.tsx
+Line: 165–177
+Detail: Same gap as header menu and chat widget mentioned above.
+
+[4.36] Toast dismiss-knapp saknar tillgängligt namn
+Agent: 1 — UX, IA & Navigation
+File: apps/web/src/components/ui/toast.tsx
+Line: 57–62
+Detail: <X> button without aria-label.
+
+[4.37] Sheet-komponenten har engelsk sr-only-text "Close"
+Agent: 1 — UX, IA & Navigation
+File: apps/web/src/components/ui/sheet.tsx
+Line: 49–51
+Detail: On a Swedish-only site (lang="sv") sr-only text reads English.
+
+[4.38] Fundraising nav markerar inte parent-route vid exakt pathname-matchning
+Agent: 1 — UX, IA & Navigation
+File: apps/web/src/app/(fundraising)/layout.tsx
+Line: 184, 264
+Detail: Active state strict; portal uses startsWith. Future nested paths give
+  inconsistent wayfinding.
+
+[4.39] Ingen loading.tsx / error.tsx för fundraising- och shop-route groups
+Agent: 1 — UX, IA & Navigation
+File: apps/web/src/app/(fundraising)/
+Detail: Marketing and portal have loading.tsx; fundraising and (shop) lack
+  route-level loading/error boundaries.
+
+[4.40] Shop checkout saknar route-level metadata (delning/SEO sekundärt, tabs viktigt)
+Agent: 1 — UX, IA & Navigation
+File: apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx
+Line: 39
+Detail: Shop root has generateMetadata in layout, but /kassa and /bekraftelse
+  are client-only without title.
+
+[4.41] /hjalp visar public ChatWidget för inloggade som redan har /portal/ai
+Agent: 1 — UX, IA & Navigation
+File: apps/web/src/app/(marketing)/layout.tsx
+Line: 16
+Detail: Authed users get both marketing ChatWidget and portal AI assistant —
+  dual AI surface with different backends.
+
+=====================================================
+PRIORITY 5 — NICE TO HAVE
+=====================================================
+
+[5.1] No Server Actions used anywhere in the web app
+Agent: 3 — Frontend Stack
+File: apps/web/src/app/(marketing)/kontakt/page.tsx (and login, change-password)
+Detail: React 19/Next 15 Server Actions would reduce client JS and align with
+  strategy doc's server-first direction.
+
+[5.2] Duplicate CSRF token caches across three modules
+Agent: 3 — Frontend Stack
+File: apps/web/src/lib/api.ts, components/chat-widget.tsx,
+      components/hair-analysis-lead-dialog.tsx
+Detail: Three separate module-level CSRF caches with identical fetch logic;
+  duplicates don't share api.ts's invalidation path.
+
+[5.3] Homepage hero is RSC but pulls client hair-analysis dialog into critical LCP path
+Agent: 3 — Frontend Stack
+File: apps/web/src/components/sections/hero.tsx
+Line: 53
+Detail: HeroLead imports the full HairAnalysisLeadDialog wizard; entire
+  bundle hydrates on homepage hero before user clicks.
+
+[5.4] @trpc/react-query dependency installed but unused
+Agent: 3 — Frontend Stack
+File: apps/web/package.json
+Line: 24
+Detail: Alongside unused @tanstack/react-query; remove or wire both.
+
+[5.5] List endpoints lack consistent pagination (hard caps only)
+Agent: 4 — Backend, API & Data
+File: apps/api/src/routes/payouts.ts (and portal/orders, portal/quotes)
+Line: 129–146
+Detail: /payouts/mine returns all payouts with no .limit(); /payouts caps at 200.
+
+[5.6] Change-password minimum (8 chars) below strategy doc recommendation (12)
+Agent: 5 — Auth & RBAC
+File: apps/api/src/routes/auth.ts
+Line: 311–315
+Detail: /change-password enforces 8; strategy recommends 12.
+
+[5.7] Public chat rate limit defined inline, not centralized
+Agent: 6 — AI & Open Claw
+File: apps/api/src/routes/public-chat.ts
+Line: 22–24
+Detail: publicChatRateLimit (30/h/IP) lives in route file while aiRateLimit
+  and hairAnalysisIpRateLimit are exported from rate-limit.ts.
+
+[5.8] No response caching for repeated FAQ queries
+Agent: 6 — AI & Open Claw
+File: apps/api/src/routes/public-chat.ts
+Line: 94–98
+Detail: Every widget message hits OpenAI even for identical questions; no
+  Redis/in-memory cache keyed on normalized query hash.
+
+[5.9] FEATURE_CHAT_HISTORY_PERSISTENCE flag exists but chat widget never consumes it
+Agent: 6 — AI & Open Claw
+File: apps/web/src/components/chat-widget.tsx
+Line: 33
+Detail: API and web flag registries define chatHistoryPersistence(), but
+  chat-widget.tsx keeps messages only in React state.
+
+[5.10] AI_ENABLED kill switch absent from .env.example ops documentation
+Agent: 6 — AI & Open Claw
+File: .env.example
+Line: 56–69
+Detail: The master incident kill switch implemented in flags.ts is not
+  documented in env template.
+
+[5.11] B2B orders table Fortnox fields (invoiceStatus, fortnoxInvoiceId) have no write path
+Agent: 7 — Fortnox & Commerce
+File: packages/db/src/schema/orders.ts
+Line: 42–43
+Detail: Strategy includes club B2B invoicing on orders table; scoped routes
+  only invoice settlement payouts.
+
+[5.12] NullInvoiceProvider state is ephemeral — dev E2E invoice status lost on restart
+Agent: 7 — Fortnox & Commerce
+File: apps/api/src/lib/invoicing/null-provider.ts
+Line: 50–52, 119–127
+Detail: Module-level Maps cleared on process restart. Dev/staging E2E flows
+  cannot survive API redeploy.
+
+[5.13] No root-level Dockerfile (only per-app)
+Agent: 8 — Security, DevOps & SEO
+File: repo root
+Detail: docker-compose.yml builds per-app — low impact.
+
+[5.14] BreadcrumbList / ItemList JSON-LD not used on product or shop pages
+Agent: 8 — Security, DevOps & SEO
+File: apps/web/src/components/json-ld.tsx
+Line: 64–117
+Detail: Breadcrumb structured data not emitted as JSON-LD.
+
+[5.15] Image hover scale transforms lack motion-reduce overrides
+Agent: 2 — Visual Design & Motion
+File: products-preview.tsx (58), produkter/page.tsx (95)
+Detail: Product tiles use group-hover:scale-[1.03–1.04]; floating shapes honor
+  reduced motion, image zoom does not.
+
+[5.16] Sticky/footer CTAs use sentence-length button labels instead of verb-first pattern
+Agent: 2 — Visual Design & Motion
+File: produkter/[slug]/page.tsx (220), portal/produkter/page.tsx (180),
+      foreningsliv/page.tsx (147)
+Detail: Labels like "Beställ via din förening", "Gå till beställning",
+  "Registrera din förening" are mini-sentences vs Agent 02 verb-led guidance.
+
+[5.17] Pipeline stage label "Lead" is English in an otherwise Swedish UI
+Agent: 2 — Visual Design & Motion
+File: apps/web/src/app/(portal)/portal/pipeline/page.tsx
+Line: 51–52
+Detail: STAGE_LABELS.LEAD = "Lead" while adjacent stages are Swedish.
+
+=====================================================
+CLEAN AREAS (no issues found)
+=====================================================
+
+- Public marketing routes & footer product links resolve to existing pages.
+- Middleware role gates correctly avoid /foreningsliv being caught by /forening prefix.
+- pageMetadata is consistently applied across main marketing pages.
+- /forening/page.tsx and /kom-igang correctly wrap useSearchParams in Suspense
+  and clean ?openCampaign=1 via router.replace.
+- Shop checkout keeps form state on validation/API errors; confirmation page has
+  branched error copy.
+- Hero contrast on marketing homepage addressed; product images have meaningful alt.
+- ChatWidget has focus trap, Escape, bottom-sheet, and aria-live (good reference
+  for other dialogs).
+- KC5 AI guardrails verified: server-only OPENAI keys, AI_ENABLED kill switch,
+  history sanitization, fail-closed Redis rate limits in prod, structured
+  hair-analysis fallbacks, portal wired to /v1/ai/chat, client AbortController
+  on chat UIs.
+- /v1/payouts/* org-scoping correct: GET /mine filters eq(orgId);
+  PATCH /:id/status is INTERNAL_ADMIN-only with demo block.
+- /v1/internal/cron/deletion-purge fail-closed when INTERNAL_CRON_TOKEN unset.
+- destroyUserSessions called on password change & deletion request.
+- BroadcastChannel only handles {type: "logout"} — no privilege escalation.
+- CSRF exemption list (Fortnox/Klarna webhooks, health probes, preview gate
+  rate-limited, cron prefix) — none expose session-authed user mutations
+  without their own auth layer.
+- Both Dockerfiles: multi-stage builds, non-root nodejs user, HEALTHCHECK.
+- API security headers: HSTS, X-Frame-Options DENY, Permissions-Policy, CSRF
+  middleware, Klarna webhook HMAC + IP allowlist, webhook dedup module.
+- robots.ts blocks /portal/, /forening/, /lag/, /min-shop/; allows /shop/.
+- No committed live API keys (sk-, rk_) in source (only placeholders).
+- Webhook HMAC comparisons are timing-safe on both Klarna and Fortnox paths.
+- Login open-redirect guard exists and is reasonably strict for common cases.
+
+=====================================================
+RECOMMENDED NEXT WAVE (P1 → P2 quick wins)
+=====================================================
+
+A. Money + integrity hardening (P1.1–1.4, 2.13, 2.14, 2.16, 2.17):
+   - Gate settlement re-run and create-invoice on payout status.
+   - Verify Klarna order_amount on PAID transitions; conditional UPDATE …
+     WHERE status='PENDING' on all paths.
+   - Klarna stub requires explicit dev flag; never PAID in prod misconfig.
+   - Add Idempotency-Key on /checkout/create and durable
+     confirmationEmailSentAt column.
+
+B. Secret + auth lock-down (P1.7, 1.8, 2.5, 2.6, 2.9, 2.10):
+   - Boot-validate SESSION_SECRET / DELETION_TOKEN_SECRET / SITE_PREVIEW_PASSWORD.
+   - Remove existingOrgId from /register/team-leader; require invite.
+   - Role-gate /v1/auth/organizations/search.
+   - Reject login for users with deleted_at; filter member listings.
+   - Align team-invite claim cookie options with session.ts.
+
+C. PII / RBAC fences (P1.5, 1.6, 2.4, 2.11, 2.12, 3.62):
+   - Sign /order-status requests or require session match.
+   - Make team-invite claim a single conditional UPDATE.
+   - Enforce isPortalRole + CLUB_* on /portal/orders list AND create.
+   - Strip inviteToken from /dashboard/association; expose only via
+     explicit rotate/copy action.
+   - Block checkout for INACTIVE sellers.
+
+D. Build/CI hygiene (P2.36, 2.38, 2.39, 2.40, 2.43, 2.44, 2.45):
+   - Add GitHub Actions: typecheck, lint, test, build per app + maps upload.
+   - Remove SKIP_TYPECHECK / ignoreDuringBuilds in prod Docker.
+   - Fix Sentry session cookie name; add Sentry to web app.
+   - Reconcile FORTNOX_TOKEN vs FORTNOX_ACCESS_TOKEN in validate-env.
+
+E. Visual + UX polish (P2.48–2.57):
+   - Fix chat FAB z-index above bottom sheet.
+   - Lift AI disclaimer text to 12px / full muted-foreground.
+   - Replace neutral-* in hero CTA, global-error, order stepper, portal cart
+     sticky bar with semantic tokens.
+   - Add #main-content to every route-group layout.
+   - Move /hjalp into role-aware shell or render "Tillbaka till portalen".
+
+--- END OF REPORT ---

@@ -10,6 +10,27 @@ const KLARNA_API_URL =
 const KLARNA_USERNAME = process.env.KLARNA_USERNAME || "";
 const KLARNA_PASSWORD = process.env.KLARNA_PASSWORD || "";
 
+/**
+ * P1.4 (audit 2026-05-26): "stub-mode" får aldrig auto-completa
+ * orders i en produktions-miljö. Innan denna guard räckte ett
+ * deploy utan KLARNA_USERNAME/PASSWORD för att supportern skulle
+ * nå PAID-status och därmed dras in i settlement utan att pengar
+ * faktiskt flyttats.
+ *
+ * Regler:
+ *   1. Stub är ENBART tillåten utanför NODE_ENV=production.
+ *   2. Stub kräver explicit opt-in via ROOTS_KLARNA_STUB=true så
+ *      dev/staging inte heller råkar stub:a om någon lägger till
+ *      env-vars stegvis.
+ *   3. Om creds saknas i prod kastar vi i createCheckoutSession/
+ *      getCheckoutOrder så att checkout fail:ar tydligt 502 istället
+ *      för att glida igenom till PAID utan betalning.
+ */
+function isStubAllowed(): boolean {
+  if (process.env.NODE_ENV === "production") return false;
+  return process.env.ROOTS_KLARNA_STUB === "true";
+}
+
 function getAuthHeader(): string {
   return (
     "Basic " + Buffer.from(`${KLARNA_USERNAME}:${KLARNA_PASSWORD}`).toString("base64")
@@ -73,6 +94,15 @@ export async function createCheckoutSession(
   input: CreateKlarnaSessionInput
 ): Promise<KlarnaCheckoutSession> {
   if (!isKlarnaConfigured()) {
+    if (!isStubAllowed()) {
+      // P1.4: hellre tydlig 502 i prod än silent auto-PAID. Logga
+      // explicit så ops ser i konsolen att Klarna-creds saknas.
+      log.error(
+        { nodeEnv: process.env.NODE_ENV },
+        "Klarna credentials missing and stub mode not enabled — refusing to create checkout session"
+      );
+      throw new Error("Klarna is not configured");
+    }
     return {
       orderId: `mock-${crypto.randomUUID().slice(0, 8)}`,
       htmlSnippet: `<div id="klarna-checkout-container" style="padding:40px;text-align:center;border:2px dashed #ccc;border-radius:12px;">
@@ -117,11 +147,40 @@ export async function createCheckoutSession(
   };
 }
 
-export async function getCheckoutOrder(orderId: string) {
+export interface KlarnaOrderSnapshot {
+  orderId: string;
+  status: string;
+  /** Klarna's authoritative captured/authorised amount in öre. */
+  orderAmount: number | null;
+  /** ISO-4217 currency code Klarna processed in (e.g. "SEK"). */
+  purchaseCurrency: string | null;
+  billingAddress?: {
+    given_name?: string;
+    family_name?: string;
+    email?: string;
+  };
+}
+
+export async function getCheckoutOrder(
+  orderId: string
+): Promise<KlarnaOrderSnapshot> {
   if (!isKlarnaConfigured()) {
+    if (!isStubAllowed()) {
+      // P1.4: webhook + confirm-polling använder båda detta. Om
+      // creds saknas i prod ska vi INTE returnera checkout_complete
+      // — det skulle flippa orders till PAID utan att Klarna har
+      // sett en krona. Kasta så caller fail:ar 500/500 öppet.
+      log.error(
+        { orderId },
+        "Klarna credentials missing and stub mode not enabled — refusing to read order"
+      );
+      throw new Error("Klarna is not configured");
+    }
     return {
       orderId,
       status: "checkout_complete",
+      orderAmount: null,
+      purchaseCurrency: "SEK",
       billingAddress: {
         given_name: "Test",
         family_name: "Testsson",
@@ -141,7 +200,18 @@ export async function getCheckoutOrder(orderId: string) {
     throw new Error(`Klarna order fetch failed: ${res.status}`);
   }
 
-  return res.json();
+  const data = (await res.json()) as Record<string, unknown>;
+  return {
+    orderId: String(data.order_id ?? orderId),
+    status: String(data.status ?? ""),
+    orderAmount:
+      typeof data.order_amount === "number" ? data.order_amount : null,
+    purchaseCurrency:
+      typeof data.purchase_currency === "string"
+        ? (data.purchase_currency as string).toUpperCase()
+        : null,
+    billingAddress: (data.billing_address as KlarnaOrderSnapshot["billingAddress"]) ?? undefined,
+  };
 }
 
 export async function acknowledgeOrder(orderId: string) {

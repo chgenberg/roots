@@ -24,11 +24,13 @@ ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_PLAUSIBLE_DOMAIN=$NEXT_PUBLIC_PLAUSIBLE_DOMAIN
 
-# Cross-package types aren't available in the Docker context (only the
-# already-built JS is copied for the workspace deps). Connection-audit
-# P1 #16: opt-out of `next build`'s typecheck explicitly so the rest of
-# next.config.ts can keep it on for CI/local builds.
-ENV SKIP_TYPECHECK=true
+# P2.38 (audit 2026-05-26): tidigare satte vi SKIP_TYPECHECK=true här
+# permanent vilket bypass:ade Next's TS-gate även i produktion. Det är
+# nu borta — kontexten kopieras med `COPY . .` ovan så cross-package
+# typer finns tillgängliga. Akut hotfix kan opta out med
+# `--build-arg ROOTS_FORCE_SKIP_TYPECHECK=true`.
+ARG ROOTS_FORCE_SKIP_TYPECHECK
+ENV ROOTS_FORCE_SKIP_TYPECHECK=$ROOTS_FORCE_SKIP_TYPECHECK
 
 RUN cd apps/web && npx next build
 

@@ -11,11 +11,15 @@ export function HeroLead() {
         trigger={
           <button
             type="button"
-            className="group relative inline-flex h-11 cursor-pointer items-center gap-2 rounded-full bg-white px-6 text-sm font-semibold text-neutral-900 shadow-sm transition-transform duration-300 hover:scale-[1.03] hover:bg-neutral-100 active:scale-[0.98]"
+            // P3.81 (audit 2026-05-26): scale-transformerna och pulse-
+            // ringen ignorerade prefers-reduced-motion. WCAG 2.3.3.
+            // motion-safe:* gör att animeringen bara körs när använda-
+            // rens OS tillåter rörelse.
+            className="group relative inline-flex h-11 cursor-pointer items-center gap-2 rounded-full bg-white px-6 text-sm font-semibold text-neutral-900 shadow-sm transition-transform duration-300 motion-safe:hover:scale-[1.03] hover:bg-neutral-100 motion-safe:active:scale-[0.98]"
           >
-            <span className="absolute inset-0 rounded-full shadow-[0_0_0_0_rgba(255,255,255,0.3)] animate-[pulse-shadow-light_2.5s_ease-in-out_infinite]" />
+            <span className="absolute inset-0 rounded-full shadow-[0_0_0_0_rgba(255,255,255,0.3)] motion-safe:animate-[pulse-shadow-light_2.5s_ease-in-out_infinite]" />
             <span className="relative">Starta din håranalys</span>
-            <ArrowRight className="relative h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-0.5" />
+            <ArrowRight className="relative h-3.5 w-3.5 transition-transform duration-300 motion-safe:group-hover:translate-x-0.5" />
           </button>
         }
       />

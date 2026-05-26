@@ -15,6 +15,7 @@ import {
   destroySession,
   destroyUserSessions,
   getSession,
+  isDemoSession,
   refreshSession,
   SESSION_COOKIE_NAME,
   SESSION_COOKIE_OPTIONS,
@@ -31,7 +32,12 @@ import {
   issueDeletionCancelToken,
   verifyDeletionCancelToken,
 } from "../lib/deletion-tokens";
-import { loginRateLimit, registrationRateLimit } from "../lib/rate-limit";
+import {
+  loginRateLimit,
+  registrationRateLimit,
+  deletionCancelRateLimit,
+  deleteAccountRateLimit,
+} from "../lib/rate-limit";
 import { childLogger } from "../lib/logger";
 import { auditLog, requestContext } from "../lib/audit";
 import { scheduleOrgNormalize } from "../lib/jobs/schedule-org-normalize";
@@ -53,6 +59,23 @@ const ARGON2_OPTIONS = {
   outputLen: 32,
   parallelism: 1,
 };
+
+// P3.16 (audit 2026-05-26): registration endpoints accepted arbitrarily
+// weak passwords. Strategy doc + change-password lean toward ≥12 chars.
+// Returns null on success, error message otherwise.
+const MIN_PASSWORD_LENGTH = 12;
+const MAX_PASSWORD_LENGTH = 128;
+export function validatePassword(pw: unknown): string | null {
+  if (typeof pw !== "string") return "Lösenord saknas.";
+  const trimmed = pw;
+  if (trimmed.length < MIN_PASSWORD_LENGTH) {
+    return `Lösenordet måste vara minst ${MIN_PASSWORD_LENGTH} tecken.`;
+  }
+  if (trimmed.length > MAX_PASSWORD_LENGTH) {
+    return "Lösenordet är för långt (max 128 tecken).";
+  }
+  return null;
+}
 
 const DEMO_ACCOUNTS: Record<
   string,
@@ -136,6 +159,20 @@ auth.post("/login", async (c) => {
       .limit(1);
 
     if (user) {
+      // P2.9 (audit 2026-05-26): blockera DB-login för raderade
+      // tombstone-användare explicit. passwordHash-sentinelet räcker
+      // som indirekt skydd idag, men ett ändrat hash-format eller
+      // partiell purge skulle annars kunna släppa förbi en
+      // återautentisering mot ett anonymiserat konto.
+      if (user.deletedAt) {
+        void auditLog({
+          userId: user.id,
+          action: "auth.login.failed",
+          meta: { ...requestContext((n) => c.req.header(n)), reason: "deleted_account" },
+        });
+        return c.json({ error: "Felaktig e-post eller lösenord." }, 401);
+      }
+
       const valid = await verify(user.passwordHash, password);
       if (!valid) {
         void auditLog({
@@ -287,7 +324,9 @@ auth.post("/change-password", async (c) => {
   // Demo sessions don't have a DB row — their password lives in code,
   // so we can't rotate it. Reject explicitly so the UI can show a
   // friendly message instead of a generic 500.
-  if (!session.userId || session.demoProfile) {
+  // Pre-push fix 2026-05-26: använd isDemoSession() så vi även
+  // täcker DB-seedade demo-konton (P3.28), inte bara in-memory.
+  if (!session.userId || isDemoSession(session)) {
     return c.json(
       { error: "Demo-konton kan inte byta lösenord. Skapa ett riktigt konto." },
       400
@@ -308,15 +347,8 @@ auth.post("/change-password", async (c) => {
   if (!current || !next) {
     return c.json({ error: "Båda fälten krävs." }, 400);
   }
-  if (next.length < 8) {
-    return c.json(
-      { error: "Nytt lösenord måste vara minst 8 tecken." },
-      400
-    );
-  }
-  if (next.length > 128) {
-    return c.json({ error: "Nytt lösenord är för långt." }, 400);
-  }
+  const pwErr = validatePassword(next);
+  if (pwErr) return c.json({ error: pwErr }, 400);
   if (next === current) {
     return c.json(
       { error: "Nytt lösenord får inte vara samma som det gamla." },
@@ -416,10 +448,24 @@ auth.post("/delete-account", async (c) => {
   if (!session) return c.json({ error: "Ej inloggad" }, 401);
 
   // Demo-sessions har ingen DB-rad; ingen att radera.
-  if (!session.userId || session.demoProfile) {
+  // Pre-push fix 2026-05-26: täck även DB-seedade demo-konton (P3.28).
+  if (!session.userId || isDemoSession(session)) {
     return c.json(
       { error: "Demo-konton kan inte raderas — de saknar persistent data." },
       400
+    );
+  }
+
+  // P3.59 (audit 2026-05-26): tidigare hade /delete-account ingen
+  // throttle utöver session-auth. En stulen session kunde brute-force:a
+  // användarens lösenord (svart-back-up för logout-konfirmation).
+  // 5 försök per 15 min per user räcker för "fingrarna i munnen"-fel.
+  const rl = await deleteAccountRateLimit(session.userId);
+  if (!rl.allowed) {
+    c.header("Retry-After", String(rl.resetInSeconds));
+    return c.json(
+      { error: "För många försök. Försök igen om en stund." },
+      429
     );
   }
 
@@ -605,6 +651,20 @@ auth.get("/deletion-status", async (c) => {
  * bekräftelse-mail.
  */
 auth.post("/cancel-deletion", async (c) => {
+  // P2.41 (audit 2026-05-26): rate-limit:a endpointen så att en
+  // angripare som fångat en deletion-cancel-länk inte kan göra
+  // bulk-anrop med olika tokens för att brute-force HMAC eller
+  // probeera vilka konton som är i raderingskö.
+  const ip = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const rl = await deletionCancelRateLimit(ip);
+  if (!rl.allowed) {
+    c.header("Retry-After", String(rl.resetInSeconds));
+    return c.json(
+      { error: "För många försök. Vänta några minuter och försök igen." },
+      429
+    );
+  }
+
   type Body = { token?: string };
   let body: Body = {};
   try {
@@ -809,6 +869,9 @@ auth.post("/register/association", async (c) => {
     return c.json({ error: "Alla obligatoriska fält måste fyllas i." }, 400);
   }
 
+  const pwErr = validatePassword(password);
+  if (pwErr) return c.json({ error: pwErr }, 400);
+
   try {
     const [existing] = await db
       .select()
@@ -938,6 +1001,27 @@ auth.post("/register/team-leader", async (c) => {
     return c.json({ error: "Alla obligatoriska fält måste fyllas i." }, 400);
   }
 
+  const pwErr = validatePassword(password);
+  if (pwErr) return c.json({ error: pwErr }, 400);
+
+  // P2.5 (audit 2026-05-26): tidigare lät endpointen vem som helst
+  // ansluta sin nya team-leader till en valfri existerande
+  // organisations-UUID utan att äga den. Det betydde att en angripare
+  // kunde gissa/läcka org-IDt och sätta sig själv som TEAM_LEADER
+  // i en annan förening. Den enda legitima vägen in i en befintlig
+  // förening är via team-invite (`/v1/association/team-invites/claim`).
+  // Vi avvisar därför `existingOrgId` här explicit; klienten ska
+  // använda invite-flödet i stället.
+  if (existingOrgId !== undefined && existingOrgId !== null && existingOrgId !== "") {
+    return c.json(
+      {
+        error:
+          "För att gå med i en befintlig förening, använd ett team-invite från föreningens admin.",
+      },
+      400
+    );
+  }
+
   try {
     const [existing] = await db
       .select()
@@ -951,26 +1035,8 @@ auth.post("/register/team-leader", async (c) => {
 
     const passwordHash = await hash(password, ARGON2_OPTIONS);
 
-    let validatedOrgId = existingOrgId;
+    let validatedOrgId: string | null = null;
     let resolvedOrgName = orgName || teamName;
-
-    if (validatedOrgId) {
-      if (typeof validatedOrgId !== "string" || !/^[0-9a-f-]{36}$/i.test(validatedOrgId)) {
-        return c.json({ error: "Ogiltigt organisations-ID." }, 400);
-      }
-
-      const [org] = await db
-        .select()
-        .from(organizations)
-        .where(eq(organizations.id, validatedOrgId))
-        .limit(1);
-
-      if (!org) {
-        return c.json({ error: "Föreningen kunde inte hittas." }, 404);
-      }
-
-      resolvedOrgName = org.name;
-    }
 
     // Captured inside the tx and consumed AFTER commit. Must be `let` (and
     // declared outside the closure) so the enqueue call below the tx can see
@@ -978,7 +1044,7 @@ auth.post("/register/team-leader", async (c) => {
     let newlyCreatedOrgId: string | null = null;
 
     const txResult = await db.transaction(async (tx) => {
-      let orgId = validatedOrgId;
+      let orgId: string | null = validatedOrgId;
 
       if (!orgId && orgName) {
         const [org] = await tx
@@ -1118,6 +1184,9 @@ auth.post("/register/seller", async (c) => {
     return c.json({ error: "Alla obligatoriska fält måste fyllas i." }, 400);
   }
 
+  const pwErr = validatePassword(password);
+  if (pwErr) return c.json({ error: pwErr }, 400);
+
   try {
     const [team] = await db
       .select()
@@ -1168,40 +1237,74 @@ auth.post("/register/seller", async (c) => {
     // every å/ä/ö which left e.g. "Åsa Söderström" with the slug "------".
     const shopSlug = makeShopSlug(displayName);
 
-    const user = await db.transaction(async (tx) => {
-      const [user] = await tx
-        .insert(users)
-        .values({
-          email: email.toLowerCase().trim(),
-          passwordHash,
-          role: "SELLER",
-          orgId: team.orgId,
-          contactName: displayName,
-          phone: phone || null,
-        })
-        .returning();
+    // P2.20 (audit 2026-05-26): tidigare gjordes max_uses-checken med
+    // ett läs-värde innan UPDATE — två concurrent requests på samma
+    // token kunde båda passera checken och båda bump:a +1 så att
+    // useCount > maxUses. Vi gör nu en konditional UPDATE som första
+    // steg i transaktionen och rollbackar hela inserten om ingen rad
+    // ändrades. Atomiska sql`+1` skyddar mot dubbelräkning av single
+    // counter men inte mot att passera maxUses-gränsen.
+    type RegistrationResult =
+      | { ok: true; user: typeof users.$inferSelect }
+      | { ok: false; reason: "invite_exhausted" };
+    let result: RegistrationResult;
+    try {
+      result = await db.transaction<RegistrationResult>(async (tx) => {
+        const updated = await tx
+          .update(teams)
+          .set({
+            memberCount: sql`${teams.memberCount} + 1`,
+            inviteTokenUseCount: sql`${teams.inviteTokenUseCount} + 1`,
+          })
+          .where(
+            and(
+              eq(teams.id, team.id),
+              sql`(${teams.inviteTokenMaxUses} IS NULL OR ${teams.inviteTokenUseCount} < ${teams.inviteTokenMaxUses})`
+            )
+          )
+          .returning({ id: teams.id });
 
-      await tx.insert(sellers).values({
-        userId: user.id,
-        teamId: team.id,
-        campaignId: team.campaignId,
-        shopSlug,
-        displayName,
+        if (updated.length === 0) {
+          throw new Error("InviteExhausted");
+        }
+
+        const [createdUser] = await tx
+          .insert(users)
+          .values({
+            email: email.toLowerCase().trim(),
+            passwordHash,
+            role: "SELLER",
+            orgId: team.orgId,
+            contactName: displayName,
+            phone: phone || null,
+          })
+          .returning();
+
+        await tx.insert(sellers).values({
+          userId: createdUser.id,
+          teamId: team.id,
+          campaignId: team.campaignId,
+          shopSlug,
+          displayName,
+        });
+
+        return { ok: true, user: createdUser };
       });
+    } catch (err) {
+      if ((err as Error)?.message === "InviteExhausted") {
+        result = { ok: false, reason: "invite_exhausted" };
+      } else {
+        throw err;
+      }
+    }
 
-      // MASTERPLAN_01 KC3.4: räkna invite-token-användning samtidigt
-      // som memberCount bumpar. Båda är atomiska sql`+1` så vi kan
-      // inte race:a oss förbi max_uses-gränsen.
-      await tx
-        .update(teams)
-        .set({
-          memberCount: sql`${teams.memberCount} + 1`,
-          inviteTokenUseCount: sql`${teams.inviteTokenUseCount} + 1`,
-        })
-        .where(eq(teams.id, team.id));
-
-      return user;
-    });
+    if (!result.ok) {
+      return c.json(
+        { error: "Inbjudningslänken är förbrukad. Be lagledaren skapa en ny." },
+        410
+      );
+    }
+    const user = result.user;
 
     const sessionData: SessionData = {
       userId: user.id,
@@ -1255,6 +1358,23 @@ auth.get("/organizations/search", async (c) => {
     session = await getSession(sessionId);
   } catch {}
   if (!session) return c.json({ error: "Ej inloggad" }, 401);
+
+  // P2.6 (audit 2026-05-26): tidigare exponerade endpointen ett
+  // cross-tenant-directory över alla organisationer för vilken
+  // inloggad användare som helst (inkl SELLER/CLUB_MEMBER). Begränsa
+  // till roller som faktiskt behöver söka — SALES_REP/SALES_ADMIN/
+  // INTERNAL_ADMIN — och TEAM_LEADER (som kan vara på väg att
+  // registrera ny förening eller verifiera namnkonflikt). Övriga
+  // får 403.
+  const ALLOWED_ROLES = new Set([
+    "SALES_REP",
+    "SALES_ADMIN",
+    "INTERNAL_ADMIN",
+    "TEAM_LEADER",
+  ]);
+  if (!ALLOWED_ROLES.has(session.role)) {
+    return c.json({ error: "Behörighet saknas" }, 403);
+  }
 
   const query = c.req.query("q") || "";
   if (query.length < 2) {

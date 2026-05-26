@@ -84,6 +84,35 @@ export async function wasWebhookEventSeen(
   }
 }
 
+/**
+ * Pre-push fix 2026-05-26 (counter-finding för P3.43): om webhook-
+ * handlern crashade efter att vi markerat dedup-keyen ramlade vi in
+ * i ett tillstånd där alla framtida retries från providern (Klarna,
+ * Fortnox) klassades som duplicate utan att vi någonsin lyckats
+ * processa eventet. Fix:en är att handlern släpper keyen explicit
+ * i catch-blocket innan den returnerar 5xx, så att providerns
+ * nästa retry kan göra ett nytt försök.
+ *
+ * `clearWebhookEventSeen` är medvetet best-effort — den loggar men
+ * vägrar inte att gå vidare om Redis är nere (samma falback-filosofi
+ * som `wasWebhookEventSeen`).
+ */
+export async function clearWebhookEventSeen(
+  scope: string,
+  eventId: string,
+): Promise<void> {
+  const key = `${PREFIX}${scope}:${eventId}`;
+  try {
+    await redis.del(key);
+  } catch (err) {
+    log.warn(
+      { err, scope, eventId: eventId.slice(0, 32) },
+      "redis dedup release failed — key kommer att expira automatiskt"
+    );
+  }
+  memoryFallback.delete(key);
+}
+
 /** Test-only: wipe the in-memory fallback so suites stay isolated. */
 export function __resetWebhookDedupForTests(): void {
   memoryFallback.clear();

@@ -29,11 +29,15 @@ import {
 } from "@roots/db/schema";
 import {
   getSession,
+  isDemoSession,
   SESSION_COOKIE_NAME,
+  SESSION_COOKIE_OPTIONS,
   createSession,
 } from "../lib/session";
 import type { SessionData } from "../lib/session";
 import { auditLog, requestContext } from "../lib/audit";
+import { teamInviteResendRateLimit } from "../lib/rate-limit";
+import { validatePassword } from "./auth";
 import { childLogger } from "../lib/logger";
 import { setCookie } from "hono/cookie";
 import { getEmailSender } from "../lib/email";
@@ -57,13 +61,12 @@ const ARGON2_OPTIONS = {
   parallelism: 1,
 } as const;
 
-const SESSION_COOKIE_OPTIONS = {
-  httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: "Lax" as const,
-  path: "/",
-  maxAge: 60 * 60 * 24 * 30, // 30 days
-};
+// P2.10 (audit 2026-05-26): tidigare hade association.ts en egen
+// SESSION_COOKIE_OPTIONS med sameSite=Lax och egen maxAge. När web
+// och API ligger på olika hosts i prod blockar Lax cookie-sättningen
+// vid en cross-site POST → team-leader fastnade på inloggnings-
+// modal direkt efter team-invite-claim. Vi använder nu den centrala
+// import:en från session.ts (sameSite=none + secure i prod).
 
 export const association = new Hono();
 
@@ -161,10 +164,18 @@ association.get("/onboarding-status", async (c) => {
         )
       );
 
+    // P3.31 (audit 2026-05-26): exkludera GDPR-purgade users så
+    // onboarding-checklistan inte räknar tombstones som aktiva ledare.
     const [teamLeaderCount] = await db
       .select({ c: sql<number>`COUNT(*)::int` })
       .from(users)
-      .where(and(eq(users.orgId, orgId), eq(users.role, "TEAM_LEADER")));
+      .where(
+        and(
+          eq(users.orgId, orgId),
+          eq(users.role, "TEAM_LEADER"),
+          isNull(users.deletedAt)
+        )
+      );
 
     const [paidOrderCount] = await db
       .select({ c: sql<number>`COUNT(*)::int` })
@@ -291,6 +302,10 @@ association.post("/team-invites", async (c) => {
   if (!session.orgId) return c.json({ error: "Ingen organisation" }, 403);
   if (session.role !== "ASSOCIATION_ADMIN" && session.role !== "INTERNAL_ADMIN") {
     return c.json({ error: "Behörighet saknas" }, 403);
+  }
+  // P3.29 (audit 2026-05-26): demo-konton ska inte muta:a DB.
+  if (isDemoSession(session)) {
+    return c.json({ error: "Demo-konton kan inte skapa inbjudningar." }, 403);
   }
 
   type Body = {
@@ -515,8 +530,12 @@ association.post("/team-invites/claim", async (c) => {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return c.json({ error: "Ogiltig e-postadress." }, 400);
   }
-  if (password.length < 8 || password.length > 128) {
-    return c.json({ error: "Lösenord måste vara 8–128 tecken." }, 400);
+  // Pre-push fix 2026-05-26: tidigare tillät claim 8-tecken-lösenord,
+  // medan resten av plattformen kräver minst 12 tecken via
+  // validatePassword. Inbjudna team-leaders ska följa samma policy.
+  const pwErr = validatePassword(password);
+  if (pwErr) {
+    return c.json({ error: pwErr }, 400);
   }
   if (!contactName || contactName.length < 2) {
     return c.json({ error: "Namn krävs." }, 400);
@@ -545,41 +564,70 @@ association.post("/team-invites/claim", async (c) => {
 
     const passwordHash = await hash(password, ARGON2_OPTIONS);
 
-    const tx = await db.transaction(async (trx) => {
-      const [user] = await trx
-        .insert(users)
-        .values({
-          email,
-          passwordHash,
-          role: "TEAM_LEADER",
-          orgId: invite.orgId,
-          contactName,
-          phone,
-        })
-        .returning();
+    // P1.6 (audit 2026-05-26): TOCTOU-skydd. Pre-checken ovan är inte
+    // tillräcklig — två samtidiga POST:s med samma token kunde tidigare
+    // båda skapa users/teams innan någon hann markera inviten som
+    // använd. Vi gate:ar nu på det faktiska redemption-steget med en
+    // konditional UPDATE `WHERE used_at IS NULL` inuti tx:n. Den som
+    // får 0 raden tappade race:n och får 410 utan att ha bränt en
+    // user-row.
+    let raceLost = false;
+    let tx: { user: { id: string }; team: { id: string } } | null = null;
+    try {
+      tx = await db.transaction(async (trx) => {
+        const [user] = await trx
+          .insert(users)
+          .values({
+            email,
+            passwordHash,
+            role: "TEAM_LEADER",
+            orgId: invite.orgId,
+            contactName,
+            phone,
+          })
+          .returning();
 
-      // Seller-invite token for *this* new team. Same shape as the
-      // existing seller invite-flow (see `/registrera/saljare/[token]`).
-      const sellerInviteToken = generateToken();
+        // Seller-invite token for *this* new team. Same shape as the
+        // existing seller invite-flow (see `/registrera/saljare/[token]`).
+        const sellerInviteToken = generateToken();
 
-      const [team] = await trx
-        .insert(teams)
-        .values({
-          orgId: invite.orgId,
-          campaignId: invite.campaignId,
-          leaderId: user.id,
-          name: invite.teamName,
-          inviteToken: sellerInviteToken,
-        })
-        .returning();
+        const [team] = await trx
+          .insert(teams)
+          .values({
+            orgId: invite.orgId,
+            campaignId: invite.campaignId,
+            leaderId: user.id,
+            name: invite.teamName,
+            inviteToken: sellerInviteToken,
+          })
+          .returning();
 
-      await trx
-        .update(teamInvites)
-        .set({ usedAt: new Date(), usedByTeamId: team.id })
-        .where(eq(teamInvites.id, invite.id));
+        const claimedRows = await trx
+          .update(teamInvites)
+          .set({ usedAt: new Date(), usedByTeamId: team.id })
+          .where(
+            and(eq(teamInvites.id, invite.id), isNull(teamInvites.usedAt))
+          )
+          .returning({ id: teamInvites.id });
 
-      return { user, team };
-    });
+        if (claimedRows.length === 0) {
+          // Annan request hann före — rulla tillbaka hela tx:n så
+          // ingen user/team läcker.
+          raceLost = true;
+          throw new Error("invite_already_claimed");
+        }
+
+        return { user, team };
+      });
+    } catch (err) {
+      if (raceLost) {
+        return c.json({ error: "Inbjudan är redan använd." }, 410);
+      }
+      throw err;
+    }
+    if (!tx) {
+      return c.json({ error: "Kunde inte slutföra inbjudan just nu." }, 500);
+    }
 
     const sessionData: SessionData = {
       userId: tx.user.id,
@@ -685,6 +733,18 @@ association.post("/team-invites/:id/resend", async (c) => {
   const inviteId = c.req.param("id");
   if (!/^[0-9a-f-]{36}$/i.test(inviteId)) {
     return c.json({ error: "Ogiltigt ID." }, 400);
+  }
+
+  // P3.26 (audit 2026-05-26): kommentaren ovan utlovar 5 resends/10 min/
+  // invite men ingen guard fanns. Lägg den nu — räcker för normala
+  // admins men stoppar "spamma Skicka igen"-knappen.
+  const rl = await teamInviteResendRateLimit(inviteId);
+  if (!rl.allowed) {
+    c.header("Retry-After", String(rl.resetInSeconds));
+    return c.json(
+      { error: "För många försök att skicka om denna inbjudan. Vänta en stund." },
+      429
+    );
   }
 
   let body: { email?: string } = {};
@@ -818,6 +878,10 @@ association.post("/campaigns", async (c) => {
   if (!session.orgId) return c.json({ error: "Ingen organisation" }, 403);
   if (session.role !== "ASSOCIATION_ADMIN" && session.role !== "INTERNAL_ADMIN") {
     return c.json({ error: "Behörighet saknas" }, 403);
+  }
+  // P3.29 (audit 2026-05-26): demo-konton ska inte muta:a DB.
+  if (isDemoSession(session)) {
+    return c.json({ error: "Demo-konton kan inte skapa kampanjer." }, 403);
   }
 
   type Body = {

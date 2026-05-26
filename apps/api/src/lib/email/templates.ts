@@ -90,6 +90,11 @@ export function orderConfirmationEmail(params: {
   totalOre: number;
   shopSlug: string;
   items: Array<{ name: string; qty: number; unitPriceOre: number }>;
+  /**
+   * P1.5 (audit 2026-05-26): signerad token som låser order-status-
+   * länken till just den här kunden. Utan token är endpointen 401:ad.
+   */
+  viewToken: string;
 }): { subject: string; html: string } {
   const itemRows = params.items
     .map(
@@ -141,7 +146,7 @@ export function orderConfirmationEmail(params: {
           <td style="padding:10px 0 0;text-align:right;color:${BRAND_COLOR};font-size:16px;font-weight:700">${fmt(params.totalOre)}</td>
         </tr>
       </table>
-      <a href="${url}/shop/${params.shopSlug}/order/${params.orderId}" style="display:inline-block;background:${BRAND_COLOR};color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">
+      <a href="${url}/shop/${params.shopSlug}/order/${params.orderId}?t=${encodeURIComponent(params.viewToken)}" style="display:inline-block;background:${BRAND_COLOR};color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">
         Se orderstatus
       </a>
       <p style="color:#888;font-size:12px;line-height:1.6;margin:24px 0 0">

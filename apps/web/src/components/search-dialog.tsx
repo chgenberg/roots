@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import * as VisuallyHiddenPrimitive from "@radix-ui/react-visually-hidden";
 import { cn } from "@/lib/utils";
 import {
   Search,
@@ -150,6 +151,15 @@ export function SearchDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="max-w-lg gap-0 overflow-hidden p-0">
+        {/* P3.64 (audit 2026-05-26): Radix kräver DialogTitle för
+            skärmläsare. Vi visar inte titeln visuellt (har sökfält
+            med aria-label) men lägger den i VisuallyHidden. */}
+        <VisuallyHiddenPrimitive.Root>
+          <DialogTitle>Sök på Roots</DialogTitle>
+          <DialogDescription>
+            Sök bland sidor, produkter och hjälpartiklar.
+          </DialogDescription>
+        </VisuallyHiddenPrimitive.Root>
         <div className="flex items-center gap-3 border-b border-border px-4">
           <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
           <input

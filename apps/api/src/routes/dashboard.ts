@@ -119,7 +119,13 @@ dashboard.get("/association", async (c) => {
           totalSalesOre: Number(sales?.total || 0),
           orderCount: Number(sales?.count || 0),
           goalValue: goal?.team_goals.goalValue || 0,
-          inviteToken: t.inviteToken,
+          // P2.11 (audit 2026-05-26): tidigare läckte vi seller-
+          // invite-token rakt i dashboard-payloaden för alla
+          // ASSOCIATION_ADMIN-sessioner. En komprometterad admin-
+          // cookie räckte för att skörda alla teams seller-tokens
+          // och spam-registrera fake sellers. Skicka bara en
+          // boolean — token rotateras/hämtas via dedikerad endpoint.
+          hasInviteToken: Boolean(t.inviteToken),
         };
       }),
       sellers: sellerList,
@@ -144,6 +150,10 @@ dashboard.patch("/association/team-goals", async (c) => {
     session.role !== "INTERNAL_ADMIN"
   ) {
     return c.json({ error: "Behörighet saknas" }, 403);
+  }
+  // P3.29 (audit 2026-05-26): demo-konton ska inte muta:a DB.
+  if (isDemoSession(session)) {
+    return c.json({ error: "Demo-konton kan inte ändra lagmål." }, 403);
   }
 
   type Body = {

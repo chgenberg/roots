@@ -13,15 +13,28 @@
  */
 
 import { Hono } from "hono";
+import { timingSafeEqual } from "crypto";
 import { childLogger } from "../lib/logger";
 import { auditLog, requestContext } from "../lib/audit";
 import { purgeDueDeletions } from "../lib/deletion-purge";
+import { internalCronFailRateLimit } from "../lib/rate-limit";
 
 const log = childLogger("internal-cron");
 
 export const internalCron = new Hono();
 
-function authorize(c: any): { ok: true } | { ok: false; status: 401 | 503 } {
+// P4.12 (audit 2026-05-26): jämför inte med plain !== — gör timing-safe
+// så att en angripare inte kan läcka token-prefix via response-tid.
+function timingSafeStrEqual(a: string, b: string): boolean {
+  const ab = Buffer.from(a, "utf8");
+  const bb = Buffer.from(b, "utf8");
+  if (ab.length !== bb.length) return false;
+  return timingSafeEqual(ab, bb);
+}
+
+async function authorize(
+  c: any
+): Promise<{ ok: true } | { ok: false; status: 401 | 503 | 429 }> {
   const token = process.env.INTERNAL_CRON_TOKEN;
   if (!token) {
     // Saknas helt i prod → vi ska aldrig låta anonymous trigga
@@ -33,19 +46,33 @@ function authorize(c: any): { ok: true } | { ok: false; status: 401 | 503 } {
   }
   const header = c.req.header("authorization") || "";
   const match = header.match(/^Bearer\s+(.+)$/i);
-  if (!match || match[1] !== token) {
+  if (!match || !timingSafeStrEqual(match[1], token)) {
+    // P3.60 (audit 2026-05-26): tidigare fanns ingen IP-baserad throttle
+    // på Bearer-token-validation. Kort token → online guessing. 10 fel
+    // per 15 min per IP räcker för legitim cron-trigger som råkar miss:a
+    // env-update men stänger fönstret för enumeration.
+    const ip =
+      c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    const rl = await internalCronFailRateLimit(ip);
+    if (!rl.allowed) {
+      c.header("Retry-After", String(rl.resetInSeconds));
+      return { ok: false, status: 429 };
+    }
     return { ok: false, status: 401 };
   }
   return { ok: true };
 }
 
 internalCron.post("/deletion-purge", async (c) => {
-  const auth = authorize(c);
+  const auth = await authorize(c);
   if (!auth.ok) {
-    return c.json(
-      { error: auth.status === 503 ? "Cron disabled" : "Unauthorized" },
-      auth.status
-    );
+    const message =
+      auth.status === 503
+        ? "Cron disabled"
+        : auth.status === 429
+          ? "Too many failed attempts"
+          : "Unauthorized";
+    return c.json({ error: message }, auth.status);
   }
 
   try {

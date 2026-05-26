@@ -285,7 +285,7 @@ notifications.get("/", async (c) => {
     // ── INTERNAL_ADMIN feed: high-signal audit events ────────────
     if (session.role === "INTERNAL_ADMIN") {
       const highSignal = [
-        "auth.login.fail",
+        "auth.login.failed",
         "auth.change_password.ok",
         "association.team_invite.claimed",
         "sales.lead.created",
