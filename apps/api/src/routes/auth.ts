@@ -22,7 +22,15 @@ import {
 } from "../lib/session";
 import type { SessionData } from "../lib/session";
 import { getEmailSender } from "../lib/email";
-import { welcomeEmail } from "../lib/email/templates";
+import {
+  welcomeEmail,
+  deletionRequestEmail,
+  deletionCancelledEmail,
+} from "../lib/email/templates";
+import {
+  issueDeletionCancelToken,
+  verifyDeletionCancelToken,
+} from "../lib/deletion-tokens";
 import { loginRateLimit, registrationRateLimit } from "../lib/rate-limit";
 import { childLogger } from "../lib/logger";
 import { auditLog, requestContext } from "../lib/audit";
@@ -375,6 +383,314 @@ auth.post("/change-password", async (c) => {
   } catch (err) {
     log.error({ err, userId: session.userId }, "change-password failed");
     return c.json({ error: "Kunde inte byta lösenord just nu." }, 500);
+  }
+});
+
+// ── KC2.7 — GDPR account-deletion ──────────────────────────────────
+//
+// 3-stegs flow:
+//   POST /v1/auth/delete-account        — begär radering (password+confirm)
+//   GET  /v1/auth/deletion-status       — current status (for portal UI)
+//   POST /v1/auth/cancel-deletion       — ångra (inloggad ELLER token)
+//
+// Själva PII-anonymiseringen sker i en separat scheduled worker som
+// poll:ar `scheduled_deletion_at <= now()` (se workers/deletion-purge.ts).
+// På så sätt är request-endpoints helt stateless / non-blocking, och en
+// crash i purge:n stoppar bara den användaren — inte begäran-flödet.
+
+const DELETION_COOLDOWN_DAYS = 14;
+const DELETION_COOLDOWN_MS = DELETION_COOLDOWN_DAYS * 24 * 60 * 60 * 1000;
+
+auth.post("/delete-account", async (c) => {
+  const cookie = c.req.header("cookie") || "";
+  const match = cookie.match(new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`));
+  if (!match) return c.json({ error: "Ej inloggad" }, 401);
+
+  const currentSessionId = match[1];
+  let session: SessionData | null = null;
+  try {
+    session = await getSession(currentSessionId);
+  } catch {
+    return c.json({ error: "Ej inloggad" }, 401);
+  }
+  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+
+  // Demo-sessions har ingen DB-rad; ingen att radera.
+  if (!session.userId || session.demoProfile) {
+    return c.json(
+      { error: "Demo-konton kan inte raderas — de saknar persistent data." },
+      400
+    );
+  }
+
+  type Body = { password?: string; confirm?: string };
+  let body: Body;
+  try {
+    body = await c.req.json<Body>();
+  } catch {
+    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+  }
+
+  const password = (body.password ?? "").trim();
+  // Klient skickar "RADERA" som extra friction-step — minskar risken
+  // för 1-click-deletion när användaren testar UI:t.
+  const confirm = (body.confirm ?? "").trim();
+
+  if (!password) return c.json({ error: "Lösenord krävs." }, 400);
+  if (confirm !== "RADERA") {
+    return c.json(
+      { error: 'Bekräftelse-fältet måste innehålla ordet "RADERA".' },
+      400
+    );
+  }
+
+  try {
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, session.userId))
+      .limit(1);
+    if (!user) return c.json({ error: "Ej inloggad" }, 401);
+
+    // Redan begärt: returnera idempotent OK med scheduledAt. Användaren
+    // ska inte få ett 409 som ser ut som en bugg.
+    if (user.deletionRequestedAt && user.scheduledDeletionAt) {
+      return c.json({
+        ok: true,
+        alreadyRequested: true,
+        scheduledDeletionAt: user.scheduledDeletionAt.toISOString(),
+      });
+    }
+
+    // Redan raderat: 410 Gone.
+    if (user.deletedAt) {
+      return c.json({ error: "Kontot är redan raderat." }, 410);
+    }
+
+    let valid: boolean;
+    try {
+      valid = await verify(user.passwordHash, password);
+    } catch {
+      return c.json(
+        { error: "Lösenordet kan inte verifieras för det här kontot." },
+        400
+      );
+    }
+    if (!valid) {
+      void auditLog({
+        userId: user.id,
+        action: "auth.delete_account.failed",
+        meta: {
+          ...requestContext((n) => c.req.header(n)),
+          reason: "bad_password",
+        },
+      });
+      return c.json({ error: "Fel lösenord." }, 401);
+    }
+
+    const now = new Date();
+    const scheduledAt = new Date(now.getTime() + DELETION_COOLDOWN_MS);
+
+    await db
+      .update(users)
+      .set({
+        deletionRequestedAt: now,
+        scheduledDeletionAt: scheduledAt,
+        updatedAt: now,
+      })
+      .where(eq(users.id, user.id));
+
+    // Logga ut alla sessions (även current) så att kontot inte längre
+    // kan användas under cooldown. Användaren kan dock fortfarande
+    // logga in igen och då ses banner: "ditt konto är schemalagt
+    // för radering om X dagar".
+    try {
+      await destroyUserSessions(user.id);
+    } catch (err) {
+      log.warn({ err, userId: user.id }, "failed to revoke sessions after deletion request");
+    }
+    deleteCookie(c, SESSION_COOKIE_NAME, { path: "/" });
+
+    void auditLog({
+      userId: user.id,
+      action: "auth.delete_account.requested",
+      meta: {
+        ...requestContext((n) => c.req.header(n)),
+        scheduledAt: scheduledAt.toISOString(),
+        cooldownDays: DELETION_COOLDOWN_DAYS,
+      },
+    });
+
+    // Fire-and-forget bekräftelse-mail. Innehåller signed cancel-token
+    // så användaren kan ångra utan att behöva logga in.
+    void (async () => {
+      try {
+        const token = issueDeletionCancelToken(user.id);
+        const siteUrl =
+          process.env.NEXT_PUBLIC_SITE_URL ||
+          process.env.SITE_URL ||
+          "https://roots.se";
+        const cancelUrl = `${siteUrl}/konto/avbryt-radering?token=${encodeURIComponent(token)}`;
+        await getEmailSender().sendEmail({
+          to: user.email,
+          ...deletionRequestEmail({
+            name:
+              user.contactName?.split(" ")[0] ||
+              user.email.split("@")[0] ||
+              "där",
+            scheduledDeletionAt: scheduledAt,
+            cancelUrl,
+          }),
+        });
+      } catch (err) {
+        log.error({ err, userId: user.id }, "deletion request email failed");
+      }
+    })();
+
+    return c.json({
+      ok: true,
+      scheduledDeletionAt: scheduledAt.toISOString(),
+      cooldownDays: DELETION_COOLDOWN_DAYS,
+    });
+  } catch (err) {
+    log.error({ err, userId: session.userId }, "delete-account failed");
+    return c.json({ error: "Kunde inte registrera begäran just nu." }, 500);
+  }
+});
+
+auth.get("/deletion-status", async (c) => {
+  const cookie = c.req.header("cookie") || "";
+  const match = cookie.match(new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`));
+  if (!match) return c.json({ status: "none" });
+
+  try {
+    const session = await getSession(match[1]);
+    if (!session?.userId) return c.json({ status: "none" });
+
+    const [user] = await db
+      .select({
+        deletionRequestedAt: users.deletionRequestedAt,
+        scheduledDeletionAt: users.scheduledDeletionAt,
+        deletedAt: users.deletedAt,
+      })
+      .from(users)
+      .where(eq(users.id, session.userId))
+      .limit(1);
+
+    if (!user) return c.json({ status: "none" });
+    if (user.deletedAt) return c.json({ status: "deleted" });
+    if (user.scheduledDeletionAt) {
+      return c.json({
+        status: "scheduled",
+        requestedAt: user.deletionRequestedAt?.toISOString() ?? null,
+        scheduledDeletionAt: user.scheduledDeletionAt.toISOString(),
+      });
+    }
+    return c.json({ status: "none" });
+  } catch (err) {
+    log.warn({ err }, "deletion-status failed");
+    return c.json({ status: "unknown" });
+  }
+});
+
+/**
+ * Avbryt en pågående radering. Två paths:
+ *   1. Inloggad ASSOCIATION_ADMIN/SELLER/… med samma userId.
+ *   2. Anonym med valid signed `?token=` (från mailen). Detta gör att
+ *      en användare som har tappat lösenordet ändå kan ångra (kritiskt
+ *      när användaren råkar trigga delete från fel knapp och sedan
+ *      blir utloggad).
+ *
+ * Bägge fall: nollar deletionRequestedAt + scheduledDeletionAt + skickar
+ * bekräftelse-mail.
+ */
+auth.post("/cancel-deletion", async (c) => {
+  type Body = { token?: string };
+  let body: Body = {};
+  try {
+    body = await c.req.json<Body>();
+  } catch {
+    // OK — tom body är giltigt när man försöker via session.
+  }
+
+  let targetUserId: string | null = null;
+  let viaToken = false;
+
+  if (body.token) {
+    const verified = verifyDeletionCancelToken(body.token);
+    if (!verified) {
+      return c.json({ error: "Ogiltig eller utgången länk." }, 400);
+    }
+    targetUserId = verified.userId;
+    viaToken = true;
+  } else {
+    const cookie = c.req.header("cookie") || "";
+    const match = cookie.match(new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`));
+    if (!match) return c.json({ error: "Ej inloggad." }, 401);
+    try {
+      const session = await getSession(match[1]);
+      if (!session?.userId) return c.json({ error: "Ej inloggad." }, 401);
+      targetUserId = session.userId;
+    } catch {
+      return c.json({ error: "Ej inloggad." }, 401);
+    }
+  }
+
+  if (!targetUserId) return c.json({ error: "Ej inloggad." }, 401);
+
+  try {
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, targetUserId))
+      .limit(1);
+    if (!user) return c.json({ error: "Användare hittades inte." }, 404);
+    if (user.deletedAt) {
+      return c.json({ error: "Kontot är redan raderat och kan inte återställas." }, 410);
+    }
+    if (!user.scheduledDeletionAt) {
+      // Idempotent: redan ångrat / aldrig begärt.
+      return c.json({ ok: true, alreadyCancelled: true });
+    }
+
+    await db
+      .update(users)
+      .set({
+        deletionRequestedAt: null,
+        scheduledDeletionAt: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, user.id));
+
+    void auditLog({
+      userId: user.id,
+      action: "auth.delete_account.cancelled",
+      meta: {
+        ...requestContext((n) => c.req.header(n)),
+        viaToken,
+      },
+    });
+
+    void (async () => {
+      try {
+        await getEmailSender().sendEmail({
+          to: user.email,
+          ...deletionCancelledEmail({
+            name:
+              user.contactName?.split(" ")[0] ||
+              user.email.split("@")[0] ||
+              "där",
+          }),
+        });
+      } catch (err) {
+        log.error({ err, userId: user.id }, "cancellation email failed");
+      }
+    })();
+
+    return c.json({ ok: true });
+  } catch (err) {
+    log.error({ err, userId: targetUserId }, "cancel-deletion failed");
+    return c.json({ error: "Kunde inte avbryta raderingen just nu." }, 500);
   }
 });
 

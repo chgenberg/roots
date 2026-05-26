@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -16,9 +17,10 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { usePortalUser } from "@/lib/portal-context";
-import { Shield, Bell, Palette } from "lucide-react";
+import { Shield, Bell, Palette, AlertTriangle } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { apiFetch } from "@/lib/api";
+import { broadcastLogout } from "@/lib/use-cross-tab-logout";
 
 function getRoleMeta(role: string) {
   if (role === "CLUB_ADMIN" || role === "CLUB_MEMBER")
@@ -170,11 +172,206 @@ function BytLosenordDialog({
   );
 }
 
+// ── Radera konto-dialog (KC2.7) ───────────────────────────────────
+// Triggar `POST /v1/auth/delete-account` med password + bekräftelse-ord.
+// Loopen är två-stegs medvetet:
+//   1. Användaren skriver "RADERA" och sitt lösenord
+//   2. Server sätter scheduled_deletion_at = now+14d, anonymiserar
+//      sessions, skickar bekräftelse-mail
+// Vi loggar ut användaren omedelbart efter ok-svar (sessionen finns
+// inte längre i Redis ändå). Inom 14d kan användaren ångra via
+// /konto/avbryt-radering?token=... från mailen.
+function RaderaKontoDialog({
+  open,
+  onOpenChange,
+  onSuccess,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSuccess: () => void;
+}) {
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function resetState() {
+    setPassword("");
+    setConfirm("");
+    setError(null);
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+
+    if (!password) {
+      setError("Lösenord krävs.");
+      return;
+    }
+    if (confirm !== "RADERA") {
+      setError('Skriv ordet "RADERA" i bekräftelse-fältet.');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const { ok, data, status } = await apiFetch<{
+        error?: string;
+        scheduledDeletionAt?: string;
+        cooldownDays?: number;
+      }>("/v1/auth/delete-account", {
+        method: "POST",
+        body: { password, confirm },
+      });
+      if (!ok) {
+        setError(
+          data?.error ||
+            (status === 401
+              ? "Fel lösenord."
+              : `Kunde inte skicka begäran (${status}).`)
+        );
+        return;
+      }
+      resetState();
+      onOpenChange(false);
+      onSuccess();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Kunde inte skicka begäran.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) resetState();
+        onOpenChange(o);
+      }}
+    >
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-destructive" />
+            Radera ditt konto
+          </DialogTitle>
+        </DialogHeader>
+        {/* KC6.8-mönstret: form-wrapper så Enter triggar submit */}
+        <form onSubmit={handleSubmit} noValidate>
+          <div className="space-y-4 px-6 py-2">
+            <div className="rounded-lg bg-amber-50 p-3 text-xs text-amber-900">
+              <p className="font-medium">Det här går att ångra inom 14 dagar.</p>
+              <p className="mt-1 text-amber-800/80">
+                Efter 14 dagar anonymiseras dina personliga uppgifter
+                permanent. Beställningar och fakturor sparas anonymiserat
+                i 7 år som bokföringslagen kräver.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="del-password">Lösenord</Label>
+              <Input
+                id="del-password"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoFocus
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="del-confirm">
+                Skriv <span className="font-mono">RADERA</span> för att bekräfta
+              </Label>
+              <Input
+                id="del-confirm"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                autoComplete="off"
+                spellCheck={false}
+                placeholder="RADERA"
+                required
+              />
+            </div>
+            {error && (
+              <p className="text-xs text-red-600" role="alert">
+                {error}
+              </p>
+            )}
+          </div>
+          <DialogFooter className="px-6 pb-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={submitting}
+            >
+              Avbryt
+            </Button>
+            <Button
+              type="submit"
+              variant="destructive"
+              disabled={submitting || confirm !== "RADERA"}
+            >
+              {submitting ? "Skickar…" : "Radera kontot"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+interface DeletionStatus {
+  status: "none" | "scheduled" | "deleted" | "unknown";
+  scheduledDeletionAt?: string;
+  requestedAt?: string;
+}
+
 export default function InstallningarPage() {
   const user = usePortalUser();
+  const router = useRouter();
   const { toast } = useToast();
   const roleMeta = getRoleMeta(user.role);
   const [pwdOpen, setPwdOpen] = useState(false);
+  const [delOpen, setDelOpen] = useState(false);
+  const [delStatus, setDelStatus] = useState<DeletionStatus | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    apiFetch<DeletionStatus>("/v1/auth/deletion-status").then(({ ok, data }) => {
+      if (cancelled) return;
+      if (ok && data) setDelStatus(data);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function handleDeletionSuccess() {
+    toast("Vi har skickat en bekräftelse till din e-post.");
+    // KC2.5: trigga cross-tab broadcast så övriga öppna tabs hoppar
+    // ut. Vi behöver inte själva kalla logout-endpointen — server-
+    // sidan har redan revokat alla sessions.
+    broadcastLogout();
+    // Kort delay innan navigation så toasten hinner uppstå.
+    setTimeout(() => router.replace("/login"), 400);
+  }
+
+  async function handleCancelDeletion() {
+    const { ok, data } = await apiFetch<{ error?: string }>(
+      "/v1/auth/cancel-deletion",
+      { method: "POST", body: {} }
+    );
+    if (!ok) {
+      toast(data?.error ?? "Kunde inte avbryta raderingen.");
+      return;
+    }
+    toast("Raderingen är avbruten.");
+    setDelStatus({ status: "none" });
+  }
 
   return (
     <div className="page-enter space-y-6">
@@ -268,10 +465,39 @@ export default function InstallningarPage() {
             <Button variant="secondary" onClick={() => setPwdOpen(true)}>
               Byt lösenord
             </Button>
-            <Button variant="outline" className="text-destructive hover:bg-destructive/5 hover:text-destructive" onClick={() => toast("Kontakta support för att radera ditt konto.")}>
-              Radera konto
-            </Button>
+            {delStatus?.status === "scheduled" ? (
+              <Button variant="outline" onClick={handleCancelDeletion}>
+                Avbryt radering
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                className="text-destructive hover:bg-destructive/5 hover:text-destructive"
+                onClick={() => setDelOpen(true)}
+              >
+                Radera konto
+              </Button>
+            )}
           </div>
+
+          {delStatus?.status === "scheduled" && delStatus.scheduledDeletionAt && (
+            <div
+              role="status"
+              className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
+            >
+              <p className="font-medium">Ditt konto är schemalagt för radering</p>
+              <p className="mt-1 text-amber-800/80">
+                Vi raderar kontot{" "}
+                <strong>
+                  {new Date(delStatus.scheduledDeletionAt).toLocaleDateString(
+                    "sv-SE",
+                    { day: "numeric", month: "long", year: "numeric" }
+                  )}
+                </strong>
+                . Du kan ångra fram tills dess.
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -279,6 +505,11 @@ export default function InstallningarPage() {
         open={pwdOpen}
         onOpenChange={setPwdOpen}
         onSuccess={() => toast("Lösenordet är uppdaterat.")}
+      />
+      <RaderaKontoDialog
+        open={delOpen}
+        onOpenChange={setDelOpen}
+        onSuccess={handleDeletionSuccess}
       />
     </div>
   );

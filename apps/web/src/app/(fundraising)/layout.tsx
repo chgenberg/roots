@@ -1,7 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import {
+  broadcastLogout,
+  useCrossTabLogout,
+} from "@/lib/use-cross-tab-logout";
 import Link from "next/link";
 import {
   BarChart3,
@@ -73,8 +77,18 @@ export default function FundraisingLayout({
     // apiFetch attaches CSRF + cookies; production rejects un-tokened
     // POSTs with 403 which previously left users logged in.
     await apiFetch("/v1/auth/logout", { method: "POST" });
+    // MASTERPLAN_01 KC2.5: trigga cross-tab broadcast så ALLA andra
+    // /forening- och /portal-tabs i samma origin redirectar med.
+    broadcastLogout();
     router.push("/login");
   }
+
+  // MASTERPLAN_01 KC2.5: lyssna på en annan tab som loggade ut.
+  const onCrossTabLogout = useCallback(() => {
+    setUser(null);
+    router.push("/login");
+  }, [router]);
+  useCrossTabLogout(onCrossTabLogout);
 
   if (loading) {
     return (

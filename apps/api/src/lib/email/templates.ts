@@ -308,6 +308,86 @@ export function payoutPaidEmail(params: {
   };
 }
 
+/**
+ * MASTERPLAN_01 KC2.7: bekräftelse-email när användaren har begärt
+ * radering av sitt konto. Tonen ska vara *informativ* — ingen guilt-
+ * trip, men tydlig om vad som händer härnäst och att ångerlänken
+ * fungerar i hela 14-dagars-fönstret. GDPR-art. 17 kräver att
+ * användaren har en transparent dokumentation av request:en.
+ *
+ * `cancelUrl` är en magisk-token-länk så användaren INTE behöver
+ * logga in för att ångra (logotypen kan ha makulerats av en hackare
+ * som inte vet lösenordet — användaren ska kunna ångra ändå).
+ */
+export function deletionRequestEmail(params: {
+  name: string;
+  scheduledDeletionAt: Date;
+  cancelUrl: string;
+}): { subject: string; html: string } {
+  const dateFmt = params.scheduledDeletionAt.toLocaleDateString("sv-SE", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+  return {
+    subject: "Din begäran om att radera ditt Roots-konto",
+    html: wrap(`
+      <h2 style="margin:0 0 16px;color:${BRAND_COLOR};font-size:22px">
+        Vi har tagit emot din begäran
+      </h2>
+      <p style="color:#444;line-height:1.6;margin:0 0 16px">
+        Hej ${params.name}, vi har registrerat att du vill radera ditt
+        Roots-konto. Vi raderar kontot <strong>${dateFmt}</strong>.
+      </p>
+      <p style="color:#444;line-height:1.6;margin:0 0 16px">
+        Under tiden fram till dess kan du logga in som vanligt och
+        ångra raderingen om du vill ha kvar kontot.
+      </p>
+      <p style="color:#444;line-height:1.6;margin:0 0 24px">
+        Du kan ångra direkt via knappen nedan — du behöver inte
+        logga in.
+      </p>
+      <a href="${params.cancelUrl}" style="display:inline-block;background:${BRAND_COLOR};color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">
+        Ångra raderingen
+      </a>
+      <p style="color:#999;line-height:1.6;margin:24px 0 0;font-size:12px">
+        Efter att kontot raderats anonymiseras alla personliga uppgifter.
+        Beställningar och fakturor sparas i anonymiserad form i 7 år som
+        bokföringslagen kräver. Du kan begära ett utdrag eller en
+        rättning av dina uppgifter när som helst genom att svara på
+        det här e-postmeddelandet.
+      </p>
+    `),
+  };
+}
+
+/**
+ * MASTERPLAN_01 KC2.7: bekräftelse-email när användaren har ångrat
+ * sin radering. Kort och vänlig — "välkommen tillbaka, allt är som
+ * vanligt".
+ */
+export function deletionCancelledEmail(params: {
+  name: string;
+}): { subject: string; html: string } {
+  return {
+    subject: "Din kontoradering är avbruten",
+    html: wrap(`
+      <h2 style="margin:0 0 16px;color:${BRAND_COLOR};font-size:22px">
+        Allt är som vanligt
+      </h2>
+      <p style="color:#444;line-height:1.6;margin:0 0 16px">
+        Hej ${params.name}, vi har avbrutit raderingen av ditt
+        Roots-konto. Du kan fortsätta använda kontot som vanligt.
+      </p>
+      <p style="color:#444;line-height:1.6;margin:0 0 0">
+        Om det här inte var du som ångrade — kontakta oss direkt på
+        <a href="mailto:hej@roots.se" style="color:${BRAND_COLOR}">hej@roots.se</a>
+        så hjälper vi dig.
+      </p>
+    `),
+  };
+}
+
 export function milestoneEmail(params: {
   teamName: string;
   milestoneLabel: string;

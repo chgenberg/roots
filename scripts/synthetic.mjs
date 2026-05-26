@@ -92,6 +92,50 @@ async function run() {
     }
   );
 
+  // MASTERPLAN_01 KC2.7: deletion-purge cron-trigger. Synthetic-runnern
+  // är en bra plats att kicka jobbet eftersom den ändå kallas regelbundet
+  // (4×/dygn). I prod sätter Railway INTERNAL_CRON_TOKEN och vi skickar
+  // den som Bearer. Saknas token → vi hoppar checken så lokal dev inte
+  // failar.
+  const cronToken = process.env.INTERNAL_CRON_TOKEN;
+  if (cronToken) {
+    const start = Date.now();
+    try {
+      const res = await fetch(`${API_BASE}/v1/internal/cron/deletion-purge`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${cronToken}`,
+          "user-agent": "roots-synthetic/1.0",
+        },
+      });
+      const ms = Date.now() - start;
+      const ok = res.status === 200;
+      let purged = "?";
+      try {
+        const body = await res.json();
+        purged = String(body.purged ?? "?");
+      } catch {
+        /* ignore */
+      }
+      results.push({
+        name: `cron.deletion-purge purged=${purged}`,
+        url: `${API_BASE}/v1/internal/cron/deletion-purge`,
+        status: res.status,
+        ms,
+        ok,
+      });
+    } catch (err) {
+      results.push({
+        name: "cron.deletion-purge",
+        url: `${API_BASE}/v1/internal/cron/deletion-purge`,
+        status: 0,
+        ms: Date.now() - start,
+        ok: false,
+        error: String(err),
+      });
+    }
+  }
+
   // Vänta innan vi listar resultaten — låter pino-loggar flushas i
   // container-stdout innan rapporten skrivs sist.
   await sleep(100);

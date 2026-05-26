@@ -33,9 +33,19 @@ export const users = pgTable("users", {
   birthYear: integer("birth_year"),
   guardianUserId: uuid("guardian_user_id"),
   guardianConsentAt: timestamp("guardian_consent_at"),
+  // MASTERPLAN_01 KC2.7: GDPR account-deletion lifecycle. Alla nullable.
+  // Användaren begär → deletionRequestedAt + scheduledDeletionAt (now+14d).
+  // Inom 14d kan de ångra → båda nollas. Efter scheduled-tiden anonymiserar
+  // worker:n PII och sätter deletedAt. Order-historik bevaras anonymiserat
+  // för bokföringslagen (7 år).
+  deletionRequestedAt: timestamp("deletion_requested_at"),
+  scheduledDeletionAt: timestamp("scheduled_deletion_at"),
+  deletedAt: timestamp("deleted_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => [
   index("users_org_id_idx").on(table.orgId),
   index("users_guardian_idx").on(table.guardianUserId),
+  index("users_scheduled_deletion_at_idx").on(table.scheduledDeletionAt),
+  index("users_deleted_at_idx").on(table.deletedAt),
 ]);

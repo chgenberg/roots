@@ -12,6 +12,7 @@ import { checkout } from "./routes/checkout";
 import { dashboard } from "./routes/dashboard";
 import { settlement } from "./routes/settlement";
 import { payoutsRoute } from "./routes/payouts";
+import { internalCron } from "./routes/internal-cron";
 import { sharing } from "./routes/sharing";
 import { bankid } from "./routes/bankid";
 import { contact } from "./routes/contact";
@@ -107,6 +108,10 @@ const CSRF_EXEMPT_PATHS = [
   // Protected instead by per-IP rate limits in routes/preview.ts.
   "/v1/preview/unlock",
   "/v1/preview/waitlist",
+  // MASTERPLAN_01 KC2.7: interna cron-jobb triggas av Railway cron eller
+  // GitHub Actions med Bearer-token. Authentication görs explicit i
+  // routes/internal-cron.ts via INTERNAL_CRON_TOKEN.
+  "/v1/internal/cron",
 ];
 
 app.use("*", async (c, next) => {
@@ -164,6 +169,7 @@ app.route("/v1/checkout", checkout);
 app.route("/v1/dashboard", dashboard);
 app.route("/v1/settlement", settlement);
 app.route("/v1/payouts", payoutsRoute);
+app.route("/v1/internal/cron", internalCron);
 app.route("/v1/sharing", sharing);
 app.route("/v1/bankid", bankid);
 app.route("/v1/contact", contact);

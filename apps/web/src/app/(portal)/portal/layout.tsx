@@ -1,7 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import {
+  broadcastLogout,
+  useCrossTabLogout,
+} from "@/lib/use-cross-tab-logout";
 import Link from "next/link";
 import {
   LayoutDashboard,
@@ -126,8 +130,20 @@ export default function PortalLayout({
     // apiFetch attaches CSRF + cookies; production rejects un-tokened
     // POSTs with 403 which previously left users logged in.
     await apiFetch("/v1/auth/logout", { method: "POST" });
+    // MASTERPLAN_01 KC2.5: trigga andra tabs INNAN router.replace så
+    // de hinner navigera bort innan en /me-poll därinne får 401:s
+    // tomma user-obj och stör state-machine.
+    broadcastLogout();
     router.replace("/login");
   }
+
+  // MASTERPLAN_01 KC2.5: lyssna på cross-tab logout-event och redirecta
+  // utan att själv kalla logout-endpointen (sessionen är redan död).
+  const onCrossTabLogout = useCallback(() => {
+    setUser(null);
+    router.replace("/login");
+  }, [router]);
+  useCrossTabLogout(onCrossTabLogout);
 
   if (loading) {
     return (
