@@ -17,8 +17,14 @@ const FULL_PROD_ENV: NodeJS.ProcessEnv = {
   NEXT_PUBLIC_SITE_URL: "https://roots.se",
   OPENAI_API_KEY: "sk-real-key",
   RESEND_API_KEY: "re_real_key",
+  // MASTERPLAN_01 KC8.1: dessa adderades till RECOMMENDED_IN_PROD och
+  // måste därför finnas i full-env-baselinen för att testet ska räknas
+  // som "alla recommended satta".
+  KLARNA_USERNAME: "real-klarna-user",
+  KLARNA_PASSWORD: "real-klarna-pass",
   KLARNA_WEBHOOK_SECRET: "real-klarna-webhook",
   FORTNOX_WEBHOOK_SECRET: "real-fortnox-webhook",
+  FORTNOX_TOKEN: "real-fortnox-token",
   SENTRY_DSN: "https://abc@sentry.io/1",
 };
 

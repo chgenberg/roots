@@ -18,7 +18,7 @@ import { Hono } from "hono";
 import { eq } from "drizzle-orm";
 import { db } from "@roots/db";
 import { organizations, users } from "@roots/db/schema";
-import { getSession, SESSION_COOKIE_NAME } from "../lib/session";
+import { getSession, SESSION_COOKIE_NAME, isDemoSession } from "../lib/session";
 import type { SessionData } from "../lib/session";
 import { auditLog, requestContext } from "../lib/audit";
 import { childLogger } from "../lib/logger";
@@ -53,6 +53,15 @@ sales.post("/leads", async (c) => {
     session.role !== "INTERNAL_ADMIN"
   ) {
     return c.json({ error: "Behörighet saknas" }, 403);
+  }
+  // MASTERPLAN_01 KC2.1: demo-säljare ska kunna utforska pipeline-UI:t
+  // men inte skapa riktiga prospects som blir kvar i Roots CRM efter
+  // demo-sessionen är slut.
+  if (isDemoSession(session)) {
+    return c.json(
+      { error: "Demoläget kan inte skapa riktiga prospects." },
+      403
+    );
   }
 
   type Body = {

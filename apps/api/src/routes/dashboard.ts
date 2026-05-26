@@ -12,7 +12,7 @@ import {
   teamGoals,
   products,
 } from "@roots/db/schema";
-import { getSession, SESSION_COOKIE_NAME } from "../lib/session";
+import { getSession, SESSION_COOKIE_NAME, isDemoSession } from "../lib/session";
 import type { SessionData } from "../lib/session";
 import { getAchievedMilestones, getNextMilestone, getSellerGrade } from "../lib/milestones";
 import { getEmailSender } from "../lib/email";
@@ -365,6 +365,15 @@ dashboard.get("/team/:teamId", async (c) => {
 dashboard.patch("/sellers/:sellerId", async (c) => {
   const session = await requireSession(c);
   if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  // MASTERPLAN_01 KC2.1: en demo-INTERNAL_ADMIN passerar role-checken
+  // nedan men skulle annars kunna ändra status på en RIKTIG säljare
+  // (t.ex. inaktivera dem). Stoppa innan vi rör DB.
+  if (isDemoSession(session)) {
+    return c.json(
+      { error: "Demoläget kan inte ändra riktiga säljare." },
+      403
+    );
+  }
 
   const sellerId = c.req.param("sellerId");
   if (!/^[0-9a-f-]{36}$/i.test(sellerId)) {
@@ -466,6 +475,14 @@ dashboard.patch("/sellers/:sellerId", async (c) => {
 dashboard.post("/team/:teamId/sellers", async (c) => {
   const session = await requireSession(c);
   if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  // MASTERPLAN_01 KC2.1: skapar riktig users-rad + säljare + skickar
+  // welcome-email. Demo får inte trigga det.
+  if (isDemoSession(session)) {
+    return c.json(
+      { error: "Demoläget kan inte skapa riktiga säljare." },
+      403
+    );
+  }
 
   const teamId = c.req.param("teamId");
 

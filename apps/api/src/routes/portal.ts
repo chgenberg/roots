@@ -10,7 +10,7 @@ import {
   quotes,
   quoteLines,
 } from "@roots/db/schema";
-import { getSession, SESSION_COOKIE_NAME } from "../lib/session";
+import { getSession, SESSION_COOKIE_NAME, isDemoSession } from "../lib/session";
 import type { SessionData } from "../lib/session";
 import { childLogger } from "../lib/logger";
 import type {
@@ -695,6 +695,15 @@ portal.post("/members/invite", async (c) => {
   if (!canInvite) {
     return c.json({ error: "Behörighet saknas" }, 403);
   }
+  // MASTERPLAN_01 KC2.1: demo-INTERNAL_ADMIN passerar role-checken men
+  // skulle skicka ett RIKTIGT invite-email + lagra DB-rad mot whatever
+  // orgId (eller null). Blockera innan något skickas.
+  if (isDemoSession(session)) {
+    return c.json(
+      { error: "Demoläget kan inte skicka riktiga inbjudningar." },
+      403
+    );
+  }
 
   type InviteBody = {
     email?: string;
@@ -973,6 +982,15 @@ portal.post("/quotes", async (c) => {
     session.role !== "INTERNAL_ADMIN"
   ) {
     return c.json({ error: "Behörighet saknas" }, 403);
+  }
+  // MASTERPLAN_01 KC2.1: demo-säljaren saknar pipeline-context och
+  // skulle annars kunna skapa offerter mot RIKTIGA orgIds (body.orgId
+  // är vad som helst supplied by client). Stäng vägen.
+  if (isDemoSession(session)) {
+    return c.json(
+      { error: "Demoläget kan inte skapa riktiga offerter." },
+      403
+    );
   }
 
   type CreateQuoteBody = {

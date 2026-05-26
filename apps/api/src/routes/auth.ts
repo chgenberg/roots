@@ -15,13 +15,15 @@ import {
   destroySession,
   destroyUserSessions,
   getSession,
+  refreshSession,
   SESSION_COOKIE_NAME,
   SESSION_COOKIE_OPTIONS,
+  SESSION_REFRESH_THRESHOLD_MS,
 } from "../lib/session";
 import type { SessionData } from "../lib/session";
 import { getEmailSender } from "../lib/email";
 import { welcomeEmail } from "../lib/email/templates";
-import { loginRateLimit } from "../lib/rate-limit";
+import { loginRateLimit, registrationRateLimit } from "../lib/rate-limit";
 import { childLogger } from "../lib/logger";
 import { auditLog, requestContext } from "../lib/audit";
 import { scheduleOrgNormalize } from "../lib/jobs/schedule-org-normalize";
@@ -390,6 +392,21 @@ auth.get("/me", async (c) => {
   try {
     const session = await getSession(sessionId);
     if (session) {
+      // MASTERPLAN_01 KC2.4: rolling-window-refresh. När sessionen har
+      // använts mer än halva sin TTL, förläng både Redis-TTL och
+      // browser-cookie:n så att aktiva användare inte loggas ut
+      // mitt i ett köp efter 7 dagar. Best-effort: en Redis-hick får
+      // inte blockera /me-svaret.
+      const ageMs = Date.now() - (session.createdAt ?? 0);
+      if (ageMs > SESSION_REFRESH_THRESHOLD_MS) {
+        try {
+          await refreshSession(sessionId);
+          setCookie(c, SESSION_COOKIE_NAME, sessionId, SESSION_COOKIE_OPTIONS);
+        } catch (err) {
+          log.warn({ err }, "session refresh failed (non-fatal)");
+        }
+      }
+
       let email = "";
       let name = "";
       let orgName = "";
@@ -437,6 +454,19 @@ auth.get("/me", async (c) => {
 });
 
 auth.post("/register/association", async (c) => {
+  // MASTERPLAN_01 KC2.9: cap 5 registrations/h/IP innan vi rör DB
+  // eller skickar welcome-email. Förhindrar trivial signup-flood.
+  const ip =
+    c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const rl = await registrationRateLimit(ip);
+  if (!rl.allowed) {
+    c.header("Retry-After", String(rl.resetInSeconds));
+    return c.json(
+      { error: "För många registreringar från denna IP. Försök igen senare." },
+      429
+    );
+  }
+
   let body: any;
   try {
     body = await c.req.json();
@@ -555,6 +585,18 @@ auth.post("/register/association", async (c) => {
 });
 
 auth.post("/register/team-leader", async (c) => {
+  // MASTERPLAN_01 KC2.9: cap 5 registrations/h/IP.
+  const ip =
+    c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const rl = await registrationRateLimit(ip);
+  if (!rl.allowed) {
+    c.header("Retry-After", String(rl.resetInSeconds));
+    return c.json(
+      { error: "För många registreringar från denna IP. Försök igen senare." },
+      429
+    );
+  }
+
   let body: any;
   try {
     body = await c.req.json();
@@ -733,6 +775,20 @@ auth.post("/register/team-leader", async (c) => {
 });
 
 auth.post("/register/seller", async (c) => {
+  // MASTERPLAN_01 KC2.9: cap 5 registrations/h/IP. Seller-flow är extra
+  // intressant att skydda — invite-token gatekeepar typen men token kan
+  // gå viralt och vi vill inte att en miljö som läcker den blir DOSad.
+  const ip =
+    c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const rl = await registrationRateLimit(ip);
+  if (!rl.allowed) {
+    c.header("Retry-After", String(rl.resetInSeconds));
+    return c.json(
+      { error: "För många registreringar från denna IP. Försök igen senare." },
+      429
+    );
+  }
+
   let body: any;
   try {
     body = await c.req.json();

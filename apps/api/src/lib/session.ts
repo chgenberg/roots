@@ -5,8 +5,18 @@ import { childLogger } from "./logger";
 const log = childLogger("session");
 
 const SESSION_PREFIX = "sess:";
-const SESSION_TTL = 60 * 60 * 24 * 7; // 7 days
+export const SESSION_TTL = 60 * 60 * 24 * 7; // 7 days
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
+
+/**
+ * MASTERPLAN_01 KC2.4: rolling-window-refresh tröskel.
+ * Vi vill inte uppdatera Redis TTL på varje /me-anrop (browser pollar
+ * /me ofta). Istället: när sessionens ålder > 50% av SESSION_TTL,
+ * räknar /me-handler den som "halvgammal" och triggar en refresh
+ * (best-effort). Detta håller aktiva användare inloggade utan att
+ * spamma Redis EXPIRE.
+ */
+export const SESSION_REFRESH_THRESHOLD_MS = (SESSION_TTL * 1000) / 2;
 
 export interface SessionData {
   userId: string;
@@ -156,13 +166,42 @@ export function isDemoSession(session: SessionData | null | undefined): boolean 
   return Boolean(session?.demoProfile);
 }
 
+/**
+ * MASTERPLAN_01 KC2.4: rolling-window refresh.
+ *
+ * Tidigare bumpade vi bara EXPIRE; `session.createdAt` stod kvar på
+ * original-värdet och varje /me efter halv-TTL triggade refresh igen
+ * = Redis-EXPIRE-spam. Nu sätter vi även `createdAt = now` i datat,
+ * så nästa refresh inte triggas förrän halva nya TTL passerat.
+ */
 export async function refreshSession(id: string): Promise<void> {
   if (await isRedisAvailable()) {
-    await redis.expire(`${SESSION_PREFIX}${id}`, SESSION_TTL);
+    const raw = await redis.get(`${SESSION_PREFIX}${id}`);
+    if (!raw) return;
+    try {
+      const data = JSON.parse(raw) as SessionData;
+      data.createdAt = Date.now();
+      await redis.set(
+        `${SESSION_PREFIX}${id}`,
+        JSON.stringify(data),
+        "EX",
+        SESSION_TTL
+      );
+    } catch {
+      // Corrupt JSON — fall back to bumping the TTL only.
+      await redis.expire(`${SESSION_PREFIX}${id}`, SESSION_TTL);
+    }
     return;
   }
   const entry = memoryStore.get(id);
   if (entry) {
+    try {
+      const data = JSON.parse(entry.data) as SessionData;
+      data.createdAt = Date.now();
+      entry.data = JSON.stringify(data);
+    } catch {
+      // ignore corrupt JSON
+    }
     entry.expiresAt = Date.now() + SESSION_TTL * 1000;
   }
 }

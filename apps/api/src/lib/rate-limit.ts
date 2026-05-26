@@ -70,6 +70,18 @@ export async function loginRateLimit(
   return checkRateLimit(key, 5, 15 * 60); // 5 attempts per 15 minutes
 }
 
+/**
+ * MASTERPLAN_01 KC2.9: cap 5 registrations per hour per IP. Stops
+ * trivial signup floods that would otherwise spam our email sender
+ * (welcome emails ut till slumpmässiga adresser = bounce-rate ↑ =
+ * Resend-domänen flaggas). Per-IP räcker som första lager; per-email
+ * dedupe sker redan i `users`-tabellen via UNIQUE-constraint.
+ */
+export async function registrationRateLimit(ip: string): Promise<RateLimitResult> {
+  const key = `register:${ip}`;
+  return checkRateLimit(key, 5, 60 * 60); // 5 per hour per IP
+}
+
 export async function aiRateLimit(userId: string): Promise<RateLimitResult> {
   const key = `ai:${userId}`;
   return checkRateLimit(key, 30, 60); // 30 requests per minute

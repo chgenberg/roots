@@ -18,7 +18,44 @@ const PROTECTED_ROUTES: Record<string, string[]> = {
   "/forening": ["ASSOCIATION_ADMIN", "INTERNAL_ADMIN"],
   "/lag": ["TEAM_LEADER", "ASSOCIATION_ADMIN", "INTERNAL_ADMIN"],
   "/min-shop": ["SELLER", "TEAM_LEADER", "ASSOCIATION_ADMIN", "INTERNAL_ADMIN"],
+  // MASTERPLAN_01 KC2.2: /portal/* gate:ades tidigare bara client-side
+  // via PortalUserProvider. En oinloggad besökare kunde se laddande
+  // skelett-UI tills /me failade. En SELLER kunde navigera till
+  // /portal/saljare och se skelettet av ANDRA säljare. Nu kräver
+  // middleware:n en av nedanstående roller, annars redirect till login
+  // (om unauth) eller deras egna home (om fel roll).
+  "/portal": [
+    "CLUB_ADMIN",
+    "CLUB_MEMBER",
+    "SALES_REP",
+    "SALES_ADMIN",
+    "INTERNAL_ADMIN",
+  ],
 };
+
+/**
+ * MASTERPLAN_01 KC2.2: vart en användare hör hemma när de hamnar på en
+ * sida som inte tillåter deras roll. Måste matcha roleHome() i
+ * apps/web/src/app/(auth)/login/page.tsx — håll dem synkade.
+ */
+function roleHome(role: string | undefined): string {
+  switch (role) {
+    case "ASSOCIATION_ADMIN":
+      return "/forening";
+    case "TEAM_LEADER":
+      return "/lag";
+    case "SELLER":
+      return "/min-shop";
+    case "CLUB_ADMIN":
+    case "CLUB_MEMBER":
+    case "SALES_REP":
+    case "SALES_ADMIN":
+    case "INTERNAL_ADMIN":
+      return "/portal";
+    default:
+      return "/login";
+  }
+}
 
 // Paths that must work even when the gate cookie is missing — the
 // gate page would otherwise be unreachable, and probes / OG-image
@@ -132,8 +169,22 @@ export async function middleware(request: NextRequest) {
     const role = data?.result?.data?.json?.role ?? data?.result?.data?.role;
     const allowedRoles = PROTECTED_ROUTES[matchedPrefix];
 
-    if (!role || !allowedRoles.includes(role)) {
-      return new NextResponse("Forbidden", { status: 403 });
+    if (!role) {
+      const loginUrl = new URL("/login", request.url);
+      loginUrl.searchParams.set("next", pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+
+    if (!allowedRoles.includes(role)) {
+      // MASTERPLAN_01 KC2.2: hellre redirecta till deras egen home än
+      // visa "Forbidden"-vägg. En SELLER som klickar en gammal länk
+      // till /portal/saljare ska landa på /min-shop, inte en blank
+      // 403-sida. Om vi inte vet vart de hör hemma → /login.
+      const home = roleHome(role);
+      if (home === pathname) {
+        return new NextResponse("Forbidden", { status: 403 });
+      }
+      return NextResponse.redirect(new URL(home, request.url));
     }
 
     return NextResponse.next();
