@@ -18,7 +18,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Search, X, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  Loader2,
+  Search,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+} from "lucide-react";
 import { getBrowserApiBase } from "@/lib/api-base";
 
 const API_URL = getBrowserApiBase();
@@ -182,8 +189,28 @@ export default function AuditLogPage() {
         </Badge>
       </div>
 
+      {/* MASTERPLAN_01 KC6.5: 5 filter-fält i en grid äter hela viewporten
+          på mobil — användaren måste scrolla för att se data. Wrap:a i
+          <details> så filter:n är collapsed default på alla skärmar och
+          tar plats först när admin explicit öppnar dem. Lägger även
+          aktiv-filter-count i headern så det syns när något är satt. */}
       <Card>
-        <CardContent className="p-5">
+        <CardContent className="p-0">
+          <details className="group" open={false}>
+            <summary className="flex cursor-pointer list-none items-center gap-2 px-5 py-4 [&::-webkit-details-marker]:hidden">
+              <Search className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Filter</span>
+              {(actionFilter || entityType || userId || fromDate || toDate) && (
+                <Badge variant="outline" className="text-[10px]">
+                  {[actionFilter, entityType, userId, fromDate, toDate].filter(Boolean).length} aktiva
+                </Badge>
+              )}
+              <ChevronDown
+                className="ml-auto h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180"
+                aria-hidden="true"
+              />
+            </summary>
+            <div className="border-t px-5 py-5">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             <div>
               <Label htmlFor="actionFilter">Åtgärd</Label>
@@ -265,6 +292,8 @@ export default function AuditLogPage() {
               Rensa filter
             </Button>
           )}
+            </div>
+          </details>
         </CardContent>
       </Card>
 

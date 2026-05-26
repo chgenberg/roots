@@ -207,30 +207,38 @@ export default function StatistikPage() {
             </div>
             {hasData ? (
               <>
-                <div
-                  className="mt-6 flex items-end gap-3"
-                  style={{ height: 200 }}
-                >
-                  {monthlyData.map((d) => {
-                    const h = Math.round((d.revenue / maxRevenue) * 100);
-                    return (
-                      <div
-                        key={d.month}
-                        className="flex flex-1 flex-col items-center gap-2"
-                      >
-                        <span className="text-xs font-medium">
-                          {(d.revenue / 1000).toFixed(1)}k
-                        </span>
+                {/* MASTERPLAN_01 KC6.5: bar-charts hade `flex-1` med 12
+                    staplar som krymper till ~22px-bredd på 320px-mobil
+                    → siffrorna blev oläsbara. Wrappa i overflow-x-auto
+                    + min-w per stapel så vi får horisontell scroll
+                    istället för crammade text-labels. */}
+                <div className="-mx-5 mt-6 overflow-x-auto px-5">
+                  <div
+                    className="flex items-end gap-3"
+                    style={{ height: 200, minWidth: monthlyData.length * 48 }}
+                  >
+                    {monthlyData.map((d) => {
+                      const h = Math.round((d.revenue / maxRevenue) * 100);
+                      return (
                         <div
-                          className="w-full rounded-t-lg bg-inverse-surface transition-all hover:bg-inverse-surface-hover"
-                          style={{ height: `${h}%` }}
-                        />
-                        <span className="text-xs text-muted-foreground">
-                          {d.month}
-                        </span>
-                      </div>
-                    );
-                  })}
+                          key={d.month}
+                          className="flex flex-1 flex-col items-center gap-2"
+                          style={{ minWidth: 36 }}
+                        >
+                          <span className="text-xs font-medium">
+                            {(d.revenue / 1000).toFixed(1)}k
+                          </span>
+                          <div
+                            className="w-full rounded-t-lg bg-inverse-surface transition-all hover:bg-inverse-surface-hover"
+                            style={{ height: `${h}%` }}
+                          />
+                          <span className="text-xs text-muted-foreground">
+                            {d.month}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
                 <Separator className="my-4" />
               </>
@@ -293,32 +301,36 @@ export default function StatistikPage() {
         <CardContent className="p-5">
           <h2 className="font-semibold">Beställningar per månad</h2>
           {hasData ? (
-            <div
-              className="mt-6 flex items-end gap-3"
-              style={{ height: 120 }}
-            >
-              {monthlyData.map((d) => {
-                const maxOrders = Math.max(
-                  1,
-                  ...monthlyData.map((x) => x.orders)
-                );
-                const h = Math.round((d.orders / maxOrders) * 100);
-                return (
-                  <div
-                    key={d.month}
-                    className="flex flex-1 flex-col items-center gap-2"
-                  >
-                    <span className="text-xs font-medium">{d.orders}</span>
+            // Samma scroll-pattern som omsättnings-chart:en ovan — KC6.5.
+            <div className="-mx-5 mt-6 overflow-x-auto px-5">
+              <div
+                className="flex items-end gap-3"
+                style={{ height: 120, minWidth: monthlyData.length * 48 }}
+              >
+                {monthlyData.map((d) => {
+                  const maxOrders = Math.max(
+                    1,
+                    ...monthlyData.map((x) => x.orders)
+                  );
+                  const h = Math.round((d.orders / maxOrders) * 100);
+                  return (
                     <div
-                      className="w-full rounded-t-lg bg-brand-400 transition-all hover:bg-brand-300"
-                      style={{ height: `${h}%` }}
-                    />
-                    <span className="text-xs text-muted-foreground">
-                      {d.month}
-                    </span>
-                  </div>
-                );
-              })}
+                      key={d.month}
+                      className="flex flex-1 flex-col items-center gap-2"
+                      style={{ minWidth: 36 }}
+                    >
+                      <span className="text-xs font-medium">{d.orders}</span>
+                      <div
+                        className="w-full rounded-t-lg bg-brand-400 transition-all hover:bg-brand-300"
+                        style={{ height: `${h}%` }}
+                      />
+                      <span className="text-xs text-muted-foreground">
+                        {d.month}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           ) : (
             <p className="mt-6 rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">

@@ -23,6 +23,7 @@ import {
   CheckCircle2,
   Plus,
   Loader2,
+  ChevronDown,
 } from "lucide-react";
 import { portalFetch } from "@/lib/portal-api";
 import { pipelineResponseSchema } from "@roots/contracts";
@@ -254,7 +255,12 @@ export default function PipelinePage() {
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* MASTERPLAN_01 KC6.4 — desktop kanban (lg+).
+          5 stages × ~250px deal-cards passar dåligt i mobile-viewport
+          (320–414px); en 2-col-grid blir 2x3 raster med trunkerad
+          text och ingen tydlig progression. Vi delar därför upp
+          renderingen på en hård breakpoint. */}
+      <div className="hidden gap-4 lg:grid lg:grid-cols-4 xl:grid-cols-5">
         {columns.map((col) => (
           <Card
             key={col.stage}
@@ -280,6 +286,46 @@ export default function PipelinePage() {
               </div>
             </CardContent>
           </Card>
+        ))}
+      </div>
+
+      {/* MASTERPLAN_01 KC6.4 — mobile accordion (< lg).
+          En stage per row, klick på header expanderar. Vi använder
+          native <details>-elementet så hela funktionaliteten finns
+          utan en JS-state-store — vilket också ger gratis a11y
+          (keyboard, screen-reader announce). LEAD/DRAFT defaultar
+          till open så användaren inte ser en helt collapsed lista. */}
+      <div className="space-y-3 lg:hidden" aria-label="Pipeline-stages">
+        {columns.map((col, idx) => (
+          <details
+            key={col.stage}
+            open={idx < 2 || col.deals.length > 0}
+            className={`group overflow-hidden rounded-xl border bg-card shadow-sm ${col.color} border-t-4`}
+          >
+            <summary
+              className={`flex cursor-pointer list-none items-center gap-2 px-4 py-3 ${col.headerBg} [&::-webkit-details-marker]:hidden`}
+            >
+              <col.icon className="h-4 w-4 text-brand-400" />
+              <span className="text-sm font-semibold">{col.stage}</span>
+              <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-background px-1.5 text-xs font-bold shadow-sm ring-1 ring-border">
+                {col.deals.length}
+              </span>
+              <ChevronDown
+                className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
+                aria-hidden="true"
+              />
+            </summary>
+            <div className="space-y-3 p-4">
+              {col.deals.map((deal) => (
+                <DealCard key={deal.id} deal={deal} />
+              ))}
+              {col.deals.length === 0 && (
+                <div className="rounded-xl border border-dashed border-border/80 bg-muted/20 py-6 text-center text-xs text-muted-foreground">
+                  Inga affärer i detta steg
+                </div>
+              )}
+            </div>
+          </details>
         ))}
       </div>
 
