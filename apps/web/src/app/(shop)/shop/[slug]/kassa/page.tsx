@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,7 @@ import { ArrowLeft, Loader2, Package, Truck } from "lucide-react";
 import Link from "next/link";
 import { getBrowserApiBase } from "@/lib/api-base";
 import { apiFetch } from "@/lib/api";
+import { useCart } from "@/lib/use-cart";
 
 const API_URL = getBrowserApiBase();
 
@@ -27,7 +28,12 @@ interface CheckoutProduct {
 
 interface CheckoutShop {
   products: CheckoutProduct[];
-  campaign: { status: string } | null;
+  campaign: {
+    status: string;
+    deliveryType?: string | null;
+    shippingFeeOre?: number | null;
+    shippingThresholdOre?: number | null;
+  } | null;
 }
 
 export default function CheckoutPage() {
@@ -45,19 +51,38 @@ export default function CheckoutPage() {
   const [city, setCity] = useState("");
   const [postalCode, setPostalCode] = useState("");
   const [note, setNote] = useState("");
+  // MASTERPLAN_01 KC4.5: distansavtalslagen + e-handelslagen kräver
+  // explicit godkännande av villkor + integritetspolicy före köp.
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [klarnaHtml, setKlarnaHtml] = useState("");
   const klarnaRef = useRef<HTMLDivElement>(null);
 
-  const items = Array.from(searchParams.entries())
-    .filter(([key]) => key.startsWith("item_"))
-    .map(([key, val]) => ({
-      productId: key.replace("item_", ""),
-      qty: parseInt(val, 10),
-    }))
-    .filter((i) => Number.isFinite(i.qty) && i.qty > 0);
+  // MASTERPLAN_01 KC4.1: hydra från sessionStorage när URL saknar
+  // ?item_*. Tidigare visade kassan "tom varukorg" vid refresh /
+  // bookmark / direkt-länk trots persisterad cart. URL-params vinner
+  // när de finns (delade länkar med ?item_X=Y ska respekteras).
+  const { cart, hydrated } = useCart(slug);
+
+  const urlItems = useMemo(() => {
+    return Array.from(searchParams.entries())
+      .filter(([key]) => key.startsWith("item_"))
+      .map(([key, val]) => ({
+        productId: key.replace("item_", ""),
+        qty: parseInt(val, 10),
+      }))
+      .filter((i) => Number.isFinite(i.qty) && i.qty > 0);
+  }, [searchParams]);
+
+  const items = useMemo(() => {
+    if (urlItems.length > 0) return urlItems;
+    if (!hydrated) return [];
+    return Object.entries(cart)
+      .map(([productId, qty]) => ({ productId, qty }))
+      .filter((i) => Number.isFinite(i.qty) && i.qty > 0);
+  }, [urlItems, cart, hydrated]);
 
   useEffect(() => {
     async function loadShop() {
@@ -90,9 +115,24 @@ export default function CheckoutPage() {
     : [];
 
   const subtotalOre = resolvedLines.reduce((s, l) => s + l.totalOre, 0);
+
+  // MASTERPLAN_01 KC4.2: spegla samma frakt-logik som API:t
+  // (checkout.ts ~235–254). Tidigare visade kassan ENDAST subtotal,
+  // sedan tog Klarna in subtotal + frakt → supportern betalade mer än
+  // vi visade. Bedrägeririsk + lagligt problem (prisindikering).
+  const shippingFee = shop?.campaign?.shippingFeeOre ?? 0;
+  const shippingThreshold = shop?.campaign?.shippingThresholdOre ?? 0;
+  const shippingOre =
+    deliveryType === "DIRECT" &&
+    shippingFee > 0 &&
+    shippingThreshold > 0 &&
+    subtotalOre < shippingThreshold
+      ? shippingFee
+      : 0;
+  const totalOre = subtotalOre + shippingOre;
   // Prices on Roots are inclusive of 25% VAT (momssats för hygienprodukter).
-  // The VAT portion is therefore subtotal * 25 / 125.
-  const vatOre = Math.round((subtotalOre * 25) / 125);
+  // The VAT portion is therefore total * 25 / 125 (frakt har samma momssats).
+  const vatOre = Math.round((totalOre * 25) / 125);
   const campaignAcceptsOrders = shop?.campaign?.status === "ACTIVE";
 
   async function handleCheckout(e: React.FormEvent) {
@@ -197,7 +237,16 @@ export default function CheckoutPage() {
               <CardTitle className="text-base">Din beställning</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {resolvedLines.length === 0 ? (
+              {/* KC4.1: medan vi väntar på hydrate/shop-fetch, visa
+                  loader istället för en falsk "tom"-skylt — det är en
+                  jättevanlig felkälla att se "Din varukorg är tom"
+                  blink-fram precis innan items dyker upp. */}
+              {!hydrated || !shop ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Hämtar din varukorg...
+                </div>
+              ) : resolvedLines.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
                   Din varukorg är tom.{" "}
                   <Link
@@ -232,6 +281,30 @@ export default function CheckoutPage() {
                   <Separator />
                   <div className="space-y-1 text-sm">
                     <div className="flex items-center justify-between text-muted-foreground">
+                      <span>Delsumma</span>
+                      <span className="tabular-nums">
+                        {(subtotalOre / 100).toLocaleString("sv-SE")} kr
+                      </span>
+                    </div>
+                    {deliveryType === "DIRECT" && shippingFee > 0 && (
+                      <div className="flex items-center justify-between text-muted-foreground">
+                        <span>
+                          Frakt
+                          {shippingOre === 0 && shippingThreshold > 0 ? (
+                            <span className="ml-1 text-xs">
+                              (fri över{" "}
+                              {(shippingThreshold / 100).toLocaleString("sv-SE")} kr)
+                            </span>
+                          ) : null}
+                        </span>
+                        <span className="tabular-nums">
+                          {shippingOre === 0
+                            ? "0 kr"
+                            : `${(shippingOre / 100).toLocaleString("sv-SE")} kr`}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between text-muted-foreground">
                       <span>Varav moms (25 %)</span>
                       <span className="tabular-nums">
                         {(vatOre / 100).toLocaleString("sv-SE")} kr
@@ -240,7 +313,7 @@ export default function CheckoutPage() {
                     <div className="flex items-center justify-between font-semibold">
                       <span>Totalt att betala</span>
                       <span className="tabular-nums">
-                        {(subtotalOre / 100).toLocaleString("sv-SE")} kr
+                        {(totalOre / 100).toLocaleString("sv-SE")} kr
                       </span>
                     </div>
                   </div>
@@ -384,23 +457,41 @@ export default function CheckoutPage() {
 
           <Separator />
 
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            Genom att gå vidare godkänner du vår{" "}
-            <Link
-              href="/integritet"
-              className="underline underline-offset-2 hover:text-foreground"
-            >
-              integritetspolicy
-            </Link>{" "}
-            och våra{" "}
-            <Link
-              href="/villkor"
-              className="underline underline-offset-2 hover:text-foreground"
-            >
-              köpvillkor
-            </Link>
-            . Betalningen hanteras säkert av Klarna.
-          </p>
+          {/* MASTERPLAN_01 KC4.5: explicit checkbox krävs för giltigt
+              distansavtal. Default unchecked, submit blockas tills
+              kryssad. Länkar öppnas i nytt fönster så användaren inte
+              tappar kassa-state. */}
+          <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-background p-3 text-sm">
+            <input
+              type="checkbox"
+              required
+              checked={termsAccepted}
+              onChange={(e) => setTermsAccepted(e.target.checked)}
+              aria-describedby="terms-help"
+              className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-brand-700"
+            />
+            <span id="terms-help" className="leading-relaxed text-muted-foreground">
+              Jag godkänner Roots{" "}
+              <Link
+                href="/villkor"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline underline-offset-2 hover:text-foreground"
+              >
+                köpvillkor
+              </Link>{" "}
+              och{" "}
+              <Link
+                href="/integritet"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline underline-offset-2 hover:text-foreground"
+              >
+                integritetspolicy
+              </Link>
+              . Betalningen hanteras säkert av Klarna.
+            </span>
+          </label>
 
           {shop && !campaignAcceptsOrders && (
             <p
@@ -424,7 +515,14 @@ export default function CheckoutPage() {
                 !customerName ||
                 !customerEmail ||
                 items.length === 0 ||
-                (shop !== null && !campaignAcceptsOrders)
+                !termsAccepted ||
+                (shop !== null && !campaignAcceptsOrders) ||
+                // KC4.3 spegel: vid hemleverans måste alla tre adressfält
+                // vara ifyllda — annars går servern bara att blockera 400.
+                (deliveryType === "DIRECT" &&
+                  (!addressLine1.trim() ||
+                    !city.trim() ||
+                    !/^\d{3}\s?\d{2}$/.test(postalCode.trim())))
               }
             >
               {loading ? (

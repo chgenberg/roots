@@ -134,6 +134,42 @@ checkout.post("/create", async (c) => {
       return c.json({ error: "Alla obligatoriska fält krävs." }, 400);
     }
 
+    // MASTERPLAN_01 KC4.3: validera e-postformat innan vi skapar order /
+    // skickar till Klarna. Tidigare accepterades "foo" → bekräftelse-
+    // mail studsar tyst och supportern får aldrig kvitto.
+    const trimmedEmail = String(customerEmail).trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail) || trimmedEmail.length > 254) {
+      return c.json({ error: "Ogiltig e-postadress." }, 400);
+    }
+
+    // MASTERPLAN_01 KC4.3: vid DIRECT-leverans MÅSTE adress, postnummer
+    // och ort finnas. Tidigare accepterades null på alla tre →
+    // Klarna-ordern skapades men varan kunde inte skickas. Vi blockerar
+    // INNAN Klarna anropas så ingen fastnar i halv-betalt limbo.
+    if (deliveryType === "DIRECT") {
+      const missing: string[] = [];
+      if (!shippingAddressLine1 || String(shippingAddressLine1).trim().length < 2) {
+        missing.push("adress");
+      }
+      if (!shippingCity || String(shippingCity).trim().length < 2) {
+        missing.push("ort");
+      }
+      // Svenska postnummer: 5 siffror (med eller utan mellanslag)
+      const pc = String(shippingPostalCode || "").replace(/\s+/g, "");
+      if (!/^\d{5}$/.test(pc)) {
+        missing.push("postnummer");
+      }
+      if (missing.length > 0) {
+        return c.json(
+          {
+            error: `Vid hemleverans måste ${missing.join(", ")} fyllas i.`,
+            fields: Object.fromEntries(missing.map((f) => [f, "obligatorisk"])),
+          },
+          400
+        );
+      }
+    }
+
     for (const item of items) {
       if (
         !item.productId ||
@@ -259,6 +295,14 @@ checkout.post("/create", async (c) => {
       0
     );
 
+    // MASTERPLAN_01 KC4.3: normalisera adress-fält så databasen aldrig
+    // får t.ex. "  112 34  " — försämrar både matchning, Fortnox-export
+    // och Klarna-validering.
+    const normAddr = (v: unknown) =>
+      typeof v === "string" && v.trim().length > 0 ? v.trim() : null;
+    const normPostal = (v: unknown) =>
+      typeof v === "string" ? v.replace(/\s+/g, "").trim() || null : null;
+
     const [order] = await db.transaction(async (tx) => {
       const [newOrder] = await tx
         .insert(customerOrders)
@@ -267,19 +311,19 @@ checkout.post("/create", async (c) => {
           campaignId: seller.campaignId,
           teamId: seller.teamId,
           sellerId: seller.id,
-          customerName,
-          customerEmail,
-          customerPhone: customerPhone || null,
-          shippingAddressLine1: shippingAddressLine1 || null,
-          shippingAddressLine2: shippingAddressLine2 || null,
-          shippingCity: shippingCity || null,
-          shippingPostalCode: shippingPostalCode || null,
+          customerName: String(customerName).trim(),
+          customerEmail: trimmedEmail.toLowerCase(),
+          customerPhone: customerPhone ? String(customerPhone).trim() : null,
+          shippingAddressLine1: normAddr(shippingAddressLine1),
+          shippingAddressLine2: normAddr(shippingAddressLine2),
+          shippingCity: normAddr(shippingCity),
+          shippingPostalCode: normPostal(shippingPostalCode),
           deliveryType: deliveryType || "BULK",
           paymentMethod: "KLARNA",
           status: "DRAFT",
           totalOre,
           shippingOre,
-          note: note || null,
+          note: note ? String(note).trim() : null,
         })
         .returning();
 
