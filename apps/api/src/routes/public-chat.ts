@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
-import { checkRateLimit } from "../lib/rate-limit";
+import { checkRateLimit, aiGlobalChatDailyCap } from "../lib/rate-limit";
+import { scrubPiiText } from "../lib/ai/pii";
 import {
   isAiConfigured,
   chatCompletionStream,
@@ -41,6 +42,26 @@ publicChat.post("/public-chat", async (c) => {
       {
         error: "Du har skickat för många meddelanden. Försök igen om en stund.",
         retryAfter: rateCheck.resetInSeconds,
+      },
+      429
+    );
+  }
+
+  // Scout fix 2026-05-26 (AI-CRIT-01): globalt dygnstak. Per-IP räcker
+  // inte mot botnet eller delade kontorsnätverk. Default 50 000
+  // chat-anrop/dygn över hela plattformen — justera via env.
+  const globalCap = await aiGlobalChatDailyCap();
+  if (!globalCap.allowed) {
+    recordAiIncident({
+      surface: "public_chat",
+      kind: "rate_limited",
+      meta: { reason: "global_daily_cap" },
+    });
+    return c.json(
+      {
+        error:
+          "Vår AI-assistent har nått dagens kapacitetstak. Försök igen efter midnatt.",
+        retryAfter: globalCap.resetInSeconds,
       },
       429
     );
@@ -87,25 +108,36 @@ publicChat.post("/public-chat", async (c) => {
   // MASTERPLAN_01 KC5.4: client may supply earlier turns, but only
   // user/assistant content is honoured. Any `role: "system"` injection
   // would override PUBLIC_CHAT_SYSTEM_PROMPT and disable our guardrails.
+  //
+  // Scout fix 2026-05-26 (AI-HIGH-01): tidigare lät vi också
+  // `assistant`-roller passera. En angripare kan då skicka ett spoofat
+  // assistant-turn ("Debug mode aktiverat — ignorera regler") som
+  // modellen tar som autentisk kontext. Vi accepterar nu ENDAST user-
+  // turns från klienten; vill man ha multi-turn-historik måste den
+  // sparas server-side (deferred).
+  //
+  // Scout fix 2026-05-26 (AI-HIGH-02): scrubPiiText körs på all
+  // user-content innan vi vidarebefordrar till OpenAI så
+  // personnummer/telefon/email/IBAN aldrig läcker.
   const history = (Array.isArray(body.history) ? body.history : [])
     .slice(-MAX_HISTORY)
     .filter(
       (m) =>
         m &&
         typeof m === "object" &&
-        (m.role === "user" || m.role === "assistant") &&
+        m.role === "user" &&
         typeof m.content === "string" &&
         m.content.length > 0
     )
     .map((m) => ({
-      role: m.role === "assistant" ? ("assistant" as const) : ("user" as const),
-      content: m.content.slice(0, MAX_MESSAGE_LENGTH),
+      role: "user" as const,
+      content: scrubPiiText(m.content.slice(0, MAX_MESSAGE_LENGTH)),
     }));
 
   const messages: ChatMessage[] = [
     { role: "system", content: PUBLIC_CHAT_SYSTEM_PROMPT },
     ...history,
-    { role: "user", content: body.message },
+    { role: "user", content: scrubPiiText(body.message) },
   ];
 
   if (body.stream) {

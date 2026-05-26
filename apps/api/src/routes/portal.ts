@@ -437,6 +437,11 @@ portal.post("/orders", async (c) => {
   if (!isPortalRole(session.role)) {
     return c.json({ error: "Behörighet saknas" }, 403);
   }
+  // Scout fix 2026-05-26 (Auth-C2): saknades isDemoSession-guard,
+  // demo-konton kunde lägga riktiga B2B-orders.
+  if (isDemoSession(session)) {
+    return c.json({ error: "Demo-konton kan inte skapa ordrar." }, 403);
+  }
 
   // The `orders` table requires both org_id and user_id (NOT NULL FKs). A
   // session without an org would create an orphan row that violates the

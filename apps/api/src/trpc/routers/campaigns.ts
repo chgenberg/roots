@@ -2,7 +2,7 @@ import { z } from "zod";
 import { eq, and } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { router, publicProcedure } from "../init";
-import { isAuthenticated, isTeamLeader, isAssociationAdmin } from "../middleware/auth";
+import { isAuthenticated, isTeamLeader, isAssociationAdmin, notDemo } from "../middleware/auth";
 import { db } from "@roots/db";
 import {
   campaigns,
@@ -20,6 +20,10 @@ import {
 const protectedProcedure = publicProcedure.use(isAuthenticated);
 const teamLeaderProcedure = publicProcedure.use(isTeamLeader);
 const associationProcedure = publicProcedure.use(isAssociationAdmin);
+// Scout fix 2026-05-26 (Auth-C2): mutations använder *Mutation-varianten
+// som även blockerar demo-konton (notDemo middleware).
+const teamLeaderMutation = teamLeaderProcedure.use(notDemo);
+const associationMutation = associationProcedure.use(notDemo);
 
 function generateSlug(name: string): string {
   return (
@@ -76,7 +80,7 @@ async function verifyTeamOwnership(teamId: string, orgId: string) {
 }
 
 export const campaignsRouter = router({
-  create: associationProcedure
+  create: associationMutation
     .input(CreateCampaignSchema)
     .mutation(async ({ ctx, input }) => {
       const slug = generateSlug(input.name);
@@ -134,7 +138,7 @@ export const campaignsRouter = router({
       .orderBy(campaigns.createdAt);
   }),
 
-  update: associationProcedure
+  update: associationMutation
     .input(
       UpdateCampaignSchema.extend({
         id: z.string().uuid(),
@@ -157,7 +161,7 @@ export const campaignsRouter = router({
       return updated;
     }),
 
-  activate: associationProcedure
+  activate: associationMutation
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const [updated] = await db
@@ -177,7 +181,7 @@ export const campaignsRouter = router({
 });
 
 export const teamsRouter = router({
-  create: teamLeaderProcedure
+  create: teamLeaderMutation
     .input(
       z.object({
         name: z.string().min(2),
@@ -259,7 +263,7 @@ export const teamsRouter = router({
       };
     }),
 
-  setGoal: associationProcedure
+  setGoal: associationMutation
     .input(SetTeamGoalSchema)
     .mutation(async ({ ctx, input }) => {
       await verifyCampaignOwnership(input.campaignId, ctx.orgId);
@@ -285,7 +289,7 @@ export const teamsRouter = router({
       return goal;
     }),
 
-  regenerateInviteToken: teamLeaderProcedure
+  regenerateInviteToken: teamLeaderMutation
     .input(z.object({ teamId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       await verifyTeamOwnership(input.teamId, ctx.orgId);

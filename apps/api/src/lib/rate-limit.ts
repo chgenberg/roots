@@ -94,6 +94,42 @@ export async function hairAnalysisIpRateLimit(ip: string): Promise<RateLimitResu
 }
 
 /**
+ * Scout fix 2026-05-26 (AI-CRIT-01): per-IP/per-user-budgetar räcker
+ * inte mot distribuerad abuse (botnet med N IPs × 15 vision/dag =
+ * okontrollerad OpenAI-faktura). Vi adderar ett GLOBALT dygnstak
+ * per AI-yta som hard-stop på request-nivå. Konfigurerbart via env
+ * så ops kan justera utan deploy.
+ *
+ *   AI_GLOBAL_CHAT_DAILY_CAP        (default 50 000)
+ *   AI_GLOBAL_VISION_DAILY_CAP      (default 2 000)
+ *
+ * Bucket-key inkluderar UTC-datum så räknaren auto-rullar varje
+ * midnatt utan att vi behöver ttl:a manuellt.
+ */
+function todayUtcKey(): string {
+  return new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+}
+
+function readCap(envName: string, defaultValue: number): number {
+  const raw = process.env[envName];
+  if (!raw) return defaultValue;
+  const n = Number.parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : defaultValue;
+}
+
+export async function aiGlobalChatDailyCap(): Promise<RateLimitResult> {
+  const cap = readCap("AI_GLOBAL_CHAT_DAILY_CAP", 50_000);
+  const key = `ai-global:chat:${todayUtcKey()}`;
+  return checkRateLimit(key, cap, 26 * 60 * 60); // TTL > 24h så vi inte tappar mätning vid DST/restart
+}
+
+export async function aiGlobalVisionDailyCap(): Promise<RateLimitResult> {
+  const cap = readCap("AI_GLOBAL_VISION_DAILY_CAP", 2_000);
+  const key = `ai-global:vision:${todayUtcKey()}`;
+  return checkRateLimit(key, cap, 26 * 60 * 60);
+}
+
+/**
  * P2.42 (audit 2026-05-26): /v1/checkout/create var helt
  * unrate-limit:ad. En enkel skript-spam mot publika personal
  * shop-slugs kunde skapa tusentals PENDING-orders + Klarna-sessions

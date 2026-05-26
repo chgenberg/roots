@@ -18,6 +18,7 @@ import { getAchievedMilestones, getNextMilestone, getSellerGrade } from "../lib/
 import { getEmailSender } from "../lib/email";
 import { welcomeEmail } from "../lib/email/templates";
 import { childLogger } from "../lib/logger";
+import { validatePassword } from "./auth";
 
 const ARGON2_OPTIONS = {
   memoryCost: 19456,
@@ -506,6 +507,14 @@ dashboard.post("/team/:teamId/sellers", async (c) => {
   const { displayName, email, password } = body;
   if (!displayName || !email || !password) {
     return c.json({ error: "Namn, e-post och lösenord krävs." }, 400);
+  }
+  // Scout fix 2026-05-26 (Auth-H4): tidigare hashades lösenordet
+  // direkt utan styrkekontroll, vilket lät en team-leader skapa
+  // säljare med svaga lösenord (kringgår 12-tecken-policyn i
+  // /auth/register + /change-password).
+  const passwordError = validatePassword(password);
+  if (passwordError) {
+    return c.json({ error: passwordError }, 400);
   }
 
   try {

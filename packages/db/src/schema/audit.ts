@@ -28,5 +28,13 @@ export const auditLogs = pgTable(
     index("audit_logs_entity_type_idx").on(table.entityType),
     index("audit_logs_created_at_idx").on(table.createdAt.desc()),
     index("audit_logs_user_id_idx").on(table.userId),
+    // Scout fix 2026-05-26 (DB HIGH-004): /admin/audit-log filtrerar
+    // ofta entity_type + sorterar created_at DESC tillsammans. När
+    // tabellen växer >100k rader räcker inte single-column indexen.
+    // Migration 0012 lägger composite.
+    index("audit_logs_entity_created_idx").on(
+      table.entityType,
+      table.createdAt.desc()
+    ),
   ]
 );

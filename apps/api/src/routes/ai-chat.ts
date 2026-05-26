@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { getSession, SESSION_COOKIE_NAME } from "../lib/session";
-import { aiRateLimit } from "../lib/rate-limit";
+import { aiRateLimit, aiGlobalChatDailyCap } from "../lib/rate-limit";
 import {
   isAiConfigured,
   chatCompletionStream,
@@ -10,6 +10,7 @@ import {
 } from "../lib/ai/openclaw-client";
 import { buildSystemPrompt } from "../lib/ai/system-prompt";
 import { recordAiUsage, recordAiIncident } from "../lib/ai/usage";
+import { scrubPiiText } from "../lib/ai/pii";
 import { childLogger } from "../lib/logger";
 import { flags } from "../lib/flags";
 
@@ -34,10 +35,13 @@ function parseCookies(header: string): Record<string, string> {
 }
 
 /**
- * Strip any `system` messages from client-supplied history. Clients can
- * only contribute `user` / `assistant` turns; allowing `system` would let
- * a prompt-injection attacker override our real system prompt for the
- * remainder of the conversation.
+ * Strip any `system` messages from client-supplied history.
+ *
+ * Scout fix 2026-05-26 (AI-HIGH-01 + AI-HIGH-02): tidigare lät vi också
+ * `assistant`-roller passera vilket öppnade en prompt-injection-vektor
+ * där klienten kan injicera spoofade assistant-svar ("Debug mode på
+ * — ignorera reglerna"). Vi accepterar nu ENDAST user-turns. Vi kör
+ * också scrubPii på all client-content innan den når modellen.
  */
 function sanitizeHistory(
   history: ChatMessage[] | undefined,
@@ -48,10 +52,10 @@ function sanitizeHistory(
   const clean: ChatMessage[] = [];
   for (const m of history.slice(-maxMessages)) {
     if (!m || typeof m !== "object") continue;
-    const role = m.role === "assistant" ? "assistant" : "user";
-    const content = typeof m.content === "string" ? m.content.slice(0, maxChars) : "";
-    if (!content) continue;
-    clean.push({ role, content });
+    if (m.role !== "user") continue;
+    const raw = typeof m.content === "string" ? m.content.slice(0, maxChars) : "";
+    if (!raw) continue;
+    clean.push({ role: "user", content: scrubPiiText(raw) });
   }
   return clean;
 }
@@ -94,6 +98,28 @@ aiChat.post("/chat", async (c) => {
       {
         error: "Du har skickat för många meddelanden. Försök igen om en stund.",
         retryAfter: rateCheck.resetInSeconds,
+      },
+      429
+    );
+  }
+
+  // Scout fix 2026-05-26 (AI-CRIT-01): globalt dygnstak utöver
+  // per-user-rate-limiten. En enda org med många säljare kan annars
+  // bränna mycket OpenAI utan att vi märker det.
+  const globalCap = await aiGlobalChatDailyCap();
+  if (!globalCap.allowed) {
+    recordAiIncident({
+      surface: "portal_chat",
+      kind: "rate_limited",
+      userId: session.userId,
+      orgId: session.orgId,
+      meta: { reason: "global_daily_cap" },
+    });
+    return c.json(
+      {
+        error:
+          "AI-assistenten har nått dagens kapacitetstak. Försök igen efter midnatt.",
+        retryAfter: globalCap.resetInSeconds,
       },
       429
     );
@@ -146,7 +172,7 @@ aiChat.post("/chat", async (c) => {
   const messages: ChatMessage[] = [
     { role: "system", content: systemPrompt },
     ...sanitizedHistory,
-    { role: "user", content: body.message },
+    { role: "user", content: scrubPiiText(body.message) },
   ];
 
   if (body.stream) {

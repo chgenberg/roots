@@ -80,9 +80,15 @@ async function sendOrderConfirmationIfNeeded(orderId: string): Promise<void> {
   // P2.17: atomisk "ta first dibs på mailet". Det är OK att vi sätter
   // sent_at innan mailet faktiskt går iväg — alternativet (sätt efter)
   // race:ar dubbelmail om båda replicas hinner select:a.
+  //
+  // Scout fix 2026-05-26 (DB HIGH-002): claim:en sparas så att vi vid
+  // send-failure kan rollback:a EXAKT den här claim:en (WHERE
+  // confirmation_email_sent_at = claimedAt) istället för att blint
+  // sätta NULL och clobbra en eventuell parallell successfull claim.
+  const claimedAt = new Date();
   const claimed = await db
     .update(customerOrders)
-    .set({ confirmationEmailSentAt: new Date() })
+    .set({ confirmationEmailSentAt: claimedAt })
     .where(
       and(
         eq(customerOrders.id, orderId),
@@ -108,7 +114,7 @@ async function sendOrderConfirmationIfNeeded(orderId: string): Promise<void> {
     .where(eq(sellers.id, order.sellerId))
     .limit(1);
   try {
-    await getEmailSender().sendEmail({
+    const result = await getEmailSender().sendEmail({
       to: order.customerEmail,
       ...orderConfirmationEmail({
         customerName: order.customerName,
@@ -121,17 +127,33 @@ async function sendOrderConfirmationIfNeeded(orderId: string): Promise<void> {
         viewToken: issueOrderViewToken(order.id),
       }),
     });
+    if (!result?.success) {
+      throw new Error(result?.error || "Email provider returned success=false");
+    }
   } catch (err) {
     // P2.17: vid send-failure, rollback:a vår claim så att en retry
-    // kan försöka igen. Konditional UPDATE skyddar mot att vi
-    // skriver över en eventuell parallell successfull claim.
+    // kan försöka igen. Scout fix 2026-05-26 (DB HIGH-002): jämför mot
+    // exakt claimedAt så vi inte skriver över en parallell successfull
+    // claim (annars skickas mailet två gånger).
     await db
       .update(customerOrders)
       .set({ confirmationEmailSentAt: null })
-      .where(eq(customerOrders.id, order.id))
+      .where(
+        and(
+          eq(customerOrders.id, order.id),
+          eq(customerOrders.confirmationEmailSentAt, claimedAt)
+        )
+      )
       .catch(() => {});
     log.error({ err, orderId }, "Order confirmation email failed");
   }
+
+  // Scout fix 2026-05-26 (Integration CRIT-email): tidigare hanterades
+  // sendEmail() som "lyckad" så länge den inte kastade. MockEmailSender
+  // returnerar { success: true } även när inget skickas, och Resend
+  // returnerar { success: false } vid 4xx/5xx istället för att kasta.
+  // Vi måste explicit kontrollera result.success annars rullas claim:en
+  // inte tillbaka och kunden får aldrig sitt kvitto.
 }
 
 checkout.post("/create", async (c) => {
@@ -161,22 +183,56 @@ checkout.post("/create", async (c) => {
   // eller fallback till hash av request body. Två POST /create från
   // samma klient med samma nyckel returnerar exakt samma order utan
   // att spawn:a en ny Klarna-session.
+  //
+  // Scout fix 2026-05-26 (DB CRIT-001 / Money MONEY-001+002): tidigare
+  // var idempotency-nyckeln helt klient-styrd och global över hela
+  // tabellen. Två olika kunder bakom samma CDN/proxy som råkade
+  // återanvända en `Idempotency-Key`-header fick FEL kunds order +
+  // viewToken. Vi scope:ar nu nyckeln per säljare och hashar in
+  // body-fingerprint så samma key + olika body blir olika rader.
+  // Vid hit dubbel-validerar vi dessutom att body-fingerprint matchar.
+  const sellerSlugRaw = typeof body?.sellerSlug === "string" ? body.sellerSlug : "";
+  const sellerSlugLower = sellerSlugRaw.toLowerCase().trim();
+  if (!sellerSlugLower) {
+    return c.json({ error: "sellerSlug krävs." }, 400);
+  }
+  const bodyFingerprint = createHash("sha256").update(rawBody).digest("hex");
   const headerKey = c.req.header("idempotency-key")?.trim() ?? "";
   const idempotencyKey = (
     headerKey.length > 0
-      ? headerKey
-      : createHash("sha256").update(rawBody).digest("hex")
+      ? `${sellerSlugLower}:${createHash("sha256")
+          .update(`${headerKey}:${bodyFingerprint}`)
+          .digest("hex")}`
+      : bodyFingerprint
   ).slice(0, 120);
 
   try {
     // Snabbcheck: finns en order redan med denna nyckel? Returnera den
-    // utan att skapa något nytt.
+    // utan att skapa något nytt — men först verifiera att den faktiskt
+    // hör ihop med den här requesten (samma seller + customer-email).
     const [existingByKey] = await db
       .select()
       .from(customerOrders)
       .where(eq(customerOrders.idempotencyKey, idempotencyKey))
       .limit(1);
     if (existingByKey) {
+      const requestEmail =
+        typeof body?.customerEmail === "string"
+          ? body.customerEmail.toLowerCase().trim()
+          : "";
+      const storedEmail = (existingByKey.customerEmail ?? "").toLowerCase();
+      if (storedEmail && requestEmail && storedEmail !== requestEmail) {
+        // Body+seller blir identiska för hash-fallback men kan teoretiskt
+        // kollidera vid header-key + samma seller. Bättre returnera
+        // 409 än att läcka en annan kunds viewToken/order.
+        return c.json(
+          {
+            error:
+              "Idempotency-Key används redan av en annan request. Använd ett unikt värde.",
+          },
+          409
+        );
+      }
       return c.json({
         orderId: existingByKey.id,
         klarnaOrderId: existingByKey.klarnaOrderId,
@@ -427,6 +483,11 @@ checkout.post("/create", async (c) => {
     } catch (err: any) {
       // P2.13: kollision på unique(idempotencyKey) — en parallell
       // request har precis vunnit racet. Returnera den befintliga.
+      //
+      // Scout fix 2026-05-26 (DB CRIT-001): efter vi scope:ar nyckeln
+      // till sellerSlug+body-hash är kollisioner nu nästan alltid
+      // legitima retries från samma klient. Vi verifierar ändå att
+      // email matchar innan vi returnerar viewToken — defense-in-depth.
       const isUniqueViolation =
         err?.code === "23505" || /unique/i.test(String(err?.message));
       if (isUniqueViolation) {
@@ -436,6 +497,20 @@ checkout.post("/create", async (c) => {
           .where(eq(customerOrders.idempotencyKey, idempotencyKey))
           .limit(1);
         if (winner) {
+          const reqEmail =
+            typeof body?.customerEmail === "string"
+              ? body.customerEmail.toLowerCase().trim()
+              : "";
+          const storedEmail = (winner.customerEmail ?? "").toLowerCase();
+          if (storedEmail && reqEmail && storedEmail !== reqEmail) {
+            return c.json(
+              {
+                error:
+                  "Idempotency-Key används redan av en annan request. Använd ett unikt värde.",
+              },
+              409
+            );
+          }
           return c.json({
             orderId: winner.id,
             klarnaOrderId: winner.klarnaOrderId,

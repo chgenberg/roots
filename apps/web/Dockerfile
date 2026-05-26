@@ -48,6 +48,10 @@ USER nodejs
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
+# Scout fix 2026-05-26 (FE-OPS-01): tidigare probade vi GET / vilket
+# (via preview-gate-middleware) kan returnera 503 om SITE_PREVIEW_PASSWORD
+# saknas i miljön → container-restart-loop. /healthz bypassas av
+# middleware och svarar alltid 200 = pålitlig liveness-probe.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-  CMD node -e "fetch('http://localhost:3000/').then(r=>{if(!r.ok)throw 1})" || exit 1
+  CMD node -e "fetch('http://localhost:3000/healthz').then(r=>{if(!r.ok)throw 1})" || exit 1
 CMD ["node", "apps/web/server.js"]

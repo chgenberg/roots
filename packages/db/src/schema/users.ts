@@ -1,4 +1,5 @@
 import { pgTable, uuid, varchar, timestamp, pgEnum, index, integer } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { organizations } from "./organizations";
 
 export const roleEnum = pgEnum("user_role", [
@@ -46,6 +47,15 @@ export const users = pgTable("users", {
 }, (table) => [
   index("users_org_id_idx").on(table.orgId),
   index("users_guardian_idx").on(table.guardianUserId),
-  index("users_scheduled_deletion_at_idx").on(table.scheduledDeletionAt),
-  index("users_deleted_at_idx").on(table.deletedAt),
+  // Scout fix 2026-05-26 (DB HIGH-001): 0009-migrationen skapade partial
+  // indexes med WHERE-klausuler. Tidigare deklarerades de som plain
+  // indexes här, vilket gör att nästa `drizzle-kit generate` skulle
+  // producera en destruktiv DROP/CREATE-migration. WHERE-klausulerna
+  // måste matcha SQL exakt.
+  index("users_scheduled_deletion_at_idx")
+    .on(table.scheduledDeletionAt)
+    .where(sql`"scheduled_deletion_at" IS NOT NULL AND "deleted_at" IS NULL`),
+  index("users_deleted_at_idx")
+    .on(table.deletedAt)
+    .where(sql`"deleted_at" IS NOT NULL`),
 ]);

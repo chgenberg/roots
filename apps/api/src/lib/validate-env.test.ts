@@ -79,14 +79,31 @@ describe("checkEnv (production)", () => {
   it("treats missing recommended vars as warnings (does not flip ok=false)", () => {
     const env = { ...FULL_PROD_ENV };
     delete env.OPENAI_API_KEY;
-    delete env.RESEND_API_KEY;
     delete env.SENTRY_DSN;
     const r = checkEnv(env, true);
     expect(r.ok).toBe(true);
     expect(r.missing).toEqual([]);
-    expect(r.recommendedMissing.length).toBeGreaterThanOrEqual(3);
+    expect(r.recommendedMissing.length).toBeGreaterThanOrEqual(2);
     expect(r.recommendedMissing.join("\n")).toMatch(/OPENAI_API_KEY/);
-    expect(r.recommendedMissing.join("\n")).toMatch(/RESEND_API_KEY/);
+  });
+
+  // Scout fix 2026-05-26 (Integration CRIT-email/HIGH-klarna-spoof):
+  // RESEND_API_KEY och KLARNA_WEBHOOK_SECRET måste vara satta i prod —
+  // mock-mail tyst i prod var en CRITICAL silent-failure-bugg.
+  it("rejects boot when RESEND_API_KEY is missing in prod", () => {
+    const env = { ...FULL_PROD_ENV };
+    delete env.RESEND_API_KEY;
+    const r = checkEnv(env, true);
+    expect(r.ok).toBe(false);
+    expect(r.missing.join("\n")).toMatch(/RESEND_API_KEY/);
+  });
+
+  it("rejects boot when KLARNA_WEBHOOK_SECRET is missing in prod", () => {
+    const env = { ...FULL_PROD_ENV };
+    delete env.KLARNA_WEBHOOK_SECRET;
+    const r = checkEnv(env, true);
+    expect(r.ok).toBe(false);
+    expect(r.missing.join("\n")).toMatch(/KLARNA_WEBHOOK_SECRET/);
   });
 
   it("treats placeholder recommended vars same as missing for the warning list", () => {

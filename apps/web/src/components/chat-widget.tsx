@@ -8,6 +8,10 @@ import { getBrowserApiBase } from "@/lib/api-base";
 interface Message {
   role: "user" | "assistant";
   content: string;
+  // Scout fix 2026-05-26 (AI-HIGH-06): markera fallback-svar så UI:t
+  // kan visa amber-banner istället för att rendera det som vanligt
+  // AI-svar (matchar hair-analysis-dialogens UX).
+  fallback?: boolean;
 }
 
 const BASE_API = getBrowserApiBase();
@@ -178,6 +182,11 @@ export function ChatWidget() {
                   updated[updated.length - 1] = {
                     role: "assistant",
                     content: accumulated,
+                    // Scout fix 2026-05-26 (AI-HIGH-06): backend
+                    // skickar fallback:true i SSE-payload när AI är
+                    // off / upstream-fel. Vi visar då en amber-
+                    // banner kring meddelandet.
+                    fallback: parsed.fallback === true,
                   };
                   return updated;
                 });
@@ -317,9 +326,19 @@ export function ChatWidget() {
                   "max-w-[85%] rounded-xl px-4 py-2.5 text-sm leading-relaxed",
                   msg.role === "user"
                     ? "rounded-br-sm bg-inverse-surface text-inverse-on-surface"
-                    : "rounded-bl-sm bg-brand-50 text-foreground"
+                    : msg.fallback
+                      ? "rounded-bl-sm border border-amber-300 bg-amber-50 text-amber-900"
+                      : "rounded-bl-sm bg-brand-50 text-foreground"
                 )}
               >
+                {/* Scout fix 2026-05-26 (AI-HIGH-06): visa explicit
+                    fallback-flagga så användaren förstår att svaret
+                    är en generisk hänvisning, inte AI:n som är på. */}
+                {msg.role === "assistant" && msg.fallback ? (
+                  <p className="mb-1 text-xs font-medium uppercase tracking-wide text-amber-700">
+                    AI är tillfälligt otillgänglig
+                  </p>
+                ) : null}
                 {msg.content ||
                   (streaming && i === messages.length - 1 ? (
                     <span className="inline-flex items-center gap-1 text-muted-foreground">

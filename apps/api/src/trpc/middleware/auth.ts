@@ -93,3 +93,19 @@ export const isFundraisingUser = middleware(async ({ ctx, next }) => {
     ctx: { userId: ctx.userId, role: ctx.role as Role, orgId: ctx.orgId!, sessionId: ctx.sessionId },
   });
 });
+
+// Scout fix 2026-05-26 (Auth-C2): blockera demo-konton från
+// muterande tRPC-anrop (campaigns.create/update/activate,
+// teams.create/setGoal/regenerateInviteToken etc.). Vi använder
+// `next()` utan ctx-argument så att föregående middlewares
+// non-null-narrowing (orgId/userId) bevaras. Att explicit
+// återskicka `ctx` skulle bryta typningen.
+export const notDemo = middleware(async ({ ctx, next }) => {
+  if (ctx.isDemo) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Demo-konton kan inte utföra denna åtgärd.",
+    });
+  }
+  return next();
+});

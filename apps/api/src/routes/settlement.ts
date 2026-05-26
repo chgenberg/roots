@@ -362,6 +362,25 @@ settlement.post("/create-invoice/:payoutId", async (c) => {
   const session = await requireAdmin(c);
   if (!session) return c.json({ error: "Behörighet saknas" }, 403);
 
+  // Scout fix 2026-05-26 (Integration CRIT-settlement-null): med
+  // FORTNOX_ENABLED=false används NullProvider som skapar
+  // "NULL-INV-*"-id:n i process-minne. Om någon kör create-invoice i
+  // prod utan riktig Fortnox sparas detta i DB som om fakturan
+  // existerade — bokföringsmässig blackhole vid restart. Vi vägrar
+  // helt i prod tills Fortnox är aktiv.
+  if (
+    process.env.NODE_ENV === "production" &&
+    process.env.FORTNOX_ENABLED?.trim().toLowerCase() !== "true"
+  ) {
+    return c.json(
+      {
+        error:
+          "Fortnox är inte aktiverat. Sätt FORTNOX_ENABLED=true och giltig FORTNOX_ACCESS_TOKEN innan utbetalningsfaktura skapas.",
+      },
+      503
+    );
+  }
+
   const payoutId = c.req.param("payoutId");
 
   try {

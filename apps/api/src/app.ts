@@ -129,6 +129,14 @@ const CSRF_EXEMPT_PATHS = [
 // i listan. Exact match tvingar in oss till medvetna review-beslut.
 const CSRF_EXEMPT_PATH_SET = new Set(CSRF_EXEMPT_PATHS);
 
+// Scout fix 2026-05-26 (Auth-H2): tidigare släpptes ALLA muterande
+// requests igenom utan token om NODE_ENV !== "production". Det gjorde
+// staging/dev trivialt CSRF-bart. Vi enforcar nu alltid när NODE_ENV
+// inte är "test" (vitest sätter "test" vid setup), så pnpm dev får
+// samma policy som prod. Tester som behöver bypass ska sätta header
+// eller köra mot dedikerad fixture.
+const CSRF_ENFORCEMENT_DISABLED = process.env.NODE_ENV === "test";
+
 app.use("*", async (c, next) => {
   if (CSRF_SAFE_METHODS.has(c.req.method)) return next();
   if (CSRF_EXEMPT_PATH_SET.has(c.req.path)) return next();
@@ -136,10 +144,8 @@ app.use("*", async (c, next) => {
   const token = c.req.header("x-csrf-token");
   if (token && verifyCsrfToken(token)) return next();
 
-  if (process.env.NODE_ENV === "production") {
-    return c.json({ error: "Invalid or missing CSRF token." }, 403);
-  }
-  return next();
+  if (CSRF_ENFORCEMENT_DISABLED) return next();
+  return c.json({ error: "Invalid or missing CSRF token." }, 403);
 });
 
 app.get("/", (c) =>

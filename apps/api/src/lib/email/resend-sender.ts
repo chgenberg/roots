@@ -1,4 +1,4 @@
-import type { EmailSender, EmailMessage } from "./types";
+import type { EmailSender, EmailMessage, SendEmailResult } from "./types";
 import { childLogger } from "../logger";
 
 const log = childLogger("resend-email");
@@ -12,7 +12,7 @@ export class ResendEmailSender implements EmailSender {
     this.fromAddress = fromAddress;
   }
 
-  async sendEmail(message: EmailMessage): Promise<{ success: boolean; id?: string }> {
+  async sendEmail(message: EmailMessage): Promise<SendEmailResult> {
     // Connection-audit P1 #15: bound outbound HTTP — a stalled Resend
     // socket previously held a Node event-loop task indefinitely.
     const controller = new AbortController();
@@ -37,14 +37,14 @@ export class ResendEmailSender implements EmailSender {
       if (!res.ok) {
         const errBody = await res.text();
         log.error({ status: res.status, body: errBody }, "Failed to send email");
-        return { success: false };
+        return { success: false, error: `Resend ${res.status}: ${errBody.slice(0, 200)}` };
       }
 
       const data = await res.json();
       return { success: true, id: data.id };
     } catch (err) {
       log.error({ err }, "Error sending email");
-      return { success: false };
+      return { success: false, error: (err as Error)?.message };
     } finally {
       clearTimeout(timeout);
     }

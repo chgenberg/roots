@@ -729,6 +729,11 @@ association.post("/team-invites/:id/resend", async (c) => {
   ) {
     return c.json({ error: "Behörighet saknas" }, 403);
   }
+  // Scout fix 2026-05-26 (Auth-C2): demo-konton kunde tidigare
+  // resend:a riktiga invite-mail.
+  if (isDemoSession(session)) {
+    return c.json({ error: "Demo-konton kan inte skicka inbjudningar." }, 403);
+  }
 
   const inviteId = c.req.param("id");
   if (!/^[0-9a-f-]{36}$/i.test(inviteId)) {

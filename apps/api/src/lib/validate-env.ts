@@ -59,6 +59,26 @@ const REQUIRED_IN_PROD: ReadonlyArray<EnvVar> = [
     name: "SESSION_SECRET",
     purpose: "HMAC base for deletion-cancel + order-view tokens (fallback when dedicated secrets saknas)",
   },
+  // Scout fix 2026-05-26 (Integration CRIT-email): tidigare var
+  // RESEND_API_KEY bara RECOMMENDED, vilket lät MockEmailSender köra i
+  // prod med success:true men inga riktiga mail. Order-bekräftelser,
+  // payout-mail, invites etc. försvann tyst. Vi gör nu nyckeln
+  // obligatorisk så boot failar snabbt vid felkonfiguration. Behöver
+  // staging-miljö skicka mail? sätt nyckeln; vill ni stänga av email
+  // helt? lägg till FEATURE_EMAIL_DISABLED=true (vi har redan flag).
+  {
+    name: "RESEND_API_KEY",
+    purpose: "Transactional email — utan denna failar order-bekräftelser, invites, payout-mail tyst",
+  },
+  // Scout fix 2026-05-26 (Integration HIGH-klarna-spoof): tidigare
+  // accepterades prod-konfig med ENBART KLARNA_WEBHOOK_IPS. Om reverse
+  // proxyn inte sanerar x-forwarded-for kan angripare spoofa Klarna-IP
+  // och mark:a ordrar PAID. HMAC är vår defense-in-depth — kräv den i
+  // prod, behåll IP som extra lager.
+  {
+    name: "KLARNA_WEBHOOK_SECRET",
+    purpose: "HMAC-verifiering av Klarna webhooks (IP allowlist räcker inte ensam)",
+  },
 ];
 
 /**
@@ -70,14 +90,6 @@ const RECOMMENDED_IN_PROD: ReadonlyArray<EnvVar> = [
   {
     name: "OPENAI_API_KEY",
     purpose: "Hair-analysis vision + Open Claw assistant (AI features off without it)",
-  },
-  {
-    name: "RESEND_API_KEY",
-    purpose: "Transactional email (welcome, invites, contact form) — falls back to no-op stub without it",
-  },
-  {
-    name: "KLARNA_WEBHOOK_SECRET",
-    purpose: "HMAC verification of Klarna payment webhooks (IP allowlist is the only fallback)",
   },
   // MASTERPLAN_01 KC8.1: utan dessa går inga riktiga betalningar genom
   // Klarna i prod. Saknas de bör vi varna högt vid boot så ops vet att

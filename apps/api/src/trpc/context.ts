@@ -7,6 +7,9 @@ export interface Context {
   orgId: string | null;
   sessionId: string | null;
   ip: string;
+  // Scout fix 2026-05-26 (Auth-C2): expose demo-flagga i tRPC-context
+  // så middleware kan blockera mutations från demo-konton.
+  isDemo: boolean;
 }
 
 function parseCookies(cookieHeader: string): Record<string, string> {
@@ -29,7 +32,7 @@ export async function createContext(
     "unknown";
 
   if (!sessionId) {
-    return { userId: null, role: null, orgId: null, sessionId: null, ip };
+    return { userId: null, role: null, orgId: null, sessionId: null, ip, isDemo: false };
   }
 
   try {
@@ -41,9 +44,10 @@ export async function createContext(
         orgId: session.orgId,
         sessionId,
         ip,
+        isDemo: session.isDemoAccount === true || Boolean(session.demoProfile),
       };
     }
   } catch {}
 
-  return { userId: null, role: null, orgId: null, sessionId: null, ip };
+  return { userId: null, role: null, orgId: null, sessionId: null, ip, isDemo: false };
 }

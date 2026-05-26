@@ -9,7 +9,7 @@
  * `settlement.ts`:
  *   - GET    /v1/payouts                       — listing (admin)
  *   - GET    /v1/payouts/mine                  — assoc-admin (egna)
- *   - PATCH  /v1/payouts/:id/status            — INVOICED|PAID
+ *   - PATCH  /v1/payouts/:id/status            — PAID only (INVOICED går via /settlement/create-invoice efter scout fix 2026-05-26)
  *
  * När en payout markeras PAID:
  *   1. Skriver paidAt + paymentReference + paidByUserId till DB
@@ -226,6 +226,33 @@ payoutsRoute.patch("/:id/status", async (c) => {
       return c.json(
         {
           error: `Kan bara markera INVOICED från PENDING (är: ${payout.status}).`,
+        },
+        409
+      );
+    }
+    // Scout fix 2026-05-26 (Money HIGH-006): INTERNAL_ADMIN kunde
+    // tidigare manuellt sätta INVOICED utan att vi krävde att en
+    // Fortnox-faktura faktiskt skapats. Det öppnade en bokförings-
+    // gap: payout PAID utan korresponderande Fortnox-faktura. Tvinga
+    // create-invoice-flödet (som sätter både status och
+    // fortnoxInvoiceId atomiskt).
+    if (targetStatus === "INVOICED") {
+      return c.json(
+        {
+          error:
+            "Använd POST /v1/settlement/create-invoice/:payoutId för att markera INVOICED — manuell PATCH stänger ute Fortnox-fakturan.",
+        },
+        409
+      );
+    }
+    // Scout fix 2026-05-26 (Money HIGH-006): PAID kräver att payout
+    // har en faktiskt utfärdad Fortnox-faktura. Defense-in-depth mot
+    // race där status manipuleras separat från fortnoxInvoiceId.
+    if (targetStatus === "PAID" && !payout.fortnoxInvoiceId) {
+      return c.json(
+        {
+          error:
+            "Utbetalningen saknar Fortnox-fakturanummer och kan inte markeras PAID. Kör create-invoice först.",
         },
         409
       );

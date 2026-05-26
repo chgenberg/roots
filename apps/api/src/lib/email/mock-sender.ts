@@ -1,4 +1,4 @@
-import type { EmailSender, EmailMessage } from "./types";
+import type { EmailSender, EmailMessage, SendEmailResult } from "./types";
 import { childLogger } from "../logger";
 
 const log = childLogger("mock-email");
@@ -6,7 +6,7 @@ const log = childLogger("mock-email");
 export class MockEmailSender implements EmailSender {
   private sent: EmailMessage[] = [];
 
-  async sendEmail(message: EmailMessage): Promise<{ success: boolean; id?: string }> {
+  async sendEmail(message: EmailMessage): Promise<SendEmailResult> {
     this.sent.push(message);
     log.info(
       { to: message.to, subject: message.subject },

@@ -53,9 +53,21 @@ const DEMO_EMAIL_PATTERNS: RegExp[] = [
   /@demo\.se$/i,
   /@demo-if\.se$/i,
 ];
+// Pre-prod scout fix 2026-05-26 (Demo-C1): seed.ts skapar
+// admin@roots.se (INTERNAL_ADMIN) + salj@roots.se (SALES_REP) med
+// Demo1234!. Dessa fångas inte av @demo.se-mönstret ovan → de fick
+// isDemoAccount=false och bypassade alla isDemoSession()-guards.
+// Listan håller explicita seedade demo-emails så framtida riktiga
+// @roots.se-anställdas konton INTE flaggas som demo.
+const DEMO_SEEDED_EMAILS = new Set<string>([
+  "admin@roots.se",
+  "salj@roots.se",
+]);
 function isDemoEmail(email: string | null | undefined): boolean {
   if (!email) return false;
-  return DEMO_EMAIL_PATTERNS.some((re) => re.test(email));
+  const lower = email.toLowerCase();
+  if (DEMO_SEEDED_EMAILS.has(lower)) return true;
+  return DEMO_EMAIL_PATTERNS.some((re) => re.test(lower));
 }
 
 async function syncUserAuthFromDb(

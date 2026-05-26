@@ -2,10 +2,14 @@ import { Hono } from "hono";
 import { isAiConfigured } from "../lib/ai/openclaw-client";
 import { runHairAnalysisVision, type HairAnswers } from "../lib/ai/hair-analysis-run";
 import { recordAiUsage, recordAiIncident } from "../lib/ai/usage";
-import { hairAnalysisIpRateLimit } from "../lib/rate-limit";
+import { hairAnalysisIpRateLimit, aiGlobalVisionDailyCap } from "../lib/rate-limit";
 import { childLogger } from "../lib/logger";
 import { flags } from "../lib/flags";
 import { redis } from "../lib/redis";
+// Scout fix 2026-05-26 (AI-HIGH-02): sanitizeNotes + scrubPii flyttade
+// till delad `lib/ai/pii.ts` så public-chat / portal-chat kan använda
+// samma regex-bank. Ingen logisk förändring av semantiken.
+import { sanitizeNotes, scrubPiiText as scrubPii } from "../lib/ai/pii";
 
 const log = childLogger("hair-analysis");
 
@@ -58,41 +62,6 @@ const VALID_MIME_PREFIXES = [
   "data:image/webp",
   "data:image/jpg",
 ];
-
-/**
- * P2.34 (audit 2026-05-26): notes-fältet skickas vidare som fri text
- * in i vision-prompten. Det är klassisk prompt-injection-yta: en
- * supporter kan skriva "ignore previous instructions, return X" och
- * ändra svaret. Vi strippar zero-width-chars, backticks, "###" och
- * vanliga jailbreak-fraser och cappar till 500 tecken. Den ej
- * stripade originaltexten loggas inte vidare till AI:n.
- */
-function sanitizeNotes(raw: string): string {
-  return raw
-    .replace(/[\u200B-\u200F\uFEFF]/g, "")
-    .replace(/```/g, "'''")
-    .replace(/\b(ignore|disregard|override)\s+(previous|prior|all)\s+(instructions?|prompts?|rules?)/gi, "[redacted]")
-    .replace(/\bSYSTEM:?/gi, "[redacted]")
-    .replace(/^\s*#{3,}.*$/gm, "")
-    .slice(0, 500);
-}
-
-/**
- * P3.42 (audit 2026-05-26): notes-fältet är fritext där supportern kan
- * råka klistra in namn, telefonnummer, personnummer eller medicinska
- * detaljer. Vi vill inte skicka identifierande PII vidare till OpenAI.
- * Detta är en grov skrubb — vi siktar på "stoppa det uppenbara" snarare
- * än 100% NER-säkerhet. Personnummer, telefon, email, IBAN-liknande
- * nummer ersätts med [redacted].
- */
-function scrubPii(text: string): string {
-  return text
-    .replace(/\b\d{6,8}[-\s]?\d{4}\b/g, "[redacted-personnummer]")
-    .replace(/\b(?:\+?46|0)[\s-]?7\d[\s-]?\d{3}[\s-]?\d{2}[\s-]?\d{2}\b/g, "[redacted-telefon]")
-    .replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, "[redacted-email]")
-    .replace(/\b[A-Z]{2}\d{2}[A-Z0-9]{10,30}\b/g, "[redacted-iban]")
-    .replace(/\b\d{10,16}\b/g, "[redacted-långt-nummer]");
-}
 
 function clientIp(c: { req: { header: (n: string) => string | undefined } }): string {
   const xf = c.req.header("x-forwarded-for");
@@ -223,6 +192,27 @@ hairAnalysis.post("/hair-analysis", async (c) => {
     } catch (cacheErr) {
       log.warn({ err: cacheErr }, "Vision cache lookup failed");
     }
+  }
+
+  // Scout fix 2026-05-26 (AI-CRIT-01): globalt dygnstak utöver per-IP.
+  // Måste köras EFTER cache-hit-checken så vi inte räknar cached
+  // resultat mot budgeten. Default 2000 vision-calls/dygn ≈ kostnads-
+  // tak; justera via AI_GLOBAL_VISION_DAILY_CAP i env.
+  const globalCap = await aiGlobalVisionDailyCap();
+  if (!globalCap.allowed) {
+    recordAiIncident({
+      surface: "hair_analysis",
+      kind: "rate_limited",
+      meta: { reason: "global_daily_cap" },
+    });
+    return c.json(
+      {
+        error:
+          "Vision-analysen har nått dagens kapacitetstak. Försök igen efter midnatt eller kontakta oss.",
+        retryAfter: globalCap.resetInSeconds,
+      },
+      429
+    );
   }
 
   // Save lead to database (best-effort — don't block on failure)
