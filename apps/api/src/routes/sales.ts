@@ -15,9 +15,14 @@
  */
 
 import { Hono } from "hono";
-import { eq } from "drizzle-orm";
+import { eq, and, sql, inArray } from "drizzle-orm";
 import { db } from "@roots/db";
-import { organizations, users } from "@roots/db/schema";
+import {
+  organizations,
+  users,
+  campaigns,
+  customerOrders,
+} from "@roots/db/schema";
 import { getSession, SESSION_COOKIE_NAME, isDemoSession } from "../lib/session";
 import type { SessionData } from "../lib/session";
 import { auditLog, requestContext } from "../lib/audit";
@@ -179,6 +184,85 @@ sales.post("/leads", async (c) => {
   } catch (err) {
     log.error({ err }, "lead create failed");
     return c.json({ error: "Kunde inte skapa lead just nu." }, 500);
+  }
+});
+
+/**
+ * MASTERPLAN_02: säljaktivitets-/leveranskalender över alla föreningar.
+ *
+ * GET /v1/sales/calendar
+ *   Returnerar alla kampanjer (säljperioder) med förening, start/slut och
+ *   leveransdatum till klubben, plus betald försäljning. Ger sälj/intern
+ *   en överblick av "när har respektive förening sina säljaktiviteter och
+ *   när skickas produkterna till klubben".
+ *
+ * Behörighet: SALES_REP / SALES_ADMIN / INTERNAL_ADMIN.
+ */
+sales.get("/calendar", async (c) => {
+  const session = await requireSession(c);
+  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  if (
+    session.role !== "SALES_REP" &&
+    session.role !== "SALES_ADMIN" &&
+    session.role !== "INTERNAL_ADMIN"
+  ) {
+    return c.json({ error: "Behörighet saknas" }, 403);
+  }
+
+  try {
+    const rows = await db
+      .select({
+        id: campaigns.id,
+        name: campaigns.name,
+        status: campaigns.status,
+        startDate: campaigns.startDate,
+        endDate: campaigns.endDate,
+        deliveryDate: campaigns.deliveryDate,
+        deliveryType: campaigns.deliveryType,
+        orgId: campaigns.orgId,
+        orgName: organizations.name,
+      })
+      .from(campaigns)
+      .innerJoin(organizations, eq(campaigns.orgId, organizations.id))
+      .orderBy(campaigns.startDate);
+
+    // Betald försäljning per kampanj (inom period) i ett svep.
+    const campaignIds = rows.map((r) => r.id);
+    const salesMap = new Map<string, { total: number; orders: number }>();
+    if (campaignIds.length > 0) {
+      const salesRows = await db
+        .select({
+          campaignId: customerOrders.campaignId,
+          total: sql<number>`COALESCE(SUM(${customerOrders.totalOre}), 0)`,
+          orders: sql<number>`COUNT(*)`,
+        })
+        .from(customerOrders)
+        .where(
+          and(
+            inArray(customerOrders.campaignId, campaignIds),
+            eq(customerOrders.status, "PAID"),
+            eq(customerOrders.countsTowardStats, true)
+          )
+        )
+        .groupBy(customerOrders.campaignId);
+      for (const s of salesRows) {
+        salesMap.set(s.campaignId, {
+          total: Number(s.total),
+          orders: Number(s.orders),
+        });
+      }
+    }
+
+    return c.json({
+      campaigns: rows.map((r) => ({
+        ...r,
+        totalSalesOre: salesMap.get(r.id)?.total ?? 0,
+        orderCount: salesMap.get(r.id)?.orders ?? 0,
+      })),
+    });
+  } catch (err) {
+    log.error({ err }, "sales calendar failed");
+    return c.json({ error: "Kunde inte hämta kalendern." }, 500);
   }
 });
 

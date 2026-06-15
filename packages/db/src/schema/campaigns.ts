@@ -4,6 +4,7 @@ import {
   varchar,
   text,
   integer,
+  boolean,
   timestamp,
   pgEnum,
   date,
@@ -45,6 +46,17 @@ export const campaigns = pgTable(
     goalValue: integer("goal_value").notNull().default(0),
     startDate: date("start_date").notNull(),
     endDate: date("end_date").notNull(),
+    // Säljperiod-styrning. När `allowSalesOutsidePeriod` är false blockeras
+    // checkout helt utanför start/end (föreningens "man kan inte sälja
+    // mellan perioderna"). När den är true accepteras ordrar utanför
+    // perioden men flaggas `countsTowardStats=false` så de inte räknas i
+    // topplistor/statistik ("försäljningen kan alltid pågå").
+    allowSalesOutsidePeriod: boolean("allow_sales_outside_period")
+      .notNull()
+      .default(true),
+    // Datum då de samlade produkterna skickas till klubben (BULK-leverans).
+    // Visas i förenings-/säljkalendern. Nullable för äldre kampanjer.
+    deliveryDate: date("delivery_date"),
     deliveryType: deliveryTypeEnum("delivery_type").notNull().default("BULK"),
     shippingThresholdOre: integer("shipping_threshold_ore").default(0),
     shippingFeeOre: integer("shipping_fee_ore").default(4900),

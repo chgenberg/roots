@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,10 +15,13 @@ import {
   Award,
   Star,
   TrendingUp,
+  PlusCircle,
 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { GradeBadge, GradeProgress } from "@/components/seller-grade";
 import { OrderDetailDialog } from "@/components/order-detail-dialog";
+import { ManualOrderDialog } from "@/components/manual-order-dialog";
+import { MiniTrendCard } from "@/components/charts/mini-trend-card";
 import { ShareTemplates } from "@/components/share-templates";
 import type { SellerDashboard as SellerDashboardData, Milestone } from "@/types/fundraising";
 import QRCode from "qrcode";
@@ -36,38 +39,44 @@ export default function SellerDashboard() {
   const [qrDataUrl, setQrDataUrl] = useState("");
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailOrderId, setDetailOrderId] = useState<string | null>(null);
+  const [manualOpen, setManualOpen] = useState(false);
   const { toast } = useToast();
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const res = await fetch(`${API_URL}/v1/dashboard/seller`, {
-          credentials: "include",
-        });
-        if (res.ok) {
-          const d = await res.json();
-          setData(d);
+  const load = useCallback(async (silent = false) => {
+    try {
+      const res = await fetch(`${API_URL}/v1/dashboard/seller`, {
+        credentials: "include",
+      });
+      if (res.ok) {
+        const d = await res.json();
+        setData(d);
 
-          if (d.seller?.shopSlug) {
-            const url = `${SITE_URL}/shop/${d.seller.shopSlug}`;
-            const dataUrl = await QRCode.toDataURL(url, {
-              width: 200,
-              margin: 2,
-              color: { dark: "#1C1410", light: "#FFFFFF" },
-            });
-            setQrDataUrl(dataUrl);
-          }
-        } else {
-          setError("Kunde inte hämta data. Försök igen.");
+        if (d.seller?.shopSlug) {
+          const url = `${SITE_URL}/shop/${d.seller.shopSlug}`;
+          const dataUrl = await QRCode.toDataURL(url, {
+            width: 200,
+            margin: 2,
+            color: { dark: "#1C1410", light: "#FFFFFF" },
+          });
+          setQrDataUrl(dataUrl);
         }
-      } catch {
-        setError("Ett nätverksfel uppstod. Försök igen.");
-      } finally {
-        setLoading(false);
+      } else if (!silent) {
+        setError("Kunde inte hämta data. Försök igen.");
       }
+    } catch {
+      if (!silent) setError("Ett nätverksfel uppstod. Försök igen.");
+    } finally {
+      setLoading(false);
     }
-    load();
   }, []);
+
+  useEffect(() => {
+    load();
+    // Live-uppdatering: poll:a säljardata var 20:e sekund så nya ordrar
+    // dyker upp utan att säljaren behöver ladda om sidan.
+    const id = setInterval(() => load(true), 20000);
+    return () => clearInterval(id);
+  }, [load]);
 
   function copyLink() {
     if (!data?.seller?.shopSlug) return;
@@ -141,12 +150,18 @@ export default function SellerDashboard() {
 
   return (
     <div className="page-enter space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Min shop</h1>
-        <p className="text-sm text-muted-foreground">
-          {data.team?.name}
-          {data.campaign ? ` · ${data.campaign.name}` : ""}
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">Min shop</h1>
+          <p className="text-sm text-muted-foreground">
+            {data.team?.name}
+            {data.campaign ? ` · ${data.campaign.name}` : ""}
+          </p>
+        </div>
+        <Button onClick={() => setManualOpen(true)}>
+          <PlusCircle className="mr-2 h-4 w-4" />
+          Registrera order
+        </Button>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -189,6 +204,9 @@ export default function SellerDashboard() {
           </Card>
         )}
       </div>
+
+      {/* Försäljningstrend */}
+      <MiniTrendCard path="/v1/dashboard/seller/stats" href="/min-shop/statistik" />
 
       {/* Grade card */}
       {data.grade && (
@@ -385,6 +403,12 @@ export default function SellerDashboard() {
         open={detailOpen}
         onOpenChange={setDetailOpen}
         orderId={detailOrderId}
+      />
+
+      <ManualOrderDialog
+        open={manualOpen}
+        onOpenChange={setManualOpen}
+        onCreated={() => load(true)}
       />
     </div>
   );

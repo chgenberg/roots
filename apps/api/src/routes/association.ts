@@ -897,6 +897,8 @@ association.post("/campaigns", async (c) => {
     goalValue?: number;
     startDate?: string; // YYYY-MM-DD
     endDate?: string;
+    deliveryDate?: string; // YYYY-MM-DD, leverans till klubben
+    allowSalesOutsidePeriod?: boolean;
     deliveryType?: "BULK" | "DIRECT" | "BOTH";
     marginPercent?: number;
   };
@@ -925,6 +927,16 @@ association.post("/campaigns", async (c) => {
     return c.json({ error: "Slutdatum måste vara efter startdatum." }, 400);
   }
 
+  // Valfritt leveransdatum till klubben (måste vara giltigt om angivet).
+  let deliveryDate: string | null = null;
+  if (body.deliveryDate) {
+    if (!datePattern.test(body.deliveryDate)) {
+      return c.json({ error: "Leveransdatum måste vara YYYY-MM-DD." }, 400);
+    }
+    deliveryDate = body.deliveryDate;
+  }
+  const allowSalesOutsidePeriod = body.allowSalesOutsidePeriod !== false;
+
   const deliveryType =
     body.deliveryType === "DIRECT"
       ? "DIRECT"
@@ -951,6 +963,8 @@ association.post("/campaigns", async (c) => {
         goalValue,
         startDate,
         endDate,
+        deliveryDate,
+        allowSalesOutsidePeriod,
         deliveryType,
         marginPercent,
       })

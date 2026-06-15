@@ -12,6 +12,7 @@ import {
   Copy,
   CheckCircle2,
   UserPlus,
+  Upload,
   Eye,
   EyeOff,
   Target,
@@ -21,6 +22,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { GradeBadge, GradeProgress } from "@/components/seller-grade";
+import { SellerImportDialog } from "@/components/seller-import-dialog";
 import type { TeamDashboard, Seller } from "@/types/fundraising";
 import { getBrowserApiBase } from "@/lib/api-base";
 import { apiFetch } from "@/lib/api";
@@ -40,6 +42,7 @@ export default function TeamSellersPage() {
 
   // Inline create seller state
   const [showCreate, setShowCreate] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [createName, setCreateName] = useState("");
   const [createEmail, setCreateEmail] = useState("");
   const [createPassword, setCreatePassword] = useState("");
@@ -293,15 +296,35 @@ export default function TeamSellersPage() {
             {sellers.length} säljare i {data.team?.name}
           </p>
         </div>
-        <Button
-          size="sm"
-          onClick={() => setShowCreate(!showCreate)}
-          className="gap-1.5"
-        >
-          <UserPlus className="h-4 w-4" />
-          Lägg till
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setImportOpen(true)}
+            className="gap-1.5"
+          >
+            <Upload className="h-4 w-4" />
+            Importera
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => setShowCreate(!showCreate)}
+            className="gap-1.5"
+          >
+            <UserPlus className="h-4 w-4" />
+            Lägg till
+          </Button>
+        </div>
       </div>
+
+      {data?.team?.id && (
+        <SellerImportDialog
+          open={importOpen}
+          onOpenChange={setImportOpen}
+          teamId={data.team.id}
+          onImported={load}
+        />
+      )}
 
       {/* Inline create seller */}
       {showCreate && (

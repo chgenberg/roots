@@ -92,6 +92,13 @@
       "when": 1780704000002,
       "tag": "0012_session_user_fk_and_audit_admin_index",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1781308800000,
+      "tag": "0013_sales_periods_chat_delivery",
+      "breakpoints": true
     }
   ]
 }

@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, inArray, gte } from "drizzle-orm";
 import { hash } from "@node-rs/argon2";
 import { db } from "@roots/db";
 import {
@@ -45,6 +45,88 @@ async function requireSession(c: any): Promise<SessionData | null> {
   } catch {
     return null;
   }
+}
+
+/* ───────────────────────── Statistik / grafer ─────────────────────────
+ * Tidsserie-data för dashboard-graferna. Alla aggregat filtrerar på
+ * PAID + countsTowardStats=true (samma regel som KPI-aggregaten ovan) så
+ * graferna och siffrorna alltid stämmer överens. Endpoints returnerar
+ * självständig data så varje statistik-sida klarar sig med ETT anrop.
+ * ------------------------------------------------------------------- */
+
+const STATS_WINDOW_DAYS = 90;
+const PAID_IN_STATS = and(
+  eq(customerOrders.status, "PAID"),
+  eq(customerOrders.countsTowardStats, true)
+);
+
+/** Tidigaste datum vi tar med i tidsserien. */
+function statsSince(): Date {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() - STATS_WINDOW_DAYS);
+  d.setUTCHours(0, 0, 0, 0);
+  return d;
+}
+
+/** Daglig försäljning (öre) + antal ordrar för ett godtyckligt scope. */
+async function dailySeries(scope: ReturnType<typeof and> | undefined) {
+  const rows = await db
+    .select({
+      day: sql<string>`to_char(date_trunc('day', ${customerOrders.createdAt}), 'YYYY-MM-DD')`,
+      salesOre: sql<number>`COALESCE(SUM(${customerOrders.totalOre}), 0)`,
+      orders: sql<number>`COUNT(*)`,
+    })
+    .from(customerOrders)
+    .where(and(scope, PAID_IN_STATS, gte(customerOrders.createdAt, statsSince())))
+    .groupBy(sql`date_trunc('day', ${customerOrders.createdAt})`)
+    .orderBy(sql`date_trunc('day', ${customerOrders.createdAt})`);
+  return rows.map((r) => ({
+    day: r.day,
+    salesOre: Number(r.salesOre),
+    orders: Number(r.orders),
+  }));
+}
+
+/** Försäljning per betalmetod (Swish/Klarna/Kort/Kontant) för ett scope. */
+async function paymentSeries(scope: ReturnType<typeof and> | undefined) {
+  const methodExpr = sql<string>`LOWER(COALESCE(NULLIF(${customerOrders.selectedPaymentMethod}, ''), ${customerOrders.paymentMethod}::text, 'okänd'))`;
+  const rows = await db
+    .select({
+      method: methodExpr,
+      salesOre: sql<number>`COALESCE(SUM(${customerOrders.totalOre}), 0)`,
+      count: sql<number>`COUNT(*)`,
+    })
+    .from(customerOrders)
+    .where(and(scope, PAID_IN_STATS))
+    .groupBy(methodExpr)
+    .orderBy(sql`COALESCE(SUM(${customerOrders.totalOre}), 0) DESC`);
+  return rows.map((r) => ({
+    method: r.method,
+    salesOre: Number(r.salesOre),
+    count: Number(r.count),
+  }));
+}
+
+/** Försäljning per veckodag (0=söndag … 6=lördag). */
+async function weekdaySeries(scope: ReturnType<typeof and> | undefined) {
+  const dowExpr = sql<number>`EXTRACT(DOW FROM ${customerOrders.createdAt})`;
+  const rows = await db
+    .select({
+      dow: dowExpr,
+      salesOre: sql<number>`COALESCE(SUM(${customerOrders.totalOre}), 0)`,
+      orders: sql<number>`COUNT(*)`,
+    })
+    .from(customerOrders)
+    .where(and(scope, PAID_IN_STATS, gte(customerOrders.createdAt, statsSince())))
+    .groupBy(dowExpr);
+  const byDow = new Map(rows.map((r) => [Number(r.dow), Number(r.salesOre)]));
+  // Returnera må–sö i svensk ordning.
+  const order = [1, 2, 3, 4, 5, 6, 0];
+  const labels = ["Mån", "Tis", "Ons", "Tor", "Fre", "Lör", "Sön"];
+  return order.map((dow, i) => ({
+    label: labels[i],
+    salesOre: byDow.get(dow) ?? 0,
+  }));
 }
 
 dashboard.get("/association", async (c) => {
@@ -93,7 +175,9 @@ dashboard.get("/association", async (c) => {
       .where(
         and(
           eq(customerOrders.orgId, orgId),
-          eq(customerOrders.status, "PAID")
+          eq(customerOrders.status, "PAID"),
+          // Endast ordrar inom säljperioden räknas i statistik/topplistor.
+          eq(customerOrders.countsTowardStats, true)
         )
       )
       .groupBy(customerOrders.teamId);
@@ -292,7 +376,8 @@ dashboard.get("/team/:teamId", async (c) => {
       .where(
         and(
           eq(customerOrders.teamId, teamId),
-          eq(customerOrders.status, "PAID")
+          eq(customerOrders.status, "PAID"),
+          eq(customerOrders.countsTowardStats, true)
         )
       )
       .groupBy(customerOrders.sellerId);
@@ -347,8 +432,11 @@ dashboard.get("/team/:teamId", async (c) => {
         totalOre: o.totalOre,
         status: o.status,
         paymentMethod: o.paymentMethod,
+        selectedPaymentMethod: o.selectedPaymentMethod,
         deliveryType: o.deliveryType,
         sellerId: o.sellerId,
+        isManual: o.isManual,
+        countsTowardStats: o.countsTowardStats,
         createdAt: o.createdAt,
       })),
       stats: {
@@ -608,6 +696,214 @@ dashboard.post("/team/:teamId/sellers", async (c) => {
 });
 
 /**
+ * MASTERPLAN_02: bulk-import av säljare från Excel/CSV.
+ *
+ * Föreningen/lagledaren laddar upp en lista (namn + e-post). Vi skapar
+ * ett konto per rad med ett genererat temporärt lösenord och returnerar
+ * lösenorden till den inloggade administratören så de kan delas ut. Varje
+ * säljare kan byta lösenord efter första inloggningen.
+ *
+ * Body: { rows: [{ displayName: string, email: string }] }  (max 500)
+ *
+ * Säkerhet: temp-lösenord returneras ENDAST till den autentiserade
+ * lagledaren/admin som skapade kontona (över HTTPS), aldrig publikt.
+ * Alternativ utan utdelning av lösenord är registreringslänken
+ * (team.inviteToken → /registrera/saljare/:token).
+ */
+dashboard.post("/team/:teamId/sellers/import", async (c) => {
+  const session = await requireSession(c);
+  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  if (isDemoSession(session)) {
+    return c.json({ error: "Demoläget kan inte importera säljare." }, 403);
+  }
+
+  const teamId = c.req.param("teamId");
+  if (!/^[0-9a-f-]{36}$/i.test(teamId)) {
+    return c.json({ error: "Ogiltigt lag-ID." }, 400);
+  }
+
+  let body: { rows?: Array<{ displayName?: string; email?: string }> };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+  }
+
+  const rawRows = Array.isArray(body?.rows) ? body.rows : [];
+  if (rawRows.length === 0) {
+    return c.json({ error: "Inga rader att importera." }, 400);
+  }
+  if (rawRows.length > 500) {
+    return c.json({ error: "Max 500 rader per import." }, 400);
+  }
+
+  try {
+    const [team] = await db
+      .select()
+      .from(teams)
+      .where(eq(teams.id, teamId))
+      .limit(1);
+    if (!team) return c.json({ error: "Lag hittades inte" }, 404);
+
+    const hasAccess =
+      session.role === "INTERNAL_ADMIN" ||
+      (session.role === "ASSOCIATION_ADMIN" && session.orgId === team.orgId) ||
+      (session.role === "TEAM_LEADER" && team.leaderId === session.userId);
+    if (!hasAccess) return c.json({ error: "Behörighet saknas" }, 403);
+
+    const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    // Normalisera + validera rader, dedup:a inom batchen.
+    type Parsed = { displayName: string; email: string };
+    const parsed: Parsed[] = [];
+    const results: Array<{
+      email: string;
+      displayName: string;
+      status: "created" | "skipped" | "error";
+      reason?: string;
+      tempPassword?: string;
+      shopSlug?: string;
+    }> = [];
+    const seenInBatch = new Set<string>();
+
+    for (const row of rawRows) {
+      const displayName = String(row?.displayName ?? "").trim();
+      const email = String(row?.email ?? "").trim().toLowerCase();
+      if (!displayName || !email) {
+        results.push({
+          email,
+          displayName,
+          status: "error",
+          reason: "Namn och e-post krävs",
+        });
+        continue;
+      }
+      if (!emailRe.test(email) || email.length > 254) {
+        results.push({
+          email,
+          displayName,
+          status: "error",
+          reason: "Ogiltig e-post",
+        });
+        continue;
+      }
+      if (seenInBatch.has(email)) {
+        results.push({
+          email,
+          displayName,
+          status: "skipped",
+          reason: "Dubblett i filen",
+        });
+        continue;
+      }
+      seenInBatch.add(email);
+      parsed.push({ displayName, email });
+    }
+
+    // Hitta befintliga konton i ett svep.
+    const existingEmails = new Set<string>();
+    if (parsed.length > 0) {
+      const found = await db
+        .select({ email: users.email })
+        .from(users)
+        .where(
+          inArray(
+            users.email,
+            parsed.map((p) => p.email)
+          )
+        );
+      for (const f of found) existingEmails.add(f.email);
+    }
+
+    let createdCount = 0;
+    const welcomeQueue: Array<{ email: string; displayName: string }> = [];
+
+    for (const p of parsed) {
+      if (existingEmails.has(p.email)) {
+        results.push({
+          email: p.email,
+          displayName: p.displayName,
+          status: "skipped",
+          reason: "E-post redan registrerad",
+        });
+        continue;
+      }
+      try {
+        // 18 hex-tecken = >12-teckenpolicyn, läsbart att läsa upp.
+        const tempPassword =
+          crypto.randomUUID().replace(/-/g, "").slice(0, 14) + "9A";
+        const passwordHash = await hash(tempPassword, ARGON2_OPTIONS);
+        const shopSlug =
+          p.displayName.toLowerCase().replace(/[^a-z0-9]/g, "-") +
+          "-" +
+          crypto.randomUUID().slice(0, 6);
+
+        await db.transaction(async (tx) => {
+          const [user] = await tx
+            .insert(users)
+            .values({
+              email: p.email,
+              passwordHash,
+              role: "SELLER",
+              orgId: team.orgId,
+              contactName: p.displayName,
+            })
+            .returning();
+          await tx.insert(sellers).values({
+            userId: user.id,
+            teamId: team.id,
+            campaignId: team.campaignId,
+            shopSlug,
+            displayName: p.displayName,
+          });
+          await tx
+            .update(teams)
+            .set({ memberCount: sql`${teams.memberCount} + 1` })
+            .where(eq(teams.id, team.id));
+        });
+
+        createdCount++;
+        welcomeQueue.push({ email: p.email, displayName: p.displayName });
+        results.push({
+          email: p.email,
+          displayName: p.displayName,
+          status: "created",
+          tempPassword,
+          shopSlug,
+        });
+      } catch (err) {
+        log.error({ err, email: p.email }, "Seller import row failed");
+        results.push({
+          email: p.email,
+          displayName: p.displayName,
+          status: "error",
+          reason: "Kunde inte skapa kontot",
+        });
+      }
+    }
+
+    // Välkomstmail (best-effort, blockar inte svaret).
+    for (const w of welcomeQueue) {
+      getEmailSender()
+        .sendEmail({ to: w.email, ...welcomeEmail(w.displayName, "SELLER") })
+        .catch((e) => log.error({ err: e }, "Import welcome email failed"));
+    }
+
+    const skipped = results.filter((r) => r.status === "skipped").length;
+    const errors = results.filter((r) => r.status === "error").length;
+
+    return c.json({
+      ok: true,
+      summary: { created: createdCount, skipped, errors, total: rawRows.length },
+      results,
+    });
+  } catch (err) {
+    log.error({ err }, "Seller import failed");
+    return c.json({ error: "Kunde inte importera säljare." }, 500);
+  }
+});
+
+/**
  * MASTERPLAN_01 KC3.4: rotera säljar-invite-token för ett lag.
  *
  * Behörighet:
@@ -781,7 +1077,8 @@ dashboard.get("/seller", async (c) => {
       .where(
         and(
           eq(customerOrders.sellerId, seller.id),
-          eq(customerOrders.status, "PAID")
+          eq(customerOrders.status, "PAID"),
+          eq(customerOrders.countsTowardStats, true)
         )
       );
 
@@ -833,6 +1130,185 @@ dashboard.get("/seller", async (c) => {
   } catch (err) {
     log.error({ err }, "Failed to fetch seller dashboard");
     return c.json({ error: "Kunde inte hämta data" }, 500);
+  }
+});
+
+/**
+ * MASTERPLAN_02: order lagd av säljaren själv (manuell order).
+ *
+ * Säljaren tar emot kontant/Swish/kort vid dörren och registrerar
+ * ordern i appen. Den attribueras till säljarens egen profil, markeras
+ * `isManual=true` och `paymentMethod=DIRECT_TO_LEADER` (pengarna går via
+ * laget, inte Klarna). Den räknas i topplistor om den ligger inom
+ * kampanjens säljperiod, precis som online-ordrar.
+ *
+ * Body:
+ *   items: [{ productId, qty }]   (obligatoriskt, qty 1–100)
+ *   customerName?: string          (valfritt — "Kontantkund" om tomt)
+ *   paymentMethod?: "swish" | "cash" | "card"  (default "cash")
+ *   note?: string
+ */
+dashboard.post("/seller/orders", async (c) => {
+  const session = await requireSession(c);
+  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  if (isDemoSession(session)) {
+    return c.json({ error: "Demoläget kan inte registrera riktiga ordrar." }, 403);
+  }
+
+  let body: any;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+  }
+
+  const items = Array.isArray(body?.items) ? body.items : [];
+  if (items.length === 0) {
+    return c.json({ error: "Minst en vara krävs." }, 400);
+  }
+  for (const item of items) {
+    if (
+      !item?.productId ||
+      typeof item.qty !== "number" ||
+      !Number.isInteger(item.qty) ||
+      item.qty < 1 ||
+      item.qty > 100
+    ) {
+      return c.json(
+        { error: "Ogiltig vara: qty måste vara ett heltal mellan 1 och 100." },
+        400
+      );
+    }
+  }
+
+  const paymentRaw =
+    typeof body?.paymentMethod === "string"
+      ? body.paymentMethod.toLowerCase().trim()
+      : "cash";
+  const selectedPaymentMethod = ["swish", "cash", "card"].includes(paymentRaw)
+    ? paymentRaw
+    : "cash";
+  const customerName =
+    typeof body?.customerName === "string" && body.customerName.trim().length > 0
+      ? body.customerName.trim().slice(0, 255)
+      : "Kontantkund";
+  const note =
+    typeof body?.note === "string" && body.note.trim().length > 0
+      ? body.note.trim().slice(0, 2000)
+      : null;
+
+  try {
+    const [seller] = await db
+      .select()
+      .from(sellers)
+      .where(eq(sellers.userId, session.userId))
+      .limit(1);
+    if (!seller) return c.json({ error: "Ingen säljar-profil" }, 404);
+    if (seller.status !== "ACTIVE") {
+      return c.json({ error: "Din säljprofil är inte aktiv." }, 403);
+    }
+
+    const [team] = await db
+      .select()
+      .from(teams)
+      .where(eq(teams.id, seller.teamId))
+      .limit(1);
+    if (!team) return c.json({ error: "Lag hittades inte" }, 404);
+
+    const [campaign] = await db
+      .select()
+      .from(campaigns)
+      .where(eq(campaigns.id, seller.campaignId))
+      .limit(1);
+    if (!campaign || campaign.status !== "ACTIVE") {
+      return c.json({ error: "Kampanjen är inte aktiv." }, 400);
+    }
+
+    // Samma periodlogik som publika checkout.
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const withinPeriod =
+      campaign.startDate <= todayStr && todayStr <= campaign.endDate;
+    if (!withinPeriod && !campaign.allowSalesOutsidePeriod) {
+      return c.json(
+        { error: "Försäljningsperioden är inte aktiv just nu." },
+        400
+      );
+    }
+    const countsTowardStats = withinPeriod;
+
+    const productList = await db
+      .select()
+      .from(products)
+      .where(eq(products.active, true));
+    const productMap = new Map(productList.map((p) => [p.id, p]));
+
+    let totalOre = 0;
+    const lines: Array<{ productId: string; qty: number; unitPriceOre: number }> =
+      [];
+    for (const item of items) {
+      const product = productMap.get(item.productId);
+      if (!product) {
+        return c.json({ error: `Produkt hittades inte: ${item.productId}` }, 400);
+      }
+      totalOre += product.priceOre * item.qty;
+      lines.push({
+        productId: product.id,
+        qty: item.qty,
+        unitPriceOre: product.priceOre,
+      });
+    }
+    if (totalOre === 0) {
+      return c.json({ error: "Varukorgen är tom." }, 400);
+    }
+
+    const [order] = await db.transaction(async (tx) => {
+      const [created] = await tx
+        .insert(customerOrders)
+        .values({
+          orgId: team.orgId,
+          campaignId: seller.campaignId,
+          teamId: seller.teamId,
+          sellerId: seller.id,
+          customerName,
+          // Manuella ordrar saknar kunddata; använd säljarens placeholder.
+          customerEmail: "",
+          deliveryType: "BULK",
+          paymentMethod: "DIRECT_TO_LEADER",
+          selectedPaymentMethod,
+          status: "PAID",
+          totalOre,
+          shippingOre: 0,
+          countsTowardStats,
+          isManual: true,
+          placedByUserId: session.userId,
+          note,
+        })
+        .returning();
+      for (const line of lines) {
+        await tx.insert(customerOrderLines).values({
+          orderId: created.id,
+          productId: line.productId,
+          qty: line.qty,
+          unitPriceOre: line.unitPriceOre,
+        });
+      }
+      return [created];
+    });
+
+    return c.json({
+      ok: true,
+      order: {
+        id: order.id,
+        totalOre: order.totalOre,
+        status: order.status,
+        selectedPaymentMethod: order.selectedPaymentMethod,
+        countsTowardStats: order.countsTowardStats,
+        createdAt: order.createdAt,
+      },
+    });
+  } catch (err) {
+    log.error({ err }, "Failed to create manual seller order");
+    return c.json({ error: "Kunde inte registrera ordern." }, 500);
   }
 });
 
@@ -918,11 +1394,15 @@ dashboard.get("/seller/orders/:orderId", async (c) => {
         id: order.id,
         status: order.status,
         paymentMethod: order.paymentMethod,
+        selectedPaymentMethod: order.selectedPaymentMethod,
+        isManual: order.isManual,
         deliveryType: order.deliveryType,
         totalOre: order.totalOre,
         shippingOre: order.shippingOre,
         klarnaOrderId: order.klarnaOrderId,
         note: order.note,
+        shippedAt: order.shippedAt,
+        deliveredAt: order.deliveredAt,
         createdAt: order.createdAt,
         updatedAt: order.updatedAt,
         customer: {
@@ -950,5 +1430,447 @@ dashboard.get("/seller/orders/:orderId", async (c) => {
   } catch (err) {
     log.error({ err, orderId }, "Failed to fetch seller order detail");
     return c.json({ error: "Kunde inte hämta order" }, 500);
+  }
+});
+
+/**
+ * MASTERPLAN_02: leveransspårning för en enskild order.
+ *
+ * PATCH /v1/dashboard/orders/:orderId/fulfillment
+ *   body: { status: "SHIPPED" | "DELIVERED" | "PAID" }
+ *
+ * Behörighet: lagledaren för orderns lag, föreningens admin (samma org)
+ * eller intern admin. Sätter shipped_at/delivered_at när relevant.
+ */
+dashboard.patch("/orders/:orderId/fulfillment", async (c) => {
+  const session = await requireSession(c);
+  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  if (isDemoSession(session)) {
+    return c.json({ error: "Demoläget kan inte ändra leveransstatus." }, 403);
+  }
+
+  const orderId = c.req.param("orderId");
+  if (!/^[0-9a-f-]{36}$/i.test(orderId)) {
+    return c.json({ error: "Ogiltigt order-ID." }, 400);
+  }
+
+  let body: { status?: string };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+  }
+  const status = body.status;
+  if (status !== "SHIPPED" && status !== "DELIVERED" && status !== "PAID") {
+    return c.json(
+      { error: "status måste vara SHIPPED, DELIVERED eller PAID." },
+      400
+    );
+  }
+
+  try {
+    const [order] = await db
+      .select()
+      .from(customerOrders)
+      .where(eq(customerOrders.id, orderId))
+      .limit(1);
+    if (!order) return c.json({ error: "Order hittades inte" }, 404);
+
+    const [orderTeam] = await db
+      .select()
+      .from(teams)
+      .where(eq(teams.id, order.teamId))
+      .limit(1);
+
+    const hasAccess =
+      session.role === "INTERNAL_ADMIN" ||
+      (session.role === "ASSOCIATION_ADMIN" && session.orgId === order.orgId) ||
+      (session.role === "TEAM_LEADER" &&
+        !!orderTeam &&
+        orderTeam.leaderId === session.userId);
+    if (!hasAccess) return c.json({ error: "Behörighet saknas" }, 403);
+
+    // Endast betalda/bekräftade ordrar kan markeras skickade/levererade.
+    if (
+      (status === "SHIPPED" || status === "DELIVERED") &&
+      order.status !== "PAID" &&
+      order.status !== "CONFIRMED" &&
+      order.status !== "SHIPPED"
+    ) {
+      return c.json(
+        { error: "Endast betalda ordrar kan markeras som skickade/levererade." },
+        400
+      );
+    }
+
+    const patch: {
+      status: "SHIPPED" | "DELIVERED" | "PAID";
+      shippedAt?: Date | null;
+      deliveredAt?: Date | null;
+      updatedAt: Date;
+    } = { status, updatedAt: new Date() };
+    if (status === "SHIPPED") {
+      patch.shippedAt = order.shippedAt ?? new Date();
+    } else if (status === "DELIVERED") {
+      patch.shippedAt = order.shippedAt ?? new Date();
+      patch.deliveredAt = new Date();
+    } else if (status === "PAID") {
+      // Ångra leverans-flaggning.
+      patch.shippedAt = null;
+      patch.deliveredAt = null;
+    }
+
+    const [updated] = await db
+      .update(customerOrders)
+      .set(patch)
+      .where(eq(customerOrders.id, orderId))
+      .returning();
+
+    return c.json({
+      ok: true,
+      order: {
+        id: updated.id,
+        status: updated.status,
+        shippedAt: updated.shippedAt,
+        deliveredAt: updated.deliveredAt,
+      },
+    });
+  } catch (err) {
+    log.error({ err, orderId }, "Failed to update order fulfillment");
+    return c.json({ error: "Kunde inte uppdatera leveransstatus." }, 500);
+  }
+});
+
+/**
+ * MASTERPLAN_02: samlad leverans till klubben.
+ *
+ * POST /v1/dashboard/campaign/:campaignId/ship-bulk
+ *   Markerar alla betalda BULK-ordrar i kampanjen som SHIPPED på en gång
+ *   (när lådan skickas till föreningen). Endast föreningens admin eller
+ *   intern admin.
+ */
+dashboard.post("/campaign/:campaignId/ship-bulk", async (c) => {
+  const session = await requireSession(c);
+  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  if (isDemoSession(session)) {
+    return c.json({ error: "Demoläget kan inte ändra leveransstatus." }, 403);
+  }
+  if (
+    session.role !== "ASSOCIATION_ADMIN" &&
+    session.role !== "INTERNAL_ADMIN"
+  ) {
+    return c.json({ error: "Behörighet saknas" }, 403);
+  }
+
+  const campaignId = c.req.param("campaignId");
+  if (!/^[0-9a-f-]{36}$/i.test(campaignId)) {
+    return c.json({ error: "Ogiltigt kampanj-ID." }, 400);
+  }
+
+  try {
+    const [campaign] = await db
+      .select()
+      .from(campaigns)
+      .where(eq(campaigns.id, campaignId))
+      .limit(1);
+    if (!campaign) return c.json({ error: "Kampanjen hittades inte" }, 404);
+    if (
+      session.role !== "INTERNAL_ADMIN" &&
+      campaign.orgId !== session.orgId
+    ) {
+      return c.json({ error: "Behörighet saknas" }, 403);
+    }
+
+    const now = new Date();
+    const updated = await db
+      .update(customerOrders)
+      .set({ status: "SHIPPED", shippedAt: now, updatedAt: now })
+      .where(
+        and(
+          eq(customerOrders.campaignId, campaignId),
+          eq(customerOrders.status, "PAID")
+        )
+      )
+      .returning({ id: customerOrders.id });
+
+    return c.json({ ok: true, shipped: updated.length });
+  } catch (err) {
+    log.error({ err, campaignId }, "Bulk ship failed");
+    return c.json({ error: "Kunde inte markera leverans." }, 500);
+  }
+});
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function clampPeriodStart(campaignStart: string | null | undefined): string {
+  const windowStart = statsSince().toISOString().slice(0, 10);
+  if (campaignStart && campaignStart > windowStart) return campaignStart;
+  return windowStart;
+}
+
+/**
+ * Statistik för FÖRENINGEN — daglig trend, betalmetoder, veckodagar,
+ * lag-topplista och mål-progress. Allt org-scopat och PAID-filtrerat.
+ */
+dashboard.get("/association/stats", async (c) => {
+  const session = await requireSession(c);
+  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  if (!session.orgId) return c.json({ error: "Ingen organisation" }, 403);
+  if (session.role !== "ASSOCIATION_ADMIN" && session.role !== "INTERNAL_ADMIN") {
+    return c.json({ error: "Behörighet saknas" }, 403);
+  }
+  const orgId = session.orgId;
+  const scope = and(eq(customerOrders.orgId, orgId));
+
+  try {
+    const [daily, payments, weekday] = await Promise.all([
+      dailySeries(scope),
+      paymentSeries(scope),
+      weekdaySeries(scope),
+    ]);
+
+    const byTeam = await db
+      .select({
+        id: teams.id,
+        name: teams.name,
+        salesOre: sql<number>`COALESCE(SUM(${customerOrders.totalOre}), 0)`,
+        orders: sql<number>`COUNT(*)`,
+      })
+      .from(customerOrders)
+      .innerJoin(teams, eq(customerOrders.teamId, teams.id))
+      .where(and(eq(customerOrders.orgId, orgId), PAID_IN_STATS))
+      .groupBy(teams.id, teams.name)
+      .orderBy(sql`COALESCE(SUM(${customerOrders.totalOre}), 0) DESC`);
+
+    const goalRows = await db
+      .select({ g: sql<number>`COALESCE(SUM(${teamGoals.goalValue}), 0)` })
+      .from(teamGoals)
+      .innerJoin(teams, eq(teamGoals.teamId, teams.id))
+      .where(eq(teams.orgId, orgId));
+    const goalOre = Number(goalRows[0]?.g ?? 0) * 100;
+
+    const totalsRow = await db
+      .select({
+        sales: sql<number>`COALESCE(SUM(${customerOrders.totalOre}), 0)`,
+        orders: sql<number>`COUNT(*)`,
+      })
+      .from(customerOrders)
+      .where(and(eq(customerOrders.orgId, orgId), PAID_IN_STATS));
+
+    const campRows = await db
+      .select({ start: sql<string | null>`MIN(${campaigns.startDate})` })
+      .from(campaigns)
+      .where(eq(campaigns.orgId, orgId));
+
+    const salesOre = Number(totalsRow[0]?.sales ?? 0);
+    const orders = Number(totalsRow[0]?.orders ?? 0);
+    return c.json({
+      scope: "association",
+      daily,
+      payments,
+      weekday,
+      breakdown: byTeam.map((t) => ({
+        id: t.id,
+        name: t.name,
+        salesOre: Number(t.salesOre),
+        orders: Number(t.orders),
+      })),
+      goalOre,
+      currentOre: salesOre,
+      totals: {
+        salesOre,
+        orders,
+        avgOrderOre: orders > 0 ? Math.round(salesOre / orders) : 0,
+      },
+      periodStart: clampPeriodStart(campRows[0]?.start ?? null),
+      periodEnd: todayIso(),
+    });
+  } catch (err) {
+    log.error({ err }, "Failed to fetch association stats");
+    return c.json({ error: "Kunde inte hämta statistik" }, 500);
+  }
+});
+
+/**
+ * Statistik för LAGET — daglig trend, betalmetoder, veckodagar,
+ * säljar-topplista och mål-progress (kampanjmål).
+ */
+dashboard.get("/team/:teamId/stats", async (c) => {
+  const session = await requireSession(c);
+  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  const teamId = c.req.param("teamId");
+
+  try {
+    const [team] = await db
+      .select()
+      .from(teams)
+      .where(eq(teams.id, teamId))
+      .limit(1);
+    if (!team) return c.json({ error: "Lag hittades inte" }, 404);
+
+    const hasAccess =
+      session.role === "INTERNAL_ADMIN" ||
+      (session.role === "ASSOCIATION_ADMIN" && session.orgId === team.orgId) ||
+      (session.role === "TEAM_LEADER" && team.leaderId === session.userId);
+    if (!hasAccess) return c.json({ error: "Behörighet saknas" }, 403);
+
+    const scope = and(eq(customerOrders.teamId, teamId));
+    const [daily, payments, weekday] = await Promise.all([
+      dailySeries(scope),
+      paymentSeries(scope),
+      weekdaySeries(scope),
+    ]);
+
+    const bySeller = await db
+      .select({
+        id: sellers.id,
+        name: sellers.displayName,
+        salesOre: sql<number>`COALESCE(SUM(${customerOrders.totalOre}), 0)`,
+        orders: sql<number>`COUNT(*)`,
+      })
+      .from(customerOrders)
+      .innerJoin(sellers, eq(customerOrders.sellerId, sellers.id))
+      .where(and(eq(customerOrders.teamId, teamId), PAID_IN_STATS))
+      .groupBy(sellers.id, sellers.displayName)
+      .orderBy(sql`COALESCE(SUM(${customerOrders.totalOre}), 0) DESC`);
+
+    const [campaign] = await db
+      .select()
+      .from(campaigns)
+      .where(eq(campaigns.id, team.campaignId))
+      .limit(1);
+    let goalOre = 0;
+    if (campaign?.goalType === "AMOUNT" && campaign?.goalValue) {
+      goalOre = campaign.goalValue * 100;
+    } else {
+      const tg = await db
+        .select({ g: sql<number>`COALESCE(SUM(${teamGoals.goalValue}), 0)` })
+        .from(teamGoals)
+        .where(eq(teamGoals.teamId, teamId));
+      goalOre = Number(tg[0]?.g ?? 0) * 100;
+    }
+
+    const totalsRow = await db
+      .select({
+        sales: sql<number>`COALESCE(SUM(${customerOrders.totalOre}), 0)`,
+        orders: sql<number>`COUNT(*)`,
+      })
+      .from(customerOrders)
+      .where(and(eq(customerOrders.teamId, teamId), PAID_IN_STATS));
+
+    const salesOre = Number(totalsRow[0]?.sales ?? 0);
+    const orders = Number(totalsRow[0]?.orders ?? 0);
+    return c.json({
+      scope: "team",
+      daily,
+      payments,
+      weekday,
+      breakdown: bySeller.map((s) => ({
+        id: s.id,
+        name: s.name,
+        salesOre: Number(s.salesOre),
+        orders: Number(s.orders),
+      })),
+      goalOre,
+      currentOre: salesOre,
+      totals: {
+        salesOre,
+        orders,
+        avgOrderOre: orders > 0 ? Math.round(salesOre / orders) : 0,
+      },
+      periodStart: clampPeriodStart(campaign?.startDate ?? null),
+      periodEnd: todayIso(),
+    });
+  } catch (err) {
+    log.error({ err }, "Failed to fetch team stats");
+    return c.json({ error: "Kunde inte hämta statistik" }, 500);
+  }
+});
+
+/**
+ * Statistik för SÄLJAREN — daglig trend, betalmetoder, veckodagar,
+ * produkt-fördelning och mål-progress (individuellt mål).
+ */
+dashboard.get("/seller/stats", async (c) => {
+  const session = await requireSession(c);
+  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+
+  try {
+    const [seller] = await db
+      .select()
+      .from(sellers)
+      .where(eq(sellers.userId, session.userId))
+      .limit(1);
+    if (!seller) return c.json({ error: "Ingen säljar-profil" }, 404);
+
+    const scope = and(eq(customerOrders.sellerId, seller.id));
+    const [daily, payments, weekday] = await Promise.all([
+      dailySeries(scope),
+      paymentSeries(scope),
+      weekdaySeries(scope),
+    ]);
+
+    const byProduct = await db
+      .select({
+        id: products.id,
+        name: products.name,
+        salesOre: sql<number>`COALESCE(SUM(${customerOrderLines.qty} * ${customerOrderLines.unitPriceOre}), 0)`,
+        units: sql<number>`COALESCE(SUM(${customerOrderLines.qty}), 0)`,
+      })
+      .from(customerOrderLines)
+      .innerJoin(
+        customerOrders,
+        eq(customerOrderLines.orderId, customerOrders.id)
+      )
+      .innerJoin(products, eq(customerOrderLines.productId, products.id))
+      .where(and(eq(customerOrders.sellerId, seller.id), PAID_IN_STATS))
+      .groupBy(products.id, products.name)
+      .orderBy(
+        sql`COALESCE(SUM(${customerOrderLines.qty} * ${customerOrderLines.unitPriceOre}), 0) DESC`
+      );
+
+    const [campaign] = await db
+      .select()
+      .from(campaigns)
+      .where(eq(campaigns.id, seller.campaignId))
+      .limit(1);
+
+    const totalsRow = await db
+      .select({
+        sales: sql<number>`COALESCE(SUM(${customerOrders.totalOre}), 0)`,
+        orders: sql<number>`COUNT(*)`,
+      })
+      .from(customerOrders)
+      .where(and(eq(customerOrders.sellerId, seller.id), PAID_IN_STATS));
+
+    const salesOre = Number(totalsRow[0]?.sales ?? 0);
+    const orders = Number(totalsRow[0]?.orders ?? 0);
+    const goalOre = seller.individualGoal ? seller.individualGoal * 100 : 0;
+    return c.json({
+      scope: "seller",
+      daily,
+      payments,
+      weekday,
+      breakdown: byProduct.map((p) => ({
+        id: p.id,
+        name: p.name,
+        salesOre: Number(p.salesOre),
+        units: Number(p.units),
+      })),
+      goalOre,
+      currentOre: salesOre,
+      totals: {
+        salesOre,
+        orders,
+        avgOrderOre: orders > 0 ? Math.round(salesOre / orders) : 0,
+      },
+      periodStart: clampPeriodStart(campaign?.startDate ?? null),
+      periodEnd: todayIso(),
+    });
+  } catch (err) {
+    log.error({ err }, "Failed to fetch seller stats");
+    return c.json({ error: "Kunde inte hämta statistik" }, 500);
   }
 });

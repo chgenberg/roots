@@ -4,6 +4,7 @@ import {
   varchar,
   integer,
   text,
+  boolean,
   timestamp,
   pgEnum,
   index,
@@ -67,11 +68,28 @@ export const customerOrders = pgTable(
     paymentMethod: customerPaymentMethodEnum("payment_method")
       .notNull()
       .default("KLARNA"),
+    // Den faktiska betalinstrument-typen som kunden valde inne i Klarna
+    // (t.ex. "swish", "card", "pay_later"). Klarna är processorn;
+    // detta fält säger HUR kunden betalade. Sätts från Klarnas order-
+    // snapshot (initial_payment_method). För manuella ordrar lagda av
+    // säljaren själv används t.ex. "swish" eller "cash".
+    selectedPaymentMethod: varchar("selected_payment_method", { length: 40 }),
     klarnaOrderId: varchar("klarna_order_id", { length: 255 }),
     status: customerOrderStatusEnum("status").notNull().default("PENDING"),
     totalOre: integer("total_ore").notNull(),
     shippingOre: integer("shipping_ore").notNull().default(0),
     note: text("note"),
+    // Säljperiod: true = ordern lades inom kampanjens aktiva period och
+    // räknas i topplistor/statistik. false = lagd utanför perioden
+    // ("försäljningen kan alltid pågå, men räknas inte i listorna").
+    countsTowardStats: boolean("counts_toward_stats").notNull().default(true),
+    // Manuell order lagd av säljaren själv (kontant/Swish vid dörren),
+    // till skillnad från en kund som handlat online via shoppen.
+    isManual: boolean("is_manual").notNull().default(false),
+    placedByUserId: uuid("placed_by_user_id"),
+    // Leveransspårning för BULK→klubb och DIRECT→kund.
+    shippedAt: timestamp("shipped_at"),
+    deliveredAt: timestamp("delivered_at"),
     // P2.13 (audit 2026-05-26): klient-genererad nyckel (sha256 av
     // body) som dedup:ar /v1/checkout/create-retries. Unikt index i
     // 0010-migrationen.

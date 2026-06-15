@@ -38,6 +38,15 @@ function statusLabel(status: string) {
   return labels[status] || status;
 }
 
+function paymentMethodLabel(method: string) {
+  const m = method.toLowerCase();
+  if (m.includes("swish")) return "Swish";
+  if (m.includes("card")) return "Kort";
+  if (m.includes("klarna") || m.includes("pay_later") || m.includes("invoice")) return "Klarna";
+  if (m === "cash" || m.includes("kontant")) return "Kontant";
+  return method;
+}
+
 function statusColor(status: string) {
   if (status === "PAID" || status === "CONFIRMED") return "bg-brand-100 text-brand-700";
   if (status === "SHIPPED" || status === "DELIVERED") return "bg-brand-100 text-brand-700";
@@ -299,6 +308,21 @@ export default function TeamOrdersPage() {
                         <Badge variant="secondary" className="text-xs">
                           <Package className="h-3 w-3 mr-1" />
                           Direktleverans
+                        </Badge>
+                      )}
+                      {order.selectedPaymentMethod && (
+                        <Badge variant="secondary" className="text-xs bg-brand-50 text-brand-600">
+                          {paymentMethodLabel(order.selectedPaymentMethod)}
+                        </Badge>
+                      )}
+                      {order.isManual && (
+                        <Badge variant="secondary" className="text-xs bg-amber-50 text-amber-700">
+                          Manuell
+                        </Badge>
+                      )}
+                      {order.countsTowardStats === false && (
+                        <Badge variant="secondary" className="text-xs bg-slate-100 text-slate-600">
+                          Utanför period
                         </Badge>
                       )}
                     </div>

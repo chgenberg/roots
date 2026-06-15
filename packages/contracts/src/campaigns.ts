@@ -23,6 +23,11 @@ export const CreateCampaignSchema = z.object({
   goalValue: z.number().int().positive("Mål måste vara positivt"),
   startDate: z.string(),
   endDate: z.string(),
+  // Datum då samlade produkter skickas till klubben (BULK). Valfritt.
+  deliveryDate: z.string().optional().nullable(),
+  // Tillåt ordrar utanför säljperioden (räknas dock inte i statistik).
+  // false = försäljning blockeras helt utanför start/slut.
+  allowSalesOutsidePeriod: z.boolean().default(true),
   deliveryType: DeliveryTypeEnum.default("BULK"),
   shippingThresholdOre: z.number().int().optional(),
   shippingFeeOre: z.number().int().optional(),

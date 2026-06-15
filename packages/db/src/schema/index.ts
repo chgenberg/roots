@@ -12,6 +12,7 @@ export * from "./teams";
 export * from "./team-invites";
 export * from "./sellers";
 export * from "./customer-orders";
+export * from "./team-messages";
 export * from "./payouts";
 export * from "./campaign-products";
 export * from "./subscriptions";

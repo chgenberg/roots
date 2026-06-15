@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { OnboardingBanner } from "@/components/onboarding-banner";
+import { MiniTrendCard } from "@/components/charts/mini-trend-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -83,23 +84,29 @@ function AssociationDashboardInner() {
   const [newName, setNewName] = useState("");
   const [newGoalValue, setNewGoalValue] = useState("50000");
   const [newStartDate, setNewStartDate] = useState(isoDate(0));
-  const [newEndDate, setNewEndDate] = useState(isoDate(60));
+  // 2-veckors säljperiod som standard (kan justeras).
+  const [newEndDate, setNewEndDate] = useState(isoDate(14));
+  const [newDeliveryDate, setNewDeliveryDate] = useState("");
+  const [newDeliveryType, setNewDeliveryType] = useState<
+    "BULK" | "DIRECT" | "BOTH"
+  >("BULK");
+  const [newAllowOutside, setNewAllowOutside] = useState(true);
   const [newMargin, setNewMargin] = useState("25");
 
   const { toast } = useToast();
 
-  async function load() {
+  async function load(silent = false) {
     try {
       const res = await fetch(`${API_URL}/v1/dashboard/association`, {
         credentials: "include",
       });
       if (res.ok) {
         setData(await res.json());
-      } else {
+      } else if (!silent) {
         setError("Kunde inte hämta data. Kontrollera att du har rätt behörighet.");
       }
     } catch {
-      setError("Nätverksfel. Kunde inte kontakta servern.");
+      if (!silent) setError("Nätverksfel. Kunde inte kontakta servern.");
     } finally {
       setLoading(false);
     }
@@ -107,6 +114,10 @@ function AssociationDashboardInner() {
 
   useEffect(() => {
     load();
+    // Live-uppdatering var 30:e sekund.
+    const id = setInterval(() => load(true), 30000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function handleCreateCampaign() {
@@ -144,7 +155,9 @@ function AssociationDashboardInner() {
           goalValue,
           startDate: newStartDate,
           endDate: newEndDate,
-          deliveryType: "BULK",
+          deliveryDate: newDeliveryDate || undefined,
+          allowSalesOutsidePeriod: newAllowOutside,
+          deliveryType: newDeliveryType,
           marginPercent: margin,
         },
       });
@@ -258,6 +271,12 @@ function AssociationDashboardInner() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Försäljningstrend */}
+      <MiniTrendCard
+        path="/v1/dashboard/association/stats"
+        href="/forening/statistik"
+      />
 
       {/* Progress */}
       {campaignGoal > 0 && (
@@ -428,8 +447,65 @@ function AssociationDashboardInner() {
                   value={newEndDate}
                   onChange={(e) => setNewEndDate(e.target.value)}
                 />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Standard: 2 veckors säljperiod.
+                </p>
               </div>
             </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="deliveryDate">
+                  <span className="inline-flex items-center gap-1.5">
+                    <Calendar className="h-3.5 w-3.5" />
+                    Leverans till klubben
+                  </span>
+                </Label>
+                <Input
+                  id="deliveryDate"
+                  type="date"
+                  value={newDeliveryDate}
+                  onChange={(e) => setNewDeliveryDate(e.target.value)}
+                />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  När produkterna skickas till föreningen (valfritt).
+                </p>
+              </div>
+              <div>
+                <Label htmlFor="deliveryType">Leveranssätt</Label>
+                <select
+                  id="deliveryType"
+                  value={newDeliveryType}
+                  onChange={(e) =>
+                    setNewDeliveryType(
+                      e.target.value as "BULK" | "DIRECT" | "BOTH"
+                    )
+                  }
+                  className="h-11 w-full rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
+                >
+                  <option value="BULK">Samlat till föreningen (klubben tar frakt)</option>
+                  <option value="DIRECT">Hemleverans (köparen tar frakt)</option>
+                  <option value="BOTH">Båda (kunden väljer)</option>
+                </select>
+              </div>
+            </div>
+            <label className="flex items-start gap-2.5 rounded-lg border p-3 text-sm">
+              <input
+                type="checkbox"
+                checked={newAllowOutside}
+                onChange={(e) => setNewAllowOutside(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-border"
+              />
+              <span>
+                <span className="font-medium">
+                  Tillåt försäljning utanför perioden
+                </span>
+                <span className="block text-xs text-muted-foreground">
+                  Ordrar utanför säljperioden tas emot men räknas inte i
+                  topplistor/statistik. Avmarkera för att blockera försäljning
+                  mellan perioderna helt.
+                </span>
+              </span>
+            </label>
           </div>
           <DialogFooter>
             <Button

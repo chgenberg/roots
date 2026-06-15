@@ -350,6 +350,44 @@ checkout.post("/create", async (c) => {
       return c.json({ error: "Kampanjen är inte aktiv." }, 400);
     }
 
+    // Säljperiod: jämför dagens datum (YYYY-MM-DD) mot kampanjens
+    // start/slut. `date`-kolumnerna kommer tillbaka som ISO-strängar så
+    // lexikografisk jämförelse är korrekt.
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const withinPeriod =
+      campaign.startDate <= todayStr && todayStr <= campaign.endDate;
+    if (!withinPeriod && !campaign.allowSalesOutsidePeriod) {
+      // Föreningen har stängt försäljning mellan perioderna.
+      return c.json(
+        {
+          error:
+            "Försäljningsperioden är inte aktiv just nu. Beställningar tas emot under angiven säljperiod.",
+        },
+        400
+      );
+    }
+    // Ordrar utanför perioden tas emot men räknas inte i topplistor.
+    const countsTowardStats = withinPeriod;
+
+    // Fraktansvar: validera att vald leveranstyp ryms i kampanjens
+    // inställning. BULK = klubben tar frakt (samlad leverans), DIRECT =
+    // köparen tar frakt (hemleverans). BOTH tillåter båda.
+    const requestedDelivery = deliveryType === "DIRECT" ? "DIRECT" : "BULK";
+    if (
+      campaign.deliveryType !== "BOTH" &&
+      campaign.deliveryType !== requestedDelivery
+    ) {
+      return c.json(
+        {
+          error:
+            campaign.deliveryType === "BULK"
+              ? "Den här kampanjen levererar samlat till föreningen — hemleverans är inte tillgänglig."
+              : "Den här kampanjen kräver hemleverans till köparen.",
+        },
+        400
+      );
+    }
+
     const productList = await db.select().from(products).where(eq(products.active, true));
     const productMap = new Map(productList.map((p) => [p.id, p]));
 
@@ -458,11 +496,12 @@ checkout.post("/create", async (c) => {
             shippingAddressLine2: normAddr(shippingAddressLine2),
             shippingCity: normAddr(shippingCity),
             shippingPostalCode: normPostal(shippingPostalCode),
-            deliveryType: deliveryType || "BULK",
+            deliveryType: requestedDelivery,
             paymentMethod: "KLARNA",
             status: "DRAFT",
             totalOre,
             shippingOre,
+            countsTowardStats,
             note: note ? String(note).trim() : null,
             idempotencyKey,
           })
@@ -767,7 +806,11 @@ checkout.post("/webhook/:klarnaOrderId", async (c) => {
       // inte längre flippas tillbaka till PAID av en sen Klarna-push.
       const updated = await db
         .update(customerOrders)
-        .set({ status: "PAID", updatedAt: new Date() })
+        .set({
+          status: "PAID",
+          selectedPaymentMethod: klarnaOrder.selectedPaymentMethod,
+          updatedAt: new Date(),
+        })
         .where(
           and(
             eq(customerOrders.klarnaOrderId, klarnaOrderId),
@@ -892,7 +935,11 @@ checkout.get("/confirm/:orderId", async (c) => {
           } else {
             const updated = await db
               .update(customerOrders)
-              .set({ status: "PAID", updatedAt: new Date() })
+              .set({
+                status: "PAID",
+                selectedPaymentMethod: klarnaOrder.selectedPaymentMethod,
+                updatedAt: new Date(),
+              })
               .where(
                 and(
                   eq(customerOrders.id, orderId),

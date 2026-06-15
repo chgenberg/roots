@@ -57,8 +57,13 @@ export interface CustomerOrder {
   totalOre: number;
   status: string;
   paymentMethod: string | null;
+  selectedPaymentMethod?: string | null;
   deliveryType: string | null;
   sellerId: string | null;
+  isManual?: boolean;
+  countsTowardStats?: boolean;
+  shippedAt?: string | null;
+  deliveredAt?: string | null;
   createdAt: string;
 }
 

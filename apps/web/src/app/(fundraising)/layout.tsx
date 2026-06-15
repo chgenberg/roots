@@ -9,11 +9,14 @@ import {
 import Link from "next/link";
 import {
   BarChart3,
+  LineChart,
   Users,
   Target,
   CreditCard,
   ShoppingBag,
   ClipboardList,
+  MessageCircle,
+  CalendarDays,
   Menu,
   X,
   LogOut,
@@ -110,6 +113,7 @@ export default function FundraisingLayout({
   const navItems = isAssociation
     ? [
         { href: "/forening", label: "Översikt", icon: BarChart3 },
+        { href: "/forening/statistik", label: "Statistik", icon: LineChart },
         // MASTERPLAN_01 KC3.1: kom-igång alltid synlig i sidebar så
         // användaren kan hitta tillbaka även efter att de hoppat över
         // den vid signup. Banner-komponenten gör att det dessutom är
@@ -117,24 +121,29 @@ export default function FundraisingLayout({
         { href: "/forening/kom-igang", label: "Kom igång", icon: Sparkles },
         { href: "/forening/lag", label: "Lag", icon: Users },
         { href: "/forening/mal", label: "Mål", icon: Target },
+        { href: "/forening/kalender", label: "Kalender", icon: CalendarDays },
         { href: "/forening/avrakning", label: "Avräkning", icon: CreditCard },
         { href: "/installningar", label: "Inställningar", icon: Settings },
       ]
     : isTeamLeader
     ? [
         { href: "/lag", label: "Översikt", icon: BarChart3 },
+        { href: "/lag/statistik", label: "Statistik", icon: LineChart },
         { href: "/lag/saljare", label: "Säljare", icon: Users },
         { href: "/lag/bestallningar", label: "Beställningar", icon: ClipboardList },
+        { href: "/lag/chatt", label: "Chatt", icon: MessageCircle },
         { href: "/lag/avrakning", label: "Avräkning", icon: CreditCard },
         { href: "/installningar", label: "Inställningar", icon: Settings },
       ]
     : [
         { href: "/min-shop", label: "Min shop", icon: ShoppingBag },
+        { href: "/min-shop/statistik", label: "Statistik", icon: LineChart },
         {
           href: "/min-shop/bestallningar",
           label: "Beställningar",
           icon: ClipboardList,
         },
+        { href: "/min-shop/chatt", label: "Chatt med laget", icon: MessageCircle },
         { href: "/installningar", label: "Inställningar", icon: Settings },
       ];
 

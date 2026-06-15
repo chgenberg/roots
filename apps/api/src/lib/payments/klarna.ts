@@ -154,11 +154,36 @@ export interface KlarnaOrderSnapshot {
   orderAmount: number | null;
   /** ISO-4217 currency code Klarna processed in (e.g. "SEK"). */
   purchaseCurrency: string | null;
+  /**
+   * Det betalinstrument kunden faktiskt valde inne i Klarna, t.ex.
+   * "swish", "card", "pay_later", "pay_now". Klarna returnerar detta i
+   * `initial_payment_method.type` när ordern är slutförd. Swish via
+   * Klarna landar här som "swish" så att vi kan särskilja Swish-betalda
+   * ordrar i dashboards/avräkning utan en separat Swish-integration.
+   */
+  selectedPaymentMethod: string | null;
   billingAddress?: {
     given_name?: string;
     family_name?: string;
     email?: string;
   };
+}
+
+/**
+ * Normalisera Klarnas `initial_payment_method` till en kort, stabil
+ * sträng vi sparar i `customer_orders.selected_payment_method`.
+ * Klarna kan rapportera type i olika casing/format mellan miljöer.
+ */
+function extractSelectedPaymentMethod(
+  data: Record<string, unknown>
+): string | null {
+  const ipm = data.initial_payment_method as
+    | { type?: unknown; description?: unknown }
+    | undefined;
+  if (ipm && typeof ipm.type === "string" && ipm.type.trim().length > 0) {
+    return ipm.type.trim().toLowerCase().slice(0, 40);
+  }
+  return null;
 }
 
 export async function getCheckoutOrder(
@@ -181,6 +206,7 @@ export async function getCheckoutOrder(
       status: "checkout_complete",
       orderAmount: null,
       purchaseCurrency: "SEK",
+      selectedPaymentMethod: "swish",
       billingAddress: {
         given_name: "Test",
         family_name: "Testsson",
@@ -210,6 +236,7 @@ export async function getCheckoutOrder(
       typeof data.purchase_currency === "string"
         ? (data.purchase_currency as string).toUpperCase()
         : null,
+    selectedPaymentMethod: extractSelectedPaymentMethod(data),
     billingAddress: (data.billing_address as KlarnaOrderSnapshot["billingAddress"]) ?? undefined,
   };
 }

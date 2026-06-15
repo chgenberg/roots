@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { MiniTrendCard } from "@/components/charts/mini-trend-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,35 +35,39 @@ export default function TeamDashboard() {
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const myTeamRes = await fetch(`${API_URL}/v1/dashboard/my-team`, {
-          credentials: "include",
-        });
-        if (!myTeamRes.ok) {
-          setError("Kunde inte hämta lagdata. Försök igen.");
-          return;
-        }
-        const { teamId } = await myTeamRes.json();
-
-        const teamRes = await fetch(
-          `${API_URL}/v1/dashboard/team/${teamId}`,
-          { credentials: "include" }
-        );
-        if (teamRes.ok) {
-          setData(await teamRes.json());
-        } else {
-          setError("Kunde inte hämta lagdata. Försök igen.");
-        }
-      } catch {
-        setError("Ett nätverksfel uppstod. Försök igen.");
-      } finally {
-        setLoading(false);
+  const load = useCallback(async (silent = false) => {
+    try {
+      const myTeamRes = await fetch(`${API_URL}/v1/dashboard/my-team`, {
+        credentials: "include",
+      });
+      if (!myTeamRes.ok) {
+        if (!silent) setError("Kunde inte hämta lagdata. Försök igen.");
+        return;
       }
+      const { teamId } = await myTeamRes.json();
+
+      const teamRes = await fetch(`${API_URL}/v1/dashboard/team/${teamId}`, {
+        credentials: "include",
+      });
+      if (teamRes.ok) {
+        setData(await teamRes.json());
+      } else if (!silent) {
+        setError("Kunde inte hämta lagdata. Försök igen.");
+      }
+    } catch {
+      if (!silent) setError("Ett nätverksfel uppstod. Försök igen.");
+    } finally {
+      setLoading(false);
     }
-    load();
   }, []);
+
+  useEffect(() => {
+    load();
+    // Live-uppdatering var 20:e sekund så topplista och ordrar uppdateras
+    // i realtid medan säljarna jobbar.
+    const id = setInterval(() => load(true), 20000);
+    return () => clearInterval(id);
+  }, [load]);
 
   function copyInviteLink() {
     if (!data?.team?.inviteToken) return;
@@ -164,6 +169,14 @@ export default function TeamDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Försäljningstrend */}
+      {data.team?.id && (
+        <MiniTrendCard
+          path={`/v1/dashboard/team/${data.team.id}/stats`}
+          href="/lag/statistik"
+        />
+      )}
 
       {/* Milestones */}
       {milestones && (milestones.achieved?.length > 0 || milestones.next) && (

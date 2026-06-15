@@ -97,6 +97,8 @@ export const campaignsRouter = router({
           goalValue: input.goalValue,
           startDate: input.startDate,
           endDate: input.endDate,
+          deliveryDate: input.deliveryDate ?? null,
+          allowSalesOutsidePeriod: input.allowSalesOutsidePeriod,
           deliveryType: input.deliveryType,
           shippingThresholdOre: input.shippingThresholdOre ?? 0,
           shippingFeeOre: input.shippingFeeOre ?? 4900,
