@@ -101,7 +101,7 @@ export function Header() {
             : "h-20 bg-brand-50/70 backdrop-blur-xl"
         )}
       >
-        <div className="mx-auto flex h-full max-w-[1280px] items-center px-6 md:px-10">
+        <div className="relative mx-auto flex h-full max-w-[1280px] items-center px-6 md:px-10">
           {/* Logo — Sprint E14: real brand logotype from the kit.
               Always uses the BLACK variant — the header has a light
               sand/cream backdrop on every page state, so a single
@@ -121,12 +121,9 @@ export function Header() {
             />
           </Link>
 
-          {/* Spacer pushes nav + icons to the right */}
-          <div className="flex-1" />
-
-          {/* Desktop nav + icons — all grouped on the right */}
-          <div className="hidden items-center gap-8 md:flex">
-            <nav className="flex items-center gap-8">
+          {/* Centrerad nav — absolut positionerad för äkta centrering
+              oavsett logotypens och ikonernas bredd. */}
+          <nav className="absolute inset-y-0 left-1/2 hidden -translate-x-1/2 items-center gap-8 md:flex">
               {NAV_ITEMS.map((item) => {
                 const active = isActive(item.href);
                 return (
@@ -154,9 +151,10 @@ export function Header() {
                   </Link>
                 );
               })}
-            </nav>
+          </nav>
 
-            <div className="flex items-center gap-1">
+          {/* Ikoner till höger */}
+          <div className="ml-auto hidden items-center gap-1 md:flex">
               <SearchTrigger />
               <ThemeToggle />
               <Link
@@ -177,7 +175,6 @@ export function Header() {
               >
                 <CalendarCheck className="h-[18px] w-[18px] text-muted-foreground transition-colors duration-200 group-hover:text-foreground" />
               </Link>
-            </div>
           </div>
 
           {/* Mobile burger */}
@@ -185,7 +182,7 @@ export function Header() {
               Tidigare p-2 runt 24x20 burger gav ~40x36 — fail. */}
           <button
             onClick={() => setMenuOpen(!menuOpen)}
-            className="relative z-[60] -mr-2 inline-flex h-11 w-11 items-center justify-center rounded-md md:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="relative z-[60] -mr-2 ml-auto inline-flex h-11 w-11 items-center justify-center rounded-md md:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             aria-label={menuOpen ? "Stäng meny" : "Öppna meny"}
             aria-expanded={menuOpen}
           >
