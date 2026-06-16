@@ -221,8 +221,8 @@ export async function calculatorFlow(ctx) {
   };
 
   await safe("values", async () => {
-    await setNumber(0, 40); // antal säljare
-    await setNumber(1, 2000); // snittförsäljning per säljare
+    await setNumber(0, 300); // antal säljare (större förening)
+    await setNumber(1, 2500); // snittförsäljning per säljare
     await mark("valuesSet");
     await pause(700);
   });
@@ -234,7 +234,7 @@ export async function calculatorFlow(ctx) {
   });
 
   await safe("goal", async () => {
-    await setNumber(2, 25000); // mål: insamlat belopp → mätaren fylls
+    await setNumber(2, 250000); // mål: insamlat belopp → mätaren fylls
     await pause(400);
     // Scrolla längst ner till mätaren (GoalGauge) + disclaimer.
     await softScrollTo(
