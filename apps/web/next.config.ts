@@ -2,6 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // Dölj Next.js dev-indikatorn (nere till vänster) — den ska inte synas
+  // i demofilm-inspelningar. Ingen effekt i produktion.
+  devIndicators: false,
   transpilePackages: ["@roots/ui", "@roots/contracts"],
   typescript: {
     // P2.38 (audit 2026-05-26): vi vill att build alltid type-checkar.

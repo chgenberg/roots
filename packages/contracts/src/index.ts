@@ -5,3 +5,4 @@ export * from "./auth";
 export * from "./invoicing";
 export * from "./campaigns";
 export * from "./portal";
+export * from "./calculator";

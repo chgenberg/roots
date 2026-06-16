@@ -19,3 +19,4 @@ export * from "./subscriptions";
 export * from "./master-riksorganisation";
 export * from "./master-segment";
 export * from "./waitlist";
+export * from "./calculator";

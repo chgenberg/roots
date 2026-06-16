@@ -34,6 +34,8 @@ import {
   auditLogs,
   teamInvites,
   orders as platformOrders,
+  calculatorLinks,
+  calculatorLeads,
 } from "@roots/db/schema";
 import { getSession, SESSION_COOKIE_NAME } from "../lib/session";
 import type { SessionData } from "../lib/session";
@@ -278,6 +280,49 @@ notifications.get("/", async (c) => {
             : "Inkommande prospekt",
           createdAt: r.createdAt.toISOString(),
           href: "/portal/pipeline",
+        });
+      }
+
+      // Föreningskalkylator: leads från säljarens egna delade länkar.
+      // SALES_ADMIN ser alla; SALES_REP bara sina egna länkar.
+      const leadRows2 = await db
+        .select({
+          id: calculatorLeads.id,
+          email: calculatorLeads.email,
+          contactName: calculatorLeads.contactName,
+          associationName: calculatorLinks.associationName,
+          createdByUserId: calculatorLinks.createdByUserId,
+          createdAt: calculatorLeads.createdAt,
+        })
+        .from(calculatorLeads)
+        .innerJoin(
+          calculatorLinks,
+          eq(calculatorLeads.calculatorLinkId, calculatorLinks.id)
+        )
+        .where(gte(calculatorLeads.createdAt, since))
+        .orderBy(desc(calculatorLeads.createdAt))
+        .limit(FEED_LIMIT);
+      for (const r of leadRows2) {
+        // Leads från den öppna webbkalkylatorn hör inte till någon enskild
+        // säljare (sentinel-länk) → visa dem för alla sälj-roller, inte bara
+        // länkägaren. Övriga leads filtreras per ägare för SALES_REP.
+        const isPublicWeb = r.associationName === "Öppen kalkylator (webbplatsen)";
+        if (
+          !isPublicWeb &&
+          session.role === "SALES_REP" &&
+          r.createdByUserId !== session.userId
+        ) {
+          continue;
+        }
+        items.push({
+          id: `calc-lead:${r.id}`,
+          type: "AUDIT_EVENT",
+          title: isPublicWeb
+            ? "Ny lead från webbkalkylatorn"
+            : `Ny kalkyl-lead: ${r.associationName}`,
+          body: r.contactName ? `${r.contactName} · ${r.email}` : r.email,
+          createdAt: r.createdAt.toISOString(),
+          href: "/portal/raknesnurra",
         });
       }
     }

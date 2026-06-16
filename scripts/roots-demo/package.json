@@ -1,0 +1,12 @@
+{
+  "name": "roots-demo-films",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Reproducerbara instruktions-/reklamfilmer för Roots (Playwright + ffmpeg).",
+  "scripts": {
+    "record": "node record.js",
+    "frames": "node frames.js",
+    "compose": "node compose.js"
+  }
+}

@@ -1,0 +1,306 @@
+import { Hono } from "hono";
+import { eq, sql, asc, inArray } from "drizzle-orm";
+import { db } from "@roots/db";
+import {
+  calculatorLinks,
+  calculatorLeads,
+  products,
+  users,
+} from "@roots/db/schema";
+import {
+  CalculatorLeadSchema,
+  CalculatorInputsSchema,
+  CALCULATOR_DEFAULTS,
+  computeCalculator,
+  type CalculatorInputs,
+} from "@roots/contracts";
+import { calculatorLeadRateLimit } from "../lib/rate-limit";
+import { childLogger } from "../lib/logger";
+
+const log = childLogger("calculator");
+
+export const calculator = new Hono();
+
+/**
+ * Den öppna "Så fungerar det"-kalkylatorn på publika sajten delar
+ * lead-pipeline med säljarnas delade länkar. Istället för att införa en
+ * nullable FK + separat admin-vy lagrar vi webb-leads mot en enda
+ * sentinel-länk med ett fast token. Då dyker de upp i exakt samma
+ * notisfeed och admin-lista som vanliga kalkyl-leads, utan migration.
+ */
+const PUBLIC_LINK_TOKEN = "webbplats-publik";
+const PUBLIC_LINK_NAME = "Öppen kalkylator (webbplatsen)";
+
+let cachedPublicLinkId: string | null = null;
+
+async function getOrCreatePublicLink(): Promise<{ id: string } | null> {
+  if (cachedPublicLinkId) return { id: cachedPublicLinkId };
+
+  const [existing] = await db
+    .select({ id: calculatorLinks.id })
+    .from(calculatorLinks)
+    .where(eq(calculatorLinks.token, PUBLIC_LINK_TOKEN))
+    .limit(1);
+  if (existing) {
+    cachedPublicLinkId = existing.id;
+    return existing;
+  }
+
+  // Ägs av tidigaste interna/sälj-användaren så admins ser leadsen.
+  const [owner] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(inArray(users.role, ["INTERNAL_ADMIN", "SALES_ADMIN", "SALES_REP"]))
+    .orderBy(asc(users.createdAt))
+    .limit(1);
+  if (!owner) return null;
+
+  try {
+    const [created] = await db
+      .insert(calculatorLinks)
+      .values({
+        token: PUBLIC_LINK_TOKEN,
+        createdByUserId: owner.id,
+        associationName: PUBLIC_LINK_NAME,
+        presets: CALCULATOR_DEFAULTS,
+      })
+      .onConflictDoNothing({ target: calculatorLinks.token })
+      .returning({ id: calculatorLinks.id });
+    if (created) {
+      cachedPublicLinkId = created.id;
+      return created;
+    }
+  } catch (err) {
+    log.warn({ err }, "public calculator link create raced");
+  }
+
+  // Konflikt (samtidig skapare) → läs raden som vann.
+  const [row] = await db
+    .select({ id: calculatorLinks.id })
+    .from(calculatorLinks)
+    .where(eq(calculatorLinks.token, PUBLIC_LINK_TOKEN))
+    .limit(1);
+  if (row) cachedPublicLinkId = row.id;
+  return row ?? null;
+}
+
+// ── Publik: öppen kalkylator (lead-magnet på sajten) ───────────────
+calculator.get("/public", async (c) => {
+  try {
+    const link = await getOrCreatePublicLink();
+    if (link) {
+      db.update(calculatorLinks)
+        .set({
+          viewCount: sql`${calculatorLinks.viewCount} + 1`,
+          lastViewedAt: new Date(),
+        })
+        .where(eq(calculatorLinks.id, link.id))
+        .catch((err) => log.warn({ err }, "public view count bump failed"));
+    }
+
+    const priceRows = await db
+      .select({ name: products.name, priceOre: products.priceOre })
+      .from(products)
+      .where(eq(products.active, true));
+
+    return c.json({
+      presets: CALCULATOR_DEFAULTS,
+      products: priceRows.map((p) => ({ name: p.name, priceOre: p.priceOre })),
+    });
+  } catch (err) {
+    log.error({ err }, "public calculator fetch failed");
+    return c.json({ error: "Kunde inte hämta kalkylen" }, 500);
+  }
+});
+
+calculator.post("/public/lead", async (c) => {
+  const ip = clientIp(c);
+  const rl = await calculatorLeadRateLimit(ip);
+  if (!rl.allowed) {
+    return c.json(
+      {
+        error: rl.degraded
+          ? "Tjänsten är tillfälligt överbelastad. Försök igen om en stund."
+          : "Du har skickat för många förfrågningar. Försök igen senare.",
+        retryAfter: rl.resetInSeconds,
+      },
+      429
+    );
+  }
+
+  let raw: unknown;
+  try {
+    raw = await c.req.json();
+  } catch {
+    return c.json({ error: "Ogiltig JSON" }, 400);
+  }
+
+  const parsed = CalculatorLeadSchema.safeParse(raw);
+  if (!parsed.success) {
+    return c.json(
+      { error: "Ogiltiga fält", issues: parsed.error.flatten() },
+      400
+    );
+  }
+
+  try {
+    const link = await getOrCreatePublicLink();
+    if (!link) {
+      return c.json(
+        { error: "Lead-mottagning är inte konfigurerad. Försök igen senare." },
+        503
+      );
+    }
+
+    const result = computeCalculator(parsed.data.inputs as CalculatorInputs);
+    const idempotencyKey =
+      c.req.header("idempotency-key") || parsed.data.idempotencyKey || undefined;
+
+    await db.insert(calculatorLeads).values({
+      calculatorLinkId: link.id,
+      email: parsed.data.email,
+      contactName: parsed.data.contactName,
+      message: parsed.data.message,
+      inputsSnapshot: parsed.data.inputs,
+      computedEarningsOre: Math.round(result.earningsKr * 100),
+      newsletterConsent: parsed.data.newsletterConsent ?? false,
+      ipAddress: ip,
+      idempotencyKey,
+    });
+
+    return c.json({ ok: true });
+  } catch (err) {
+    if (err instanceof Error && /duplicate key|unique/i.test(err.message)) {
+      return c.json({ ok: true, deduped: true });
+    }
+    log.error({ err }, "public calculator lead save failed");
+    return c.json({ error: "Kunde inte skicka. Försök igen." }, 500);
+  }
+});
+
+function clientIp(c: {
+  req: { header: (n: string) => string | undefined };
+}): string {
+  const xf = c.req.header("x-forwarded-for");
+  if (xf) return xf.split(",")[0]?.trim() || "unknown";
+  return c.req.header("x-real-ip") || "unknown";
+}
+
+// ── Publik: hämta kalkyl-länkens antaganden + produktkontext ───────
+calculator.get("/by-token/:token", async (c) => {
+  const token = c.req.param("token");
+  if (!token || token.length < 8) {
+    return c.json({ error: "Ogiltig länk" }, 400);
+  }
+
+  try {
+    const [link] = await db
+      .select()
+      .from(calculatorLinks)
+      .where(eq(calculatorLinks.token, token))
+      .limit(1);
+
+    if (!link) {
+      return c.json({ error: "Kalkylen hittades inte." }, 404);
+    }
+
+    // Best-effort visningsräknare — får aldrig blocka svaret.
+    db.update(calculatorLinks)
+      .set({
+        viewCount: sql`${calculatorLinks.viewCount} + 1`,
+        lastViewedAt: new Date(),
+      })
+      .where(eq(calculatorLinks.id, link.id))
+      .catch((err) => log.warn({ err }, "view count bump failed"));
+
+    const presets = CalculatorInputsSchema.safeParse(link.presets);
+
+    const priceRows = await db
+      .select({ name: products.name, priceOre: products.priceOre })
+      .from(products)
+      .where(eq(products.active, true));
+
+    return c.json({
+      associationName: link.associationName,
+      presets: presets.success ? presets.data : null,
+      products: priceRows.map((p) => ({ name: p.name, priceOre: p.priceOre })),
+    });
+  } catch (err) {
+    log.error({ err }, "calculator by-token failed");
+    return c.json({ error: "Kunde inte hämta kalkylen" }, 500);
+  }
+});
+
+// ── Publik: mjuk lead-capture ──────────────────────────────────────
+calculator.post("/by-token/:token/lead", async (c) => {
+  const token = c.req.param("token");
+
+  const ip = clientIp(c);
+  const rl = await calculatorLeadRateLimit(ip);
+  if (!rl.allowed) {
+    return c.json(
+      {
+        error: rl.degraded
+          ? "Tjänsten är tillfälligt överbelastad. Försök igen om en stund."
+          : "Du har skickat för många förfrågningar. Försök igen senare.",
+        retryAfter: rl.resetInSeconds,
+      },
+      429
+    );
+  }
+
+  let raw: unknown;
+  try {
+    raw = await c.req.json();
+  } catch {
+    return c.json({ error: "Ogiltig JSON" }, 400);
+  }
+
+  const parsed = CalculatorLeadSchema.safeParse(raw);
+  if (!parsed.success) {
+    return c.json(
+      { error: "Ogiltiga fält", issues: parsed.error.flatten() },
+      400
+    );
+  }
+
+  try {
+    const [link] = await db
+      .select({ id: calculatorLinks.id })
+      .from(calculatorLinks)
+      .where(eq(calculatorLinks.token, token))
+      .limit(1);
+
+    if (!link) {
+      return c.json({ error: "Kalkylen hittades inte." }, 404);
+    }
+
+    const result = computeCalculator(parsed.data.inputs as CalculatorInputs);
+    const idempotencyKey =
+      c.req.header("idempotency-key") || parsed.data.idempotencyKey || undefined;
+
+    await db.insert(calculatorLeads).values({
+      calculatorLinkId: link.id,
+      email: parsed.data.email,
+      contactName: parsed.data.contactName,
+      message: parsed.data.message,
+      inputsSnapshot: parsed.data.inputs,
+      computedEarningsOre: Math.round(result.earningsKr * 100),
+      newsletterConsent: parsed.data.newsletterConsent ?? false,
+      ipAddress: ip,
+      idempotencyKey,
+    });
+
+    return c.json({ ok: true });
+  } catch (err) {
+    // Idempotency-konflikt → behandla som lyckad (dubbelklick/retry).
+    if (
+      err instanceof Error &&
+      /duplicate key|unique/i.test(err.message)
+    ) {
+      return c.json({ ok: true, deduped: true });
+    }
+    log.error({ err }, "calculator lead save failed");
+    return c.json({ error: "Kunde inte skicka. Försök igen." }, 500);
+  }
+});

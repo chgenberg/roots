@@ -17,6 +17,7 @@ const FOOTER_LINKS = [
     title: "Företaget",
     links: [
       { href: "/foreningsliv", label: "Föreningsliv" },
+      { href: "/sa-fungerar-det", label: "Så fungerar det" },
       { href: "/om-oss", label: "Om oss" },
       { href: "/kontakt", label: "Kontakt" },
       { href: "/om-oss#press", label: "Press" },

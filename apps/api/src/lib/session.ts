@@ -317,6 +317,16 @@ export async function destroyUserSessions(
  */
 export function isDemoSession(session: SessionData | null | undefined): boolean {
   if (!session) return false;
+  // Inspelnings-lucka: tillåt demo-mutationer LOKALT när vi spelar in
+  // demofilmer (scripts/roots-demo). Dubbel-gate — kräver explicit env
+  // OCH icke-produktion, så den kan ALDRIG aktiveras skarpt även om
+  // env-flaggan läcker in i en prod-miljö.
+  if (
+    process.env.ROOTS_ALLOW_DEMO_WRITES === "true" &&
+    process.env.NODE_ENV !== "production"
+  ) {
+    return false;
+  }
   // P3.28: blockera BÅDE in-memory demoProfile-sessions OCH DB-seeded
   // demo-accounts (matchade på email-pattern i syncUserAuthFromDb).
   return Boolean(session.demoProfile) || Boolean(session.isDemoAccount);

@@ -47,20 +47,20 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext value={{ toast }}>
       {children}
-      <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none">
+      <div className="pointer-events-none fixed inset-x-4 top-4 z-[100] flex flex-col items-end gap-2 sm:left-auto sm:right-4 sm:max-w-sm">
         {toasts.map((t) => (
           <div
             key={t.id}
             role={t.variant === "error" ? "alert" : "status"}
             aria-live={t.variant === "error" ? "assertive" : "polite"}
             className={cn(
-              "pointer-events-auto flex items-center gap-3 rounded-xl border px-4 py-3 text-sm shadow-[var(--shadow-elevated)] animate-slide-down",
+              "pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-xl border px-4 py-3 text-sm shadow-[var(--shadow-elevated)] animate-slide-down",
               t.variant === "success" && "border-brand-200 bg-brand-50 text-brand-800",
               t.variant === "error" && "border-destructive/20 bg-destructive/5 text-destructive",
               t.variant === "default" && "border-border bg-background text-foreground",
             )}
           >
-            <span className="flex-1">{t.message}</span>
+            <span className="min-w-0 flex-1 break-words">{t.message}</span>
             <button
               type="button"
               onClick={() => dismiss(t.id)}

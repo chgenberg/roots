@@ -94,6 +94,16 @@ export async function hairAnalysisIpRateLimit(ip: string): Promise<RateLimitResu
 }
 
 /**
+ * Föreningskalkylatorns publika lead-capture. Den publika sidan är ogated
+ * så en bot kan annars spamma in falska leads till säljaren. 10 per timme
+ * per IP räcker gott för en legitim förening som testräknar ett par gånger.
+ */
+export async function calculatorLeadRateLimit(ip: string): Promise<RateLimitResult> {
+  const key = `calc-lead:${ip}`;
+  return checkRateLimit(key, 10, 60 * 60); // 10 per hour per IP
+}
+
+/**
  * Scout fix 2026-05-26 (AI-CRIT-01): per-IP/per-user-budgetar räcker
  * inte mot distribuerad abuse (botnet med N IPs × 15 vision/dag =
  * okontrollerad OpenAI-faktura). Vi adderar ett GLOBALT dygnstak

@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { href: "/produkter", label: "Produkter" },
   { href: "/foreningsliv", label: "Föreningsliv" },
   { href: "/om-oss", label: "Om oss" },
+  { href: "/sa-fungerar-det", label: "Så fungerar det" },
 ];
 
 function MorphingBurger({ open }: { open: boolean }) {

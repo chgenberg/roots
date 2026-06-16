@@ -241,31 +241,31 @@ function AssociationDashboardInner() {
       </div>
 
       {/* KPIs */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <Card>
-          <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">Total försäljning</p>
-            <p className="mt-1 text-2xl font-bold">
+          <CardContent className="p-4 sm:p-5">
+            <p className="text-xs text-muted-foreground sm:text-sm">Total försäljning</p>
+            <p className="mt-1 text-xl font-bold sm:text-2xl">
               {(totalSales / 100).toLocaleString("sv-SE")} kr
             </p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">Beställningar</p>
-            <p className="mt-1 text-2xl font-bold">{totalOrders}</p>
+          <CardContent className="p-4 sm:p-5">
+            <p className="text-xs text-muted-foreground sm:text-sm">Beställningar</p>
+            <p className="mt-1 text-xl font-bold sm:text-2xl">{totalOrders}</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">Lag</p>
-            <p className="mt-1 text-2xl font-bold">{teams.length}</p>
+          <CardContent className="p-4 sm:p-5">
+            <p className="text-xs text-muted-foreground sm:text-sm">Lag</p>
+            <p className="mt-1 text-xl font-bold sm:text-2xl">{teams.length}</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">Säljare</p>
-            <p className="mt-1 text-2xl font-bold">
+          <CardContent className="p-4 sm:p-5">
+            <p className="text-xs text-muted-foreground sm:text-sm">Säljare</p>
+            <p className="mt-1 text-xl font-bold sm:text-2xl">
               {data?.sellers?.length || 0}
             </p>
           </CardContent>

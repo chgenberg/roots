@@ -131,22 +131,22 @@ export default function TeamDashboard() {
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <Card>
-          <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">Total försäljning</p>
-            <p className="mt-1 text-2xl font-bold">
+          <CardContent className="p-4 sm:p-5">
+            <p className="text-xs text-muted-foreground sm:text-sm">Total försäljning</p>
+            <p className="mt-1 text-xl font-bold sm:text-2xl">
               {(totalSales / 100).toLocaleString("sv-SE")} kr
             </p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-5">
+          <CardContent className="p-4 sm:p-5">
             <div className="flex items-center gap-1.5">
-              <TrendingUp className="h-3.5 w-3.5 text-brand-400" />
-              <p className="text-sm text-muted-foreground">Lagets förtjänst</p>
+              <TrendingUp className="h-3.5 w-3.5 shrink-0 text-brand-400" />
+              <p className="text-xs text-muted-foreground sm:text-sm">Lagets förtjänst</p>
             </div>
-            <p className="mt-1 text-2xl font-bold text-brand-700">
+            <p className="mt-1 text-xl font-bold text-brand-700 sm:text-2xl">
               {(teamEarnings / 100).toLocaleString("sv-SE")} kr
             </p>
             {marginPercent > 0 && (
@@ -157,15 +157,15 @@ export default function TeamDashboard() {
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">Beställningar</p>
-            <p className="mt-1 text-2xl font-bold">{orders.length}</p>
+          <CardContent className="p-4 sm:p-5">
+            <p className="text-xs text-muted-foreground sm:text-sm">Beställningar</p>
+            <p className="mt-1 text-xl font-bold sm:text-2xl">{orders.length}</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">Säljare</p>
-            <p className="mt-1 text-2xl font-bold">{sellers.length}</p>
+          <CardContent className="p-4 sm:p-5">
+            <p className="text-xs text-muted-foreground sm:text-sm">Säljare</p>
+            <p className="mt-1 text-xl font-bold sm:text-2xl">{sellers.length}</p>
           </CardContent>
         </Card>
       </div>

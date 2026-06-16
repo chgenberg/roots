@@ -71,6 +71,10 @@ function roleHome(role: string | undefined): string {
 // so the middleware has nothing to add by rewriting these.
 const GATE_BYPASS_PREFIXES = [
   "/preview-gate",
+  // Föreningskalkylatorn är en publik, prospekt-specifik delningssida som
+  // säljare skickar till föreningar — den måste fungera utan förhands-
+  // visningslösenord även före lansering.
+  "/kalkylator",
   "/api",
   "/trpc",
   "/_next",

@@ -164,28 +164,28 @@ export default function SellerDashboard() {
         </Button>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <Card>
-          <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">Sålt</p>
-            <p className="mt-1 text-2xl font-bold">
+          <CardContent className="p-4 sm:p-5">
+            <p className="text-xs text-muted-foreground sm:text-sm">Sålt</p>
+            <p className="mt-1 text-xl font-bold sm:text-2xl">
               {(totalSales / 100).toLocaleString("sv-SE")} kr
             </p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">Beställningar</p>
-            <p className="mt-1 text-2xl font-bold">{orderCount}</p>
+          <CardContent className="p-4 sm:p-5">
+            <p className="text-xs text-muted-foreground sm:text-sm">Beställningar</p>
+            <p className="mt-1 text-xl font-bold sm:text-2xl">{orderCount}</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-5">
+          <CardContent className="p-4 sm:p-5">
             <div className="flex items-center gap-1.5">
-              <TrendingUp className="h-3.5 w-3.5 text-brand-400" />
-              <p className="text-sm text-muted-foreground">Din uppskattade förtjänst</p>
+              <TrendingUp className="h-3.5 w-3.5 shrink-0 text-brand-400" />
+              <p className="text-xs text-muted-foreground sm:text-sm">Din uppskattade förtjänst</p>
             </div>
-            <p className="mt-1 text-2xl font-bold text-brand-700">
+            <p className="mt-1 text-xl font-bold text-brand-700 sm:text-2xl">
               {(estimatedEarnings / 100).toLocaleString("sv-SE")} kr
             </p>
             {data.campaign?.marginPercent && (
@@ -197,9 +197,9 @@ export default function SellerDashboard() {
         </Card>
         {progress !== null && (
           <Card>
-            <CardContent className="p-5">
-              <p className="text-sm text-muted-foreground">Mål</p>
-              <p className="mt-1 text-2xl font-bold">{progress}%</p>
+            <CardContent className="p-4 sm:p-5">
+              <p className="text-xs text-muted-foreground sm:text-sm">Mål</p>
+              <p className="mt-1 text-xl font-bold sm:text-2xl">{progress}%</p>
             </CardContent>
           </Card>
         )}

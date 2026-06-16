@@ -24,6 +24,7 @@ import {
   Activity,
   ShieldCheck,
   HelpCircle,
+  Calculator,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -55,6 +56,7 @@ const SALES_NAV: NavItem[] = [
   { href: "/portal/pipeline", label: "Pipeline", icon: Target },
   { href: "/portal/klubbar", label: "Klubbar", icon: Building2 },
   { href: "/portal/offerter", label: "Offerter", icon: FileText },
+  { href: "/portal/raknesnurra", label: "Räknesnurra", icon: Calculator },
   { href: "/portal/statistik", label: "Statistik", icon: BarChart3 },
   { href: "/portal/ai", label: "AI-assistent", icon: MessageCircle },
   { href: "/portal/installningar", label: "Inställningar", icon: Settings },
@@ -274,7 +276,7 @@ export default function PortalLayout({
           </div>
         </aside>
 
-        <div className="flex flex-1 flex-col">
+        <div className="flex min-w-0 flex-1 flex-col">
           <header className="flex h-16 min-h-16 items-center gap-4 border-b border-border bg-background px-6 lg:hidden">
             <button
               type="button"
