@@ -703,7 +703,7 @@ dashboard.post("/team/:teamId/sellers", async (c) => {
  * lösenorden till den inloggade administratören så de kan delas ut. Varje
  * säljare kan byta lösenord efter första inloggningen.
  *
- * Body: { rows: [{ displayName: string, email: string }] }  (max 500)
+ * Body: { rows: [{ displayName: string, email: string }] }  (max 2000)
  *
  * Säkerhet: temp-lösenord returneras ENDAST till den autentiserade
  * lagledaren/admin som skapade kontona (över HTTPS), aldrig publikt.
@@ -733,8 +733,8 @@ dashboard.post("/team/:teamId/sellers/import", async (c) => {
   if (rawRows.length === 0) {
     return c.json({ error: "Inga rader att importera." }, 400);
   }
-  if (rawRows.length > 500) {
-    return c.json({ error: "Max 500 rader per import." }, 400);
+  if (rawRows.length > 2000) {
+    return c.json({ error: "Max 2000 rader per import." }, 400);
   }
 
   try {

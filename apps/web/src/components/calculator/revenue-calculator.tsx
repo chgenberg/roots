@@ -143,7 +143,7 @@ export function RevenueCalculator({
             label="Antal säljare"
             value={inputs.sellers}
             min={1}
-            max={500}
+            max={2000}
             onChange={(v) => set("sellers", v)}
             hint="Spelare eller medlemmar som faktiskt säljer."
           />
