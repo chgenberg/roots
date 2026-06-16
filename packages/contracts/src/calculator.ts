@@ -17,13 +17,20 @@ import { z } from "zod";
  * (se apps/api/src/routes/settlement.ts och dashboard.ts).
  */
 
+/**
+ * Föreningens marginal är en fast affärsterm: föreningen behåller 35 % av
+ * försäljningen. Låst (ej justerbart) i kalkylatorn så siffran alltid
+ * speglar det faktiska erbjudandet.
+ */
+export const LOCKED_MARGIN_PERCENT = 35;
+
 export const CalculatorInputsSchema = z.object({
   /** Antal aktiva säljare (spelare/medlemmar som faktiskt säljer). */
   sellers: z.number().int().min(0).max(100_000),
   /** Snittförsäljning per säljare i kronor under kampanjen. */
   avgPerSellerKr: z.number().min(0).max(10_000_000),
-  /** Föreningens marginal i hela procent (0–100). Default 25 %. */
-  marginPercent: z.number().int().min(0).max(100).default(25),
+  /** Föreningens marginal i hela procent. Låst till 35 %. */
+  marginPercent: z.number().int().min(0).max(100).default(LOCKED_MARGIN_PERCENT),
   /** Valfritt: antal medlemmar i föreningen (kontext, ej i beräkningen). */
   members: z.number().int().min(0).max(1_000_000).optional(),
   /** Valfritt: föreningens förtjänst-mål i kronor. */
@@ -87,7 +94,10 @@ export interface CalculatorResult {
 export function computeCalculator(input: CalculatorInputs): CalculatorResult {
   const sellers = Math.max(0, Math.floor(input.sellers || 0));
   const avgPerSellerKr = Math.max(0, input.avgPerSellerKr || 0);
-  const marginPercent = Math.min(100, Math.max(0, Math.floor(input.marginPercent ?? 25)));
+  const marginPercent = Math.min(
+    100,
+    Math.max(0, Math.floor(input.marginPercent ?? LOCKED_MARGIN_PERCENT))
+  );
 
   const grossKr = Math.round(sellers * avgPerSellerKr);
   const earningsKr = Math.round((grossKr * marginPercent) / 100);
@@ -117,5 +127,5 @@ export function computeCalculator(input: CalculatorInputs): CalculatorResult {
 export const CALCULATOR_DEFAULTS: CalculatorInputs = {
   sellers: 25,
   avgPerSellerKr: 1500,
-  marginPercent: 25,
+  marginPercent: LOCKED_MARGIN_PERCENT,
 };

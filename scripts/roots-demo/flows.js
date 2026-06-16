@@ -193,14 +193,28 @@ export async function calculatorFlow(ctx) {
   });
 
   // Sätt realistiska antaganden via sifferfälten (reglagen följer med).
-  // Sifferfälten har role=spinbutton: 0=säljare, 1=snitt, 2=marginal, 3=mål.
+  // Sifferfälten har role=spinbutton: 0=säljare, 1=snitt, 2=mål.
+  // (Marginalen är låst till 35 % och har inget inmatningsfält.)
+  // fill() är atomiskt och pålitligt för React-kontrollerade number-inputs
+  // (pressSequentially kan racea mot controlled value och hänga i timeout).
+  // JS-fallback dispatchar input/change om fill nekas.
   const setNumber = async (index, value) => {
     const field = page.getByRole("spinbutton").nth(index);
     if (!(await field.count())) return;
     await field.scrollIntoViewIfNeeded().catch(() => {});
-    await field.click({ clickCount: 3 }).catch(() => {});
-    await field.pressSequentially(String(value), { delay: 90 });
-    await pause(450);
+    await pause(200);
+    await field.fill(String(value), { timeout: 5000 }).catch(async () => {
+      await field
+        .evaluate((el, v) => {
+          const proto = window.HTMLInputElement.prototype;
+          const setter = Object.getOwnPropertyDescriptor(proto, "value").set;
+          setter.call(el, v);
+          el.dispatchEvent(new Event("input", { bubbles: true }));
+          el.dispatchEvent(new Event("change", { bubbles: true }));
+        }, String(value))
+        .catch(() => {});
+    });
+    await pause(500);
   };
 
   await safe("values", async () => {
@@ -217,7 +231,7 @@ export async function calculatorFlow(ctx) {
   });
 
   await safe("goal", async () => {
-    await setNumber(3, 25000); // mål: insamlat belopp → mätaren fylls
+    await setNumber(2, 25000); // mål: insamlat belopp → mätaren fylls
     await pause(400);
     // Scrolla längst ner till mätaren (GoalGauge) + disclaimer.
     await softScrollTo(

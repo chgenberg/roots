@@ -61,9 +61,10 @@ describe("computeCalculator", () => {
     expect(r.goalPct).toBeNull();
   });
 
-  it("uses sane defaults", () => {
+  it("uses sane defaults with the locked 35% margin", () => {
     const r = computeCalculator(CALCULATOR_DEFAULTS);
+    expect(r.marginPercent).toBe(35);
     expect(r.grossKr).toBe(37500);
-    expect(r.earningsKr).toBe(9375);
+    expect(r.earningsKr).toBe(13125); // 37500 * 0.35
   });
 });

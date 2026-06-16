@@ -4,12 +4,14 @@ import { useEffect, useMemo, useState } from "react";
 import {
   computeCalculator,
   CALCULATOR_DEFAULTS,
+  LOCKED_MARGIN_PERCENT,
   type CalculatorInputs,
   type CalculatorResult,
 } from "@roots/contracts";
 import { Card, CardContent } from "@/components/ui/card";
 import { GoalGauge } from "@/components/charts";
 import { cn } from "@/lib/utils";
+import { Lock } from "lucide-react";
 
 function krLabel(kr: number): string {
   return `${Math.round(kr).toLocaleString("sv-SE")} kr`;
@@ -98,6 +100,8 @@ export function RevenueCalculator({
   const [inputs, setInputs] = useState<CalculatorInputs>({
     ...CALCULATOR_DEFAULTS,
     ...defaultInputs,
+    // Marginalen är en fast affärsterm (35 %) — kan inte överstyras av presets.
+    marginPercent: LOCKED_MARGIN_PERCENT,
   });
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [ordersPerSeller, setOrdersPerSeller] = useState(3);
@@ -193,15 +197,22 @@ export function RevenueCalculator({
               : "Räkna på ordrar × ordervärde"}
           </button>
 
-          <SliderField
-            label="Föreningens marginal"
-            value={inputs.marginPercent}
-            min={0}
-            max={50}
-            suffix="%"
-            onChange={(v) => set("marginPercent", v)}
-            hint="Andelen av försäljningen som går till föreningen."
-          />
+          {/* Föreningens marginal är låst till 35 % — fast erbjudande. */}
+          <div className="space-y-2">
+            <div className="flex items-baseline justify-between gap-3">
+              <label className="text-sm font-medium text-foreground">
+                Föreningens marginal
+              </label>
+              <span className="inline-flex items-center gap-1.5 rounded-md bg-brand-50 px-2 py-1 text-sm font-semibold tabular-nums text-brand-800">
+                <Lock className="h-3.5 w-3.5 text-brand-600" aria-hidden="true" />
+                {LOCKED_MARGIN_PERCENT}%
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Föreningen behåller {LOCKED_MARGIN_PERCENT}% av försäljningen — fast
+              och tydligt, oavsett hur mycket ni säljer.
+            </p>
+          </div>
 
           <SliderField
             label="Mål: insamlat belopp (valfritt)"

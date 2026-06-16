@@ -82,26 +82,41 @@ export const REC_ORDER_CUSTOMER = "Granne Karin";
 
 // ── Geometri per variant (delas av frames.js OCH compose.js) ─────────
 // All geometri på ETT ställe så videon aldrig hamnar snett under ramen.
+//
+// Skärm-rektangeln (där den inspelade sidan läggs in) måste ligga HELT
+// innanför telefonens rundade kontur, annars sticker videons fyrkantiga
+// hörn ut nedanför/utanför ramen. Därför:
+//   • sido-inset = bezel (videon möter ramens innerkant, inga hörn syns)
+//   • topp-inset = status (statusbaren ligger på den vita plattan ovanför)
+//   • höjden låses till den inspelade sidans bildförhållande (PAGE_H/SCREEN.w)
+//     så videon aldrig sträcks — resten blir en balanserad "haka" nedtill.
+const SCREEN_RATIO = PAGE_H / SCREEN.w; // höjd/bredd för inspelad sida
+
 export function geom(variant = "desktop") {
   if (variant === "mobile") {
     const s = MOBILE_SCALE;
     const w = Math.round(SCREEN.w * s);
     const h = Math.round(SCREEN.h * s);
     const status = Math.round(STATUS * s);
+    const bezel = Math.round(BEZEL * s);
     const x = Math.round((MOBILE_CANVAS.w - w) / 2);
     const y = Math.round((MOBILE_CANVAS.h - h) / 2);
+    const screenW = w - 2 * bezel;
+    const screenH = Math.round(screenW * SCREEN_RATIO);
     return {
       canvas: MOBILE_CANVAS,
       x, y, w, h, status,
-      bezel: Math.round(BEZEL * s),
+      bezel,
       radius: Math.round(RADIUS * s),
-      screenX: x,
+      screenX: x + bezel,
       screenY: y + status,
-      screenW: w,
-      screenH: h - status,
+      screenW,
+      screenH,
       side: false,
     };
   }
+  const screenW = SCREEN.w - 2 * BEZEL;
+  const screenH = Math.round(screenW * SCREEN_RATIO);
   return {
     canvas: CANVAS,
     x: SCREEN.x,
@@ -111,10 +126,10 @@ export function geom(variant = "desktop") {
     status: STATUS,
     bezel: BEZEL,
     radius: RADIUS,
-    screenX: SCREEN.x,
+    screenX: SCREEN.x + BEZEL,
     screenY: SCREEN.y + STATUS,
-    screenW: SCREEN.w,
-    screenH: PAGE_H,
+    screenW,
+    screenH,
     side: true,
   };
 }
