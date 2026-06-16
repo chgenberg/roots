@@ -168,25 +168,28 @@ export async function foreningFlow(ctx) {
   });
 }
 
-// ── Publik räknesnurra → /sa-fungerar-det (ingen inloggning) ─────────
+// ── Publik räknesnurra → /kalkylator/<token> (ingen inloggning) ──────
+// Spelas in på den FRISTÅENDE länksidan som BARA innehåller kalkylatorn.
+// (Aldrig /sa-fungerar-det — den bäddar in filmen → telefon-i-telefon.)
 export async function calculatorFlow(ctx) {
-  const { page, mark, softScrollTo, pause, hideChrome } = ctx;
+  const { page, cfg, mark, softScrollTo, pause, hideChrome } = ctx;
 
-  await page.goto(`${BASE_URL}/sa-fungerar-det`, {
+  await page.goto(`${BASE_URL}${cfg.landing}`, {
     waitUntil: "domcontentloaded",
   });
-  // Dölj chatt-knapp + ev. dev-indikator (marknadssidan har chatt-knappen).
+  // Dölj ev. chatt-knapp + dev-indikator.
   await hideChrome();
   await pause(900);
 
-  // Hoppa direkt till kalkylator-sektionen (förbi demo-filmerna ovan).
   await safe("toCalc", async () => {
-    const heading = page.getByRole("heading", {
-      name: "Vad kan er förening tjäna?",
-    });
-    await heading.waitFor({ timeout: 8000 });
-    await softScrollTo(heading);
-    await pause(700);
+    // Vänta TÅLMODIGT in att kalkylatorn faktiskt renderats (klient-fetch).
+    // Markören sätts först när första reglaget syns — annars riskerar vi att
+    // hela flödet körs mot en blank sida.
+    await page
+      .getByText("Antal säljare")
+      .first()
+      .waitFor({ state: "visible", timeout: 30000 });
+    await pause(400);
     await softScrollTo(page.getByText("Antal säljare").first());
     await mark("calcShown");
     await pause(800);

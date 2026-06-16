@@ -51,6 +51,13 @@ export function buildSegments(role, marks, videoDur) {
   const segs = [];
   let prev = 0;
 
+  // Räknesnurran renderas klient-sida och har en lång vit "laddnings"-lead-in
+  // i dev (bundle + fetch). Börja klippet när kalkylatorn faktiskt syns så
+  // filmen inte inleds med en blank ruta.
+  if (role === "calculator" && m.calcShown != null) {
+    prev = m.calcShown;
+  }
+
   const push = (a, b, spec) => {
     if (b <= a + 0.05) return;
     let speed;

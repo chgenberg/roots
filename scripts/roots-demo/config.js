@@ -59,11 +59,13 @@ export const ROLES = {
     landing: "/lag",
     label: "Lagledare",
   },
-  // Publik räknesnurra på /sa-fungerar-det — ingen inloggning. Visar hur
-  // föreningen själv räknar ut sin förtjänst (reglage + förtjänst + mätare).
+  // Publik räknesnurra — ingen inloggning. Spelas in på den FRISTÅENDE
+  // delbara länksidan (/kalkylator/<token>) som bara innehåller kalkylatorn.
+  // OBS: spela ALDRIG in på /sa-fungerar-det — den sidan bäddar in själva
+  // kalkylatorfilmen, vilket ger en "telefon-i-telefon"-rekursion i tagningen.
   calculator: {
     email: "",
-    landing: "/sa-fungerar-det",
+    landing: "/kalkylator/demo-kalkyl", // måste matcha REC_CALC_TOKEN nedan
     label: "Räknesnurra",
     public: true,
   },
@@ -79,6 +81,11 @@ export const DEFAULT_LOCALE = "sv";
 export const REC_CAMPAIGN_NAME = "Vårcup 2026 – Cupresa Malmö";
 export const REC_CHAT_BODY = "Heja laget! Sista veckan kvar – nu kör vi!";
 export const REC_ORDER_CUSTOMER = "Granne Karin";
+
+// Fristående kalkylator-länk som räknesnurrefilmen spelas in mot.
+// cleanup.js säkerställer att raden finns (idempotent) före tagning.
+export const REC_CALC_TOKEN = "demo-kalkyl"; // ≥8 tecken (API kräver det)
+export const REC_CALC_ASSOCIATION = "Demo IF Sundsvall";
 
 // ── Geometri per variant (delas av frames.js OCH compose.js) ─────────
 // All geometri på ETT ställe så videon aldrig hamnar snett under ramen.

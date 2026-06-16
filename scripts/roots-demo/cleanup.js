@@ -7,7 +7,13 @@ import {
   REC_CAMPAIGN_NAME,
   REC_CHAT_BODY,
   REC_ORDER_CUSTOMER,
+  REC_CALC_TOKEN,
+  REC_CALC_ASSOCIATION,
 } from "./config.js";
+
+// Presets för demo-kalkylatorlänken (matchar CALCULATOR_DEFAULTS i contracts;
+// inlinas här så scriptet slipper bygg-beroende mot @roots/contracts).
+const CALC_PRESETS = { sellers: 25, avgPerSellerKr: 1500, marginPercent: 35 };
 
 // Töm login-rate-limit-nycklar i Redis så upprepade tagningar inte fastnar
 // på "För många inloggningsförsök" (rl:login:{ip}:{email}, 5/15 min). Best
@@ -82,6 +88,23 @@ export async function cleanupRecordingData() {
   await run("campaigns", `DELETE FROM campaigns WHERE name = $1`, [
     REC_CAMPAIGN_NAME,
   ]);
+
+  // Säkerställ att den fristående kalkylator-länken (/kalkylator/demo-if)
+  // finns så räknesnurrefilmen kan spelas in mot en ren, isolerad sida.
+  // Idempotent: ägaren sätts till tidigaste interna/sälj-användaren.
+  await run(
+    "calculator_link",
+    `INSERT INTO calculator_links (token, created_by_user_id, association_name, presets)
+       SELECT $1, u.id, $2, $3::jsonb
+       FROM users u
+       WHERE u.role IN ('INTERNAL_ADMIN','SALES_ADMIN','SALES_REP')
+       ORDER BY u.created_at ASC
+       LIMIT 1
+     ON CONFLICT (token) DO UPDATE
+       SET association_name = EXCLUDED.association_name,
+           presets = EXCLUDED.presets`,
+    [REC_CALC_TOKEN, REC_CALC_ASSOCIATION, JSON.stringify(CALC_PRESETS)]
+  );
 
   await client.end().catch(() => {});
 }
