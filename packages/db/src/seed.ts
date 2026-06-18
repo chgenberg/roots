@@ -112,28 +112,28 @@ async function seed() {
   const productSeeds = [
     {
       sku: "ROOTS-SH-001",
-      name: "Roots Shampoo",
+      name: "First Growth",
       slug: "shampoo",
       description:
-        "Naturligt schampo med nordiska botaniska extrakt. Gently cleansing for all hair types.",
+        "Milt schampo med SyriCalm som lugnar harbotten och sulfatsnala, sockerbaserade tvattamnen. 250 ml.",
       priceOre: 14900,
       currency: "SEK",
     },
     {
       sku: "ROOTS-CO-001",
-      name: "Roots Conditioner",
+      name: "Pure Root",
       slug: "conditioner",
       description:
-        "Naturligt balsam som ger mjukt och hanterbart har. Enriched with plant-based oils.",
+        "Narande balsam med SyriCalm, Pro-Vitamin B5 och E-vitamin. Mjukt, foljsamt har utan att tynga. 200 ml.",
       priceOre: 14900,
       currency: "SEK",
     },
     {
       sku: "ROOTS-BW-001",
-      name: "Roots Body Wash",
+      name: "Soft Rinse",
       slug: "body-wash",
       description:
-        "Naturlig kroppstvatt med skonsam rengoring. Fresh Nordic botanicals.",
+        "Skonsam kroppstvatt med SyriCalm och panthenol. Rengor utan att torka ut. 250 ml.",
       priceOre: 12900,
       currency: "SEK",
     },

@@ -8,7 +8,7 @@ const PRODUCTS = [
   {
     slug: "shampoo",
     name: "First Growth",
-    tagline: "Rengör på riktigt — med björkextrakt som stärker och stimulerar",
+    tagline: "Rengör på riktigt — SyriCalm® lugnar hårbotten",
     image: "/images/m3.jpg",
     price: "149 kr",
     badge: "Schampo",
@@ -16,7 +16,7 @@ const PRODUCTS = [
   {
     slug: "conditioner",
     name: "Pure Root",
-    tagline: "Mjukt och följsamt hår — med havtornsolja som ger näring och lyster",
+    tagline: "Mjukt, följsamt hår — Pro-Vitamin B5 & antioxidanter",
     image: "/images/p5.jpg",
     price: "149 kr",
     badge: "Balsam",
@@ -24,7 +24,7 @@ const PRODUCTS = [
   {
     slug: "body-wash",
     name: "Soft Rinse",
-    tagline: "Respekterar huden — med lingonextrakt som skyddar och lugnar",
+    tagline: "Respekterar huden — SyriCalm® lugnar och stärker",
     image: "/images/p6.jpg",
     price: "129 kr",
     badge: "Body Wash",
@@ -42,7 +42,7 @@ export function ProductsPreview() {
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
             Vi tror på enkelhet. Varje produkt är noggrant formulerad med
-            naturliga ingredienser för alla.
+            forskningsförankrade aktiver — för hela familjen.
           </p>
         </div>
 

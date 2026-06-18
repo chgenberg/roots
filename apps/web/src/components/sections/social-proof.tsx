@@ -1,5 +1,5 @@
 const PRINCIPLES = [
-  { value: "100%", label: "naturliga ingredienser" },
+  { value: "SyriCalm®", label: "lugnande aktiv i varje produkt" },
   { value: "0", label: "sulfater, silikoner, parabener" },
   { value: "Norden", label: "formulerat & tillverkat" },
 ];

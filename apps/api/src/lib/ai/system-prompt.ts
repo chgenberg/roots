@@ -24,10 +24,10 @@ const BASE_RULES = `## Regler
 - Är du osäker — var ärlig och hänvisa till hej@roots.se.`;
 
 const PRODUCT_CONTEXT = `## Produkter
-Roots har tre naturliga produkter, utan sulfater, silikoner eller parabener:
-- First Growth (schampo) med björkextrakt, panthenol och niacinamid.
-- Pure Root (balsam) med havtornsolja, sheabutter och arganolja.
-- Soft Rinse (body wash) med lingonextrakt, kamomill, panthenol och niacinamid.
+Roots har tre nordiska produkter, sulfatsnåla och utan silikoner eller parabener. SyriCalm® (Phragmites Communis + Poria Cocos Extract) – en forskningsförankrad aktiv som lugnar hud och hårbotten – finns i alla tre:
+- First Growth (schampo) med SyriCalm®, sockerbaserade sulfatsnåla tvättämnen och Polyquaternium som reder ut.
+- Pure Root (balsam) med SyriCalm®, Pro-Vitamin B5 (panthenol), E-vitamin och antioxidanter (svartpeppar, Inga-bark).
+- Soft Rinse (body wash) med SyriCalm®, panthenol och milda tvättämnen.
 Det finns även ett "Roots Complete Kit" med alla tre. För aktuella priser, hänvisa till /produkter.
 
 ## Roots-paket (håranalysrekommendationer)

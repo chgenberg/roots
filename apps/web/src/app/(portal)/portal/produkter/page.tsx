@@ -21,7 +21,7 @@ const FALLBACK_PRODUCTS: PortalProductCard[] = [
   {
     name: "First Growth",
     type: "Schampo",
-    desc: "Milt schampo med björkextrakt, panthenol & niacinamid",
+    desc: "Milt schampo med SyriCalm® och sockerbaserade, sulfatsnåla tvättämnen",
     price: 149,
     sku: "ROOTS-SH-001",
     slug: FALLBACK_SKU_SLUG["ROOTS-SH-001"]!,
@@ -30,7 +30,7 @@ const FALLBACK_PRODUCTS: PortalProductCard[] = [
   {
     name: "Pure Root",
     type: "Balsam",
-    desc: "Närande balsam med havtornsolja, sheabutter & argan",
+    desc: "Närande balsam med SyriCalm®, Pro-Vitamin B5 & E-vitamin",
     price: 149,
     sku: "ROOTS-CO-001",
     slug: FALLBACK_SKU_SLUG["ROOTS-CO-001"]!,
@@ -39,7 +39,7 @@ const FALLBACK_PRODUCTS: PortalProductCard[] = [
   {
     name: "Soft Rinse",
     type: "Body Wash",
-    desc: "Skonsam kroppstvätt med lingonextrakt & kamomillextrakt",
+    desc: "Skonsam kroppstvätt med SyriCalm® och Panthenol (B5)",
     price: 129,
     sku: "ROOTS-BW-001",
     slug: FALLBACK_SKU_SLUG["ROOTS-BW-001"]!,

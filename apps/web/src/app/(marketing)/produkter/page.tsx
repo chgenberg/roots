@@ -9,7 +9,7 @@ import { pageMetadata } from "@/lib/seo";
 export const metadata = pageMetadata({
   title: "Produkter",
   description:
-    "Tre noggrant formulerade produkter med nordiska ingredienser. Utan sulfater, silikoner eller parabener.",
+    "Tre noggrant formulerade nordiska produkter med SyriCalm® och Pro-Vitamin B5. Sulfatsnålt, silikon- och parabenfritt.",
   path: "/produkter",
 });
 
@@ -18,37 +18,37 @@ const PRODUCTS = [
     slug: "shampoo",
     name: "First Growth",
     subtitle: "Schampo — 250 ml",
-    tagline: "Ett milt men effektivt schampo som rengör håret utan att torka ut eller störa hårbotten. Med björkextrakt — en klassisk nordisk ingrediens som stärker hår och stimulerar hårbotten.",
+    tagline: "Ett milt men effektivt schampo som rengör utan att torka ut. SyriCalm® lugnar hårbotten och Polyquaternium reder ut — håret känns rent, lätt och i balans.",
     image: "/images/m3.jpg",
     price: "149 kr",
     badge: "Bestseller",
-    highlights: ["Sulfatfritt", "Björkextrakt", "Panthenol & Niacinamid"],
+    highlights: ["Sulfatsnålt", "SyriCalm®", "Reder ut & glans"],
   },
   {
     slug: "conditioner",
     name: "Pure Root",
-    subtitle: "Balsam — 250 ml",
-    tagline: "Ett närande balsam som gör håret mjukt, följsamt och lätt att reda ut utan att tynga ner. Med havtornsolja — en nordisk superingrediens rik på vitaminer och fettsyror.",
+    subtitle: "Balsam — 200 ml",
+    tagline: "Ett närande balsam som gör håret mjukt och följsamt utan att tynga. Pro-Vitamin B5 och antioxidanter ger fukt, lyster och skydd — SyriCalm® lugnar hårbotten.",
     image: "/images/p5.jpg",
     price: "149 kr",
     badge: null,
-    highlights: ["Silikonfritt", "Havtornsolja", "Sheabutter & Argan"],
+    highlights: ["SyriCalm® & Panthenol", "E-vitamin", "Närande utan att tynga"],
   },
   {
     slug: "body-wash",
     name: "Soft Rinse",
-    subtitle: "Body Wash — 300 ml",
-    tagline: "En skonsam kroppstvätt som rengör huden utan att torka ut. Med lingonextrakt — rikt på antioxidanter och välkänt i nordisk hudvård för sina skyddande egenskaper.",
+    subtitle: "Body Wash — 250 ml",
+    tagline: "En skonsam kroppstvätt som rengör utan att torka ut. Milda tvättämnen och SyriCalm® lämnar huden len, återfuktad och i balans.",
     image: "/images/p6.jpg",
     price: "129 kr",
     badge: null,
-    highlights: ["Parabenfritt", "Lingonextrakt", "Kamomillextrakt"],
+    highlights: ["Sulfatsnålt", "SyriCalm®", "Panthenol (B5)"],
   },
 ];
 
 const VALUES = [
-  { icon: Leaf, label: "100% naturliga ingredienser" },
-  { icon: Droplets, label: "Sulfat- och silikonfritt" },
+  { icon: Leaf, label: "Forskningsförankrade aktiver" },
+  { icon: Droplets, label: "Sulfatsnålt & silikonfritt" },
   { icon: Sparkles, label: "Unisex — för alla" },
 ];
 
@@ -60,8 +60,8 @@ export default function ProdukterPage() {
           <div className="mx-auto max-w-2xl text-center">
             <h1 className="text-[length:var(--font-size-hero)] font-bold tracking-tight">Våra produkter</h1>
             <p className="mt-4 text-lg text-muted-foreground">
-              Tre noggrant formulerade produkter med nordiska ingredienser.
-              Utan sulfater, silikoner eller parabener.
+              Tre noggrant formulerade nordiska produkter med forskningsförankrade
+              aktiver. Sulfatsnålt, silikon- och parabenfritt.
             </p>
           </div>
 
