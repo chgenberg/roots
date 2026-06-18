@@ -115,7 +115,7 @@ async function seed() {
       name: "First Growth",
       slug: "shampoo",
       description:
-        "Milt schampo med SyriCalm som lugnar harbotten och sulfatsnala, sockerbaserade tvattamnen. 250 ml.",
+        "Milt schampo med SyriCalm® som lugnar hårbotten och sulfatsnåla, sockerbaserade tvättämnen. 250 ml.",
       priceOre: 14900,
       currency: "SEK",
     },
@@ -124,7 +124,7 @@ async function seed() {
       name: "Pure Root",
       slug: "conditioner",
       description:
-        "Narande balsam med SyriCalm, Pro-Vitamin B5 och E-vitamin. Mjukt, foljsamt har utan att tynga. 200 ml.",
+        "Närande balsam med SyriCalm®, Pro-Vitamin B5 och E-vitamin. Mjukt, följsamt hår utan att tynga. 200 ml.",
       priceOre: 14900,
       currency: "SEK",
     },
@@ -133,7 +133,7 @@ async function seed() {
       name: "Soft Rinse",
       slug: "body-wash",
       description:
-        "Skonsam kroppstvatt med SyriCalm och panthenol. Rengor utan att torka ut. 250 ml.",
+        "Skonsam kroppstvätt med SyriCalm® och Panthenol. Rengör utan att torka ut. 250 ml.",
       priceOre: 12900,
       currency: "SEK",
     },
