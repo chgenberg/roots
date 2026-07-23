@@ -18,6 +18,7 @@ import { getAchievedMilestones, getNextMilestone, getSellerGrade } from "../lib/
 import { getEmailSender } from "../lib/email";
 import { welcomeEmail } from "../lib/email/templates";
 import { childLogger } from "../lib/logger";
+import { stockholmDateIso } from "../lib/date";
 import { validatePassword } from "./auth";
 
 const ARGON2_OPTIONS = {
@@ -269,7 +270,7 @@ dashboard.patch("/association/team-goals", async (c) => {
     // Tenancy: a non-admin association admin must only edit goals for
     // their own teams. Verify both team and campaign belong to org.
     const [team] = await db
-      .select({ id: teams.id, orgId: teams.orgId })
+      .select({ id: teams.id, orgId: teams.orgId, campaignId: teams.campaignId })
       .from(teams)
       .where(eq(teams.id, teamId))
       .limit(1);
@@ -279,6 +280,15 @@ dashboard.patch("/association/team-goals", async (c) => {
       team.orgId !== session.orgId
     ) {
       return c.json({ error: "Behörighet saknas" }, 403);
+    }
+    // Laget måste tillhöra kampanjen målet sätts för — annars kan en
+    // (teamId, campaignId)-rad skapas för fel kombination och förvränga
+    // statistiken.
+    if (team.campaignId !== campaignId) {
+      return c.json(
+        { error: "Laget tillhör inte den angivna kampanjen." },
+        400
+      );
     }
 
     const [campaign] = await db
@@ -1224,8 +1234,8 @@ dashboard.post("/seller/orders", async (c) => {
       return c.json({ error: "Kampanjen är inte aktiv." }, 400);
     }
 
-    // Samma periodlogik som publika checkout.
-    const todayStr = new Date().toISOString().slice(0, 10);
+    // Samma periodlogik som publika checkout (Europe/Stockholm).
+    const todayStr = stockholmDateIso();
     const withinPeriod =
       campaign.startDate <= todayStr && todayStr <= campaign.endDate;
     if (!withinPeriod && !campaign.allowSalesOutsidePeriod) {
@@ -1588,7 +1598,11 @@ dashboard.post("/campaign/:campaignId/ship-bulk", async (c) => {
       .where(
         and(
           eq(customerOrders.campaignId, campaignId),
-          eq(customerOrders.status, "PAID")
+          eq(customerOrders.status, "PAID"),
+          // Endast samlade BULK-ordrar skickas till klubben på en gång.
+          // Hemleveranser (DIRECT) skickas individuellt och får inte
+          // flaggas som skickade av bulk-knappen.
+          eq(customerOrders.deliveryType, "BULK")
         )
       )
       .returning({ id: customerOrders.id });
@@ -1601,7 +1615,7 @@ dashboard.post("/campaign/:campaignId/ship-bulk", async (c) => {
 });
 
 function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+  return stockholmDateIso();
 }
 
 function clampPeriodStart(campaignStart: string | null | undefined): string {
@@ -1644,11 +1658,14 @@ dashboard.get("/association/stats", async (c) => {
       .groupBy(teams.id, teams.name)
       .orderBy(sql`COALESCE(SUM(${customerOrders.totalOre}), 0) DESC`);
 
+    // Mål-gaugen visar kronor, så summera bara AMOUNT-mål (× 100 = öre).
+    // PACKAGES-mål (antal paket) kan inte summeras in i en kr-gauge —
+    // tidigare gav det t.ex. 500 paket → "50 000 kr" och fel progress-%.
     const goalRows = await db
       .select({ g: sql<number>`COALESCE(SUM(${teamGoals.goalValue}), 0)` })
       .from(teamGoals)
       .innerJoin(teams, eq(teamGoals.teamId, teams.id))
-      .where(eq(teams.orgId, orgId));
+      .where(and(eq(teams.orgId, orgId), eq(teamGoals.goalType, "AMOUNT")));
     const goalOre = Number(goalRows[0]?.g ?? 0) * 100;
 
     const totalsRow = await db

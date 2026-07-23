@@ -88,6 +88,13 @@ function ConfirmationPageInner() {
     // warning + minnesläcka).
     let cancelled = false;
     const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    // Betalningen kan fortfarande vara PENDING när kunden landar här
+    // (Klarna-webhooken har inte hunnit fram). Poll:a tills status
+    // flippar till PAID/CONFIRMED istället för att fastna på
+    // "behandlas…". ~36 s (12 × 3 s) räcker gott för webhook-latens.
+    const MAX_ATTEMPTS = 12;
+    let attempts = 0;
 
     async function confirm() {
       if (!orderId) {
@@ -118,6 +125,12 @@ function ConfirmationPageInner() {
           setErrorKind("failed-payment");
         } else {
           setOrder(data);
+          const settled =
+            data.status === "PAID" || data.status === "CONFIRMED";
+          if (!settled && attempts < MAX_ATTEMPTS) {
+            attempts += 1;
+            timer = setTimeout(confirm, 3000);
+          }
           // P2.25 (audit 2026-05-26): rensa bara cart EFTER att
           // useCart har hydrat:s från sessionStorage. Annars race:ar
           // hydration-skrivningen vår clear() och kunden hittar gamla
@@ -150,6 +163,7 @@ function ConfirmationPageInner() {
     return () => {
       cancelled = true;
       controller.abort();
+      if (timer) clearTimeout(timer);
     };
   }, [orderId, clearCart, cartHydrated]);
 

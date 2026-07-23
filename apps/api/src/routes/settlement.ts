@@ -59,9 +59,20 @@ settlement.post("/generate/:campaignId", async (c) => {
   // separata transaktioner — vilket race:ar belopp och spammar
   // audit-loggar. Distribuerat Redis-lås per kampanj med kort TTL.
   const lockKey = `settlement:generate:${campaignId}`;
-  const acquired = await redis
-    .set(lockKey, "1", "EX", 120, "NX")
-    .catch(() => null);
+  // `null` = låset är redan taget (parallell körning pågår) → 409.
+  // Ett Redis-fel (nere/disabled) får INTE tolkas som "låst" — då
+  // skulle avräkning blockeras helt vid infra-strul. Vi fail-open:ar
+  // och litar på status-guarden (ENDED→SETTLED) + upsert:en nedan.
+  let acquired: "OK" | null | "error";
+  try {
+    acquired = (await redis.set(lockKey, "1", "EX", 120, "NX")) as "OK" | null;
+  } catch (err) {
+    log.warn(
+      { err, campaignId },
+      "settlement lock unavailable (redis) — proceeding best-effort"
+    );
+    acquired = "error";
+  }
   if (acquired === null) {
     return c.json(
       {
@@ -493,10 +504,22 @@ settlement.post("/create-invoice/:payoutId", async (c) => {
     // inte permanent blockar nya försök. Om låset inte kan tas →
     // 409 (en parallell operation pågår, klienten kan poll:a status).
     const lockKey = `settlement:invoice:${payoutId}`;
-    const lockAcquired = await redis
-      .set(lockKey, "1", "EX", 300, "NX")
-      .catch(() => null);
-    if (lockAcquired !== "OK") {
+    // `null` = låset redan taget → 409. Redis-fel får inte blockera
+    // fakturering; vi fail-open:ar och skyddas av re-läsningen av
+    // payout-status (PENDING-guard) inuti låset nedan.
+    let lockAcquired: "OK" | null | "error";
+    try {
+      lockAcquired = (await redis.set(lockKey, "1", "EX", 300, "NX")) as
+        | "OK"
+        | null;
+    } catch (err) {
+      log.warn(
+        { err, payoutId },
+        "invoice lock unavailable (redis) — proceeding best-effort"
+      );
+      lockAcquired = "error";
+    }
+    if (lockAcquired === null) {
       return c.json(
         { error: "Faktura skapas redan — vänta några sekunder och försök igen." },
         409

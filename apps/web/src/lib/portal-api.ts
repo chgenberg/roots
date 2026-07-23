@@ -51,7 +51,7 @@ export async function portalFetch<T>(
   if (schema) {
     const parsed = schema.safeParse(data);
     if (!parsed.success) {
-      // eslint-disable-next-line no-console
+       
       console.error("portalFetch schema drift", {
         path,
         issues: parsed.error.issues,

@@ -65,6 +65,12 @@ shop.get("/by-slug/:slug", async (c) => {
       return c.json({ error: "Shop hittades inte." }, 404);
     }
 
+    // Inaktiverad/avslutad säljare ska inte längre exponera sin shop —
+    // spegla checkout (410) och sitemap som redan filtrerar på ACTIVE.
+    if (seller.status !== "ACTIVE") {
+      return c.json({ error: "Shop hittades inte." }, 404);
+    }
+
     const [team] = await db
       .select()
       .from(teams)
@@ -89,13 +95,17 @@ shop.get("/by-slug/:slug", async (c) => {
     const bundleList = await db.select().from(bundles);
     const bundleProductLinks = await db.select().from(bundleProducts);
 
+    // Målprogressen supportern ser ska matcha säljarens/dashboardens
+    // siffror: bara betalda ordrar som räknas mot statistiken
+    // (countsTowardStats), dvs inte ordrar utanför säljperioden.
     const soldResult = await db
       .select({ total: sql<number>`COALESCE(SUM(${customerOrders.totalOre}), 0)` })
       .from(customerOrders)
       .where(
         and(
           eq(customerOrders.sellerId, seller.id),
-          eq(customerOrders.status, "PAID")
+          eq(customerOrders.status, "PAID"),
+          eq(customerOrders.countsTowardStats, true)
         )
       );
 
@@ -107,7 +117,8 @@ shop.get("/by-slug/:slug", async (c) => {
       .where(
         and(
           eq(customerOrders.sellerId, seller.id),
-          eq(customerOrders.status, "PAID")
+          eq(customerOrders.status, "PAID"),
+          eq(customerOrders.countsTowardStats, true)
         )
       );
 

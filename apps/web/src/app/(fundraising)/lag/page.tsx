@@ -16,7 +16,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
-import { GradeBadge, GradeProgress } from "@/components/seller-grade";
+import { GradeBadge } from "@/components/seller-grade";
 import { OrderDetailDialog } from "@/components/order-detail-dialog";
 import type { TeamDashboard as TeamDashboardData, Seller, Milestone, CustomerOrder } from "@/types/fundraising";
 import { getBrowserApiBase } from "@/lib/api-base";

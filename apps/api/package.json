@@ -8,6 +8,7 @@
     "build": "tsup",
     "start": "node dist/index.js",
     "start:workers": "node dist/workers/index.js",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"

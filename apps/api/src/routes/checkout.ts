@@ -25,6 +25,7 @@ import {
   verifyOrderViewToken,
 } from "../lib/order-view-tokens";
 import { checkoutCreateRateLimit } from "../lib/rate-limit";
+import { stockholmDateIso } from "../lib/date";
 import { wasWebhookEventSeen, clearWebhookEventSeen } from "../lib/webhook-dedup";
 
 const log = childLogger("checkout");
@@ -352,8 +353,9 @@ checkout.post("/create", async (c) => {
 
     // Säljperiod: jämför dagens datum (YYYY-MM-DD) mot kampanjens
     // start/slut. `date`-kolumnerna kommer tillbaka som ISO-strängar så
-    // lexikografisk jämförelse är korrekt.
-    const todayStr = new Date().toISOString().slice(0, 10);
+    // lexikografisk jämförelse är korrekt. Vi räknar i Europe/Stockholm
+    // så perioden inte glider en dag fel kring midnatt (UTC-offset).
+    const todayStr = stockholmDateIso();
     const withinPeriod =
       campaign.startDate <= todayStr && todayStr <= campaign.endDate;
     if (!withinPeriod && !campaign.allowSalesOutsidePeriod) {

@@ -61,6 +61,11 @@ function OrderStatusPageInner() {
 
   useEffect(() => {
     let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    // Om betalningen fortfarande behandlas (PENDING/DRAFT) poll:ar vi
+    // tills den slår om, i stället för att visa en fastfrusen status.
+    const MAX_ATTEMPTS = 12;
+    let attempts = 0;
     async function load() {
       if (!viewToken) {
         setError("missing-token");
@@ -73,7 +78,15 @@ function OrderStatusPageInner() {
         );
         if (cancelled) return;
         if (res.ok) {
-          setOrder(await res.json());
+          const data = await res.json();
+          if (cancelled) return;
+          setOrder(data);
+          const pending =
+            data.status === "PENDING" || data.status === "DRAFT";
+          if (pending && attempts < MAX_ATTEMPTS) {
+            attempts += 1;
+            timer = setTimeout(load, 3000);
+          }
         } else {
           setError(res.status === 401 ? "missing-token" : "other");
         }
@@ -86,6 +99,7 @@ function OrderStatusPageInner() {
     load();
     return () => {
       cancelled = true;
+      if (timer) clearTimeout(timer);
     };
   }, [orderId, viewToken]);
 

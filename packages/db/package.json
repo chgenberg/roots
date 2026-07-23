@@ -16,6 +16,7 @@
     "db:update:products": "tsx src/update-products.ts",
     "db:seed:masters": "tsx src/seed-masters/index.ts",
     "db:masters:extract": "tsx scripts/extract-master-csv.ts",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

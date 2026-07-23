@@ -375,7 +375,7 @@ payoutsRoute.patch("/:id/status", async (c) => {
               amountOre: payout.teamShareOre,
               paidAt: now,
               paymentReference,
-              payoutsUrl: `${SITE_URL}/forening/utbetalningar`,
+              payoutsUrl: `${SITE_URL}/forening/avrakning`,
             }),
           });
         } catch (err) {

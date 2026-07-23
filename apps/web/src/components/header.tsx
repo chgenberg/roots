@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { ArrowRight, User, CalendarCheck, Search } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { SearchDialog, SearchTrigger } from "@/components/search-dialog";
+import { SearchTrigger } from "@/components/search-dialog";
 import { RootsLogo } from "@/components/brand";
 
 const NAV_ITEMS = [

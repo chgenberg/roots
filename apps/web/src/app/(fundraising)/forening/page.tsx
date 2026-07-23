@@ -117,7 +117,7 @@ function AssociationDashboardInner() {
     // Live-uppdatering var 30:e sekund.
     const id = setInterval(() => load(true), 30000);
     return () => clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   async function handleCreateCampaign() {
