@@ -26,6 +26,7 @@ import { portalFetch } from "@/lib/portal-api";
 import { publicProductHref } from "@/lib/portal-products";
 import { PortalOrderDialog } from "@/components/portal-order-dialog";
 import { downloadPortalOrdersCsv } from "@/lib/orders-csv";
+import { formatKrValue } from "@/lib/format";
 
 type PortalOrderProduct = {
   id: string;
@@ -101,7 +102,7 @@ export default function BestallningarPage() {
             id: o.id,
             date: o.createdAt?.split("T")[0] ?? "",
             items: "",
-            total: `${(o.totalOre / 100).toLocaleString("sv-SE")} kr`,
+            total: `${formatKrValue(o.totalOre)} kr`,
             status: o.status === "PAID" ? "Levererad" : o.status === "SHIPPED" ? "Skickad" : "Under behandling",
             createdAt: o.createdAt,
             totalOre: o.totalOre,
@@ -165,7 +166,7 @@ export default function BestallningarPage() {
             id: o.id,
             date: o.createdAt?.split("T")[0] ?? new Date().toISOString().split("T")[0],
             items: itemStr,
-            total: `${(o.totalOre / 100).toLocaleString("sv-SE")} kr`,
+            total: `${formatKrValue(o.totalOre)} kr`,
             status: "Under behandling",
             createdAt: o.createdAt ?? new Date().toISOString(),
             totalOre: o.totalOre,
@@ -242,7 +243,7 @@ export default function BestallningarPage() {
                         {p.name}
                       </Link>
                       <p className="text-xs text-muted-foreground">
-                        {(p.priceOre / 100).toLocaleString("sv-SE")} kr / st
+                        {formatKrValue(p.priceOre)} kr / st
                       </p>
                     </div>
                     <div className="flex flex-shrink-0 items-center gap-2">
@@ -281,7 +282,7 @@ export default function BestallningarPage() {
                   {cartCount} {cartCount === 1 ? "produkt" : "produkter"}
                 </p>
                 <p className="font-semibold tabular-nums">
-                  {(cartTotal / 100).toLocaleString("sv-SE")} kr
+                  {formatKrValue(cartTotal)} kr
                 </p>
               </div>
 

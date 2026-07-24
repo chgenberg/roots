@@ -35,10 +35,9 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  // Recommended: let the API container own migrations and set this off in
-  // worker env. Honouring the flag here means a worker-only deploy still
-  // works (and the advisory lock prevents races with the API).
-  await runBootMigrations();
+  // API:t äger schemat. Workern kör bara migrationer om man uttryckligen
+  // sätter RUN_MIGRATIONS_ON_BOOT=true (för en worker-only-deploy).
+  await runBootMigrations({ role: "worker" });
 
   // Real handler.
   registerJobHandler("agent.organization-normalize", async ({ payload }) => {

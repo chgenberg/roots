@@ -65,7 +65,7 @@ export async function purgeDueDeletions(cutoff: Date = new Date()): Promise<{
       // är PII. Det går inte att gå tillbaka — `deleted_at` är vår
       // tombstone-markör som UI:t filtrerar bort på.
       const tombstoneEmail = `deleted-${user.id}@roots.invalid`;
-      await db
+      const updated = await db
         .update(users)
         .set({
           email: tombstoneEmail,
@@ -86,7 +86,15 @@ export async function purgeDueDeletions(cutoff: Date = new Date()): Promise<{
           deletedAt: new Date(),
           updatedAt: new Date(),
         })
-        .where(and(eq(users.id, user.id), isNull(users.deletedAt)));
+        .where(and(eq(users.id, user.id), isNull(users.deletedAt)))
+        .returning({ id: users.id });
+
+      if (updated.length === 0) {
+        // Någon annan körning (schemaläggaren och cron-endpointen kan överlappa)
+        // hann före. `deleted_at IS NULL` matchade inte längre, så vi har inte
+        // anonymiserat något — räkna det inte, och skriv ingen dubbel audit-rad.
+        continue;
+      }
 
       // Skulle teoretiskt redan vara tomt (vi sessions-revokar vid
       // request:en), men gör det idempotent för säkerhetsskull.
@@ -96,7 +104,12 @@ export async function purgeDueDeletions(cutoff: Date = new Date()): Promise<{
         // OK — sessions är förmodligen redan utgångna.
       }
 
-      void auditLog({
+      // Väntas in, till skillnad från request-vägarnas audit-skrivningar: raden
+      // är beviset för att raderingen skedde, och anonymiseringen är redan
+      // committad och oåterkallelig. En SIGTERM i fönstret mellan de två hade
+      // annars lämnat en raderad användare helt utan spår. `auditLog` kastar
+      // aldrig, så väntan kan inte fälla körningen.
+      await auditLog({
         userId: user.id,
         action: "auth.delete_account.purged",
         meta: {

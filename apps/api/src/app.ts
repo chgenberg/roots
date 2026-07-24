@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
+import { bodyLimit } from "hono/body-limit";
 import { trpcHandler } from "./trpc/handler";
 import { fortnoxWebhook } from "./routes/fortnox-webhook";
 import { aiChat } from "./routes/ai-chat";
@@ -38,6 +39,40 @@ export const app = new Hono();
 
 app.use("*", logger());
 app.use("*", securityHeaders);
+
+/**
+ * Tak för request-body.
+ *
+ * Varje handler anropar `c.req.json()` på en obegränsad ström. Storleks-
+ * kontrollerna som finns ligger EFTER parsningen — t.ex. hår-analysens
+ * bildtak i routes/hair-analysis.ts — så en oautentiserad POST med en
+ * flerhundra-megabyte-body tar minnet i containern innan kontrollen ens hinner
+ * köra. Taket sätts därför här, innan kroppen läses.
+ *
+ * Bilduppladdningen (base64 i JSON) behöver mer utrymme än övriga endpoints,
+ * och säljar-importen tar upp till 2000 rader, så de får egna gränser.
+ */
+const MB = 1024 * 1024;
+const bodyLimitFor = (mb: number) =>
+  bodyLimit({
+    maxSize: mb * MB,
+    onError: (c) => c.json({ error: "Förfrågan är för stor." }, 413),
+  });
+
+// Ett enda tak per request. Registrerar vi flera `app.use` körs de alla, och
+// då skulle det generella taket avvisa de endpoints som medvetet får mer.
+const defaultLimit = bodyLimitFor(1);
+const largeLimits: Array<[RegExp, ReturnType<typeof bodyLimitFor>]> = [
+  // Hår-analysen skickar två bilder som base64 i JSON.
+  [/^\/v1\/ai\/hair-analysis$/, bodyLimitFor(8)],
+  // Säljar-importen tar upp till 2000 rader.
+  [/^\/v1\/dashboard\/team\/[^/]+\/sellers\/import$/, bodyLimitFor(4)],
+];
+
+app.use("*", (c, next) => {
+  const match = largeLimits.find(([re]) => re.test(c.req.path));
+  return (match ? match[1] : defaultLimit)(c, next);
+});
 
 /**
  * MASTERPLAN_01 KC8.8 + Sentry user-context: tagg:a varje request med
@@ -177,8 +212,18 @@ app.get("/healthz", (c) =>
 // either is down so a load balancer can drain the instance.
 app.get("/readyz", async (c) => {
   const report = await checkReadiness();
+  if (!report.ok) {
+    // Detaljerna (drivrutinens felmeddelande) kan innehålla host- och
+    // databasnamn. De hör i loggen, inte i ett publikt svar — endpointen är
+    // Railways healthcheck och därmed nåbar utan autentisering.
+    childLogger("readyz").error({ report }, "readiness check failed");
+  }
   return c.json(
-    { status: report.ok ? "ok" : "degraded", ...report },
+    {
+      status: report.ok ? "ok" : "degraded",
+      db: report.db.ok,
+      redis: report.redis.ok,
+    },
     report.ok ? 200 : 503
   );
 });

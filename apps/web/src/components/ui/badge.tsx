@@ -22,11 +22,19 @@ const badgeVariants = cva(
 );
 
 export interface BadgeProps
-  extends React.HTMLAttributes<HTMLDivElement>,
+  extends React.HTMLAttributes<HTMLSpanElement>,
     VariantProps<typeof badgeVariants> {}
 
+/**
+ * Renderar ett `<span>`, inte en `<div>`. En badge är inline-innehåll och
+ * hamnar ofta inuti en `<p>` — och `<div>` i `<p>` är ogiltig HTML, vilket gav
+ * hydreringsfel i konsolen på statistik- och inställningssidorna. Basklassen
+ * är `inline-flex`, så bytet är visuellt identiskt.
+ */
 function Badge({ className, variant, ...props }: BadgeProps) {
-  return <div className={cn(badgeVariants({ variant }), className)} {...props} />;
+  return (
+    <span className={cn(badgeVariants({ variant }), className)} {...props} />
+  );
 }
 
 export { Badge, badgeVariants };

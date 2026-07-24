@@ -13,6 +13,7 @@ import { Minus, Plus, Loader2 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { getBrowserApiBase } from "@/lib/api-base";
 import { useToast } from "@/components/ui/toast";
+import { formatKrValue } from "@/lib/format";
 
 interface Product {
   id: string;
@@ -126,7 +127,7 @@ export function ManualOrderDialog({
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">{p.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {(p.priceOre / 100).toLocaleString("sv-SE")} kr
+                      {formatKrValue(p.priceOre)} kr
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -204,7 +205,7 @@ export function ManualOrderDialog({
           <div className="flex items-center justify-between border-t pt-3">
             <span className="text-sm text-muted-foreground">Totalt</span>
             <span className="text-lg font-bold">
-              {(totalOre / 100).toLocaleString("sv-SE")} kr
+              {formatKrValue(totalOre)} kr
             </span>
           </div>
 

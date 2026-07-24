@@ -20,6 +20,7 @@ import { GradeBadge } from "@/components/seller-grade";
 import { OrderDetailDialog } from "@/components/order-detail-dialog";
 import type { TeamDashboard as TeamDashboardData, Seller, Milestone, CustomerOrder } from "@/types/fundraising";
 import { getBrowserApiBase } from "@/lib/api-base";
+import { formatKrValue } from "@/lib/format";
 
 const PODIUM_ICONS = ["🥇", "🥈", "🥉"];
 
@@ -136,7 +137,7 @@ export default function TeamDashboard() {
           <CardContent className="p-4 sm:p-5">
             <p className="text-xs text-muted-foreground sm:text-sm">Total försäljning</p>
             <p className="mt-1 text-xl font-bold sm:text-2xl">
-              {(totalSales / 100).toLocaleString("sv-SE")} kr
+              {formatKrValue(totalSales)} kr
             </p>
           </CardContent>
         </Card>
@@ -147,7 +148,7 @@ export default function TeamDashboard() {
               <p className="text-xs text-muted-foreground sm:text-sm">Lagets förtjänst</p>
             </div>
             <p className="mt-1 text-xl font-bold text-brand-700 sm:text-2xl">
-              {(teamEarnings / 100).toLocaleString("sv-SE")} kr
+              {formatKrValue(teamEarnings)} kr
             </p>
             {marginPercent > 0 && (
               <p className="text-xs text-muted-foreground mt-0.5">
@@ -276,7 +277,7 @@ export default function TeamDashboard() {
                     </p>
                   </div>
                   <p className="text-sm font-semibold shrink-0">
-                    {(seller.totalSalesOre / 100).toLocaleString("sv-SE")} kr
+                    {formatKrValue(seller.totalSalesOre)} kr
                   </p>
                 </div>
               ))}
@@ -331,7 +332,7 @@ export default function TeamDashboard() {
                     </div>
                   </div>
                   <p className="text-sm font-semibold">
-                    {(order.totalOre / 100).toLocaleString("sv-SE")} kr
+                    {formatKrValue(order.totalOre)} kr
                   </p>
                 </button>
               ))}

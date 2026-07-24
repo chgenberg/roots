@@ -19,29 +19,14 @@ import { Hono } from "hono";
 import { and, asc, eq, isNull, or, sql } from "drizzle-orm";
 import { db } from "@roots/db";
 import { teamMessages, teams, sellers } from "@roots/db/schema";
-import { getSession, SESSION_COOKIE_NAME, isDemoSession } from "../lib/session";
+import { isDemoSession } from "../lib/session";
 import type { SessionData } from "../lib/session";
+import { requireSession } from "../lib/http-session";
 import { childLogger } from "../lib/logger";
 
 const log = childLogger("chat");
 
 export const chat = new Hono();
-
-function getSessionId(c: any): string | null {
-  const cookie = c.req.header("cookie") || "";
-  const match = cookie.match(new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`));
-  return match ? match[1] : null;
-}
-
-async function requireSession(c: any): Promise<SessionData | null> {
-  const sessionId = getSessionId(c);
-  if (!sessionId) return null;
-  try {
-    return await getSession(sessionId);
-  } catch {
-    return null;
-  }
-}
 
 const MAX_BODY = 4000;
 const PAGE = 100;

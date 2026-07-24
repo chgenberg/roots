@@ -1,4 +1,5 @@
 import type { SellerGrade, SellerGradeId } from "@/types/fundraising";
+import { formatKrValue } from "@/lib/format";
 
 const GRADE_CONFIG: Record<
   SellerGradeId,
@@ -98,7 +99,7 @@ export function GradeProgress({
           Nästa: {grade.nextGrade.label} {nextCfg.icon}
         </span>
         <span className="text-xs text-muted-foreground">
-          {(grade.nextGrade.remainingOre / 100).toLocaleString("sv-SE")} kr kvar
+          {formatKrValue(grade.nextGrade.remainingOre)} kr kvar
         </span>
       </div>
       <div className="h-1.5 overflow-hidden rounded-full bg-brand-100">

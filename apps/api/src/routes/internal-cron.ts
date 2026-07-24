@@ -13,6 +13,7 @@
  */
 
 import { Hono } from "hono";
+import type { Context } from "hono";
 import { timingSafeEqual } from "crypto";
 import { childLogger } from "../lib/logger";
 import { auditLog, requestContext } from "../lib/audit";
@@ -33,7 +34,7 @@ function timingSafeStrEqual(a: string, b: string): boolean {
 }
 
 async function authorize(
-  c: any
+  c: Context
 ): Promise<{ ok: true } | { ok: false; status: 401 | 503 | 429 }> {
   const token = process.env.INTERNAL_CRON_TOKEN;
   if (!token) {

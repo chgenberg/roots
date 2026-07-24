@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { portalFetch } from "@/lib/portal-api";
 import { pipelineResponseSchema } from "@roots/contracts";
+import { formatKr } from "@/lib/format";
 
 const LEAD_SOURCES = [
   { value: "INBOUND", label: "Inkommande (förfrågan)" },
@@ -68,10 +69,6 @@ const STAGE_SCAFFOLD: Record<
   ACCEPTED: { icon: CheckCircle2, color: "border-t-brand-600", headerBg: "bg-brand-50" },
   REJECTED: { icon: CheckCircle2, color: "border-t-rose-400", headerBg: "bg-rose-50" },
 };
-
-function formatSek(ore: number): string {
-  return `${Math.round(ore / 100).toLocaleString("sv-SE")} kr`;
-}
 
 function daysBetween(iso: string): number {
   const t = new Date(iso).getTime();
@@ -202,7 +199,7 @@ export default function PipelinePage() {
               id: d.id,
               club: d.orgName ?? "—",
               contact: "",
-              value: d.totalOre > 0 ? formatSek(d.totalOre) : "Ej offererad",
+              value: d.totalOre > 0 ? formatKr(d.totalOre) : "Ej offererad",
               daysInStage: daysBetween(
                 typeof d.createdAt === "string"
                   ? d.createdAt
@@ -229,7 +226,7 @@ export default function PipelinePage() {
   }, []);
 
   const totalValue =
-    totalValueOre !== null ? formatSek(totalValueOre) : "—";
+    totalValueOre !== null ? formatKr(totalValueOre) : "—";
 
   return (
     <div className="page-enter space-y-6">

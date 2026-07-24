@@ -7,6 +7,9 @@ import { startWorkers, stopWorkers } from "./lib/jobs";
 import { flags } from "./lib/flags";
 import { validateEnvOrExit } from "./lib/validate-env";
 import { initSentry, captureException, flushSentry } from "./lib/sentry";
+import { connectRedis } from "./lib/redis";
+import { startScheduler, stopScheduler } from "./lib/scheduler";
+import { registerScheduledTasks } from "./lib/scheduled-tasks";
 
 const log = childLogger("server");
 
@@ -26,11 +29,15 @@ async function start() {
   // database, no Klarna webhooks get signed with the dev secret.
   validateEnvOrExit();
 
-  // Run pending schema migrations BEFORE we accept HTTP traffic. A failure
-  // crashes the process so the orchestrator can roll back the deploy.
-  // No-op when `RUN_MIGRATIONS_ON_BOOT` is off — schema is then assumed to
-  // have been migrated out-of-band.
-  await runBootMigrations();
+  // Kör väntande migrationer INNAN vi tar emot HTTP-trafik. Ett fel kraschar
+  // processen så att orkestreraren kan rulla tillbaka deployen. API:t äger
+  // schemat; sätt RUN_MIGRATIONS_ON_BOOT=false bara om något annat steg
+  // faktiskt applicerar dem.
+  await runBootMigrations({ role: "api" });
+
+  // Öppna Redis-socketen innan trafik släpps in, annars avvisas det första
+  // kommandot (sessioner, rate-limit och /readyz) medan handskakningen pågår.
+  await connectRedis();
 
   await initBankIdAdapter();
 
@@ -48,6 +55,11 @@ async function start() {
     }
   }
 
+  // Periodiska jobb (GDPR-radering m.fl.). Redis-låset gör att jobbet körs
+  // högst en gång per intervall även med flera repliker.
+  registerScheduledTasks();
+  startScheduler();
+
   serve({ fetch: app.fetch, port }, (info) => {
     log.info({ port: info.port }, `Roots API running on http://localhost:${info.port}`);
   });
@@ -55,6 +67,7 @@ async function start() {
 
 async function shutdown(signal: string) {
   log.info({ signal }, "shutdown signal received");
+  stopScheduler();
   try {
     await stopWorkers(5_000);
   } catch (err) {

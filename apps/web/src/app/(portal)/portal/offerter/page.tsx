@@ -20,7 +20,7 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
-import { FileText, Plus, Send, CheckCircle2, Clock, XCircle, Minus, Search } from "lucide-react";
+import { FileText, Plus, Send, CheckCircle2, Minus, Search } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { portalFetch } from "@/lib/portal-api";
 import {
@@ -28,6 +28,7 @@ import {
   createQuoteResponseSchema,
   clubsListResponseSchema,
 } from "@roots/contracts";
+import { formatKr } from "@/lib/format";
 
 const QUOTE_STATUS_LABELS: Record<string, string> = {
   DRAFT: "Utkast",
@@ -35,10 +36,6 @@ const QUOTE_STATUS_LABELS: Record<string, string> = {
   ACCEPTED: "Accepterad",
   REJECTED: "Nekad",
 };
-
-function formatSek(ore: number): string {
-  return `${Math.round(ore / 100).toLocaleString("sv-SE")} kr`;
-}
 
 function formatDate(value: string | Date | null | undefined): string {
   if (!value) return "—";
@@ -81,16 +78,6 @@ function statusBadge(status: string) {
       return <Badge variant="destructive">{status}</Badge>;
     default:
       return <Badge variant="secondary">{status}</Badge>;
-  }
-}
-
-function statusIcon(status: string) {
-  switch (status) {
-    case "Accepterad": return <CheckCircle2 className="h-4 w-4 text-brand-400" />;
-    case "Skickad": return <Send className="h-4 w-4 text-brand-400" />;
-    case "Utkast": return <Clock className="h-4 w-4 text-muted-foreground" />;
-    case "Nekad": return <XCircle className="h-4 w-4 text-red-500" />;
-    default: return null;
   }
 }
 
@@ -316,7 +303,7 @@ function NyOffertDialog({
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{p.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        {formatSek(p.priceOre)} / st
+                        {formatKr(p.priceOre)} / st
                       </p>
                     </div>
                     <div className="flex flex-shrink-0 items-center gap-2">
@@ -364,7 +351,7 @@ function NyOffertDialog({
           <div className="flex items-center justify-between rounded-md bg-muted/30 px-3 py-2">
             <span className="text-sm text-muted-foreground">Totalsumma</span>
             <span className="text-base font-semibold">
-              {formatSek(cartTotal)}
+              {formatKr(cartTotal)}
             </span>
           </div>
           {error && (
@@ -421,7 +408,7 @@ export default function OfferterPage() {
   const openTotalOre = quotes
     .filter((q) => q.status === "Utkast" || q.status === "Skickad")
     .reduce((sum, q) => sum + q.totalOre, 0);
-  const totalValue = formatSek(openTotalOre);
+  const totalValue = formatKr(openTotalOre);
 
   return (
     <div className="page-enter space-y-6">
@@ -500,7 +487,7 @@ export default function OfferterPage() {
                   <TableCell className="font-mono text-xs">{q.shortId}</TableCell>
                   <TableCell className="font-medium">{q.client}</TableCell>
                   <TableCell className="text-muted-foreground">{q.contact || "—"}</TableCell>
-                  <TableCell className="font-medium">{formatSek(q.totalOre)}</TableCell>
+                  <TableCell className="font-medium">{formatKr(q.totalOre)}</TableCell>
                   <TableCell>{statusBadge(q.status)}</TableCell>
                   <TableCell className="text-muted-foreground">{q.date}</TableCell>
                   <TableCell className="text-right text-muted-foreground">{q.validUntil}</TableCell>

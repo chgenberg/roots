@@ -220,7 +220,6 @@ interface MeResponse {
 export default function HelpPage() {
   const [role, setRole] = useState<Role>("PUBLIC");
   const [meName, setMeName] = useState("");
-  const [meEmail, setMeEmail] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const [contactName, setContactName] = useState("");
@@ -242,7 +241,6 @@ export default function HelpPage() {
         if (j.user) {
           setRole(j.user.role);
           setMeName(j.user.name);
-          setMeEmail(j.user.email);
           setContactName(j.user.name);
           setContactEmail(j.user.email);
         }

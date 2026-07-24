@@ -76,7 +76,13 @@ const ADMIN_NAV: NavItem[] = [
 
 function getNavItems(role: string): NavItem[] {
   if (role === "CLUB_ADMIN" || role === "CLUB_MEMBER") return CLUB_NAV;
-  if (role === "SALES_REP" || role === "SALES_ADMIN") return SALES_NAV;
+  if (role === "SALES_REP") {
+    // Säljarens siffror ligger på Pipeline. /portal/statistik bygger på
+    // orderintäkter som en säljare inte äger — API:et svarar 403 för rollen,
+    // så länken ledde till en sida som aldrig kunde fyllas med data.
+    return SALES_NAV.filter((i) => i.href !== "/portal/statistik");
+  }
+  if (role === "SALES_ADMIN") return SALES_NAV;
   return ADMIN_NAV;
 }
 

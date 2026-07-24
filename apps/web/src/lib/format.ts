@@ -1,0 +1,29 @@
+/**
+ * Formatering av pengar.
+ *
+ * Alla belopp lagras i öre. Priser är hela kronor, men härledda tal
+ * (marginaler, andelar, moms) blir sällan jämna — och `(ore / 100)
+ * .toLocaleString("sv-SE")` visade dem då med decimal: lagets förtjänst
+ * renderades "396,3 kr" mitt bland kolumner som annars visade hela kronor.
+ * Antalet decimaler varierade dessutom med värdet.
+ *
+ * Hjälparen fanns tidigare kopierad i sju filer. Den bor här nu så att
+ * beloppen ser likadana ut oavsett vilken vy man tittar på.
+ */
+
+/** Öre → "12 300 kr" (svensk gruppering, inga decimaler). */
+export function formatKr(ore: number): string {
+  return `${Math.round(ore / 100).toLocaleString("sv-SE")} kr`;
+}
+
+/** Öre → "12 300" utan enhet, för när vyn sätter "kr" själv. */
+export function formatKrValue(ore: number): string {
+  return Math.round(ore / 100).toLocaleString("sv-SE");
+}
+
+/** Öre → kompakt "12,3k" för axel- och stapeletiketter. */
+export function formatKrShort(ore: number): string {
+  const kr = ore / 100;
+  if (kr >= 1000) return `${(kr / 1000).toFixed(kr >= 10000 ? 0 : 1)}k`;
+  return `${Math.round(kr)}`;
+}

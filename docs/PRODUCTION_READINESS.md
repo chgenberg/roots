@@ -43,7 +43,7 @@ the `.env.example` placeholder.
 | Var | Why |
 |---|---|
 | `ROOTS_ENABLE_DEMO_ACCOUNTS=true` | Keeps the seeded `admin@roots.se` / `klubb@demo-if.se` / `salj@roots.se` accounts loginable in production |
-| `RUN_MIGRATIONS_ON_BOOT=true` | Recommended on Railway (single-instance) so the schema is always current |
+| `ROOTS_ALLOW_PROD_SEED=true` | Only if you deliberately want `db:seed` to reset the demo passwords in this environment |
 
 Reference: `.env.example` is the authoritative list; the validator
 keeps it honest.
@@ -61,6 +61,19 @@ keeps it honest.
 On Railway, set the health-check path to **`/readyz`**. A `503` from
 this endpoint means traffic should be drained.
 
+`healthcheckTimeout` is **300s**, not the 30s it used to be. The API runs
+migrations *before* `serve()` starts listening, and a replica that loses
+the advisory-lock race waits up to `MIGRATE_LOCK_TIMEOUT_MS` (60s
+default). During that window there is no listener at all, so the probe
+gets `ECONNREFUSED` — a 30s budget could fail a deploy whose migrations
+were working correctly.
+
+Note also that the API connects to Redis before it starts listening. With
+`lazyConnect` + `enableOfflineQueue: false`, the *first* Redis command
+after boot is rejected while the socket is still handshaking, which made
+`/readyz` answer `503` on the first probe and `ok` on the second. See
+`connectRedis()` in `apps/api/src/lib/redis.ts`.
+
 ---
 
 ## 3. Database
@@ -69,8 +82,10 @@ this endpoint means traffic should be drained.
       mirror.
 - [ ] At least one nightly backup snapshot has been verified by
       attempting a restore into a scratch database.
-- [ ] `RUN_MIGRATIONS_ON_BOOT=true` is set, **OR** the deployment
-      pipeline runs `pnpm db:migrate` as a release step.
+- [ ] Migrations: the API runs pending migrations at boot by default
+      (advisory-locked, so replicas are safe). Only set
+      `RUN_MIGRATIONS_ON_BOOT=false` if the pipeline runs
+      `pnpm db:migrate` as its own release step.
 - [ ] Connection limit on the DB allows for the API replica count plus
       the worker process plus 2 for migrations.
 - [ ] Demo seed has been run with `pnpm db:seed:demo` if this is the
@@ -85,6 +100,47 @@ this endpoint means traffic should be drained.
 - [ ] `CORS_ORIGIN` exactly matches `NEXT_PUBLIC_SITE_URL`. Mismatch =
       every POST silently fails the CSRF check on the browser side.
 - [ ] Redis is reachable from the API container. `/readyz` confirms.
+
+---
+
+## 4b. Scheduled jobs
+
+The API process runs its own periodic jobs — no external cron needed.
+Each job claims a Redis key with a TTL equal to its interval, so it runs
+**at most once per interval across the whole fleet** regardless of replica
+count, and the schedule survives restarts.
+
+| Job | Interval | What it does |
+|---|---|---|
+| `deletion-purge` | 6h | GDPR art. 17 — anonymises users whose cooldown has expired |
+
+- [ ] Redis is reachable. Without it the scheduler skips every run
+      (deliberately: better a missed run than two concurrent ones).
+- [ ] `audit_logs` contains a recent `cron.deletion_purge` row. That's
+      the answer to "when did the purge last run?".
+- [ ] `SCHEDULER_DISABLED` is unset, **unless** an external cron is
+      calling `POST /v1/internal/cron/deletion-purge` instead.
+
+Registered in `apps/api/src/lib/scheduled-tasks.ts`. The
+`/v1/internal/cron/*` endpoints remain available for manual or external
+triggering; both paths write the same audit row.
+
+### Background jobs (pg-boss) — before enabling
+
+`WORKERS_ENABLED` is **unset in production**, so the pg-boss queue is a
+no-op there today and `enqueueJob` throws (`DisabledQueue`). The only
+caller, `scheduleOrgNormalize`, early-returns on that flag, so nothing
+breaks. Before flipping it on:
+
+- [ ] Deploy a separate worker service running `node dist/workers/index.js`.
+      The API process starts pg-boss in producer mode only — it registers
+      no handlers and never claims jobs.
+- [ ] Decide what watches `system.dead-letter`. Jobs that exhaust their
+      three retries land there, and **nothing consumes or alerts on it**
+      today — they sit until `keep_until` expires. Dead-lettering beats
+      dropping, but it is not monitoring.
+- [ ] Note that most handlers in `apps/api/src/workers/index.ts` are
+      still no-op placeholders that only log their payload.
 
 ---
 

@@ -17,6 +17,7 @@ import Link from "next/link";
 import { getBrowserApiBase } from "@/lib/api-base";
 import { apiFetch } from "@/lib/api";
 import { useCart } from "@/lib/use-cart";
+import { formatKrValue } from "@/lib/format";
 
 const API_URL = getBrowserApiBase();
 
@@ -313,11 +314,11 @@ function CheckoutPageInner() {
                           <p className="truncate font-medium">{l.name}</p>
                           <p className="text-xs text-muted-foreground">
                             {l.qty} st &times;{" "}
-                            {(l.unitPriceOre / 100).toLocaleString("sv-SE")} kr
+                            {formatKrValue(l.unitPriceOre)} kr
                           </p>
                         </div>
                         <p className="shrink-0 font-medium tabular-nums">
-                          {(l.totalOre / 100).toLocaleString("sv-SE")} kr
+                          {formatKrValue(l.totalOre)} kr
                         </p>
                       </li>
                     ))}
@@ -327,7 +328,7 @@ function CheckoutPageInner() {
                     <div className="flex items-center justify-between text-muted-foreground">
                       <span>Delsumma</span>
                       <span className="tabular-nums">
-                        {(subtotalOre / 100).toLocaleString("sv-SE")} kr
+                        {formatKrValue(subtotalOre)} kr
                       </span>
                     </div>
                     {deliveryType === "DIRECT" && shippingFee > 0 && (
@@ -337,27 +338,27 @@ function CheckoutPageInner() {
                           {shippingOre === 0 && shippingThreshold > 0 ? (
                             <span className="ml-1 text-xs">
                               (fri över{" "}
-                              {(shippingThreshold / 100).toLocaleString("sv-SE")} kr)
+                              {formatKrValue(shippingThreshold)} kr)
                             </span>
                           ) : null}
                         </span>
                         <span className="tabular-nums">
                           {shippingOre === 0
                             ? "0 kr"
-                            : `${(shippingOre / 100).toLocaleString("sv-SE")} kr`}
+                            : `${formatKrValue(shippingOre)} kr`}
                         </span>
                       </div>
                     )}
                     <div className="flex items-center justify-between text-muted-foreground">
                       <span>Varav moms (25 %)</span>
                       <span className="tabular-nums">
-                        {(vatOre / 100).toLocaleString("sv-SE")} kr
+                        {formatKrValue(vatOre)} kr
                       </span>
                     </div>
                     <div className="flex items-center justify-between font-semibold">
                       <span>Totalt att betala</span>
                       <span className="tabular-nums">
-                        {(totalOre / 100).toLocaleString("sv-SE")} kr
+                        {formatKrValue(totalOre)} kr
                       </span>
                     </div>
                   </div>

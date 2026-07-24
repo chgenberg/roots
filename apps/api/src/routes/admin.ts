@@ -14,38 +14,24 @@
  */
 
 import { Hono } from "hono";
+import type { Context } from "hono";
 import { and, desc, eq, gte, like, lt, lte, sql } from "drizzle-orm";
+import type { SQL } from "drizzle-orm";
 import { db } from "@roots/db";
 import { auditLogs, users } from "@roots/db/schema";
-import { getSession, SESSION_COOKIE_NAME } from "../lib/session";
 import type { SessionData } from "../lib/session";
+import { requireSession } from "../lib/http-session";
 import { childLogger } from "../lib/logger";
 
 const log = childLogger("admin");
 
 export const admin = new Hono();
 
-function getSessionId(c: any): string | null {
-  const cookie = c.req.header("cookie") || "";
-  const match = cookie.match(new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`));
-  return match ? match[1] : null;
-}
-
-async function requireSession(c: any): Promise<SessionData | null> {
-  const sessionId = getSessionId(c);
-  if (!sessionId) return null;
-  try {
-    return await getSession(sessionId);
-  } catch {
-    return null;
-  }
-}
-
 type GuardResult =
   | { ok: true; session: SessionData }
   | { ok: false; status: 401 | 403; error: string };
 
-async function requireInternalAdmin(c: any): Promise<GuardResult> {
+async function requireInternalAdmin(c: Context): Promise<GuardResult> {
   const session = await requireSession(c);
   if (!session) return { ok: false, status: 401, error: "Ej inloggad" };
   if (session.role !== "INTERNAL_ADMIN") {
@@ -70,7 +56,7 @@ admin.get("/audit-log", async (c) => {
 
   // Build the WHERE clause incrementally. Each filter is optional;
   // we only apply a clause when the value is non-empty + valid.
-  const clauses: any[] = [];
+  const clauses: SQL[] = [];
   if (actionPrefix) {
     clauses.push(like(auditLogs.action, `${actionPrefix}%`));
   }

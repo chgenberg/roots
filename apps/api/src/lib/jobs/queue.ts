@@ -13,7 +13,13 @@ import { jobCatalog, singletonKey } from "./types";
  */
 
 export interface EnqueueOptions {
-  /** Idempotency key — repeated sends with the same key are a no-op. */
+  /**
+   * Idempotensnyckel. En sändning med en nyckel som redan finns *i kö* är en
+   * no-op och returnerar `null`. När jobbet börjat köras är nyckeln fri igen,
+   * så ett nytt jobb kan köas medan det förra fortfarande arbetar.
+   *
+   * Utan nyckel dedupliceras aldrig — varje sändning blir ett eget jobb.
+   */
   singletonKey?: string;
   /** Defer execution until this ISO timestamp. Optional. */
   startAfterIso?: string;
@@ -44,10 +50,11 @@ export interface Queue {
  * environments where Postgres is not available. Behaviour mirrors pg-boss
  * closely enough for handler authoring:
  *  - Validates payload against the Zod schema.
- *  - Honours `singletonKey` — duplicate sends while the singleton is still
- *    pending return `null` (matching pg-boss's `send()` contract). Once the
- *    job has drained, the singleton slot is released and the next enqueue
- *    creates a new job.
+ *  - Honours `singletonKey` — en dubblett medan jobbet ligger i kö returnerar
+ *    `null`. Nyckeln släpps när jobbet *börjar* köras, inte när handlern är
+ *    klar, eftersom pg-boss `stately`-index innehåller `state` och därför
+ *    tillåter ett nytt köat jobb medan det förra är `active`. Skillde de sig
+ *    hade testerna beskrivit ett annat beteende än produktionen.
  *  - Runs the handler synchronously on `start()` and on each `enqueue()`.
  */
 export class InMemoryQueue implements Queue {
@@ -116,15 +123,12 @@ export class InMemoryQueue implements Queue {
     while (this.pending.length > 0) {
       const job = this.pending.shift()!;
       const handler = this.handlers.get(job.name);
-      try {
-        if (handler) {
-          await handler({ name: job.name, payload: job.payload as any });
-        }
-      } finally {
-        // Release the singleton slot whether the handler succeeded, threw,
-        // or no handler was registered. Matches pg-boss: once the job leaves
-        // the active state, the next enqueue with the same key can run.
-        if (job.singletonKey) this.singletons.delete(job.singletonKey);
+      // Släpp slotten när jobbet lämnar kön, innan handlern kallas. pg-boss
+      // gör samma sak: `stately`-indexet är på (name, state, singleton_key),
+      // så ett nytt jobb får köas så snart det förra gått till `active`.
+      if (job.singletonKey) this.singletons.delete(job.singletonKey);
+      if (handler) {
+        await handler({ name: job.name, payload: job.payload as any });
       }
     }
   }

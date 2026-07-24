@@ -37,29 +37,12 @@ import {
   calculatorLinks,
   calculatorLeads,
 } from "@roots/db/schema";
-import { getSession, SESSION_COOKIE_NAME } from "../lib/session";
-import type { SessionData } from "../lib/session";
+import { requireSession } from "../lib/http-session";
 import { childLogger } from "../lib/logger";
 
 const log = childLogger("notifications");
 
 export const notifications = new Hono();
-
-function getSessionId(c: any): string | null {
-  const cookie = c.req.header("cookie") || "";
-  const match = cookie.match(new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`));
-  return match ? match[1] : null;
-}
-
-async function requireSession(c: any): Promise<SessionData | null> {
-  const sessionId = getSessionId(c);
-  if (!sessionId) return null;
-  try {
-    return await getSession(sessionId);
-  } catch {
-    return null;
-  }
-}
 
 interface NotificationItem {
   id: string; // stable per source row so the FE can dedupe

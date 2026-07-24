@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { CheckCircle2, Loader2, Share2, AlertCircle } from "lucide-react";
 import { getBrowserApiBase } from "@/lib/api-base";
 import { useCart } from "@/lib/use-cart";
+import { formatKrValue } from "@/lib/format";
 
 const API_URL = getBrowserApiBase();
 
@@ -240,7 +241,7 @@ function ConfirmationPageInner() {
               <div className="rounded-lg bg-brand-50 p-4">
                 <p className="text-sm text-muted-foreground">Belopp</p>
                 <p className="text-xl font-semibold">
-                  {(order.totalOre / 100).toLocaleString("sv-SE")} kr
+                  {formatKrValue(order.totalOre)} kr
                 </p>
               </div>
               <p className="text-xs text-muted-foreground">

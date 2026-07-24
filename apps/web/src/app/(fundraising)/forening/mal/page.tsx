@@ -9,6 +9,7 @@ import { useToast } from "@/components/ui/toast";
 import type { AssociationDashboard, Campaign, Team } from "@/types/fundraising";
 
 import { getBrowserApiBase } from "@/lib/api-base";
+import { formatKrValue } from "@/lib/format";
 
 const API_URL = getBrowserApiBase();
 
@@ -205,7 +206,7 @@ export default function GoalsPage() {
                     <p className="text-sm text-muted-foreground">
                       {isPackageGoal
                         ? `${team.orderCount || 0} paket`
-                        : `${(team.totalSalesOre / 100).toLocaleString("sv-SE")} kr`}
+                        : `${formatKrValue(team.totalSalesOre)} kr`}
                       {!isEditing && team.goalValue > 0 &&
                         (isPackageGoal
                           ? ` / ${team.goalValue} paket`

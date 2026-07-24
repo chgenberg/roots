@@ -109,7 +109,9 @@ export default function SellerOrdersPage() {
     })();
   }, []);
 
-  const orders = data?.orders ?? [];
+  // Egen memo: `data?.orders ?? []` gav en ny array-referens per render, vilket
+  // invaliderade filter- och sorterings-memona nedan varje gång.
+  const orders = useMemo(() => data?.orders ?? [], [data]);
 
   const filtered = useMemo(() => {
     return orders.filter((o) => {

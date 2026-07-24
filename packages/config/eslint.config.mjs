@@ -65,4 +65,18 @@ export default [
       "@typescript-eslint/no-explicit-any": "warn",
     },
   },
+  {
+    // Testdubblar och mock-builders formar medvetet partiella objekt som inte
+    // uppfyller de riktiga typerna (halva Drizzle-kedjor, trunkerade rader).
+    // Att kräva exakta typer där ger ceremoni utan att fånga buggar — tsc
+    // typkontrollerar fortfarande testerna.
+    files: [
+      "**/*.test.{ts,tsx}",
+      "**/*.spec.{ts,tsx}",
+      "**/test-utils/**/*.{ts,tsx}",
+    ],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "off",
+    },
+  },
 ];

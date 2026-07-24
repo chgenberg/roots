@@ -24,6 +24,7 @@ import {
 import { getBrowserApiBase } from "@/lib/api-base";
 import { useCart } from "@/lib/use-cart";
 import { ProductJsonLd } from "@/components/json-ld";
+import { formatKrValue } from "@/lib/format";
 
 const API_URL = getBrowserApiBase();
 
@@ -268,7 +269,7 @@ export default function SellerShopPage() {
                     </div>
                     <div className="mt-3 flex items-center justify-between">
                       <p className="text-lg font-semibold">
-                        {(product.priceOre / 100).toLocaleString("sv-SE")} kr
+                        {formatKrValue(product.priceOre)} kr
                       </p>
                       {/* MASTERPLAN_01 KC6.1: qty-steppers behöver 44x44
                           så supportern (oftast på mobil) inte trycker
@@ -345,7 +346,7 @@ export default function SellerShopPage() {
                 ? "Produkterna skickas direkt hem till dig."
                 : "Du kan välja hemleverans eller samleverans i kassan."}
               {shop.campaign?.shippingThresholdOre
-                ? ` Fri frakt över ${(shop.campaign.shippingThresholdOre / 100).toLocaleString("sv-SE")} kr.`
+                ? ` Fri frakt över ${formatKrValue(shop.campaign.shippingThresholdOre)} kr.`
                 : ""}
             </p>
           </div>
@@ -364,7 +365,7 @@ export default function SellerShopPage() {
                 {totalItems} {totalItems === 1 ? "produkt" : "produkter"}
               </p>
               <p className="text-lg font-semibold">
-                {(totalOre / 100).toLocaleString("sv-SE")} kr
+                {formatKrValue(totalOre)} kr
               </p>
             </div>
             <Button size="lg" asChild>

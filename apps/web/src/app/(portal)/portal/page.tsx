@@ -25,6 +25,46 @@ import {
 } from "lucide-react";
 import { usePortalUser } from "@/lib/portal-context";
 
+/**
+ * Formen på `/portal/dashboard`. Backend returnerar olika fält beroende på
+ * rollen (klubb, sälj, admin), så allt är optional och varje dashboard läser
+ * bara sina egna fält — men vi slipper `any` och får stavfel fångade.
+ */
+type DashboardStats = {
+  // Klubb
+  members?: number;
+  orders?: number;
+  revenue?: string;
+  nextDelivery?: string;
+  activity?: Array<{ text: string; time: string }>;
+  // Sälj
+  activeClubs?: number;
+  openQuotes?: number;
+  closedThisMonth?: number;
+  pipelineValue?: string;
+  pipeline?: Array<{ stage: string; count: number; active: boolean }>;
+  topClubs?: Array<{ name: string; orders: number; revenue: string }>;
+  // Intern admin
+  totalOrders?: number;
+  totalClubs?: number;
+  mrr?: string;
+  hairConversion?: string;
+  leaderboard?: Array<{
+    name: string;
+    clubs: number;
+    revenue: string;
+    trend: string;
+  }>;
+  systemHealth?: Array<{ name: string; status: string; ok: boolean }>;
+  recentActivity?: Array<{ text: string; time: string; type: string }>;
+};
+
+type DashboardResponse = {
+  role: string;
+  isDemo?: boolean;
+  stats?: DashboardStats;
+};
+
 /* ─── Club Empty State ────────────────────────────────────── */
 
 const EMPTY_CLUB_STATS = [
@@ -95,7 +135,7 @@ function ClubDashboard({ name }: { name: string }) {
   const [activity, setActivity] = useState(EMPTY_CLUB_ACTIVITY);
 
   useEffect(() => {
-    portalFetch<{ role: string; stats: any }>("/dashboard")
+    portalFetch<DashboardResponse>("/dashboard")
       .then((data) => {
         if (data.stats) {
           const s = data.stats;
@@ -146,7 +186,7 @@ function ClubDashboard({ name }: { name: string }) {
               {activity.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Ingen aktivitet ännu.</p>
               ) : (
-                activity.map((item, i) => (
+                activity.map((item) => (
                   <div
                     key={`${item.time}-${item.text}`}
                     className="flex items-center justify-between py-3 first:pt-0 last:pb-0"
@@ -214,7 +254,7 @@ function SalesDashboard({ name }: { name: string }) {
   const [isDemo, setIsDemo] = useState(true);
 
   useEffect(() => {
-    portalFetch<{ role: string; isDemo?: boolean; stats: any }>("/dashboard")
+    portalFetch<DashboardResponse>("/dashboard")
       .then((data) => {
         setIsDemo(data.isDemo ?? false);
         if (data.stats) {
@@ -402,7 +442,7 @@ function AdminDashboard({ name }: { name: string }) {
   const [isDemo, setIsDemo] = useState(true);
 
   useEffect(() => {
-    portalFetch<{ role: string; isDemo?: boolean; stats: any }>("/dashboard")
+    portalFetch<DashboardResponse>("/dashboard")
       .then((data) => {
         setIsDemo(data.isDemo ?? false);
         if (data.stats) {

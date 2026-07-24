@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 
 import { getBrowserApiBase } from "@/lib/api-base";
+import { formatKrValue } from "@/lib/format";
 
 const API_URL = getBrowserApiBase();
 
@@ -277,14 +278,14 @@ function OrderStatusPageInner() {
                 <div className="flex items-center justify-between text-sm py-1.5 border-b">
                   <span className="text-muted-foreground">Frakt</span>
                   <span>
-                    {(order.shippingOre / 100).toLocaleString("sv-SE")} kr
+                    {formatKrValue(order.shippingOre)} kr
                   </span>
                 </div>
               )}
               <div className="flex items-center justify-between pt-2">
                 <span className="font-semibold">Totalt</span>
                 <span className="text-lg font-bold">
-                  {(order.totalOre / 100).toLocaleString("sv-SE")} kr
+                  {formatKrValue(order.totalOre)} kr
                 </span>
               </div>
             </div>

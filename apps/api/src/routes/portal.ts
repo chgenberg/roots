@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq, sql, desc, and, gte, lt, count as drizzleCount, inArray, isNull } from "drizzle-orm";
+import { eq, sql, desc, and, gte, lt, inArray, isNull } from "drizzle-orm";
 import { db } from "@roots/db";
 import {
   users,
@@ -10,8 +10,8 @@ import {
   quotes,
   quoteLines,
 } from "@roots/db/schema";
-import { getSession, SESSION_COOKIE_NAME, isDemoSession } from "../lib/session";
-import type { SessionData } from "../lib/session";
+import { isDemoSession } from "../lib/session";
+import { requireSession } from "../lib/http-session";
 import { childLogger } from "../lib/logger";
 import type {
   DashboardResponse,
@@ -42,22 +42,6 @@ function isPortalRole(role: string): role is PortalRole {
 
 function formatSek(ore: number): string {
   return `${Math.round(ore / 100).toLocaleString("sv-SE")} kr`;
-}
-
-function getSessionId(c: any): string | null {
-  const cookie = c.req.header("cookie") || "";
-  const match = cookie.match(new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`));
-  return match ? match[1] : null;
-}
-
-async function requireSession(c: any): Promise<SessionData | null> {
-  const sessionId = getSessionId(c);
-  if (!sessionId) return null;
-  try {
-    return await getSession(sessionId);
-  } catch {
-    return null;
-  }
 }
 
 // ── Dashboard KPIs (role-based) ─────────────────────────────

@@ -3,10 +3,15 @@ node_modules/
 dist/
 .turbo/
 .env
-.env.local
+.env.*
+!.env.example
+!.env.local.example
 *.tsbuildinfo
 .DS_Store
 .venv/
 __pycache__/
 *.pyc
-.github/workflows/
+
+# Genererad output — inte källkod.
+scripts/roots-shots/out/
+docs/**/_cache/

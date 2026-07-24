@@ -9,12 +9,9 @@ import {
   CalculatorInputsSchema,
   type CalculatorInputs,
 } from "@roots/contracts";
-import {
-  getSession,
-  SESSION_COOKIE_NAME,
-  isDemoSession,
-} from "../lib/session";
+import { isDemoSession } from "../lib/session";
 import type { SessionData } from "../lib/session";
+import { requireSession } from "../lib/http-session";
 import { childLogger } from "../lib/logger";
 
 const log = childLogger("calculator-admin");
@@ -28,22 +25,6 @@ const SITE_URL = (
 ).replace(/\/$/, "");
 
 const SALES_ROLES = new Set(["SALES_REP", "SALES_ADMIN", "INTERNAL_ADMIN"]);
-
-function getSessionId(c: any): string | null {
-  const cookie = c.req.header("cookie") || "";
-  const match = cookie.match(new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`));
-  return match ? match[1] : null;
-}
-
-async function requireSession(c: any): Promise<SessionData | null> {
-  const sessionId = getSessionId(c);
-  if (!sessionId) return null;
-  try {
-    return await getSession(sessionId);
-  } catch {
-    return null;
-  }
-}
 
 /** SALES_REP ser bara egna länkar; SALES_ADMIN/INTERNAL_ADMIN ser alla. */
 function seesAllLinks(role: string): boolean {

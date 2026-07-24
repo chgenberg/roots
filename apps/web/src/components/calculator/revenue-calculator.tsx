@@ -12,15 +12,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { GoalGauge } from "@/components/charts";
 import { cn } from "@/lib/utils";
 import { Lock } from "lucide-react";
+import { formatKr } from "@/lib/format";
 
 function krLabel(kr: number): string {
   return `${Math.round(kr).toLocaleString("sv-SE")} kr`;
 }
-/** Öre → "12 300 kr" för GoalGauge. */
-function oreToKr(ore: number): string {
-  return `${Math.round(ore / 100).toLocaleString("sv-SE")} kr`;
-}
-
 interface SliderFieldProps {
   label: string;
   value: number;
@@ -266,7 +262,7 @@ export function RevenueCalculator({
                 <GoalGauge
                   currentOre={result.earningsKr * 100}
                   goalOre={result.goalKr * 100}
-                  format={oreToKr}
+                  format={formatKr}
                   size={170}
                 />
               ) : (

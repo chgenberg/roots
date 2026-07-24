@@ -22,6 +22,7 @@ import {
   Trash2,
   ChevronDown,
 } from "lucide-react";
+import { formatKr } from "@/lib/format";
 
 interface CalcLink {
   id: string;
@@ -45,10 +46,6 @@ interface CalcLead {
   inputs: CalculatorInputs | null;
   result: CalculatorResult | null;
   createdAt: string;
-}
-
-function krFromOre(ore: number): string {
-  return `${Math.round(ore / 100).toLocaleString("sv-SE")} kr`;
 }
 
 export default function RaknesnurraPage() {
@@ -295,7 +292,7 @@ export default function RaknesnurraPage() {
                               </span>
                             </div>
                             <p className="mt-1 text-xs text-muted-foreground">
-                              Räknade på {krFromOre(lead.computedEarningsOre)} i
+                              Räknade på {formatKr(lead.computedEarningsOre)} i
                               förtjänst
                               {lead.inputs
                                 ? ` (${lead.inputs.sellers} säljare)`

@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import type { Context } from "hono";
 import { eq, and, sql, isNull } from "drizzle-orm";
 import { db } from "@roots/db";
 import {
@@ -9,9 +10,10 @@ import {
   organizations,
   users,
 } from "@roots/db/schema";
-import { getSession, isDemoSession, SESSION_COOKIE_NAME } from "../lib/session";
+import { getSession, isDemoSession } from "../lib/session";
 import { getInvoiceProvider } from "../lib/invoicing";
 import type { SessionData } from "../lib/session";
+import { getSessionId } from "../lib/http-session";
 import { childLogger } from "../lib/logger";
 import { auditLog, requestContext } from "../lib/audit";
 import { redis } from "../lib/redis";
@@ -20,13 +22,7 @@ const log = childLogger("settlement");
 
 export const settlement = new Hono();
 
-function getSessionId(c: any): string | null {
-  const cookie = c.req.header("cookie") || "";
-  const match = cookie.match(new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`));
-  return match ? match[1] : null;
-}
-
-async function requireAdmin(c: any): Promise<SessionData | null> {
+async function requireAdmin(c: Context): Promise<SessionData | null> {
   const sessionId = getSessionId(c);
   if (!sessionId) return null;
   try {
@@ -303,7 +299,7 @@ settlement.post("/generate/:campaignId", async (c) => {
     });
 
     return c.json({ ok: true, settlements: results });
-  } catch (err: any) {
+  } catch (err) {
     log.error({ err }, "Settlement generation failed");
     return c.json({ error: "Avräkning misslyckades" }, 500);
   } finally {
@@ -636,7 +632,7 @@ settlement.post("/create-invoice/:payoutId", async (c) => {
     } finally {
       await redis.del(lockKey).catch(() => {});
     }
-  } catch (err: any) {
+  } catch (err) {
     log.error({ err }, "Invoice creation failed");
     return c.json({ error: "Faktura kunde inte skapas" }, 500);
   }

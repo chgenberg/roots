@@ -2,7 +2,8 @@
   "name": "roots",
   "private": true,
   "scripts": {
-    "dev": "turbo dev",
+    "dev": "turbo dev --filter=@roots/web --filter=@roots/api",
+    "dev:videos": "pnpm -F @roots/videos dev",
     "build": "turbo build",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",

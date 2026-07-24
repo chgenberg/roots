@@ -27,11 +27,25 @@
 DELETE FROM "sessions"
 WHERE "user_id" NOT IN (SELECT "id" FROM "users");
 
-ALTER TABLE "sessions"
-  ADD CONSTRAINT "sessions_user_id_fk"
-  FOREIGN KEY ("user_id")
-  REFERENCES "users"("id")
-  ON DELETE CASCADE;
+-- DO-block så att satsen är idempotent (constraints saknar IF NOT EXISTS före
+-- pg 17). Samma mönster som 0002/0003. Utan skyddet failar hela migrations-
+-- transaktionen med 42710 i en miljö där constraintet redan finns — t.ex. en
+-- databas som provisionerats med `drizzle-kit push`, där schema/sessions.ts
+-- redan deklarerar .references().
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+      FROM pg_constraint
+     WHERE conname = 'sessions_user_id_fk'
+  ) THEN
+    ALTER TABLE "sessions"
+      ADD CONSTRAINT "sessions_user_id_fk"
+      FOREIGN KEY ("user_id")
+      REFERENCES "users"("id")
+      ON DELETE CASCADE;
+  END IF;
+END$$;
 
 -- 2) audit_logs composite index för admin-vyn
 CREATE INDEX IF NOT EXISTS "audit_logs_entity_created_idx"

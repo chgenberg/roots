@@ -521,7 +521,7 @@ checkout.post("/create", async (c) => {
         return [newOrder];
       });
       order = created;
-    } catch (err: any) {
+    } catch (err) {
       // P2.13: kollision på unique(idempotencyKey) — en parallell
       // request har precis vunnit racet. Returnera den befintliga.
       //
@@ -529,8 +529,13 @@ checkout.post("/create", async (c) => {
       // till sellerSlug+body-hash är kollisioner nu nästan alltid
       // legitima retries från samma klient. Vi verifierar ändå att
       // email matchar innan vi returnerar viewToken — defense-in-depth.
+      const pgCode =
+        typeof err === "object" && err !== null && "code" in err
+          ? String((err as { code?: unknown }).code)
+          : "";
       const isUniqueViolation =
-        err?.code === "23505" || /unique/i.test(String(err?.message));
+        pgCode === "23505" ||
+        /unique/i.test(err instanceof Error ? err.message : String(err));
       if (isUniqueViolation) {
         const [winner] = await db
           .select()
@@ -646,7 +651,7 @@ checkout.post("/create", async (c) => {
       // exponera /order-status öppet.
       viewToken: issueOrderViewToken(order.id),
     });
-  } catch (err: any) {
+  } catch (err) {
     log.error({ err }, "Checkout creation failed");
     return c.json({ error: "Något gick fel vid kassan." }, 500);
   }

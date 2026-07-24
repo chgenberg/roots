@@ -35,12 +35,8 @@ import {
   organizations,
   users,
 } from "@roots/db/schema";
-import {
-  getSession,
-  isDemoSession,
-  SESSION_COOKIE_NAME,
-  type SessionData,
-} from "../lib/session";
+import { isDemoSession } from "../lib/session";
+import { requireSession } from "../lib/http-session";
 import { childLogger } from "../lib/logger";
 import { auditLog, requestContext } from "../lib/audit";
 import { getEmailSender } from "../lib/email";
@@ -65,22 +61,6 @@ const SITE_URL = (
 // Lokal helper-pattern matchar dashboard.ts/settlement.ts — vi exporterar
 // inte en delad `requireSession` ännu (skulle vara en egen story att
 // rycka ut till en lib).
-function getSessionId(c: any): string | null {
-  const cookie = c.req.header("cookie") || "";
-  const match = cookie.match(new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`));
-  return match ? match[1] : null;
-}
-
-async function requireSession(c: any): Promise<SessionData | null> {
-  const sessionId = getSessionId(c);
-  if (!sessionId) return null;
-  try {
-    return await getSession(sessionId);
-  } catch {
-    return null;
-  }
-}
-
 // ────────────────────────────────────────────────────────────────────
 // GET /v1/payouts (INTERNAL_ADMIN only — alla utbetalningar i systemet)
 // ────────────────────────────────────────────────────────────────────

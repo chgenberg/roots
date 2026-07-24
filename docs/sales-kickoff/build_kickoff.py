@@ -215,7 +215,7 @@ def section_head(slide, kick, title, y=Inches(0.72), tsize=32, tw=Inches(11.6)):
 # ════════════════════════ SLIDE RENDERERS ════════════════════════
 def r_cover(d):
     s = new_slide(OFFWHITE)
-    img_cover(s, web_small("images/h1desktop.jpg", 2000), Inches(7.7), 0, SW - Inches(7.7), SH)
+    img_cover(s, web_small("images/collection-2.jpg", 2000), Inches(7.7), 0, SW - Inches(7.7), SH)
     rect(s, Inches(7.7), 0, Inches(0.06), SH, FOREST)
     spine(s, FOREST)
     img_fit(s, brand("brand/roots-logo-black.png"),
@@ -323,7 +323,7 @@ def r_products(d):
     s = new_slide(OFFWHITE)
     spine(s)
     section_head(s, d["kicker"], d["title"])
-    imgs = ["images/p1.jpg", "images/p3.jpg", "images/p4.jpg"]
+    imgs = ["images/schampoo.jpg", "images/conditioner.jpg", "images/body-wash.jpg"]
     cards = d["cards"]
     n = len(cards)
     xs, cw = _cards_geom(n)
@@ -427,7 +427,16 @@ def title_for(d):
 for d in SLIDES:
     RENDER[d["kind"]](d)
 prs.save(OUT_PPTX)
-print("PPTX:", OUT_PPTX, f"({len(SLIDES)} slides)")
+
+# Bädda in Alan Sans + Inter så filen renderas rätt på alla datorer.
+import sys as _sys
+_sys.path.insert(0, os.path.abspath(os.path.join(ROOT, "..", "roots-templates")))
+try:
+    from pptx_embed import embed_fonts
+    embed_fonts(OUT_PPTX)
+    print("PPTX:", OUT_PPTX, f"({len(SLIDES)} slides, typsnitt inbäddade)")
+except Exception as _e:
+    print("PPTX:", OUT_PPTX, f"({len(SLIDES)} slides) – font-embedding hoppades över:", _e)
 
 
 # ════════════════════════ BUILD DOCX (talarmanus) ════════════════════════

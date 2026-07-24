@@ -7,6 +7,7 @@ import { CreditCard, TrendingUp, Loader2 } from "lucide-react";
 import type { AssociationDashboard, Campaign, Team } from "@/types/fundraising";
 
 import { getBrowserApiBase } from "@/lib/api-base";
+import { formatKrValue } from "@/lib/format";
 
 const API_URL = getBrowserApiBase();
 
@@ -78,7 +79,7 @@ export default function SettlementPage() {
               <p className="text-sm text-muted-foreground">Total försäljning</p>
             </div>
             <p className="text-2xl font-bold">
-              {(totalSales / 100).toLocaleString("sv-SE")} kr
+              {formatKrValue(totalSales)} kr
             </p>
           </CardContent>
         </Card>
@@ -86,7 +87,7 @@ export default function SettlementPage() {
           <CardContent className="p-5">
             <p className="text-sm text-muted-foreground">Föreningens intjänat</p>
             <p className="text-2xl font-bold text-success">
-              {(teamShare / 100).toLocaleString("sv-SE")} kr
+              {formatKrValue(teamShare)} kr
             </p>
             <p className="text-xs text-muted-foreground mt-1">
               {marginPercent}% marginal
@@ -97,7 +98,7 @@ export default function SettlementPage() {
           <CardContent className="p-5">
             <p className="text-sm text-muted-foreground">Roots andel</p>
             <p className="text-2xl font-bold">
-              {(rootsShare / 100).toLocaleString("sv-SE")} kr
+              {formatKrValue(rootsShare)} kr
             </p>
           </CardContent>
         </Card>
@@ -129,10 +130,10 @@ export default function SettlementPage() {
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-semibold">
-                      {(team.totalSalesOre / 100).toLocaleString("sv-SE")} kr
+                      {formatKrValue(team.totalSalesOre)} kr
                     </p>
                     <p className="text-xs text-success">
-                      +{(teamEarned / 100).toLocaleString("sv-SE")} kr
+                      +{formatKrValue(teamEarned)} kr
                     </p>
                   </div>
                 </div>

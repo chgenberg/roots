@@ -50,18 +50,40 @@ export class MockBankIdAdapter implements BankIdAdapter {
 let bankIdAdapter: BankIdAdapter | null = null;
 let realAdapterLoaded = false;
 
+/**
+ * Mock-adaptern godkänner ALLA identifieringar som "Test Testsson". Att falla
+ * tillbaka på den tyst vore en fälla: den dagen BankID kopplas till ett
+ * riktigt behörighetsbeslut skulle en felkonfigurerad prod-deploy släppa
+ * igenom vem som helst. Därför loggar vi högt när det händer, och
+ * `bankIdMode()` rapporterar vad som faktiskt är laddat — inte vad env antyder.
+ */
 export async function initBankIdAdapter(): Promise<void> {
-  if (process.env.BANKID_PFX_PATH) {
-    try {
-      const { RealBankIdAdapter } = await import("./real-adapter");
-      bankIdAdapter = new RealBankIdAdapter();
-      realAdapterLoaded = true;
-    } catch {
-      bankIdAdapter = new MockBankIdAdapter();
-    }
-  } else {
+  realAdapterLoaded = false;
+
+  if (!process.env.BANKID_PFX_PATH) {
     bankIdAdapter = new MockBankIdAdapter();
+    return;
   }
+
+  try {
+    const { RealBankIdAdapter } = await import("./real-adapter");
+    bankIdAdapter = new RealBankIdAdapter();
+    realAdapterLoaded = true;
+  } catch (err) {
+    bankIdAdapter = new MockBankIdAdapter();
+    const { childLogger } = await import("../logger");
+    childLogger("bankid").error(
+      { err },
+      "BANKID_PFX_PATH är satt men den riktiga adaptern kunde inte laddas — " +
+        "faller tillbaka på mock som godkänner alla identifieringar"
+    );
+  }
+}
+
+/** Vilken adapter som faktiskt körs just nu. */
+export function bankIdMode(): "production" | "test" | "mock" {
+  if (!realAdapterLoaded) return "mock";
+  return process.env.BANKID_ENV === "production" ? "production" : "test";
 }
 
 export function getBankIdAdapter(): BankIdAdapter {

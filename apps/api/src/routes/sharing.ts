@@ -2,30 +2,13 @@ import { Hono } from "hono";
 import { eq } from "drizzle-orm";
 import { db } from "@roots/db";
 import { sellers, teams, campaigns } from "@roots/db/schema";
-import { getSession, SESSION_COOKIE_NAME } from "../lib/session";
 import { getInviteTemplate, getShopShareTemplate } from "../lib/communication-templates";
-import type { SessionData } from "../lib/session";
+import { requireSession } from "../lib/http-session";
 import { childLogger } from "../lib/logger";
 
 const log = childLogger("sharing");
 
 export const sharing = new Hono();
-
-function getSessionId(c: any): string | null {
-  const cookie = c.req.header("cookie") || "";
-  const match = cookie.match(new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`));
-  return match ? match[1] : null;
-}
-
-async function requireSession(c: any): Promise<SessionData | null> {
-  const sessionId = getSessionId(c);
-  if (!sessionId) return null;
-  try {
-    return await getSession(sessionId);
-  } catch {
-    return null;
-  }
-}
 
 sharing.get("/invite-template/:teamId", async (c) => {
   const session = await requireSession(c);

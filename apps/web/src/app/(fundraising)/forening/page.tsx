@@ -30,6 +30,7 @@ import { useToast } from "@/components/ui/toast";
 import { apiFetch } from "@/lib/api";
 import type { AssociationDashboard as AssociationDashboardData, Campaign } from "@/types/fundraising";
 import { getBrowserApiBase } from "@/lib/api-base";
+import { formatKrValue } from "@/lib/format";
 
 const API_URL = getBrowserApiBase();
 
@@ -246,7 +247,7 @@ function AssociationDashboardInner() {
           <CardContent className="p-4 sm:p-5">
             <p className="text-xs text-muted-foreground sm:text-sm">Total försäljning</p>
             <p className="mt-1 text-xl font-bold sm:text-2xl">
-              {(totalSales / 100).toLocaleString("sv-SE")} kr
+              {formatKrValue(totalSales)} kr
             </p>
           </CardContent>
         </Card>
@@ -295,7 +296,7 @@ function AssociationDashboardInner() {
             <p className="mt-2 text-xs text-muted-foreground">
               {isPackageGoal
                 ? `${totalOrders} av ${campaignGoal} paket`
-                : `${(totalSales / 100).toLocaleString("sv-SE")} kr av ${campaignGoal.toLocaleString("sv-SE")} kr`}
+                : `${formatKrValue(totalSales)} kr av ${campaignGoal.toLocaleString("sv-SE")} kr`}
             </p>
           </CardContent>
         </Card>
@@ -329,7 +330,7 @@ function AssociationDashboardInner() {
                     </p>
                   </div>
                   <p className="text-sm font-semibold">
-                    {(team.totalSalesOre / 100).toLocaleString("sv-SE")} kr
+                    {formatKrValue(team.totalSalesOre)} kr
                   </p>
                 </div>
               ))}

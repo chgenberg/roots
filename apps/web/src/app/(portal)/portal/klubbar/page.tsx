@@ -15,6 +15,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { Building2, Search } from "lucide-react";
+import { formatKr } from "@/lib/format";
 
 interface ClubRow {
   id: string | number;
@@ -33,7 +34,7 @@ function statusVariant(status: string) {
 
 function formatSek(ore: number): string {
   if (!ore || ore <= 0) return "—";
-  return `${Math.round(ore / 100).toLocaleString("sv-SE")} kr`;
+  return formatKr(ore);
 }
 
 function formatDate(iso: string | null | undefined): string {

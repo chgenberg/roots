@@ -100,6 +100,43 @@ describe("InMemoryQueue", () => {
     expect(id3).not.toBe(id1);
   });
 
+  it("släpper nyckeln när jobbet börjar köra, inte när handlern är klar", async () => {
+    // pg-boss `stately`-index är på (name, state, singleton_key), så ett nytt
+    // jobb får köas så snart det förra gått till `active`. Testdubbletten måste
+    // hålla samma regel, annars beskriver testerna ett annat beteende än
+    // produktionen.
+    const q = new InMemoryQueue();
+    const key = "same-key";
+    let duringHandler: string | null = null;
+    let enqueuedOnce = false;
+
+    q.registerHandler("agent.duplicate-sweep", async () => {
+      if (enqueuedOnce) return;
+      enqueuedOnce = true;
+      duringHandler = await q.enqueue(
+        "agent.duplicate-sweep",
+        {},
+        { singletonKey: key }
+      );
+    });
+
+    await q.start();
+    await q.enqueue("agent.duplicate-sweep", {}, { singletonKey: key });
+
+    expect(duringHandler).not.toBeNull();
+  });
+
+  it("nyckellösa jobb dedupliceras aldrig mot varandra", async () => {
+    // Motsvarigheten till slumpnyckeln i PgBossQueue: utan nyckel ska varje
+    // sändning bli ett eget jobb.
+    const q = new InMemoryQueue();
+    const a = await q.enqueue("agent.duplicate-sweep", {});
+    const b = await q.enqueue("agent.duplicate-sweep", {});
+    expect(typeof a).toBe("string");
+    expect(typeof b).toBe("string");
+    expect(a).not.toBe(b);
+  });
+
   it("drops jobs with no registered handler", async () => {
     const q = new InMemoryQueue();
     await q.start();

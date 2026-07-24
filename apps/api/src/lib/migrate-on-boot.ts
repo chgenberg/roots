@@ -18,28 +18,48 @@ const log = childLogger("migrate-on-boot");
  *    the orchestrator (Docker/Railway/Fly) marks the deploy bad. This is
  *    safer than starting a server against a schema-incompatible DB.
  *
- * Recommended rollout:
- *   API container env:    RUN_MIGRATIONS_ON_BOOT=true
- *   Worker container env: RUN_MIGRATIONS_ON_BOOT=false  (let API run them)
+ * Vem som kör migrationerna bestäms av `role`, inte av miljön:
+ *   role: "api"     → kör som standard. API:t äger schemat.
+ *   role: "worker"  → hoppar över som standard, så schema-ägandet är
+ *                     entydigt. Kan tvingas på med RUN_MIGRATIONS_ON_BOOT=true
+ *                     för en worker-only-deploy (advisory-låset gör det säkert).
  *
- * Off by default so first-deploy of this change is non-blocking — toggle
- * the env var when ops is ready to hand schema control to the app process.
+ * Flaggan var tidigare av som standard för båda rollerna, med en kommentar om
+ * att ops skulle slå på den "när de var klara". Det gjordes aldrig, och det
+ * fanns inget pre-deploy-steg någon annanstans — så migrationer applicerades
+ * i praktiken aldrig i produktion. API:t startade mot vilket schema som råkade
+ * ligga i databasen, och `routes/auth.ts` sväljer dessutom schema-drift-fel
+ * vid inloggning, så drift syntes som märkliga inloggningsfel i stället för
+ * som ett tydligt krasch.
  */
-export async function runBootMigrations(): Promise<void> {
-  if (!isEnabled("RUN_MIGRATIONS_ON_BOOT", false)) {
-    log.debug("RUN_MIGRATIONS_ON_BOOT is off — skipping");
+export async function runBootMigrations(
+  opts: { role: "api" | "worker" } = { role: "api" }
+): Promise<void> {
+  const defaultOn = opts.role === "api";
+  if (!isEnabled("RUN_MIGRATIONS_ON_BOOT", defaultOn)) {
+    log.debug({ role: opts.role }, "migrations on boot disabled — skipping");
     return;
   }
   if (!process.env.DATABASE_URL) {
-    log.warn("RUN_MIGRATIONS_ON_BOOT is on but DATABASE_URL is missing — skipping");
-    return;
+    // Hellre krasch än tyst hoppa över: det här är precis läget där man mest
+    // av allt vill att deployen rullas tillbaka.
+    throw new Error(
+      "migrationer ska köras vid start men DATABASE_URL saknas — vägrar starta"
+    );
   }
 
   log.info("running pending database migrations…");
   try {
-    const result = await runMigrations({
-      lockTimeoutMs: Number(process.env.MIGRATE_LOCK_TIMEOUT_MS ?? 60_000),
-    });
+    // `??` fångar inte tom sträng, och en felstavning ger NaN. Båda är falsy i
+    // migrate.ts:s `lockTimeoutMs > 0`-koll, vilket hade hoppat över SET
+    // lock_timeout helt — då väntar starten för evigt i stället för att fela.
+    const parsedTimeout = Number(process.env.MIGRATE_LOCK_TIMEOUT_MS);
+    const lockTimeoutMs =
+      Number.isFinite(parsedTimeout) && parsedTimeout > 0
+        ? parsedTimeout
+        : 60_000;
+
+    const result = await runMigrations({ lockTimeoutMs });
     log.info(
       {
         applied: result.applied,

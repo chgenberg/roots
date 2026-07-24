@@ -1,5 +1,5 @@
 import { Hono, type Context } from "hono";
-import { getBankIdAdapter } from "../lib/bankid/adapter";
+import { getBankIdAdapter, bankIdMode } from "../lib/bankid/adapter";
 import { childLogger } from "../lib/logger";
 import {
   bankidStartRateLimit,
@@ -34,15 +34,10 @@ async function enforceBankIdRateLimit(
 }
 
 bankid.get("/status", async (c) => {
-  const hasCert = Boolean(process.env.BANKID_PFX_PATH);
-  return c.json({
-    enabled: hasCert,
-    mode: hasCert
-      ? process.env.BANKID_ENV === "production"
-        ? "production"
-        : "test"
-      : "mock",
-  });
+  // Rapportera vilken adapter som faktiskt är laddad. Att härleda läget ur
+  // BANKID_PFX_PATH ljög när certifikatet fanns men adaptern inte kunde laddas.
+  const mode = bankIdMode();
+  return c.json({ enabled: mode !== "mock", mode });
 });
 
 bankid.post("/auth/start", async (c) => {
@@ -61,7 +56,7 @@ bankid.post("/auth/start", async (c) => {
       autoStartToken: result.autoStartToken,
       qrStartToken: result.qrStartToken,
     });
-  } catch (err: any) {
+  } catch (err) {
     log.error({ err }, "auth/start failed");
     return c.json({ error: "Kunde inte starta BankID-identifiering" }, 500);
   }
@@ -87,7 +82,7 @@ bankid.post("/auth/collect", async (c) => {
     const result = await adapter.collect(body.orderRef);
 
     return c.json(result);
-  } catch (err: any) {
+  } catch (err) {
     log.error({ err }, "auth/collect failed");
     return c.json({ error: "BankID-identifiering misslyckades" }, 500);
   }

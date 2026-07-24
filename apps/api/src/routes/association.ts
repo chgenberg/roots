@@ -27,14 +27,9 @@ import {
   users,
   customerOrders,
 } from "@roots/db/schema";
-import {
-  getSession,
-  isDemoSession,
-  SESSION_COOKIE_NAME,
-  SESSION_COOKIE_OPTIONS,
-  createSession,
-} from "../lib/session";
+import { isDemoSession, SESSION_COOKIE_NAME, SESSION_COOKIE_OPTIONS, createSession } from "../lib/session";
 import type { SessionData } from "../lib/session";
+import { requireSession } from "../lib/http-session";
 import { auditLog, requestContext } from "../lib/audit";
 import { teamInviteResendRateLimit } from "../lib/rate-limit";
 import { validatePassword } from "./auth";
@@ -71,22 +66,6 @@ const ARGON2_OPTIONS = {
 export const association = new Hono();
 
 // ── helpers ──────────────────────────────────────────────────────
-function getSessionId(c: any): string | null {
-  const cookie = c.req.header("cookie") || "";
-  const match = cookie.match(new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`));
-  return match ? match[1] : null;
-}
-
-async function requireSession(c: any): Promise<SessionData | null> {
-  const sessionId = getSessionId(c);
-  if (!sessionId) return null;
-  try {
-    return await getSession(sessionId);
-  } catch {
-    return null;
-  }
-}
-
 function generateToken(): string {
   // 32 chars of url-safe hex — collision-resistant + short enough for QR.
   return randomBytes(16).toString("hex");

@@ -20,6 +20,29 @@ const ARGON2_OPTIONS = {
 /** Matches in-memory demo accounts in auth (when not production). */
 const DEMO_PASSWORD = "Demo1234!";
 
+/**
+ * Vägrar köra mot produktion.
+ *
+ * `syncDemoUser` nedan skriver ÖVER lösenordet på en befintlig rad, och ett av
+ * kontona är `admin@roots.se` med rollen INTERNAL_ADMIN. Ett `railway run pnpm
+ * db:seed` — eller vilket skal som helst där prod-credentials råkar vara
+ * exporterade — skulle därmed återställa plattformens admin till ett lösenord
+ * som ligger i klartext i den här filen. Seeds skriver dessutom ingen
+ * audit-logg, så det skulle inte lämna något spår.
+ */
+function assertNotProduction() {
+  if (
+    process.env.NODE_ENV === "production" &&
+    process.env.ROOTS_ALLOW_PROD_SEED !== "true"
+  ) {
+    throw new Error(
+      "db:seed vägrar köra med NODE_ENV=production. Skriptet återställer " +
+        "lösenordet på admin@roots.se till ett värde som finns i repot. " +
+        "Sätt ROOTS_ALLOW_PROD_SEED=true bara om du verkligen menar det."
+    );
+  }
+}
+
 async function ensureOrg(values: {
   name: string;
   orgNumber: string | null;
@@ -69,6 +92,7 @@ async function syncDemoUser(values: {
 }
 
 async function seed() {
+  assertNotProduction();
   console.log("Seeding database...");
 
   const passwordHash = await hash(DEMO_PASSWORD, ARGON2_OPTIONS);

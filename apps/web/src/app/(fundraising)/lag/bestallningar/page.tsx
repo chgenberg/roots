@@ -18,6 +18,7 @@ import { downloadCustomerOrdersCsv } from "@/lib/orders-csv";
 import type { TeamDashboard, CustomerOrder, Seller } from "@/types/fundraising";
 
 import { getBrowserApiBase } from "@/lib/api-base";
+import { formatKrValue } from "@/lib/format";
 
 const API_URL = getBrowserApiBase();
 
@@ -193,7 +194,7 @@ export default function TeamOrdersPage() {
           <CardContent className="p-5">
             <p className="text-sm text-muted-foreground">Betald summa</p>
             <p className="mt-1 text-2xl font-bold">
-              {(paidTotal / 100).toLocaleString("sv-SE")} kr
+              {formatKrValue(paidTotal)} kr
             </p>
           </CardContent>
         </Card>
@@ -329,7 +330,7 @@ export default function TeamOrdersPage() {
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-semibold">
-                      {(order.totalOre / 100).toLocaleString("sv-SE")} kr
+                      {formatKrValue(order.totalOre)} kr
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {new Date(order.createdAt).toLocaleDateString("sv-SE")}

@@ -26,6 +26,7 @@ import { useToast } from "@/components/ui/toast";
 import { apiFetch } from "@/lib/api";
 
 import { getBrowserApiBase } from "@/lib/api-base";
+import { formatKrValue } from "@/lib/format";
 
 const API_URL = getBrowserApiBase();
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
@@ -230,7 +231,7 @@ export default function TeamsManagementPage() {
                           {team.orderCount} ordrar
                         </Badge>
                         <Badge variant="secondary" className="text-xs">
-                          {(team.totalSalesOre / 100).toLocaleString("sv-SE")}{" "}
+                          {formatKrValue(team.totalSalesOre)}{" "}
                           kr
                         </Badge>
                       </div>

@@ -957,7 +957,7 @@ auth.post("/register/association", async (c) => {
         userId: user.id,
       },
     });
-  } catch (err: any) {
+  } catch (err) {
     log.error({ err }, "Association registration failed");
     return c.json({ error: "Registreringen misslyckades." }, 500);
   }
@@ -1150,7 +1150,7 @@ auth.post("/register/team-leader", async (c) => {
       teamName,
       teamId: txResult.createdTeamId,
     });
-  } catch (err: any) {
+  } catch (err) {
     log.error({ err }, "Team leader registration failed");
     return c.json({ error: "Registreringen misslyckades." }, 500);
   }
@@ -1341,7 +1341,7 @@ auth.post("/register/seller", async (c) => {
       },
       shopSlug,
     });
-  } catch (err: any) {
+  } catch (err) {
     log.error({ err }, "Seller registration failed");
     return c.json({ error: "Registreringen misslyckades." }, 500);
   }

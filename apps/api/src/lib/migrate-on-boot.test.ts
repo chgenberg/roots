@@ -3,11 +3,12 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 /**
  * Tests for the boot-time migration runner.
  *
- * We mock `@roots/db.runMigrations` so the test never touches a real DB —
- * the contract we care about here is purely:
- *   - flag gating (`RUN_MIGRATIONS_ON_BOOT`)
- *   - DATABASE_URL guard
- *   - fail-fast behaviour (re-throws so orchestrator can roll back)
+ * `@roots/db.runMigrations` mockas så att testet aldrig rör en riktig databas.
+ * Kontraktet vi bryr oss om:
+ *   - rollen avgör standardläget (api kör, worker hoppar över)
+ *   - `RUN_MIGRATIONS_ON_BOOT` kan överstyra båda hållen
+ *   - saknad DATABASE_URL kastar (deployen ska rullas tillbaka)
+ *   - migreringsfel kastar vidare
  */
 
 const runMigrationsMock = vi.fn();
@@ -37,28 +38,18 @@ describe("runBootMigrations", () => {
     process.env = { ...originalEnv };
   });
 
-  it("no-ops when RUN_MIGRATIONS_ON_BOOT is unset", async () => {
+  it("kör som standard i API-rollen — det är API:t som äger schemat", async () => {
     delete process.env.RUN_MIGRATIONS_ON_BOOT;
     process.env.DATABASE_URL = "postgres://x";
     const { runBootMigrations } = await importFresh();
 
-    await runBootMigrations();
+    await runBootMigrations({ role: "api" });
 
-    expect(runMigrationsMock).not.toHaveBeenCalled();
+    expect(runMigrationsMock).toHaveBeenCalledTimes(1);
   });
 
-  it("no-ops when RUN_MIGRATIONS_ON_BOOT is 'false'", async () => {
-    process.env.RUN_MIGRATIONS_ON_BOOT = "false";
-    process.env.DATABASE_URL = "postgres://x";
-    const { runBootMigrations } = await importFresh();
-
-    await runBootMigrations();
-
-    expect(runMigrationsMock).not.toHaveBeenCalled();
-  });
-
-  it("runs migrations when flag is truthy and DATABASE_URL is set", async () => {
-    process.env.RUN_MIGRATIONS_ON_BOOT = "true";
+  it("kör som standard även utan explicit roll", async () => {
+    delete process.env.RUN_MIGRATIONS_ON_BOOT;
     process.env.DATABASE_URL = "postgres://x";
     const { runBootMigrations } = await importFresh();
 
@@ -67,12 +58,42 @@ describe("runBootMigrations", () => {
     expect(runMigrationsMock).toHaveBeenCalledTimes(1);
   });
 
-  it("skips (does not throw) when DATABASE_URL is missing even if flag is on", async () => {
+  it("hoppar över som standard i worker-rollen så schemaägandet är entydigt", async () => {
+    delete process.env.RUN_MIGRATIONS_ON_BOOT;
+    process.env.DATABASE_URL = "postgres://x";
+    const { runBootMigrations } = await importFresh();
+
+    await runBootMigrations({ role: "worker" });
+
+    expect(runMigrationsMock).not.toHaveBeenCalled();
+  });
+
+  it("RUN_MIGRATIONS_ON_BOOT=true tvingar på migrationer i worker-rollen", async () => {
+    process.env.RUN_MIGRATIONS_ON_BOOT = "true";
+    process.env.DATABASE_URL = "postgres://x";
+    const { runBootMigrations } = await importFresh();
+
+    await runBootMigrations({ role: "worker" });
+
+    expect(runMigrationsMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("RUN_MIGRATIONS_ON_BOOT=false stänger av migrationer även för API:t", async () => {
+    process.env.RUN_MIGRATIONS_ON_BOOT = "false";
+    process.env.DATABASE_URL = "postgres://x";
+    const { runBootMigrations } = await importFresh();
+
+    await runBootMigrations({ role: "api" });
+
+    expect(runMigrationsMock).not.toHaveBeenCalled();
+  });
+
+  it("kastar när DATABASE_URL saknas — hellre rullad deploy än okänt schema", async () => {
     process.env.RUN_MIGRATIONS_ON_BOOT = "true";
     delete process.env.DATABASE_URL;
     const { runBootMigrations } = await importFresh();
 
-    await expect(runBootMigrations()).resolves.toBeUndefined();
+    await expect(runBootMigrations()).rejects.toThrow(/DATABASE_URL/);
     expect(runMigrationsMock).not.toHaveBeenCalled();
   });
 

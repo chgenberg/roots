@@ -27,6 +27,7 @@ import type { SellerDashboard as SellerDashboardData, Milestone } from "@/types/
 import QRCode from "qrcode";
 
 import { getBrowserApiBase } from "@/lib/api-base";
+import { formatKrValue } from "@/lib/format";
 
 const API_URL = getBrowserApiBase();
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
@@ -169,7 +170,7 @@ export default function SellerDashboard() {
           <CardContent className="p-4 sm:p-5">
             <p className="text-xs text-muted-foreground sm:text-sm">Sålt</p>
             <p className="mt-1 text-xl font-bold sm:text-2xl">
-              {(totalSales / 100).toLocaleString("sv-SE")} kr
+              {formatKrValue(totalSales)} kr
             </p>
           </CardContent>
         </Card>
@@ -186,7 +187,7 @@ export default function SellerDashboard() {
               <p className="text-xs text-muted-foreground sm:text-sm">Din uppskattade förtjänst</p>
             </div>
             <p className="mt-1 text-xl font-bold text-brand-700 sm:text-2xl">
-              {(estimatedEarnings / 100).toLocaleString("sv-SE")} kr
+              {formatKrValue(estimatedEarnings)} kr
             </p>
             {data.campaign?.marginPercent && (
               <p className="text-xs text-muted-foreground mt-0.5">
@@ -235,7 +236,7 @@ export default function SellerDashboard() {
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm font-medium">Ditt mål</p>
               <p className="text-sm text-muted-foreground">
-                {(totalSales / 100).toLocaleString("sv-SE")} / {goal.toLocaleString("sv-SE")} kr
+                {formatKrValue(totalSales)} / {goal.toLocaleString("sv-SE")} kr
               </p>
             </div>
             <div className="h-3 overflow-hidden rounded-full bg-brand-100">
@@ -311,6 +312,9 @@ export default function SellerDashboard() {
           <div className="flex flex-col items-center gap-3 sm:flex-row sm:items-start">
             {qrDataUrl && (
               <div className="rounded-xl border p-3">
+                {/* QR-koden genereras i klienten som en data-URL. next/image kan
+                    inte optimera data-URL:er, så <img> är rätt val här. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={qrDataUrl}
                   alt="QR-kod till din shop"
@@ -390,7 +394,7 @@ export default function SellerDashboard() {
                     </Badge>
                   </div>
                   <p className="text-sm font-semibold">
-                    {(order.totalOre / 100).toLocaleString("sv-SE")} kr
+                    {formatKrValue(order.totalOre)} kr
                   </p>
                 </button>
               ))}

@@ -198,6 +198,17 @@ async function migrateLegacyEmails(): Promise<void> {
 }
 
 async function seedDemo() {
+  // Samma skäl som i seed.ts: demo-datasetet skriver över lösenord på
+  // befintliga konton med ett värde som ligger i repot.
+  if (
+    process.env.NODE_ENV === "production" &&
+    process.env.ROOTS_ALLOW_PROD_SEED !== "true"
+  ) {
+    throw new Error(
+      "db:seed:demo vägrar köra med NODE_ENV=production. Sätt " +
+        "ROOTS_ALLOW_PROD_SEED=true bara om du verkligen menar det."
+    );
+  }
   console.log("Seeding demo dataset…");
 
   await migrateLegacyEmails();

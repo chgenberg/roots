@@ -203,9 +203,9 @@ SLIDES = [
     {
         "kind": "products", "kicker": "05 \u00b7 PRODUKTER", "title": "Tre produkter, en filosofi",
         "cards": [
-            ("First Growth", "Schampo", "SyriCalm\u00ae lugnar h\u00e5rbotten"),
-            ("Pure Root", "Balsam", "Pro-Vitamin B5 & E-vitamin"),
-            ("Soft Rinse", "Body wash", "SyriCalm\u00ae, sn\u00e4llt mot huden"),
+            ("Roots Schampoo", "Schampo", "SyriCalm\u00ae lugnar h\u00e5rbotten"),
+            ("Roots Conditioner", "Balsam", "Pro-Vitamin B5 & E-vitamin"),
+            ("Roots Body Wash", "Body wash", "SyriCalm\u00ae, sn\u00e4llt mot huden"),
         ],
         "notes": [
             "H\u00e5ll det kort: premium, nordiskt, sn\u00e4llt mot hud och h\u00e5rbotten.",

@@ -1,0 +1,126 @@
+name: CI
+
+# P2.36 (audit 2026-05-26): tidigare saknades CI helt. Varje deploy
+# var en bön till git-historiken — typfel/lint-fel/testfel åkte direkt
+# till prod. Vi kör nu typecheck, lint och tester på alla PR:s + main.
+#
+# Jobben är parallella + cacher pnpm-store. Total wall-time ska
+# hålla sig under ~5 min på en fräsch monorepo.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "20"
+  PNPM_VERSION: "10.6.5"
+
+jobs:
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    # Utan detta jobb kan tsup/next build gå sönder utan att CI märker det —
+    # typecheck ensam fångar inte bundler-fel.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+        env:
+          # next build läser env vid prerendering; värdena används aldrig
+          # mot en riktig tjänst här.
+          DATABASE_URL: postgres://ci:ci@localhost:5432/ci
+          SESSION_SECRET: ci-session-secret-min-32-chars-12345
+          ORDER_VIEW_TOKEN_SECRET: ci-order-view-secret-min-32-chars-12
+          DELETION_TOKEN_SECRET: ci-deletion-secret-min-32-chars-12345
+          CSRF_SECRET: ci-csrf-secret-min-32-chars-1234567890
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: roots
+          POSTGRES_PASSWORD: roots
+          POSTGRES_DB: roots_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U roots"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://roots:roots@localhost:5432/roots_test
+      REDIS_URL: redis://localhost:6379
+      NODE_ENV: test
+      # Test-only secrets — uppfyller validate-env utan att vara
+      # giltiga i prod.
+      SESSION_SECRET: ci-session-secret-min-32-chars-12345
+      ORDER_VIEW_TOKEN_SECRET: ci-order-view-secret-min-32-chars-12
+      DELETION_TOKEN_SECRET: ci-deletion-secret-min-32-chars-12345
+      CSRF_SECRET: ci-csrf-secret-min-32-chars-1234567890
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test

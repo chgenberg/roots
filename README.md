@@ -36,7 +36,15 @@ cp .env.example .env
 pnpm dev
 ```
 
-Web runs on `http://localhost:3000`, API on `http://localhost:4000`.
+Web runs on `http://localhost:3004`, API on `http://localhost:4000`.
+
+`pnpm dev` startar bara web och api. Marknadsfilmerna i `apps/videos`
+(Remotion Studio) startas separat med `pnpm dev:videos` — den appen ingår
+inte i det som deployas och har egna beroenden som måste installeras först.
+
+Next.js läser inte monorepots rot-`.env`. Variablerna som `apps/web`
+behöver i utveckling (bl.a. `PREVIEW_GATE_DISABLED` och `API_BACKEND_URL`)
+sätts i `apps/web/.env.local` — se `apps/web/.env.local.example`.
 
 ## Route Structure
 

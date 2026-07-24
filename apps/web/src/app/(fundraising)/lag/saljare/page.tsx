@@ -26,6 +26,7 @@ import { SellerImportDialog } from "@/components/seller-import-dialog";
 import type { TeamDashboard, Seller } from "@/types/fundraising";
 import { getBrowserApiBase } from "@/lib/api-base";
 import { apiFetch } from "@/lib/api";
+import { formatKrValue } from "@/lib/format";
 
 const API_URL = getBrowserApiBase();
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
@@ -455,7 +456,7 @@ export default function TeamSellersPage() {
                         {seller.displayName}
                       </p>
                       <p className="text-xs font-bold text-brand-700">
-                        {(seller.totalSalesOre / 100).toLocaleString("sv-SE")} kr
+                        {formatKrValue(seller.totalSalesOre)} kr
                       </p>
                       <GradeBadge grade={seller.grade} size="sm" />
                     </div>
@@ -504,7 +505,7 @@ export default function TeamSellersPage() {
                       </p>
                     </div>
                     <p className="text-sm font-semibold shrink-0">
-                      {(seller.totalSalesOre / 100).toLocaleString("sv-SE")} kr
+                      {formatKrValue(seller.totalSalesOre)} kr
                     </p>
                   </div>
 

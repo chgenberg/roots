@@ -15,6 +15,7 @@ import { Users, TrendingUp, Target, Award, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useApiData } from "@/lib/use-api-data";
 import { Button } from "@/components/ui/button";
+import { formatKr } from "@/lib/format";
 
 interface SalesRep {
   id: string;
@@ -38,7 +39,7 @@ interface SellersResponse {
 
 function formatSek(ore: number): string {
   if (!ore || ore <= 0) return "0 kr";
-  return `${Math.round(ore / 100).toLocaleString("sv-SE")} kr`;
+  return formatKr(ore);
 }
 
 export default function SaljarePage() {

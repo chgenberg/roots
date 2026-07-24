@@ -125,7 +125,7 @@ function saveDraft(state: Partial<WizardState>) {
   }
 }
 
-function ProgressBar({ current, steps }: { current: Step; steps: readonly Step[] }) {
+function ProgressBar({ current }: { current: Step }) {
   const visibleIndex = VISIBLE_STEPS.indexOf(current as (typeof VISIBLE_STEPS)[number]);
   const idx = visibleIndex >= 0 ? visibleIndex : VISIBLE_STEPS.length;
   const total = VISIBLE_STEPS.length;
@@ -400,7 +400,7 @@ export function HairAnalysisLeadDialog({
 
         <div ref={contentRef} className="overflow-y-auto px-6 pb-6">
           <div className="mb-5 mt-4">
-            <ProgressBar current={step} steps={STEPS} />
+            <ProgressBar current={step} />
           </div>
 
           {step !== "gate" && step !== "loading" && step !== "result" && (

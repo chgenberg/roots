@@ -31,17 +31,9 @@ export function seriesColor(i: number): string {
   return SERIES[i % SERIES.length];
 }
 
-/** Öre → "12 300 kr" (svensk gruppering, inga decimaler). */
-export function formatKr(ore: number): string {
-  return `${Math.round(ore / 100).toLocaleString("sv-SE")} kr`;
-}
-
-/** Öre → kompakt "12,3k" för axel-/stapel-etiketter. */
-export function formatKrShort(ore: number): string {
-  const kr = ore / 100;
-  if (kr >= 1000) return `${(kr / 1000).toFixed(kr >= 10000 ? 0 : 1)}k`;
-  return `${Math.round(kr)}`;
-}
+// formatKr/formatKrShort bor i @/lib/format och åter-exporteras här så att
+// diagram-importerna inte behöver skrivas om.
+export { formatKr, formatKrShort } from "@/lib/format";
 
 /** "YYYY-MM-DD" → "5 jun". */
 export function formatDayLabel(iso: string): string {

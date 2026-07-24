@@ -67,6 +67,7 @@ export default function StatistikPage() {
   const [kpiCards, setKpiCards] = useState<KpiCard[]>(KPI_CARD_TEMPLATE);
   const [topProducts, setTopProducts] = useState<TopProduct[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -139,8 +140,9 @@ export default function StatistikPage() {
         }
       })
       .catch(() => {
-        // Leave fallback em-dashes in place; the user will see the
-        // "ingen data ännu"-states for the charts below.
+        // Utan detta visade sidan tomma streck plus "diagrammet fylls i
+        // automatiskt" — ett löfte som aldrig infrias när anropet nekas.
+        if (!cancelled) setLoadFailed(true);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -161,6 +163,19 @@ export default function StatistikPage() {
           Följ försäljning och intäkter i realtid.
         </p>
       </div>
+
+      {loadFailed && (
+        <Card>
+          <CardContent className="p-5">
+            <p className="text-sm font-medium">Statistiken kunde inte hämtas</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Din roll har inte tillgång till omsättningsstatistik, eller så
+              svarade servern inte. Säljare följer sina egna siffror under
+              Pipeline.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {kpiCards.map((k) => {

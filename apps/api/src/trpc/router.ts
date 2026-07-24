@@ -1,8 +1,5 @@
 import { router, publicProcedure, middleware } from "./init";
-import { productsRouter } from "./routers/products";
 import { authRouter } from "./routers/auth";
-import { clubRouter } from "./routers/club";
-import { salesRouter } from "./routers/sales";
 import { aiRouter } from "./routers/ai";
 import {
   campaignsRouter,
@@ -12,11 +9,14 @@ import {
 
 export { router, publicProcedure, middleware };
 
+/**
+ * tRPC-ytan. Produktkatalogen, klubb- och säljflödena ligger i REST-routerna
+ * under src/routes/ — det är dem webben faktiskt anropar via /api/v1. De
+ * tidigare `products`/`club`/`sales`-routrarna här var stubbar som svarade med
+ * hårdkodad eller påhittad data (bl.a. inaktuella priser) och togs bort.
+ */
 export const appRouter = router({
-  products: productsRouter,
   auth: authRouter,
-  club: clubRouter,
-  sales: salesRouter,
   ai: aiRouter,
   campaigns: campaignsRouter,
   teams: teamsRouter,

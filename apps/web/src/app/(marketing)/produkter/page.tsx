@@ -82,11 +82,15 @@ export default function ProdukterPage() {
             {PRODUCTS.map((product, idx) => (
               <div
                 key={product.slug}
-                className={`grid items-center gap-10 lg:grid-cols-2 lg:gap-16 ${
-                  idx % 2 === 1 ? "lg:[direction:rtl] lg:[&>*]:direction-ltr" : ""
-                }`}
+                className="grid items-center gap-10 lg:grid-cols-2 lg:gap-16"
               >
-                <Link href={`/produkter/${product.slug}`} className="group relative">
+                {/* Varannan rad har bilden till höger. Det görs med `order` och
+                    inte med `direction: rtl` — rtl är textriktning, och bidi
+                    kastade om prisraden så "149 kr" renderades som "kr 149". */}
+                <Link
+                  href={`/produkter/${product.slug}`}
+                  className={`group relative ${idx % 2 === 1 ? "lg:order-2" : ""}`}
+                >
                   <div className="relative aspect-[4/5] overflow-hidden rounded-3xl bg-brand-50 shadow-xl shadow-brand-900/5">
                     <Image
                       src={product.image}
@@ -104,7 +108,7 @@ export default function ProdukterPage() {
                   </div>
                 </Link>
 
-                <div>
+                <div className={idx % 2 === 1 ? "lg:order-1" : ""}>
                   <p className="text-sm font-medium text-muted-foreground">{product.subtitle}</p>
                   <h2 className="mt-1 text-2xl font-bold tracking-tight">{product.name}</h2>
                   <p className="mt-4 text-base leading-relaxed text-muted-foreground">{product.tagline}</p>

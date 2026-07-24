@@ -12,8 +12,8 @@ import {
   teamGoals,
   products,
 } from "@roots/db/schema";
-import { getSession, SESSION_COOKIE_NAME, isDemoSession } from "../lib/session";
-import type { SessionData } from "../lib/session";
+import { isDemoSession } from "../lib/session";
+import { requireSession } from "../lib/http-session";
 import { getAchievedMilestones, getNextMilestone, getSellerGrade } from "../lib/milestones";
 import { getEmailSender } from "../lib/email";
 import { welcomeEmail } from "../lib/email/templates";
@@ -31,22 +31,6 @@ const ARGON2_OPTIONS = {
 const log = childLogger("dashboard");
 
 export const dashboard = new Hono();
-
-function getSessionId(c: any): string | null {
-  const cookie = c.req.header("cookie") || "";
-  const match = cookie.match(new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`));
-  return match ? match[1] : null;
-}
-
-async function requireSession(c: any): Promise<SessionData | null> {
-  const sessionId = getSessionId(c);
-  if (!sessionId) return null;
-  try {
-    return await getSession(sessionId);
-  } catch {
-    return null;
-  }
-}
 
 /* ───────────────────────── Statistik / grafer ─────────────────────────
  * Tidsserie-data för dashboard-graferna. Alla aggregat filtrerar på
@@ -200,7 +184,11 @@ dashboard.get("/association", async (c) => {
         return {
           id: t.id,
           name: t.name,
-          memberCount: t.memberCount,
+          // Räkna säljarna vi faktiskt hämtat i stället för att lita på
+          // `teams.memberCount`. Den kolumnen ökas vid registrering men
+          // minskas aldrig, så den drev iväg: dashboarden visade "Säljare 3"
+          // i KPI:n (riktiga rader) och "5 säljare" på lagraden (räknaren).
+          memberCount: sellerList.filter((s) => s.teamId === t.id).length,
           leaderId: t.leaderId,
           totalSalesOre: Number(sales?.total || 0),
           orderCount: Number(sales?.count || 0),
@@ -699,7 +687,7 @@ dashboard.post("/team/:teamId/sellers", async (c) => {
         grade: getSellerGrade(0),
       },
     });
-  } catch (err: any) {
+  } catch (err) {
     log.error({ err }, "Failed to create seller inline");
     return c.json({ error: "Kunde inte skapa säljare." }, 500);
   }

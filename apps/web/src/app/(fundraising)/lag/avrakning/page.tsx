@@ -16,6 +16,7 @@ import type { TeamDashboard, CustomerOrder } from "@/types/fundraising";
 import { OrderDetailDialog } from "@/components/order-detail-dialog";
 
 import { getBrowserApiBase } from "@/lib/api-base";
+import { formatKrValue } from "@/lib/format";
 
 const API_URL = getBrowserApiBase();
 
@@ -131,7 +132,7 @@ export default function TeamSettlementPage() {
           <CardContent className="p-5">
             <p className="text-sm text-muted-foreground">Total försäljning</p>
             <p className="mt-1 text-2xl font-bold">
-              {(totalSales / 100).toLocaleString("sv-SE")} kr
+              {formatKrValue(totalSales)} kr
             </p>
           </CardContent>
         </Card>
@@ -142,7 +143,7 @@ export default function TeamSettlementPage() {
               <p className="text-sm text-muted-foreground">Lagets förtjänst</p>
             </div>
             <p className="mt-1 text-2xl font-bold text-brand-700">
-              {(teamEarnings / 100).toLocaleString("sv-SE")} kr
+              {formatKrValue(teamEarnings)} kr
             </p>
             <p className="text-xs text-muted-foreground mt-0.5">
               {marginPercent}% av försäljningen
@@ -156,7 +157,7 @@ export default function TeamSettlementPage() {
               <p className="text-sm text-muted-foreground">Roots-andel</p>
             </div>
             <p className="mt-1 text-2xl font-bold">
-              {(rootsShare / 100).toLocaleString("sv-SE")} kr
+              {formatKrValue(rootsShare)} kr
             </p>
             <p className="text-xs text-muted-foreground mt-0.5">
               {100 - marginPercent}% av försäljningen
@@ -179,7 +180,7 @@ export default function TeamSettlementPage() {
               <p className="text-sm font-medium">Betalt via Klarna</p>
             </div>
             <p className="text-xl font-bold">
-              {(klarnaPaidTotal / 100).toLocaleString("sv-SE")} kr
+              {formatKrValue(klarnaPaidTotal)} kr
             </p>
             <p className="text-xs text-muted-foreground">
               {klarnaOrders.length} ordrar — betalat direkt till Roots
@@ -193,7 +194,7 @@ export default function TeamSettlementPage() {
               <p className="text-sm font-medium">Betala till ansvarig</p>
             </div>
             <p className="text-xl font-bold">
-              {(directPaidTotal / 100).toLocaleString("sv-SE")} kr
+              {formatKrValue(directPaidTotal)} kr
             </p>
             <p className="text-xs text-muted-foreground">
               {directOrders.length} ordrar — ska samlas in
@@ -260,7 +261,7 @@ export default function TeamSettlementPage() {
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-semibold">
-                      {(order.totalOre / 100).toLocaleString("sv-SE")} kr
+                      {formatKrValue(order.totalOre)} kr
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {new Date(order.createdAt).toLocaleDateString("sv-SE")}
