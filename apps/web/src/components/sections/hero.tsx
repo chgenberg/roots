@@ -9,8 +9,8 @@ export function HeroSection() {
         {/* Desktop */}
         <div className="absolute inset-0 hidden lg:block">
           <Image
-            src="/images/h1desktop.jpg"
-            alt="Roots — First Growth, Pure Root och Soft Rinse"
+            src="/images/collection-2.jpg"
+            alt="Roots — Roots Schampoo, Roots Conditioner och Roots Body Wash"
             fill
             className="object-cover"
             priority
@@ -21,10 +21,10 @@ export function HeroSection() {
         {/* Mobile */}
         <div className="absolute inset-0 lg:hidden">
           <Image
-            src="/images/h1mobile.jpg"
-            alt="Roots — First Growth, Pure Root och Soft Rinse"
+            src="/images/hero-mobile.jpg"
+            alt="Roots — Roots Schampoo, Roots Conditioner och Roots Body Wash"
             fill
-            className="object-cover object-top"
+            className="object-cover object-center"
             priority
             sizes="100vw"
           />

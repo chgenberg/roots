@@ -19,18 +19,20 @@ const PRODUCTS: Record<
     price: string;
     volume: string;
     image: string;
+    image2: string;
     highlights: string[];
     ingredients: string[];
   }
 > = {
   shampoo: {
-    name: "First Growth",
+    name: "Roots Schampoo",
     tagline: "Schampo som rengör på riktigt — och lämnar hårbotten i ro",
     description:
       "Ett mjukt men effektivt schampo som löser smuts och fett utan att skala bort hårbottnens naturliga balans. Sockerbaserade, sulfatsnåla tvättämnen rengör skonsamt medan SyriCalm® — en forskningsförankrad nordisk aktiv av vass (Phragmites Communis) och svamp (Poria Cocos) — lugnar och stärker hårbotten. Polyquaternium reder ut och ger naturlig glans. Håret känns rent, lätt och levande, dag efter dag.",
     price: "149 kr",
     volume: "250 ml",
-    image: "/images/m3.jpg",
+    image: "/images/schampoo.jpg",
+    image2: "/images/schampoo-lifestyle.jpg",
     highlights: ["Sulfatsnålt", "SyriCalm® – lugnar hårbotten", "Reder ut & ger glans"],
     ingredients: [
       "Aqua", "Coco-Glucoside", "Cocamidopropyl Betaine",
@@ -42,13 +44,14 @@ const PRODUCTS: Record<
     ],
   },
   conditioner: {
-    name: "Pure Root",
+    name: "Roots Conditioner",
     tagline: "Balsam som ger håret exakt det det behöver — inget mer, inget mindre",
     description:
       "Ett närande balsam som gör håret mjukt, följsamt och lätt att reda ut utan att tynga ner. Ett lätt emollient-komplex och Pro-Vitamin B5 (Panthenol) återfuktar på djupet, medan E-vitamin och antioxidanter från svartpeppar (Piper Nigrum) och Inga-bark skyddar håret mot daglig miljöstress. SyriCalm® lugnar hårbotten. Resultatet: silkeslent hår med en lyster som håller hela dagen.",
     price: "149 kr",
     volume: "200 ml",
-    image: "/images/p5.jpg",
+    image: "/images/conditioner.jpg",
+    image2: "/images/conditioner-lifestyle.jpg",
     highlights: ["SyriCalm® & Panthenol", "E-vitamin & antioxidanter", "Närande – utan att tynga"],
     ingredients: [
       "Aqua", "Cetearyl Alcohol", "Caprylic/Capric Triglyceride",
@@ -64,13 +67,14 @@ const PRODUCTS: Record<
     ],
   },
   "body-wash": {
-    name: "Soft Rinse",
+    name: "Roots Body Wash",
     tagline: "Body wash som respekterar huden — istället för att störa den",
     description:
       "En skonsam kroppstvätt med krämigt lödder som rengör utan att torka ut. Milda tvättämnen och ett Panthenol-derivat lämnar huden len och återfuktad, medan SyriCalm® — av vass (Phragmites Communis) och svamp (Poria Cocos) — lugnar och stärker hudens naturliga skyddsbarriär. Huden känns ren, mjuk och i balans efter varje dusch.",
     price: "129 kr",
     volume: "250 ml",
-    image: "/images/p6.jpg",
+    image: "/images/body-wash.jpg",
+    image2: "/images/body-wash-lifestyle.jpg",
     highlights: ["Sulfatsnålt", "SyriCalm® – lugnar huden", "Panthenol (B5)"],
     ingredients: [
       "Aqua", "Cocamidopropyl Betaine", "Sodium Lauroyl Sarcosinate",
@@ -157,16 +161,28 @@ export default async function ProductDetailPage({ params }: PageProps) {
           </Link>
 
           <div className="grid gap-12 lg:grid-cols-2 lg:gap-20">
-            <div className="group relative aspect-[4/5] overflow-hidden rounded-3xl bg-brand-50 shadow-xl shadow-brand-900/5">
-              <Image
-                src={product.image}
-                alt={product.name}
-                fill
-                className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.02]"
-                priority
-                sizes="(max-width: 1024px) 100vw, 50vw"
-              />
-              <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-inset ring-black/5" />
+            <div className="flex flex-col gap-4">
+              <div className="group relative aspect-[4/3] overflow-hidden rounded-3xl bg-brand-50 shadow-xl shadow-brand-900/5">
+                <Image
+                  src={product.image}
+                  alt={product.name}
+                  fill
+                  className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.02]"
+                  priority
+                  sizes="(max-width: 1024px) 100vw, 50vw"
+                />
+                <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-inset ring-black/5" />
+              </div>
+              <div className="group relative aspect-[3/2] overflow-hidden rounded-3xl bg-brand-50 shadow-xl shadow-brand-900/5">
+                <Image
+                  src={product.image2}
+                  alt={`${product.name} — i användning`}
+                  fill
+                  className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.02]"
+                  sizes="(max-width: 1024px) 100vw, 50vw"
+                />
+                <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-inset ring-black/5" />
+              </div>
             </div>
 
             <div className="flex flex-col justify-center">

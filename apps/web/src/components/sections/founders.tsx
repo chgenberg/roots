@@ -8,8 +8,8 @@ export function FoundersSection() {
         <div className="relative">
           <div className="group relative aspect-[4/3] overflow-hidden rounded-xl shadow-[var(--shadow-card)]">
             <Image
-              src="/images/p4.jpg"
-              alt="Roots produkter — First Growth, Pure Root och Soft Rinse på stenpiedestaler"
+              src="/images/collection-4.jpg"
+              alt="Roots produkter — Roots Schampoo, Roots Conditioner och Roots Body Wash på stenpiedestaler"
               fill
               className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.02]"
               sizes="(max-width: 1024px) 100vw, 50vw"

@@ -60,7 +60,7 @@ export default function ForeningslivPage() {
 
           <div className="group relative aspect-[4/3] overflow-hidden rounded-3xl shadow-2xl shadow-brand-900/10">
             <Image
-              src="/images/02.jpg"
+              src="/images/collection-1.jpg"
               alt="Roots produkter i föreningens omklädningsrum"
               fill
               className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.02]"
@@ -96,7 +96,7 @@ export default function ForeningslivPage() {
         <div className="group relative mx-auto max-w-[1280px] overflow-hidden rounded-3xl">
           <div className="relative aspect-[16/10]">
             <Image
-              src="/images/01.jpg"
+              src="/images/collection-2.jpg"
               alt="Roots produkter i duschen — redo att användas"
               fill
               className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.02]"

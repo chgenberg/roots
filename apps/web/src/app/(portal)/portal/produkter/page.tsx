@@ -18,31 +18,31 @@ import { ShoppingCart, Minus, Plus } from "lucide-react";
 
 const FALLBACK_PRODUCTS: PortalProductCard[] = [
   {
-    name: "First Growth",
+    name: "Roots Schampoo",
     type: "Schampo",
     desc: "Milt schampo med SyriCalm® och sockerbaserade, sulfatsnåla tvättämnen",
     price: 149,
     sku: "ROOTS-SH-001",
     slug: FALLBACK_SKU_SLUG["ROOTS-SH-001"]!,
-    image: "/images/p1.jpg",
+    image: "/images/schampoo.jpg",
   },
   {
-    name: "Pure Root",
+    name: "Roots Conditioner",
     type: "Balsam",
     desc: "Närande balsam med SyriCalm®, Pro-Vitamin B5 & E-vitamin",
     price: 149,
     sku: "ROOTS-CO-001",
     slug: FALLBACK_SKU_SLUG["ROOTS-CO-001"]!,
-    image: "/images/p5.jpg",
+    image: "/images/conditioner.jpg",
   },
   {
-    name: "Soft Rinse",
+    name: "Roots Body Wash",
     type: "Body Wash",
     desc: "Skonsam kroppstvätt med SyriCalm® och Panthenol (B5)",
     price: 129,
     sku: "ROOTS-BW-001",
     slug: FALLBACK_SKU_SLUG["ROOTS-BW-001"]!,
-    image: "/images/p6.jpg",
+    image: "/images/body-wash.jpg",
   },
 ];
 

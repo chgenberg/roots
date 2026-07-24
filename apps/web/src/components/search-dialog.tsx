@@ -28,9 +28,9 @@ const ITEMS: SearchItem[] = [
   { label: "Håranalys", href: "/haranalys", category: "pages" },
   { label: "Integritetspolicy", href: "/integritet", category: "pages" },
   { label: "Köpvillkor", href: "/villkor", category: "pages" },
-  { label: "First Growth", href: "/produkter/shampoo", category: "products" },
-  { label: "Pure Root", href: "/produkter/conditioner", category: "products" },
-  { label: "Soft Rinse", href: "/produkter/body-wash", category: "products" },
+  { label: "Roots Schampoo", href: "/produkter/shampoo", category: "products" },
+  { label: "Roots Conditioner", href: "/produkter/conditioner", category: "products" },
+  { label: "Roots Body Wash", href: "/produkter/body-wash", category: "products" },
   { label: "Logga in", href: "/login", category: "quick" },
   { label: "Starta håranalys", href: "/haranalys", category: "quick" },
 ];

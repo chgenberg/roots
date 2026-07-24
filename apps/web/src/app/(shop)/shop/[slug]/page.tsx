@@ -66,9 +66,9 @@ interface ShopData {
 }
 
 const PRODUCT_IMAGES: Record<string, string> = {
-  shampoo: "/images/p1.jpg",
-  conditioner: "/images/p5.jpg",
-  "body-wash": "/images/p6.jpg",
+  shampoo: "/images/schampoo.jpg",
+  conditioner: "/images/conditioner.jpg",
+  "body-wash": "/images/body-wash.jpg",
 };
 
 export default function SellerShopPage() {
@@ -246,7 +246,7 @@ export default function SellerShopPage() {
         <div className="grid gap-4">
           {shop.products.map((product) => {
             const qty = cart[product.id] || 0;
-            const imgSrc = PRODUCT_IMAGES[product.slug] || "/images/p1.jpg";
+            const imgSrc = PRODUCT_IMAGES[product.slug] || "/images/schampoo.jpg";
 
             return (
               <Card key={product.id} className="overflow-hidden">

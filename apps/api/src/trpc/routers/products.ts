@@ -8,7 +8,7 @@ export const productsRouter = router({
       {
         id: "1",
         sku: "ROOTS-SH-001",
-        name: "First Growth",
+        name: "Roots Schampoo",
         slug: "shampoo",
         description: "Milt schampo med SyriCalm och sulfatsnala tvattamnen.",
         priceOre: 14900,
@@ -18,7 +18,7 @@ export const productsRouter = router({
       {
         id: "2",
         sku: "ROOTS-CO-001",
-        name: "Pure Root",
+        name: "Roots Conditioner",
         slug: "conditioner",
         description: "Narande balsam med SyriCalm, Pro-Vitamin B5 och E-vitamin.",
         priceOre: 14900,
@@ -28,7 +28,7 @@ export const productsRouter = router({
       {
         id: "3",
         sku: "ROOTS-BW-001",
-        name: "Soft Rinse",
+        name: "Roots Body Wash",
         slug: "body-wash",
         description: "Skonsam kroppstvatt med SyriCalm och panthenol.",
         priceOre: 12900,
@@ -45,7 +45,7 @@ export const productsRouter = router({
         {
           id: "1",
           sku: "ROOTS-SH-001",
-          name: "First Growth",
+          name: "Roots Schampoo",
           slug: "shampoo",
           description: "Milt schampo med SyriCalm och sulfatsnala tvattamnen.",
           priceOre: 14900,
@@ -55,7 +55,7 @@ export const productsRouter = router({
         {
           id: "2",
           sku: "ROOTS-CO-001",
-          name: "Pure Root",
+          name: "Roots Conditioner",
           slug: "conditioner",
           description: "Narande balsam med SyriCalm, Pro-Vitamin B5 och E-vitamin.",
           priceOre: 14900,
@@ -65,7 +65,7 @@ export const productsRouter = router({
         {
           id: "3",
           sku: "ROOTS-BW-001",
-          name: "Soft Rinse",
+          name: "Roots Body Wash",
           slug: "body-wash",
           description: "Skonsam kroppstvatt med SyriCalm och panthenol.",
           priceOre: 12900,

@@ -7,9 +7,9 @@ const FOOTER_LINKS = [
   {
     title: "Produkter",
     links: [
-      { href: "/produkter/shampoo", label: "First Growth" },
-      { href: "/produkter/conditioner", label: "Pure Root" },
-      { href: "/produkter/body-wash", label: "Soft Rinse" },
+      { href: "/produkter/shampoo", label: "Roots Schampoo" },
+      { href: "/produkter/conditioner", label: "Roots Conditioner" },
+      { href: "/produkter/body-wash", label: "Roots Body Wash" },
       { href: "/haranalys", label: "Gratis håranalys" },
     ],
   },

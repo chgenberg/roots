@@ -56,7 +56,7 @@ export default function OmOssPage() {
           <div className="relative">
             <div className="group relative aspect-[4/3] overflow-hidden rounded-3xl shadow-xl shadow-brand-900/5">
               <Image
-                src="/images/m4.jpg"
+                src="/images/collection-3.jpg"
                 alt="Nordisk känsla — ren och naturlig"
                 fill
                 className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.02]"

@@ -38,9 +38,9 @@ type PortalOrderProduct = {
 // "Ny beställning"-dialogen usable when the API is briefly unavailable.
 // These are not fake numbers — they are our actual SKUs.
 const CATALOG_FALLBACK_PRODUCTS: PortalOrderProduct[] = [
-  { id: "1", name: "First Growth (schampo)", priceOre: 14900, slug: "shampoo" },
-  { id: "2", name: "Pure Root (balsam)", priceOre: 14900, slug: "conditioner" },
-  { id: "3", name: "Soft Rinse (body wash)", priceOre: 12900, slug: "body-wash" },
+  { id: "1", name: "Roots Schampoo", priceOre: 14900, slug: "shampoo" },
+  { id: "2", name: "Roots Conditioner", priceOre: 14900, slug: "conditioner" },
+  { id: "3", name: "Roots Body Wash", priceOre: 12900, slug: "body-wash" },
 ];
 
 type OrderRow = {

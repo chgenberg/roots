@@ -191,9 +191,9 @@ function buildUserPrompt(answers: HairAnswers): string {
     "",
     "STEG 3 — PRODUKTMAPPNING:",
     "Mappa till ETT av tre Roots-paket baserat på analysen:",
-    "- 'Roots Underhåll' — för normalt hår utan stora besvär. First Growth (schampo med SyriCalm® + sulfatsnåla tvättämnen) + Pure Root (balsam med SyriCalm®, Pro-Vitamin B5 och E-vitamin) + Soft Rinse (body wash med SyriCalm® och panthenol)",
-    "- 'Roots Extra Fukt' — för torrt, kemiskt behandlat eller stressat hår. Betona Pure Roots Pro-Vitamin B5 (panthenol) och Beta Vulgaris-betain (djupfukt, elasticitet) samt E-vitamin/antioxidanter som skyddar",
-    "- 'Roots Balanserad Rutin' — för blandat/fett hår eller aktiva som simmar/tränar ofta. Betona SyriCalm® (Phragmites Communis + Poria Cocos) som lugnar och balanserar hårbotten och Polyquaternium i First Growth som reder ut utan att tynga",
+    "- 'Roots Underhåll' — för normalt hår utan stora besvär. Roots Schampoo (schampo med SyriCalm® + sulfatsnåla tvättämnen) + Roots Conditioner (balsam med SyriCalm®, Pro-Vitamin B5 och E-vitamin) + Roots Body Wash (body wash med SyriCalm® och panthenol)",
+    "- 'Roots Extra Fukt' — för torrt, kemiskt behandlat eller stressat hår. Betona Pro-Vitamin B5 (panthenol) i Roots Conditioner och Beta Vulgaris-betain (djupfukt, elasticitet) samt E-vitamin/antioxidanter som skyddar",
+    "- 'Roots Balanserad Rutin' — för blandat/fett hår eller aktiva som simmar/tränar ofta. Betona SyriCalm® (Phragmites Communis + Poria Cocos) som lugnar och balanserar hårbotten och Polyquaternium i Roots Schampoo som reder ut utan att tynga",
     "",
     "Svara strikt som JSON med dessa nycklar:",
     `{

@@ -17,19 +17,19 @@ import { products } from "./schema";
 const UPDATES: { sku: string; name: string; description: string }[] = [
   {
     sku: "ROOTS-SH-001",
-    name: "First Growth",
+    name: "Roots Schampoo",
     description:
       "Milt schampo med SyriCalm® som lugnar hårbotten och sulfatsnåla, sockerbaserade tvättämnen. 250 ml.",
   },
   {
     sku: "ROOTS-CO-001",
-    name: "Pure Root",
+    name: "Roots Conditioner",
     description:
       "Närande balsam med SyriCalm®, Pro-Vitamin B5 och E-vitamin. Mjukt, följsamt hår utan att tynga. 200 ml.",
   },
   {
     sku: "ROOTS-BW-001",
-    name: "Soft Rinse",
+    name: "Roots Body Wash",
     description:
       "Skonsam kroppstvätt med SyriCalm® och Panthenol. Rengör utan att torka ut. 250 ml.",
   },
