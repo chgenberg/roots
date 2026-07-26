@@ -524,12 +524,18 @@ describe("PATCH /v1/portal/quotes/:id/status", () => {
     getSessionMock.mockResolvedValue(repSession());
     // Only the lookup runs — a no-op move must not bump updatedAt, or the
     // "days in stage" badge would reset every time a card is nudged.
-    dbHandle.reset([[existingQuote]]);
+    dbHandle.reset([
+      [{ ...existingQuote, updatedAt: new Date("2026-05-20T08:00:00.000Z") }],
+    ]);
 
     const out = await patchStatus(QUOTE_ID, { status: "SENT" });
     expect(out.status).toBe(200);
     expect(out.body.quote.status).toBe("SENT");
     expect(out.body.orgPromotedToCustomer).toBe(false);
+    // The response must echo the stored timestamp. Returning `now` here
+    // would zero the badge in the client even though the row never moved.
+    expect(out.body.quote.updatedAt).toBe("2026-05-20T08:00:00.000Z");
+    expect(dbHandle.inserts).toHaveLength(0);
   });
 });
 

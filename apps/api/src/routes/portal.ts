@@ -1076,6 +1076,7 @@ portal.patch("/quotes/:id/status", async (c) => {
         orgId: quotes.orgId,
         salesRepId: quotes.salesRepId,
         totalOre: quotes.totalOre,
+        updatedAt: quotes.updatedAt,
       })
       .from(quotes)
       .where(eq(quotes.id, quoteId))
@@ -1098,47 +1099,63 @@ portal.patch("/quotes/:id/status", async (c) => {
     // updatedAt — that would reset the "days in stage" badge and make the
     // board lie about how long a deal has been sitting still.
     if (previousStatus === status) {
+      // Report the stored timestamp, not `now`. The client feeds this back
+      // into the card's "days in stage" badge, so inventing a fresh one
+      // would zero the badge on a move that changed nothing.
+      const unchangedAt =
+        existing.updatedAt instanceof Date
+          ? existing.updatedAt.toISOString()
+          : (existing.updatedAt ?? new Date().toISOString());
       return c.json({
         quote: {
           id: existing.id,
           status,
           totalOre: existing.totalOre,
           orgId: existing.orgId,
-          updatedAt: new Date().toISOString(),
+          updatedAt: unchangedAt,
         },
         orgPromotedToCustomer: false,
       });
     }
 
-    const [updated] = await db
-      .update(quotes)
-      .set({ status, updatedAt: new Date() })
-      .where(eq(quotes.id, quoteId))
-      .returning({
-        id: quotes.id,
-        status: quotes.status,
-        totalOre: quotes.totalOre,
-        orgId: quotes.orgId,
-        updatedAt: quotes.updatedAt,
-      });
+    // The stage change and the LEAD → CUSTOMER promotion are one decision,
+    // so they share a transaction. Committed separately, a crash in between
+    // leaves an accepted quote on a club that every CRM report still counts
+    // as an open lead — and nothing in the flow would ever retry it.
+    const { updated, orgPromotedToCustomer } = await db.transaction(
+      async (tx) => {
+        const [row] = await tx
+          .update(quotes)
+          .set({ status, updatedAt: new Date() })
+          .where(eq(quotes.id, quoteId))
+          .returning({
+            id: quotes.id,
+            status: quotes.status,
+            totalOre: quotes.totalOre,
+            orgId: quotes.orgId,
+            updatedAt: quotes.updatedAt,
+          });
 
-    // Accepting a quote is the moment a lead becomes a customer. Without
-    // this the club would stay `crm_status='LEAD'` forever and keep being
-    // counted as an open lead in every CRM report.
-    let orgPromotedToCustomer = false;
-    if (status === "ACCEPTED") {
-      const promoted = await db
-        .update(organizations)
-        .set({ crmStatus: "CUSTOMER", updatedAt: new Date() })
-        .where(
-          and(
-            eq(organizations.id, existing.orgId),
-            eq(organizations.crmStatus, "LEAD")
-          )
-        )
-        .returning({ id: organizations.id });
-      orgPromotedToCustomer = promoted.length > 0;
-    }
+        // Accepting a quote is the moment a lead becomes a customer.
+        // Without this the club would stay `crm_status='LEAD'` forever.
+        let promotedOrg = false;
+        if (status === "ACCEPTED") {
+          const promoted = await tx
+            .update(organizations)
+            .set({ crmStatus: "CUSTOMER", updatedAt: new Date() })
+            .where(
+              and(
+                eq(organizations.id, existing.orgId),
+                eq(organizations.crmStatus, "LEAD")
+              )
+            )
+            .returning({ id: organizations.id });
+          promotedOrg = promoted.length > 0;
+        }
+
+        return { updated: row, orgPromotedToCustomer: promotedOrg };
+      }
+    );
 
     await auditLog({
       userId: session.userId,
