@@ -1,8 +1,13 @@
 /**
- * Idempotent uppdatering av produkternas namn & beskrivning i live-DB.
+ * Idempotent katalogsynk mot live-DB.
  *
- * Sätter de nya Syricalm-namnen/texterna på befintliga rader (matchar på SKU).
- * Rör INTE pris, slug eller active. Säker att köra hur många gånger som helst.
+ * Sätter namn & beskrivning på befintliga rader (matchar på SKU) och lägger till
+ * katalogposter som saknas. `db:seed` vägrar köra i produktion, så det här är
+ * vägen in för katalogändringar där.
+ *
+ * Rör INTE priset på en produkt som redan finns — priset sätts bara när raden
+ * skapas. Annars skulle en prisjustering gjord direkt i databasen tas bort nästa
+ * gång någon kör skriptet.
  *
  * Kör:
  *   DATABASE_URL="postgres://..." pnpm --filter @roots/db db:update:products
@@ -11,10 +16,20 @@
  *   DATABASE_URL="postgres://..." pnpm --filter @roots/db exec tsx src/update-products.ts
  */
 import { eq } from "drizzle-orm";
+import { BUNDLE_SKU, BUNDLE_SLUG } from "@roots/contracts";
 import { db } from "./client";
-import { products } from "./schema";
+import { bundles, products } from "./schema";
 
-const UPDATES: { sku: string; name: string; description: string }[] = [
+type CatalogEntry = {
+  sku: string;
+  name: string;
+  description: string;
+  /** Krävs bara för poster som kan behöva skapas. */
+  slug?: string;
+  priceOre?: number;
+};
+
+const UPDATES: CatalogEntry[] = [
   {
     sku: "ROOTS-SH-001",
     name: "Roots Schampoo",
@@ -33,6 +48,14 @@ const UPDATES: { sku: string; name: string; description: string }[] = [
     description:
       "Skonsam kroppstvätt med SyriCalm® och Panthenol. Rengör utan att torka ut. 250 ml.",
   },
+  {
+    sku: BUNDLE_SKU,
+    name: "Roots Komplett paket",
+    description:
+      "Schampo, balsam och kroppstvätt tillsammans — hela rutinen i ett paket. 250 + 200 + 250 ml.",
+    slug: BUNDLE_SLUG,
+    priceOre: 29900,
+  },
 ];
 
 async function main() {
@@ -42,6 +65,7 @@ async function main() {
   }
 
   let updated = 0;
+  let created = 0;
   let missing = 0;
 
   for (const u of UPDATES) {
@@ -54,13 +78,50 @@ async function main() {
     if (rows.length > 0) {
       updated += rows.length;
       console.log(`✓ ${u.sku.padEnd(14)} → ${u.name}`);
-    } else {
-      missing += 1;
-      console.warn(`⚠ ${u.sku.padEnd(14)} hittades inte (0 rader uppdaterade)`);
+      continue;
+    }
+
+    if (u.slug && u.priceOre) {
+      await db.insert(products).values({
+        sku: u.sku,
+        name: u.name,
+        slug: u.slug,
+        description: u.description,
+        priceOre: u.priceOre,
+        currency: "SEK",
+      });
+      created += 1;
+      console.log(`+ ${u.sku.padEnd(14)} → ${u.name} (skapad)`);
+      continue;
+    }
+
+    missing += 1;
+    console.warn(`⚠ ${u.sku.padEnd(14)} hittades inte (0 rader uppdaterade)`);
+  }
+
+  // Håller `bundles`-raden i synk med den köpbara paketartikeln. Raden beskriver
+  // bara innehållet, men ett avvikande pris där blir förvirrande vid felsökning.
+  const bundleEntry = UPDATES.find((u) => u.sku === BUNDLE_SKU);
+  if (bundleEntry?.priceOre) {
+    const synced = await db
+      .update(bundles)
+      .set({
+        name: bundleEntry.name,
+        priceOre: bundleEntry.priceOre,
+        updatedAt: new Date(),
+      })
+      .where(eq(bundles.slug, "complete-kit"))
+      .returning({ id: bundles.id });
+    if (synced.length > 0) {
+      console.log(
+        `✓ bundles/complete-kit → ${bundleEntry.name}, ${bundleEntry.priceOre / 100} kr`
+      );
     }
   }
 
-  console.log(`\nKlart. ${updated} produkt(er) uppdaterade${missing ? `, ${missing} saknades` : ""}.`);
+  console.log(
+    `\nKlart. ${updated} uppdaterade, ${created} skapade${missing ? `, ${missing} saknades` : ""}.`
+  );
   process.exit(0);
 }
 

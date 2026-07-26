@@ -14,10 +14,12 @@ import { apiFetch } from "@/lib/api";
 import { getBrowserApiBase } from "@/lib/api-base";
 import { useToast } from "@/components/ui/toast";
 import { formatKrValue } from "@/lib/format";
+import { byCatalogOrder } from "@/lib/product-catalog";
 
 interface Product {
   id: string;
   name: string;
+  slug: string;
   priceOre: number;
 }
 
@@ -52,7 +54,7 @@ export function ManualOrderDialog({
     if (!open) return;
     fetch(`${getBrowserApiBase()}/v1/shop/products`, { credentials: "include" })
       .then((r) => r.json())
-      .then((d) => setProducts(d.products || []))
+      .then((d) => setProducts([...(d.products || [])].sort(byCatalogOrder)))
       .catch(() => setProducts([]));
   }, [open]);
 

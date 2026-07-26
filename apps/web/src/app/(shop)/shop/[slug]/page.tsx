@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -25,6 +25,11 @@ import { getBrowserApiBase } from "@/lib/api-base";
 import { useCart } from "@/lib/use-cart";
 import { ProductJsonLd } from "@/components/json-ld";
 import { formatKrValue } from "@/lib/format";
+import {
+  productImage,
+  byCatalogOrder,
+  isBundleSlug,
+} from "@/lib/product-catalog";
 
 const API_URL = getBrowserApiBase();
 
@@ -66,12 +71,6 @@ interface ShopData {
   };
 }
 
-const PRODUCT_IMAGES: Record<string, string> = {
-  shampoo: "/images/schampoo.jpg",
-  conditioner: "/images/conditioner.jpg",
-  "body-wash": "/images/body-wash.jpg",
-};
-
 export default function SellerShopPage() {
   const params = useParams();
   const slug = params.slug as string;
@@ -106,6 +105,24 @@ export default function SellerShopPage() {
         return sum + (p ? p.priceOre * qty : 0);
       }, 0)
     : 0;
+
+  // API:et sorterar på namn; paketet hör sist så supportern ser de enskilda
+  // produkterna först.
+  const sortedProducts = useMemo(
+    () => [...(shop?.products ?? [])].sort(byCatalogOrder),
+    [shop?.products]
+  );
+
+  // Vad paketet sparar jämfört med att köpa delarna var för sig. Räknas ur
+  // katalogen så siffran inte kan bli fel när ett pris ändras.
+  const bundleSavingOre = useMemo(() => {
+    const bundle = sortedProducts.find((p) => isBundleSlug(p.slug));
+    if (!bundle) return 0;
+    const parts = sortedProducts
+      .filter((p) => !isBundleSlug(p.slug))
+      .reduce((sum, p) => sum + p.priceOre, 0);
+    return parts > bundle.priceOre ? parts - bundle.priceOre : 0;
+  }, [sortedProducts]);
 
   // Shop accepts orders only while the campaign is ACTIVE. Showing the
   // campaign card and products is fine in any status so supporters can
@@ -158,7 +175,7 @@ export default function SellerShopPage() {
           sku={p.sku}
           price={p.priceOre}
           currency={p.currency || "SEK"}
-          image={PRODUCT_IMAGES[p.slug]}
+          image={productImage(p.slug)}
           url={`/shop/${slug}#${p.slug}`}
         />
       ))}
@@ -245,9 +262,10 @@ export default function SellerShopPage() {
         {/* Products */}
         <h2 className="mb-4 text-lg font-semibold">Produkter</h2>
         <div className="grid gap-4">
-          {shop.products.map((product) => {
+          {sortedProducts.map((product) => {
             const qty = cart[product.id] || 0;
-            const imgSrc = PRODUCT_IMAGES[product.slug] || "/images/schampoo.jpg";
+            const imgSrc = productImage(product.slug);
+            const isBundle = isBundleSlug(product.slug);
 
             return (
               <Card key={product.id} className="overflow-hidden">
@@ -262,7 +280,14 @@ export default function SellerShopPage() {
                   </div>
                   <CardContent className="flex flex-1 flex-col justify-between p-4">
                     <div>
-                      <h3 className="font-semibold">{product.name}</h3>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="font-semibold">{product.name}</h3>
+                        {isBundle && bundleSavingOre > 0 && (
+                          <Badge variant="secondary" className="bg-brand-100 text-brand-800">
+                            Spara {formatKrValue(bundleSavingOre)} kr
+                          </Badge>
+                        )}
+                      </div>
                       <p className="mt-1 text-sm text-muted-foreground line-clamp-2">
                         {product.description}
                       </p>
@@ -318,21 +343,6 @@ export default function SellerShopPage() {
             );
           })}
         </div>
-
-        {/* Bundle card */}
-        <Card className="mt-6 border-brand-200 bg-brand-50/50">
-          <CardContent className="p-5">
-            <div className="flex items-center gap-3">
-              <Package className="h-5 w-5 text-brand-600" />
-              <div>
-                <p className="font-medium">Komplett paket — 399 kr</p>
-                <p className="text-sm text-muted-foreground">
-                  Schampo + Balsam + Body Wash. Spara genom att köpa alla tre.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
 
         {/* Delivery info */}
         <div className="mt-6 flex items-start gap-3 rounded-xl border bg-background p-4">

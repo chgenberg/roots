@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ArrowUpRight } from "lucide-react";
+import { BUNDLE_SLUG } from "@/lib/product-catalog";
 
 const PRODUCTS = [
   {
@@ -81,13 +82,30 @@ export function ProductsPreview() {
           ))}
         </div>
 
+        {/* Paketet får inget eget kort i rutnätet — tre kolumner är layouten här.
+            Istället leder raden vidare till paketsidan. */}
         <div className="mt-12 text-center">
-          <div className="inline-flex items-center rounded-xl border border-border bg-card px-6 py-4 text-card-foreground shadow-[var(--shadow-card)]">
-            <div>
-              <p className="text-lg font-bold">399 kr</p>
-              <p className="text-sm text-muted-foreground">Komplett paket — alla tre</p>
+          <Link
+            href={`/produkter/${BUNDLE_SLUG}`}
+            className="group inline-flex items-center gap-4 rounded-xl border border-border bg-card px-6 py-4 text-card-foreground shadow-[var(--shadow-card)] transition-shadow hover:shadow-md"
+          >
+            <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-brand-50">
+              <Image
+                src="/images/collection-4.jpg"
+                alt="Roots Komplett paket"
+                fill
+                className="object-cover"
+                sizes="56px"
+              />
             </div>
-          </div>
+            <div className="text-left">
+              <p className="text-lg font-bold">299 kr</p>
+              <p className="text-sm text-muted-foreground">
+                Komplett paket — alla tre
+              </p>
+            </div>
+            <ArrowUpRight className="h-5 w-5 text-muted-foreground transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-foreground" />
+          </Link>
         </div>
       </div>
     </section>

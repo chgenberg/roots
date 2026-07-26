@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq, sql, asc, inArray } from "drizzle-orm";
+import { and, eq, ne, sql, asc, inArray } from "drizzle-orm";
 import { db } from "@roots/db";
 import {
   calculatorLinks,
@@ -12,12 +12,27 @@ import {
   CalculatorInputsSchema,
   CALCULATOR_DEFAULTS,
   computeCalculator,
+  BUNDLE_SLUG,
   type CalculatorInputs,
 } from "@roots/contracts";
 import { calculatorLeadRateLimit } from "../lib/rate-limit";
 import { childLogger } from "../lib/logger";
 
 const log = childLogger("calculator");
+
+/**
+ * Priserna som kalkylatorn räknar snitt på.
+ *
+ * Paketet utesluts. Kalkylen skriver "en produkt kostar i snitt X kr", och
+ * paketet är tre produkter till rabatterat pris — det skulle dra snittet till
+ * ett belopp som ingen enskild flaska kostar.
+ */
+function singleProductPrices() {
+  return db
+    .select({ name: products.name, priceOre: products.priceOre })
+    .from(products)
+    .where(and(eq(products.active, true), ne(products.slug, BUNDLE_SLUG)));
+}
 
 export const calculator = new Hono();
 
@@ -98,10 +113,7 @@ calculator.get("/public", async (c) => {
         .catch((err) => log.warn({ err }, "public view count bump failed"));
     }
 
-    const priceRows = await db
-      .select({ name: products.name, priceOre: products.priceOre })
-      .from(products)
-      .where(eq(products.active, true));
+    const priceRows = await singleProductPrices();
 
     return c.json({
       presets: CALCULATOR_DEFAULTS,
@@ -215,10 +227,7 @@ calculator.get("/by-token/:token", async (c) => {
 
     const presets = CalculatorInputsSchema.safeParse(link.presets);
 
-    const priceRows = await db
-      .select({ name: products.name, priceOre: products.priceOre })
-      .from(products)
-      .where(eq(products.active, true));
+    const priceRows = await singleProductPrices();
 
     return c.json({
       associationName: link.associationName,

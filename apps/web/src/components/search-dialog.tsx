@@ -31,6 +31,7 @@ const ITEMS: SearchItem[] = [
   { label: "Roots Schampoo", href: "/produkter/shampoo", category: "products" },
   { label: "Roots Conditioner", href: "/produkter/conditioner", category: "products" },
   { label: "Roots Body Wash", href: "/produkter/body-wash", category: "products" },
+  { label: "Roots Komplett paket", href: "/produkter/paket", category: "products" },
   { label: "Logga in", href: "/login", category: "quick" },
   { label: "Starta håranalys", href: "/haranalys", category: "quick" },
 ];

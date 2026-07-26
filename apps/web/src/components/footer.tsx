@@ -10,6 +10,7 @@ const FOOTER_LINKS = [
       { href: "/produkter/shampoo", label: "Roots Schampoo" },
       { href: "/produkter/conditioner", label: "Roots Conditioner" },
       { href: "/produkter/body-wash", label: "Roots Body Wash" },
+      { href: "/produkter/paket", label: "Roots Komplett paket" },
       { href: "/haranalys", label: "Gratis håranalys" },
     ],
   },

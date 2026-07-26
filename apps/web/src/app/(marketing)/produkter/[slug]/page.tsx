@@ -9,27 +9,35 @@ import { Separator } from "@/components/ui/separator";
 import { ProductJsonLd } from "@/components/json-ld";
 import { ArrowLeft } from "lucide-react";
 import { Breadcrumbs } from "@/components/breadcrumbs";
+import { BUNDLE_SKU, BUNDLE_SLUG } from "@/lib/product-catalog";
 
 const PRODUCTS: Record<
   string,
   {
     name: string;
+    /** Riktig katalog-SKU — går ut i strukturerad data, så den får inte gissas. */
+    sku: string;
     tagline: string;
     description: string;
     price: string;
+    priceOre: number;
     volume: string;
     image: string;
     image2: string;
     highlights: string[];
-    ingredients: string[];
+    /** Enskilda produkter har en INCI-lista; paketet har `contains` istället. */
+    ingredients?: string[];
+    contains?: { slug: string; label: string }[];
   }
 > = {
   shampoo: {
     name: "Roots Schampoo",
+    sku: "ROOTS-SH-001",
     tagline: "Schampo som rengör på riktigt — och lämnar hårbotten i ro",
     description:
       "Ett mjukt men effektivt schampo som löser smuts och fett utan att skala bort hårbottnens naturliga balans. Sockerbaserade, sulfatsnåla tvättämnen rengör skonsamt medan SyriCalm® — en forskningsförankrad nordisk aktiv av vass (Phragmites Communis) och svamp (Poria Cocos) — lugnar och stärker hårbotten. Polyquaternium reder ut och ger naturlig glans. Håret känns rent, lätt och levande, dag efter dag.",
     price: "149 kr",
+    priceOre: 14900,
     volume: "250 ml",
     image: "/images/schampoo.jpg",
     image2: "/images/schampoo-lifestyle.jpg",
@@ -45,10 +53,12 @@ const PRODUCTS: Record<
   },
   conditioner: {
     name: "Roots Conditioner",
+    sku: "ROOTS-CO-001",
     tagline: "Balsam som ger håret exakt det det behöver — inget mer, inget mindre",
     description:
       "Ett närande balsam som gör håret mjukt, följsamt och lätt att reda ut utan att tynga ner. Ett lätt emollient-komplex och Pro-Vitamin B5 (Panthenol) återfuktar på djupet, medan E-vitamin och antioxidanter från svartpeppar (Piper Nigrum) och Inga-bark skyddar håret mot daglig miljöstress. SyriCalm® lugnar hårbotten. Resultatet: silkeslent hår med en lyster som håller hela dagen.",
     price: "149 kr",
+    priceOre: 14900,
     volume: "200 ml",
     image: "/images/conditioner.jpg",
     image2: "/images/conditioner-lifestyle.jpg",
@@ -68,10 +78,12 @@ const PRODUCTS: Record<
   },
   "body-wash": {
     name: "Roots Body Wash",
+    sku: "ROOTS-BW-001",
     tagline: "Body wash som respekterar huden — istället för att störa den",
     description:
       "En skonsam kroppstvätt med krämigt lödder som rengör utan att torka ut. Milda tvättämnen och ett Panthenol-derivat lämnar huden len och återfuktad, medan SyriCalm® — av vass (Phragmites Communis) och svamp (Poria Cocos) — lugnar och stärker hudens naturliga skyddsbarriär. Huden känns ren, mjuk och i balans efter varje dusch.",
     price: "129 kr",
+    priceOre: 12900,
     volume: "250 ml",
     image: "/images/body-wash.jpg",
     image2: "/images/body-wash-lifestyle.jpg",
@@ -83,6 +95,24 @@ const PRODUCTS: Record<
       "PEG-150 Pentaerythrityl Tetrastearate", "Parfum", "Potassium Sorbate",
       "PPG-2 Hydroxyethyl Cocamide", "Panthenol", "Sodium Citrate",
       "Phragmites Communis Extract", "Poria Cocos Extract",
+    ],
+  },
+  [BUNDLE_SLUG]: {
+    name: "Roots Komplett paket",
+    sku: BUNDLE_SKU,
+    tagline: "Hela rutinen — schampo, balsam och kroppstvätt i ett paket",
+    description:
+      "De tre produkterna är formulerade för att användas tillsammans. Schampot rengör utan att rubba hårbottnens balans, balsamet ger tillbaka fukt och följsamhet, och kroppstvätten tar hand om huden på samma skonsamma sätt. SyriCalm® — den nordiska aktiven av vass och svamp — går igenom alla tre. Som paket kostar de 299 kr istället för 427 kr var för sig.",
+    price: "299 kr",
+    priceOre: 29900,
+    volume: "250 + 200 + 250 ml",
+    image: "/images/collection-4.jpg",
+    image2: "/images/collection-1.jpg",
+    highlights: ["Alla tre produkterna", "Spara 128 kr", "SyriCalm® i hela rutinen"],
+    contains: [
+      { slug: "shampoo", label: "Roots Schampoo — 250 ml" },
+      { slug: "conditioner", label: "Roots Conditioner — 200 ml" },
+      { slug: "body-wash", label: "Roots Body Wash — 250 ml" },
     ],
   },
 };
@@ -130,15 +160,13 @@ export default async function ProductDetailPage({ params }: PageProps) {
   const product = PRODUCTS[slug];
   if (!product) notFound();
 
-  const priceOre = slug === "body-wash" ? 12900 : 14900;
-
   return (
     <>
       <ProductJsonLd
         name={product.name}
         description={product.tagline}
-        sku={`ROOTS-${slug.toUpperCase().replace("-", "")}-001`}
-        price={priceOre}
+        sku={product.sku}
+        price={product.priceOre}
         image={product.image}
         url={`${process.env.NEXT_PUBLIC_SITE_URL || "https://roots.se"}/produkter/${slug}`}
       />
@@ -207,14 +235,31 @@ export default async function ProductDetailPage({ params }: PageProps) {
 
               <Separator className="my-8" />
 
+              {/* Paketet listar sitt innehåll och länkar vidare — tre INCI-listor
+                  efter varandra hade bara varit svårlästa. */}
               <Card className="border-border/60 bg-brand-50/40 shadow-none">
                 <CardContent className="p-5">
                   <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Ingredienser (INCI)
+                    {product.contains ? "Detta ingår" : "Ingredienser (INCI)"}
                   </h2>
-                  <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-                    {product.ingredients.join(", ")}
-                  </p>
+                  {product.contains ? (
+                    <ul className="mt-3 space-y-2 text-sm">
+                      {product.contains.map((item) => (
+                        <li key={item.slug}>
+                          <Link
+                            href={`/produkter/${item.slug}`}
+                            className="text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+                          >
+                            {item.label}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                      {product.ingredients?.join(", ")}
+                    </p>
+                  )}
                 </CardContent>
               </Card>
             </div>

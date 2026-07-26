@@ -1,15 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Image from "next/image";
 import { portalFetch } from "@/lib/portal-api";
 import {
   toPortalProductCard,
   publicProductHref,
+  byCatalogOrder,
+  BUNDLE_SKU,
   FALLBACK_SKU_SLUG,
   type ApiProductRow,
   type PortalProductCard,
-} from "@/lib/portal-products";
+} from "@/lib/product-catalog";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,6 +27,7 @@ const FALLBACK_PRODUCTS: PortalProductCard[] = [
     sku: "ROOTS-SH-001",
     slug: FALLBACK_SKU_SLUG["ROOTS-SH-001"]!,
     image: "/images/schampoo.jpg",
+    isBundle: false,
   },
   {
     name: "Roots Conditioner",
@@ -34,6 +37,7 @@ const FALLBACK_PRODUCTS: PortalProductCard[] = [
     sku: "ROOTS-CO-001",
     slug: FALLBACK_SKU_SLUG["ROOTS-CO-001"]!,
     image: "/images/conditioner.jpg",
+    isBundle: false,
   },
   {
     name: "Roots Body Wash",
@@ -43,6 +47,17 @@ const FALLBACK_PRODUCTS: PortalProductCard[] = [
     sku: "ROOTS-BW-001",
     slug: FALLBACK_SKU_SLUG["ROOTS-BW-001"]!,
     image: "/images/body-wash.jpg",
+    isBundle: false,
+  },
+  {
+    name: "Roots Komplett paket",
+    type: "Paket — alla tre",
+    desc: "Schampo, balsam och kroppstvätt tillsammans — 128 kr billigare än var för sig",
+    price: 299,
+    sku: BUNDLE_SKU,
+    slug: FALLBACK_SKU_SLUG[BUNDLE_SKU]!,
+    image: "/images/collection-4.jpg",
+    isBundle: true,
   },
 ];
 
@@ -56,11 +71,24 @@ export default function ProdukterPortalPage() {
     portalFetch<{ products: ApiProductRow[] }>("/products")
       .then((data) => {
         if (data.products?.length) {
-          setProducts(data.products.map(toPortalProductCard));
+          setProducts(
+            data.products.map(toPortalProductCard).sort(byCatalogOrder)
+          );
         }
       })
       .catch(() => {});
   }, []);
+
+  // Räknas fram ur katalogen istället för att skrivas in i texten, så siffran
+  // följer med om ett pris ändras.
+  const bundleSavingKr = useMemo(() => {
+    const bundle = products.find((p) => p.isBundle);
+    if (!bundle) return 0;
+    const parts = products
+      .filter((p) => !p.isBundle)
+      .reduce((sum, p) => sum + p.price, 0);
+    return parts > bundle.price ? parts - bundle.price : 0;
+  }, [products]);
 
   function updateQty(sku: string, delta: number) {
     setQuantities((prev) => {
@@ -111,6 +139,11 @@ export default function ProdukterPortalPage() {
                   className="object-cover"
                   sizes="(max-width: 768px) 100vw, 33vw"
                 />
+                {p.isBundle && bundleSavingKr > 0 && (
+                  <span className="absolute left-3 top-3 rounded-full bg-inverse-surface px-3 py-1 text-xs font-semibold text-inverse-on-surface shadow-sm">
+                    Spara {bundleSavingKr} kr
+                  </span>
+                )}
               </Link>
               <CardContent className="p-5">
                 <div className="flex items-start justify-between gap-2">

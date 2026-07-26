@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { hash } from "@node-rs/argon2";
+import { BUNDLE_SKU, BUNDLE_SLUG } from "@roots/contracts";
 import { db } from "./client";
 import {
   organizations,
@@ -161,6 +162,18 @@ async function seed() {
       priceOre: 12900,
       currency: "SEK",
     },
+    // Paketet ligger i `products`, inte i `bundles` — se BUNDLE_SKU i
+    // @roots/contracts för varför. Kassan, avräkningen och Fortnox behandlar
+    // det som vilken artikel som helst.
+    {
+      sku: BUNDLE_SKU,
+      name: "Roots Komplett paket",
+      slug: BUNDLE_SLUG,
+      description:
+        "Schampo, balsam och kroppstvätt tillsammans — hela rutinen i ett paket. 250 + 200 + 250 ml.",
+      priceOre: 29900,
+      currency: "SEK",
+    },
   ] as const;
 
   const insertedProducts: { id: string; sku: string }[] = [];
@@ -183,8 +196,11 @@ async function seed() {
     console.log(`Created product: ${p.sku}`);
   }
 
+  // `bundles` beskriver bara VAD paketet innehåller — den är aldrig kopplad till
+  // kassan. Den köpbara artikeln är produktraden ovan (BUNDLE_SKU); priset här
+  // hålls i synk så att de två inte pekar på olika belopp.
   const [bundleExists] = await db
-    .select({ id: bundles.id })
+    .select({ id: bundles.id, priceOre: bundles.priceOre })
     .from(bundles)
     .where(eq(bundles.slug, "complete-kit"))
     .limit(1);
@@ -193,10 +209,10 @@ async function seed() {
     const [bundle] = await db
       .insert(bundles)
       .values({
-        name: "Roots Complete Kit",
+        name: "Roots Komplett paket",
         slug: "complete-kit",
-        description: "Schampo, balsam och kroppstvatt i ett komplett paket.",
-        priceOre: 39900,
+        description: "Schampo, balsam och kroppstvätt i ett komplett paket.",
+        priceOre: 29900,
       })
       .returning();
 
@@ -212,6 +228,12 @@ async function seed() {
       ]);
     }
     console.log("Created bundle: complete-kit");
+  } else if (bundleExists.priceOre !== 29900) {
+    await db
+      .update(bundles)
+      .set({ priceOre: 29900, updatedAt: new Date() })
+      .where(eq(bundles.id, bundleExists.id));
+    console.log("Bundle complete-kit: price synced to 29900");
   } else {
     console.log("Bundle complete-kit already exists (skip)");
   }

@@ -5,11 +5,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArrowUpRight, Leaf, Droplets, Sparkles } from "lucide-react";
 import { pageMetadata } from "@/lib/seo";
+import { BUNDLE_SLUG } from "@/lib/product-catalog";
 
 export const metadata = pageMetadata({
   title: "Produkter",
   description:
-    "Tre noggrant formulerade nordiska produkter med SyriCalm® och Pro-Vitamin B5. Sulfatsnålt, silikon- och parabenfritt.",
+    "Tre noggrant formulerade nordiska produkter med SyriCalm® och Pro-Vitamin B5 — var för sig eller som komplett paket. Sulfatsnålt, silikon- och parabenfritt.",
   path: "/produkter",
 });
 
@@ -44,6 +45,17 @@ const PRODUCTS = [
     badge: null,
     highlights: ["Sulfatsnålt", "SyriCalm®", "Panthenol (B5)"],
   },
+  {
+    slug: BUNDLE_SLUG,
+    name: "Roots Komplett paket",
+    subtitle: "Paket — schampo, balsam & body wash",
+    tagline:
+      "Hela rutinen i ett paket. Samma formuleringar som var för sig, till ett lägre pris — och det som de flesta väljer när de handlar via sin förening.",
+    image: "/images/collection-4.jpg",
+    price: "299 kr",
+    badge: "Spara 128 kr",
+    highlights: ["Alla tre produkterna", "250 + 200 + 250 ml", "Lägsta pris per flaska"],
+  },
 ];
 
 const VALUES = [
@@ -61,7 +73,8 @@ export default function ProdukterPage() {
             <h1 className="text-[length:var(--font-size-hero)] font-bold tracking-tight">Våra produkter</h1>
             <p className="mt-4 text-lg text-muted-foreground">
               Tre noggrant formulerade nordiska produkter med forskningsförankrade
-              aktiver. Sulfatsnålt, silikon- och parabenfritt.
+              aktiver — var för sig eller som komplett paket. Sulfatsnålt,
+              silikon- och parabenfritt.
             </p>
           </div>
 
@@ -138,11 +151,16 @@ export default function ProdukterPage() {
       <section className="border-t border-border bg-brand-50/40 py-16 md:py-20">
         <div className="mx-auto max-w-[1280px] px-6 text-center md:px-10">
           <Card className="mx-auto inline-flex max-w-md items-center gap-6 border-0 p-8 shadow-md">
+            {/* Priset står på paketkortet ovan — här är det bara vägen vidare,
+                så de två inte kan börja visa olika belopp. */}
             <CardContent className="p-0">
-              <p className="text-3xl font-bold">399 kr</p>
-              <p className="mt-1 text-sm text-muted-foreground">Komplett paket — schampo, balsam och body wash</p>
+              <p className="text-3xl font-bold">Beställ via din förening</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Roots säljs genom föreningar och klubbar — en del av varje köp går
+                direkt till laget.
+              </p>
               <Button className="mt-6" asChild>
-                <Link href="/foreningsliv">Beställ för din förening</Link>
+                <Link href="/foreningsliv">Så gör din förening</Link>
               </Button>
             </CardContent>
           </Card>

@@ -23,7 +23,11 @@ import {
 import { ShoppingCart, Plus, Minus, Package, Truck, CheckCircle2, Search, Download } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { portalFetch } from "@/lib/portal-api";
-import { publicProductHref } from "@/lib/portal-products";
+import {
+  publicProductHref,
+  byCatalogOrder,
+  BUNDLE_SLUG,
+} from "@/lib/product-catalog";
 import { PortalOrderDialog } from "@/components/portal-order-dialog";
 import { downloadPortalOrdersCsv } from "@/lib/orders-csv";
 import { formatKrValue } from "@/lib/format";
@@ -42,6 +46,7 @@ const CATALOG_FALLBACK_PRODUCTS: PortalOrderProduct[] = [
   { id: "1", name: "Roots Schampoo", priceOre: 14900, slug: "shampoo" },
   { id: "2", name: "Roots Conditioner", priceOre: 14900, slug: "conditioner" },
   { id: "3", name: "Roots Body Wash", priceOre: 12900, slug: "body-wash" },
+  { id: "4", name: "Roots Komplett paket", priceOre: 29900, slug: BUNDLE_SLUG },
 ];
 
 type OrderRow = {
@@ -92,7 +97,9 @@ export default function BestallningarPage() {
   useEffect(() => {
     portalFetch<{ products: PortalOrderProduct[] }>("/products")
       .then((data) => {
-        if (data.products.length > 0) setApiProducts(data.products);
+        if (data.products.length > 0) {
+          setApiProducts([...data.products].sort(byCatalogOrder));
+        }
       })
       .catch(() => {});
     portalFetch<{ orders: Array<{ id: string; createdAt: string; totalOre: number; status: string }> }>("/orders")

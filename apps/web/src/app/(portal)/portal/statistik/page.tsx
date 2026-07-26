@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect, type ComponentType } from "react";
 import { portalFetch } from "@/lib/portal-api";
-import { publicProductHref } from "@/lib/portal-products";
+import { publicProductHref } from "@/lib/product-catalog";
 
 type MonthlyBucket = { month: string; orders: number; revenue: number };
 type KpiCard = {
