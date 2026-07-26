@@ -52,6 +52,18 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
 
+  static-refs:
+    name: Statiska filer
+    runs-on: ubuntu-latest
+    # Next serverar public/ rakt av, så varken typecheck eller build märker
+    # om en refererad bild/film raderas — den blir tyst 404 i produktion.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: node scripts/check-static-refs.mjs
+
   build:
     name: Build
     runs-on: ubuntu-latest
