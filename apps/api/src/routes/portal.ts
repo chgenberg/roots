@@ -13,6 +13,7 @@ import {
 import { isDemoSession } from "../lib/session";
 import { requireSession } from "../lib/http-session";
 import { childLogger } from "../lib/logger";
+import { auditLog } from "../lib/audit";
 import type {
   DashboardResponse,
   StatisticsResponse,
@@ -1012,6 +1013,166 @@ portal.get("/quotes", async (c) => {
   }
 });
 
+// ── Move a quote between pipeline stages ─────────────────────
+//
+// `PATCH /v1/portal/quotes/:id/status` backs drag-and-drop on the
+// pipeline board (and the stage-picker in the deal dialog, which is the
+// keyboard/touch path to the same thing).
+//
+// Transitions are deliberately NOT restricted to a forward-only funnel:
+// a rep who drops a card on the wrong column must be able to drag it
+// back, and "Nekad → Skickad" is a real thing that happens when a club
+// changes its mind. Every move is audit-logged so the history survives
+// even though `quotes` only keeps the current status.
+portal.patch("/quotes/:id/status", async (c) => {
+  const session = await requireSession(c);
+  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+
+  if (
+    session.role !== "SALES_REP" &&
+    session.role !== "SALES_ADMIN" &&
+    session.role !== "INTERNAL_ADMIN"
+  ) {
+    return c.json({ error: "Behörighet saknas" }, 403);
+  }
+  if (isDemoSession(session)) {
+    return c.json({ error: "Demoläget kan inte ändra riktiga offerter." }, 403);
+  }
+
+  const quoteId = c.req.param("id");
+  const UUID_RE =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!UUID_RE.test(quoteId)) {
+    return c.json({ error: "Ogiltigt offert-ID." }, 400);
+  }
+
+  let body: { status?: string };
+  try {
+    body = await c.req.json<{ status?: string }>();
+  } catch {
+    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+  }
+
+  // EXPIRED exists in the SQL enum but has no column on the board — it is
+  // a lifecycle state we set from `validUntil`, not something a rep drags
+  // a card into. Accepting it here would strand the card off-board.
+  const ALLOWED = ["DRAFT", "SENT", "ACCEPTED", "REJECTED"] as const;
+  type AllowedStatus = (typeof ALLOWED)[number];
+  const status = ALLOWED.find((s) => s === body.status) as
+    | AllowedStatus
+    | undefined;
+  if (!status) {
+    return c.json(
+      { error: `status måste vara en av: ${ALLOWED.join(", ")}` },
+      400
+    );
+  }
+
+  try {
+    const [existing] = await db
+      .select({
+        id: quotes.id,
+        status: quotes.status,
+        orgId: quotes.orgId,
+        salesRepId: quotes.salesRepId,
+        totalOre: quotes.totalOre,
+      })
+      .from(quotes)
+      .where(eq(quotes.id, quoteId))
+      .limit(1);
+
+    if (!existing) {
+      return c.json({ error: "Offerten hittades inte" }, 404);
+    }
+    // A rep may only move their own quotes. Admins move anyone's.
+    if (
+      session.role === "SALES_REP" &&
+      existing.salesRepId !== session.userId
+    ) {
+      return c.json({ error: "Behörighet saknas" }, 403);
+    }
+
+    const previousStatus = String(existing.status);
+
+    // No-op moves (dropped back on the same column) shouldn't bump
+    // updatedAt — that would reset the "days in stage" badge and make the
+    // board lie about how long a deal has been sitting still.
+    if (previousStatus === status) {
+      return c.json({
+        quote: {
+          id: existing.id,
+          status,
+          totalOre: existing.totalOre,
+          orgId: existing.orgId,
+          updatedAt: new Date().toISOString(),
+        },
+        orgPromotedToCustomer: false,
+      });
+    }
+
+    const [updated] = await db
+      .update(quotes)
+      .set({ status, updatedAt: new Date() })
+      .where(eq(quotes.id, quoteId))
+      .returning({
+        id: quotes.id,
+        status: quotes.status,
+        totalOre: quotes.totalOre,
+        orgId: quotes.orgId,
+        updatedAt: quotes.updatedAt,
+      });
+
+    // Accepting a quote is the moment a lead becomes a customer. Without
+    // this the club would stay `crm_status='LEAD'` forever and keep being
+    // counted as an open lead in every CRM report.
+    let orgPromotedToCustomer = false;
+    if (status === "ACCEPTED") {
+      const promoted = await db
+        .update(organizations)
+        .set({ crmStatus: "CUSTOMER", updatedAt: new Date() })
+        .where(
+          and(
+            eq(organizations.id, existing.orgId),
+            eq(organizations.crmStatus, "LEAD")
+          )
+        )
+        .returning({ id: organizations.id });
+      orgPromotedToCustomer = promoted.length > 0;
+    }
+
+    await auditLog({
+      userId: session.userId,
+      action: "sales.quote.status_changed",
+      entityType: "quote",
+      entityId: quoteId,
+      meta: {
+        from: previousStatus,
+        to: status,
+        orgId: existing.orgId,
+        totalOre: existing.totalOre,
+        orgPromotedToCustomer,
+      },
+    });
+
+    return c.json({
+      quote: {
+        id: updated.id,
+        status: String(updated.status),
+        totalOre: Number(updated.totalOre),
+        orgId: updated.orgId,
+        updatedAt:
+          updated.updatedAt instanceof Date
+            ? updated.updatedAt.toISOString()
+            : updated.updatedAt,
+      },
+      orgPromotedToCustomer,
+    });
+  } catch (err) {
+    log.error({ err, quoteId }, "Failed to update quote status");
+    return c.json({ error: "Kunde inte flytta offerten" }, 500);
+  }
+});
+
 // ── Create quote (Sprint C — "Knapparna fungerar") ───────────
 //
 // `POST /v1/portal/quotes` powers the "Ny offert"-button in the säljar-
@@ -1467,10 +1628,26 @@ portal.get("/pipeline", async (c) => {
   // union those orgs into a synthetic "LEAD" stage so a fresh lead
   // shows up the moment the rep clicks "Spara".
   // SALES_REP only sees orgs assigned to them, admins see all.
+  //
+  // The LEAD stage means "no quote yet". Without the NOT EXISTS below a
+  // club appeared in BOTH the LEAD column and its quote's column, because
+  // writing a quote never clears `crm_status='LEAD'` (that flips to
+  // CUSTOMER only when a quote is accepted). Deriving the stage from the
+  // absence of a quote keeps the board single-source-of-truth: creating a
+  // quote moves the card right, deleting it moves the card back, and no
+  // dual-write can drift. Scoped per viewer so a rep doesn't lose a lead
+  // just because a colleague quoted the same club.
+  const noQuoteYet =
+    role === "SALES_REP"
+      ? sql`NOT EXISTS (SELECT 1 FROM ${quotes} WHERE ${quotes.orgId} = ${organizations.id} AND ${quotes.salesRepId} = ${session.userId})`
+      : sql`NOT EXISTS (SELECT 1 FROM ${quotes} WHERE ${quotes.orgId} = ${organizations.id})`;
   const leadFilter =
     role === "SALES_REP"
-      ? sql`${organizations.crmStatus} = 'LEAD' AND ${organizations.assignedAsmUserId} = ${session.userId}`
-      : sql`${organizations.crmStatus} = 'LEAD'`;
+      ? and(
+          sql`${organizations.crmStatus} = 'LEAD' AND ${organizations.assignedAsmUserId} = ${session.userId}`,
+          noQuoteYet
+        )
+      : and(sql`${organizations.crmStatus} = 'LEAD'`, noQuoteYet);
 
   try {
     const stages = ["LEAD", "DRAFT", "SENT", "ACCEPTED", "REJECTED"];
@@ -1520,6 +1697,11 @@ portal.get("/pipeline", async (c) => {
         orgId: quotes.orgId,
         orgName: organizations.name,
         createdAt: quotes.createdAt,
+        // `updatedAt` is what the board's age badge should count from — a
+        // quote sitting 40 days in SENT is the signal a rep needs, not the
+        // day it was first drafted.
+        stageSince: quotes.updatedAt,
+        municipality: organizations.municipality,
       })
       .from(quotes)
       .leftJoin(organizations, eq(quotes.orgId, organizations.id))
@@ -1537,30 +1719,42 @@ portal.get("/pipeline", async (c) => {
         orgId: organizations.id,
         orgName: organizations.name,
         createdAt: organizations.createdAt,
+        potentialScore: organizations.potentialScore,
+        leadSource: organizations.leadSource,
+        municipality: organizations.municipality,
       })
       .from(organizations)
       .where(leadFilter)
       .orderBy(desc(organizations.createdAt))
       .limit(25);
 
+    const iso = (v: Date | string | null): string | null =>
+      v instanceof Date ? v.toISOString() : v;
+
     const dealsFromQuotes: PipelineResponse["deals"] = recentDeals.map((d) => ({
       id: d.id,
+      kind: "QUOTE",
       status: String(d.status),
       totalOre: Number(d.totalOre),
       orgId: d.orgId,
       orgName: d.orgName,
-      createdAt:
-        d.createdAt instanceof Date ? d.createdAt.toISOString() : d.createdAt,
+      municipality: d.municipality,
+      createdAt: iso(d.createdAt) ?? new Date().toISOString(),
+      stageSince: iso(d.stageSince ?? d.createdAt),
     }));
 
     const dealsFromLeads: PipelineResponse["deals"] = recentLeads.map((l) => ({
       id: l.id,
+      kind: "LEAD",
       status: "LEAD",
       totalOre: 0,
       orgId: l.orgId,
       orgName: l.orgName,
-      createdAt:
-        l.createdAt instanceof Date ? l.createdAt.toISOString() : l.createdAt,
+      municipality: l.municipality,
+      createdAt: iso(l.createdAt) ?? new Date().toISOString(),
+      stageSince: iso(l.createdAt),
+      potentialScore: l.potentialScore,
+      leadSource: l.leadSource,
     }));
 
     const payload: PipelineResponse = {
@@ -1568,11 +1762,217 @@ portal.get("/pipeline", async (c) => {
       // Leads first so the LEAD column populates even when the rep has
       // 25 active quotes that would otherwise eat the entire 25-row cap.
       deals: [...dealsFromLeads, ...dealsFromQuotes],
+      // Demo logins share the seeded data, so PATCH /quotes/:id/status
+      // refuses them. Say so up front instead of letting the board offer a
+      // drag that always ends in a 403.
+      readOnly: isDemoSession(session),
     };
     return c.json(payload);
   } catch (err) {
     log.error({ err }, "Failed to fetch pipeline");
     return c.json({ error: "Kunde inte hämta pipeline" }, 500);
+  }
+});
+
+// ── Pipeline deal detail (backs the board's detail dialog) ────
+//
+// `GET /v1/portal/pipeline/deals/:kind/:id` where kind is `lead` (an
+// organizations row without a quote) or `quote`. One endpoint for both so
+// the client has a single fetch path; the payload is discriminated by
+// `kind`. Tenancy mirrors GET /pipeline exactly: a SALES_REP may only
+// open their own quotes and the leads assigned to them.
+portal.get("/pipeline/deals/:kind/:id", async (c) => {
+  const session = await requireSession(c);
+  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+
+  const role = session.role;
+  if (role !== "SALES_REP" && role !== "SALES_ADMIN" && role !== "INTERNAL_ADMIN") {
+    return c.json({ error: "Behörighet saknas" }, 403);
+  }
+
+  const kindParam = c.req.param("kind");
+  const id = c.req.param("id");
+  const UUID_RE =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (kindParam !== "lead" && kindParam !== "quote") {
+    return c.json({ error: "kind måste vara 'lead' eller 'quote'" }, 400);
+  }
+  if (!UUID_RE.test(id)) {
+    return c.json({ error: "Ogiltigt ID." }, 400);
+  }
+
+  const iso = (v: Date | string | null | undefined): string | null =>
+    v instanceof Date ? v.toISOString() : (v ?? null);
+
+  try {
+    // The club behind the card. For a quote we resolve it via the quote,
+    // for a lead the id *is* the org id.
+    let orgId = id;
+    let quoteRow:
+      | {
+          id: string;
+          status: string;
+          totalOre: number;
+          orgId: string;
+          salesRepId: string;
+          validUntil: Date | string | null;
+          createdAt: Date | string;
+          updatedAt: Date | string;
+        }
+      | undefined;
+
+    if (kindParam === "quote") {
+      const [q] = await db
+        .select({
+          id: quotes.id,
+          status: quotes.status,
+          totalOre: quotes.totalOre,
+          orgId: quotes.orgId,
+          salesRepId: quotes.salesRepId,
+          validUntil: quotes.validUntil,
+          createdAt: quotes.createdAt,
+          updatedAt: quotes.updatedAt,
+        })
+        .from(quotes)
+        .where(eq(quotes.id, id))
+        .limit(1);
+      if (!q) return c.json({ error: "Offerten hittades inte" }, 404);
+      if (role === "SALES_REP" && q.salesRepId !== session.userId) {
+        return c.json({ error: "Behörighet saknas" }, 403);
+      }
+      quoteRow = { ...q, status: String(q.status) };
+      orgId = q.orgId;
+    }
+
+    const [org] = await db
+      .select({
+        id: organizations.id,
+        name: organizations.name,
+        orgNumber: organizations.orgNumber,
+        type: organizations.type,
+        sportType: organizations.sportType,
+        municipality: organizations.municipality,
+        region: organizations.region,
+        website: organizations.website,
+        crmStatus: organizations.crmStatus,
+        leadSource: organizations.leadSource,
+        potentialScore: organizations.potentialScore,
+        assignedAsmUserId: organizations.assignedAsmUserId,
+        createdAt: organizations.createdAt,
+      })
+      .from(organizations)
+      .where(eq(organizations.id, orgId))
+      .limit(1);
+    if (!org) return c.json({ error: "Föreningen hittades inte" }, 404);
+
+    // A rep opening a LEAD card must own it. (For quotes the ownership
+    // check above already applies — the club itself may be assigned to a
+    // colleague while the quote is mine.)
+    if (
+      kindParam === "lead" &&
+      role === "SALES_REP" &&
+      org.assignedAsmUserId !== session.userId
+    ) {
+      return c.json({ error: "Behörighet saknas" }, 403);
+    }
+
+    const [{ membersCount }] = await db
+      .select({ membersCount: sql<number>`count(*)` })
+      .from(users)
+      .where(eq(users.orgId, orgId));
+
+    // Quote lines, only meaningful for the quote kind.
+    const lines = quoteRow
+      ? await db
+          .select({
+            productName: products.name,
+            sku: products.sku,
+            qty: quoteLines.qty,
+            unitPriceOre: quoteLines.unitPriceOre,
+          })
+          .from(quoteLines)
+          .leftJoin(products, eq(quoteLines.productId, products.id))
+          .where(eq(quoteLines.quoteId, quoteRow.id))
+      : [];
+
+    // Sibling quotes for the same club so the rep sees the history. Scoped
+    // to the rep's own quotes for SALES_REP, same as the board.
+    const otherQuoteRows = await db
+      .select({
+        id: quotes.id,
+        status: quotes.status,
+        totalOre: quotes.totalOre,
+        createdAt: quotes.createdAt,
+      })
+      .from(quotes)
+      .where(
+        role === "SALES_REP"
+          ? and(
+              eq(quotes.orgId, orgId),
+              eq(quotes.salesRepId, session.userId)
+            )
+          : eq(quotes.orgId, orgId)
+      )
+      .orderBy(desc(quotes.createdAt))
+      .limit(10);
+
+    // Who owns this deal: the quote's rep, or for a lead the assigned ASM.
+    // (Admins see other people's cards, so "—" would hide who to ask.)
+    const ownerId = quoteRow ? quoteRow.salesRepId : org.assignedAsmUserId;
+    let salesRepName: string | null = null;
+    if (ownerId) {
+      const [rep] = await db
+        .select({ contactName: users.contactName, email: users.email })
+        .from(users)
+        .where(eq(users.id, ownerId))
+        .limit(1);
+      salesRepName = rep?.contactName ?? rep?.email ?? null;
+    }
+
+    return c.json({
+      deal: {
+        kind: kindParam === "quote" ? "QUOTE" : "LEAD",
+        id,
+        status: quoteRow ? quoteRow.status : "LEAD",
+        totalOre: quoteRow ? Number(quoteRow.totalOre) : 0,
+        createdAt: iso(quoteRow ? quoteRow.createdAt : org.createdAt),
+        stageSince: iso(quoteRow ? quoteRow.updatedAt : org.createdAt),
+        validUntil: quoteRow ? iso(quoteRow.validUntil) : null,
+        salesRepName,
+        org: {
+          id: org.id,
+          name: org.name,
+          orgNumber: org.orgNumber,
+          type: org.type,
+          sportType: org.sportType,
+          municipality: org.municipality,
+          region: org.region,
+          website: org.website,
+          crmStatus: org.crmStatus,
+          leadSource: org.leadSource,
+          potentialScore: org.potentialScore,
+          membersCount: Number(membersCount || 0),
+        },
+        lines: lines.map((l) => ({
+          productName: l.productName ?? "Okänd produkt",
+          sku: l.sku,
+          qty: Number(l.qty),
+          unitPriceOre: Number(l.unitPriceOre),
+          lineTotalOre: Number(l.unitPriceOre) * Number(l.qty),
+        })),
+        otherQuotes: otherQuoteRows
+          .filter((q) => q.id !== id)
+          .map((q) => ({
+            id: q.id,
+            status: String(q.status),
+            totalOre: Number(q.totalOre),
+            createdAt: iso(q.createdAt),
+          })),
+      },
+    });
+  } catch (err) {
+    log.error({ err, kindParam, id }, "Failed to fetch pipeline deal detail");
+    return c.json({ error: "Kunde inte hämta affären" }, 500);
   }
 });
 

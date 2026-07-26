@@ -136,8 +136,21 @@ export const pipelineStageSchema = z.object({
   totalOre: z.number().int().nonnegative(),
 });
 
+// A pipeline card is one of two different things, and the board has to
+// know which: a LEAD is an `organizations` row with no quote yet, a QUOTE
+// is a `quotes` row. Moving between them is not a status update but a
+// create/delete, so the UI must not treat them the same.
+export const pipelineDealKindEnum = z.union([
+  z.literal("LEAD"),
+  z.literal("QUOTE"),
+]);
+export type PipelineDealKind = z.infer<typeof pipelineDealKindEnum>;
+
 export const pipelineDealSchema = z.object({
   id: z.string().uuid(),
+  // Optional so a stale API build (pre-kind) still validates; the client
+  // falls back to deriving it from `status === "LEAD"`.
+  kind: pipelineDealKindEnum.optional(),
   status: z.string(),
   totalOre: z.number().int().nonnegative(),
   orgId: z.string().uuid(),
@@ -145,14 +158,82 @@ export const pipelineDealSchema = z.object({
   // the FK could in theory be unresolved during data-migration windows,
   // and optional so older API responses still validate.
   orgName: z.string().nullable().optional(),
+  municipality: z.string().nullable().optional(),
   createdAt: z.union([z.string(), z.date()]),
+  // When the card entered its current stage (quotes.updatedAt). The age
+  // badge counts from this, not from createdAt.
+  stageSince: z.union([z.string(), z.date()]).nullable().optional(),
+  potentialScore: z.number().int().nullable().optional(),
+  leadSource: z.string().nullable().optional(),
 });
+export type PipelineDeal = z.infer<typeof pipelineDealSchema>;
 
 export const pipelineResponseSchema = z.object({
   stages: z.array(pipelineStageSchema),
   deals: z.array(pipelineDealSchema),
+  // True for demo logins, which may read the board but not move deals
+  // (they share the seeded demo data with everyone else). The server owns
+  // that decision, so it tells the client instead of letting it offer a
+  // drag gesture that is guaranteed to come back as a 403.
+  readOnly: z.boolean().optional(),
 });
 export type PipelineResponse = z.infer<typeof pipelineResponseSchema>;
+
+// ── GET /v1/portal/pipeline/deals/:kind/:id ─────────────────────────
+//
+// Backs the pipeline detail dialog. One endpoint for both card kinds so
+// the client has a single fetch path; `kind` discriminates the payload.
+export const pipelineDealLineSchema = z.object({
+  productName: z.string(),
+  sku: z.string().nullable().optional(),
+  qty: z.number().int(),
+  unitPriceOre: z.number().int(),
+  lineTotalOre: z.number().int(),
+});
+
+export const pipelineDealDetailSchema = z.object({
+  kind: pipelineDealKindEnum,
+  id: z.string().uuid(),
+  status: z.string(),
+  totalOre: z.number().int(),
+  createdAt: z.union([z.string(), z.date()]),
+  stageSince: z.union([z.string(), z.date()]).nullable().optional(),
+  validUntil: z.union([z.string(), z.date()]).nullable().optional(),
+  salesRepName: z.string().nullable().optional(),
+  org: z.object({
+    id: z.string().uuid(),
+    name: z.string(),
+    orgNumber: z.string().nullable().optional(),
+    type: z.string().nullable().optional(),
+    sportType: z.string().nullable().optional(),
+    municipality: z.string().nullable().optional(),
+    region: z.string().nullable().optional(),
+    website: z.string().nullable().optional(),
+    crmStatus: z.string().nullable().optional(),
+    leadSource: z.string().nullable().optional(),
+    potentialScore: z.number().int().nullable().optional(),
+    membersCount: z.number().int().nonnegative(),
+  }),
+  lines: z.array(pipelineDealLineSchema),
+  // Other quotes for the same club, so the rep sees history without
+  // leaving the dialog.
+  otherQuotes: z.array(
+    z.object({
+      id: z.string().uuid(),
+      status: z.string(),
+      totalOre: z.number().int(),
+      createdAt: z.union([z.string(), z.date()]),
+    })
+  ),
+});
+export type PipelineDealDetail = z.infer<typeof pipelineDealDetailSchema>;
+
+export const pipelineDealDetailResponseSchema = z.object({
+  deal: pipelineDealDetailSchema,
+});
+export type PipelineDealDetailResponse = z.infer<
+  typeof pipelineDealDetailResponseSchema
+>;
 
 // ── /v1/portal/income ───────────────────────────────────────────────
 
@@ -217,6 +298,34 @@ export const createQuoteResponseSchema = z.object({
   quote: portalQuoteSchema,
 });
 export type CreateQuoteResponse = z.infer<typeof createQuoteResponseSchema>;
+
+// ── PATCH /v1/portal/quotes/:id/status ──────────────────────────────
+//
+// Powers drag-and-drop between the four quote stages on the pipeline
+// board. LEAD is deliberately absent: a card can only leave LEAD by a
+// quote being created for it, never by a status write.
+export const updateQuoteStatusRequestSchema = z.object({
+  status: quoteStatusEnum,
+});
+export type UpdateQuoteStatusRequest = z.infer<
+  typeof updateQuoteStatusRequestSchema
+>;
+
+export const updateQuoteStatusResponseSchema = z.object({
+  quote: z.object({
+    id: z.string().uuid(),
+    status: quoteStatusEnum,
+    totalOre: z.number().int(),
+    orgId: z.string().uuid(),
+    updatedAt: z.union([z.string(), z.date()]),
+  }),
+  // True when accepting the quote also promoted the club from LEAD to
+  // CUSTOMER, so the UI can say so instead of silently changing CRM state.
+  orgPromotedToCustomer: z.boolean().default(false),
+});
+export type UpdateQuoteStatusResponse = z.infer<
+  typeof updateQuoteStatusResponseSchema
+>;
 
 // ── /v1/portal/members ──────────────────────────────────────────────
 

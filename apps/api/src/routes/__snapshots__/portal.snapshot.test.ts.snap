@@ -89,28 +89,40 @@ exports[`GET /v1/portal/pipeline > returns stage rollups and recent deals (snaps
     {
       "createdAt": "2026-05-15T09:00:00.000Z",
       "id": "00000000-0000-0000-0000-0000000000e1",
+      "kind": "LEAD",
+      "leadSource": "OUTBOUND",
+      "municipality": "Uppsala",
       "orgId": "00000000-0000-0000-0000-0000000000e1",
       "orgName": "IFK Lead-test",
+      "potentialScore": 65,
+      "stageSince": "2026-05-15T09:00:00.000Z",
       "status": "LEAD",
       "totalOre": 0,
     },
     {
       "createdAt": "2026-05-14T08:00:00.000Z",
       "id": "00000000-0000-0000-0000-0000000000d1",
+      "kind": "QUOTE",
+      "municipality": "Solna",
       "orgId": "00000000-0000-0000-0000-0000000000aa",
       "orgName": "Demo Fotbollsklubb",
+      "stageSince": "2026-05-20T08:00:00.000Z",
       "status": "SENT",
       "totalOre": 250000,
     },
     {
       "createdAt": "2026-05-13T12:00:00.000Z",
       "id": "00000000-0000-0000-0000-0000000000d2",
+      "kind": "QUOTE",
+      "municipality": null,
       "orgId": "00000000-0000-0000-0000-0000000000bb",
       "orgName": null,
+      "stageSince": "2026-05-13T12:00:00.000Z",
       "status": "DRAFT",
       "totalOre": 150000,
     },
   ],
+  "readOnly": false,
   "stages": [
     {
       "count": 1,
@@ -138,6 +150,52 @@ exports[`GET /v1/portal/pipeline > returns stage rollups and recent deals (snaps
       "totalOre": 0,
     },
   ],
+}
+`;
+
+exports[`GET /v1/portal/pipeline/deals/:kind/:id > returns the quote with lines, club facts and sibling quotes (snapshot) 1`] = `
+{
+  "deal": {
+    "createdAt": "2026-05-14T08:00:00.000Z",
+    "id": "00000000-0000-0000-0000-0000000000d1",
+    "kind": "QUOTE",
+    "lines": [
+      {
+        "lineTotalOre": 149000,
+        "productName": "Roots Schampoo",
+        "qty": 10,
+        "sku": "ROOTS-SH-001",
+        "unitPriceOre": 14900,
+      },
+    ],
+    "org": {
+      "crmStatus": "LEAD",
+      "id": "00000000-0000-0000-0000-0000000000aa",
+      "leadSource": "OUTBOUND",
+      "membersCount": 15,
+      "municipality": "Solna",
+      "name": "Demo Fotbollsklubb",
+      "orgNumber": "556677-8899",
+      "potentialScore": 70,
+      "region": "Stockholm",
+      "sportType": "Fotboll",
+      "type": "club",
+      "website": "demoif.se",
+    },
+    "otherQuotes": [
+      {
+        "createdAt": "2026-03-02T08:00:00.000Z",
+        "id": "00000000-0000-0000-0000-0000000000d9",
+        "status": "REJECTED",
+        "totalOre": 90000,
+      },
+    ],
+    "salesRepName": "Erik Säljare",
+    "stageSince": "2026-05-20T08:00:00.000Z",
+    "status": "SENT",
+    "totalOre": 250000,
+    "validUntil": "2026-06-14T08:00:00.000Z",
+  },
 }
 `;
 

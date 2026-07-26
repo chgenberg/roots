@@ -85,7 +85,11 @@ const { mockDb, dbHandle } = vi.hoisted(() => {
   };
 });
 
-vi.mock("@roots/db", () => ({ db: mockDb }));
+// `auditLogs` is re-exported from @roots/db and used by lib/audit. Without
+// it in the mock the audit write throws (swallowed by design), so the audit
+// trail would silently go untested — and for pipeline moves that trail is
+// the only record of who moved a deal and when.
+vi.mock("@roots/db", () => ({ db: mockDb, auditLogs: { _table: "audit_logs" } }));
 
 vi.mock("../lib/session", async () => {
   const actual = await vi.importActual<any>("../lib/session");
@@ -295,6 +299,11 @@ describe("GET /v1/portal/pipeline", () => {
           // kanban-card title instead of "Klubb <orgId-prefix>".
           orgName: "Demo Fotbollsklubb",
           createdAt: new Date("2026-05-14T08:00:00.000Z"),
+          // `stageSince` (quotes.updatedAt) is what the board's age badge
+          // counts from — a quote that has sat 40 days in SENT is the
+          // signal, not the day it was drafted.
+          stageSince: new Date("2026-05-20T08:00:00.000Z"),
+          municipality: "Solna",
         },
         {
           id: "00000000-0000-0000-0000-0000000000d2",
@@ -306,6 +315,8 @@ describe("GET /v1/portal/pipeline", () => {
           // falls back to "—".
           orgName: null,
           createdAt: new Date("2026-05-13T12:00:00.000Z"),
+          stageSince: null,
+          municipality: null,
         },
       ],
       [
@@ -314,6 +325,9 @@ describe("GET /v1/portal/pipeline", () => {
           orgId: "00000000-0000-0000-0000-0000000000e1",
           orgName: "IFK Lead-test",
           createdAt: new Date("2026-05-15T09:00:00.000Z"),
+          potentialScore: 65,
+          leadSource: "OUTBOUND",
+          municipality: "Uppsala",
         },
       ],
     ]);
@@ -321,6 +335,322 @@ describe("GET /v1/portal/pipeline", () => {
     const out = await callPortal("/pipeline");
     expect(out.status).toBe(200);
     expect(out.body).toMatchSnapshot();
+  });
+
+  // Demo logins (salj@roots.se and friends) may read the board but every
+  // write is refused. The board reads this flag to hide the drag handles —
+  // without it the demo user drags a card and gets a 403 that looks like a
+  // broken feature rather than a deliberate limit.
+  it("flags the board read-only for demo accounts", async () => {
+    // The local dev env sets ROOTS_ALLOW_DEMO_WRITES=true (film recording);
+    // clear it so the assertion means the same thing here and in CI.
+    vi.stubEnv("ROOTS_ALLOW_DEMO_WRITES", "");
+    getSessionMock.mockResolvedValue({
+      userId: "00000000-0000-0000-0000-000000000030",
+      role: "SALES_REP",
+      orgId: null,
+      createdAt: 0,
+      isDemoAccount: true,
+    } as any);
+    dbHandle.reset([[], [{ leadCount: 0 }], [], []]);
+
+    const out = await callPortal("/pipeline");
+    expect(out.status).toBe(200);
+    expect((out.body as { readOnly: boolean }).readOnly).toBe(true);
+    vi.unstubAllEnvs();
+  });
+});
+
+// ── Drag-and-drop between pipeline stages ──────────────────────────
+//
+// PATCH /quotes/:id/status is what the kanban board writes when a card is
+// dropped on another column (and what the stage picker in the deal dialog
+// calls). The guards below are the ones that keep a drag from doing
+// something the rep didn't ask for.
+
+const QUOTE_ID = "00000000-0000-0000-0000-0000000000d1";
+const REP_ID = "00000000-0000-0000-0000-000000000040";
+
+function repSession(userId = REP_ID) {
+  return {
+    userId,
+    role: "SALES_REP",
+    orgId: null,
+    createdAt: 0,
+  } as any;
+}
+
+async function patchStatus(id: string, body: unknown) {
+  const res = await portal.request(`/quotes/${id}/status`, {
+    method: "PATCH",
+    headers: { cookie: SESSION_COOKIE, "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return { status: res.status, body: await res.json() };
+}
+
+describe("PATCH /v1/portal/quotes/:id/status", () => {
+  const existingQuote = {
+    id: QUOTE_ID,
+    status: "SENT",
+    orgId: "00000000-0000-0000-0000-0000000000aa",
+    salesRepId: REP_ID,
+    totalOre: 250_000,
+  };
+
+  it("refuses demo accounts before touching the quote", async () => {
+    vi.stubEnv("ROOTS_ALLOW_DEMO_WRITES", "");
+    getSessionMock.mockResolvedValue({
+      ...repSession(),
+      isDemoAccount: true,
+    });
+    dbHandle.reset([[existingQuote]]);
+
+    const out = await patchStatus(QUOTE_ID, { status: "ACCEPTED" });
+    expect(out.status).toBe(403);
+    // Nothing was written: no status update means no audit row either.
+    expect(dbHandle.inserts).toHaveLength(0);
+    vi.unstubAllEnvs();
+  });
+
+  it("moves a quote the rep owns and reports the new stage", async () => {
+    getSessionMock.mockResolvedValue(repSession());
+    dbHandle.reset([
+      [existingQuote],
+      [
+        {
+          ...existingQuote,
+          status: "REJECTED",
+          updatedAt: new Date("2026-05-21T10:00:00.000Z"),
+        },
+      ],
+      [], // auditLog insert
+    ]);
+
+    const out = await patchStatus(QUOTE_ID, { status: "REJECTED" });
+    expect(out.status).toBe(200);
+    expect(out.body).toEqual({
+      quote: {
+        id: QUOTE_ID,
+        status: "REJECTED",
+        totalOre: 250_000,
+        orgId: existingQuote.orgId,
+        updatedAt: "2026-05-21T10:00:00.000Z",
+      },
+      orgPromotedToCustomer: false,
+    });
+
+    // `quotes` only stores the current status, so the audit row is the
+    // whole history of the move.
+    expect(dbHandle.inserts).toHaveLength(1);
+    expect(dbHandle.inserts[0].values).toMatchObject({
+      userId: REP_ID,
+      action: "sales.quote.status_changed",
+      entityType: "quote",
+      entityId: QUOTE_ID,
+      meta: { from: "SENT", to: "REJECTED", orgId: existingQuote.orgId },
+    });
+  });
+
+  it("promotes the club from LEAD to CUSTOMER when the quote is accepted", async () => {
+    getSessionMock.mockResolvedValue(repSession());
+    dbHandle.reset([
+      [existingQuote],
+      [
+        {
+          ...existingQuote,
+          status: "ACCEPTED",
+          updatedAt: new Date("2026-05-21T10:00:00.000Z"),
+        },
+      ],
+      [{ id: existingQuote.orgId }], // organizations update matched a LEAD row
+      [], // auditLog insert
+    ]);
+
+    const out = await patchStatus(QUOTE_ID, { status: "ACCEPTED" });
+    expect(out.status).toBe(200);
+    expect(out.body.orgPromotedToCustomer).toBe(true);
+  });
+
+  it("rejects EXPIRED — it has no column on the board", async () => {
+    getSessionMock.mockResolvedValue(repSession());
+    const out = await patchStatus(QUOTE_ID, { status: "EXPIRED" });
+    expect(out.status).toBe(400);
+  });
+
+  it("rejects an unknown status", async () => {
+    getSessionMock.mockResolvedValue(repSession());
+    const out = await patchStatus(QUOTE_ID, { status: "WON" });
+    expect(out.status).toBe(400);
+  });
+
+  it("rejects a malformed quote id before touching the database", async () => {
+    getSessionMock.mockResolvedValue(repSession());
+    const out = await patchStatus("not-a-uuid", { status: "SENT" });
+    expect(out.status).toBe(400);
+  });
+
+  it("does not let a rep move a colleague's quote", async () => {
+    getSessionMock.mockResolvedValue(repSession());
+    dbHandle.reset([
+      [{ ...existingQuote, salesRepId: "00000000-0000-0000-0000-0000000000ff" }],
+    ]);
+
+    const out = await patchStatus(QUOTE_ID, { status: "ACCEPTED" });
+    expect(out.status).toBe(403);
+  });
+
+  it("404s on a quote that doesn't exist", async () => {
+    getSessionMock.mockResolvedValue(repSession());
+    dbHandle.reset([[]]);
+
+    const out = await patchStatus(QUOTE_ID, { status: "SENT" });
+    expect(out.status).toBe(404);
+  });
+
+  it("keeps club roles out", async () => {
+    getSessionMock.mockResolvedValue({
+      userId: "00000000-0000-0000-0000-000000000050",
+      role: "CLUB_ADMIN",
+      orgId: "00000000-0000-0000-0000-0000000000cc",
+      createdAt: 0,
+    } as any);
+
+    const out = await patchStatus(QUOTE_ID, { status: "ACCEPTED" });
+    expect(out.status).toBe(403);
+  });
+
+  it("leaves the stage untouched when dropped back on the same column", async () => {
+    getSessionMock.mockResolvedValue(repSession());
+    // Only the lookup runs — a no-op move must not bump updatedAt, or the
+    // "days in stage" badge would reset every time a card is nudged.
+    dbHandle.reset([[existingQuote]]);
+
+    const out = await patchStatus(QUOTE_ID, { status: "SENT" });
+    expect(out.status).toBe(200);
+    expect(out.body.quote.status).toBe("SENT");
+    expect(out.body.orgPromotedToCustomer).toBe(false);
+  });
+});
+
+describe("GET /v1/portal/pipeline/deals/:kind/:id", () => {
+  it("rejects an unknown kind", async () => {
+    getSessionMock.mockResolvedValue(repSession());
+    const out = await callPortal(`/pipeline/deals/klubb/${QUOTE_ID}`);
+    expect(out.status).toBe(400);
+  });
+
+  it("returns the quote with lines, club facts and sibling quotes (snapshot)", async () => {
+    getSessionMock.mockResolvedValue(repSession());
+    dbHandle.reset([
+      [
+        {
+          id: QUOTE_ID,
+          status: "SENT",
+          totalOre: 250_000,
+          orgId: "00000000-0000-0000-0000-0000000000aa",
+          salesRepId: REP_ID,
+          validUntil: new Date("2026-06-14T08:00:00.000Z"),
+          createdAt: new Date("2026-05-14T08:00:00.000Z"),
+          updatedAt: new Date("2026-05-20T08:00:00.000Z"),
+        },
+      ],
+      [
+        {
+          id: "00000000-0000-0000-0000-0000000000aa",
+          name: "Demo Fotbollsklubb",
+          orgNumber: "556677-8899",
+          type: "club",
+          sportType: "Fotboll",
+          municipality: "Solna",
+          region: "Stockholm",
+          website: "demoif.se",
+          crmStatus: "LEAD",
+          leadSource: "OUTBOUND",
+          potentialScore: 70,
+          assignedAsmUserId: REP_ID,
+          createdAt: new Date("2026-04-01T08:00:00.000Z"),
+        },
+      ],
+      [{ membersCount: 15 }],
+      [
+        {
+          productName: "Roots Schampoo",
+          sku: "ROOTS-SH-001",
+          qty: 10,
+          unitPriceOre: 14_900,
+        },
+      ],
+      [
+        // The card's own quote is filtered out of `otherQuotes`.
+        {
+          id: QUOTE_ID,
+          status: "SENT",
+          totalOre: 250_000,
+          createdAt: new Date("2026-05-14T08:00:00.000Z"),
+        },
+        {
+          id: "00000000-0000-0000-0000-0000000000d9",
+          status: "REJECTED",
+          totalOre: 90_000,
+          createdAt: new Date("2026-03-02T08:00:00.000Z"),
+        },
+      ],
+      [{ contactName: "Erik Säljare", email: "salj@roots.se" }],
+    ]);
+
+    const out = await callPortal(`/pipeline/deals/quote/${QUOTE_ID}`);
+    expect(out.status).toBe(200);
+    expect(out.body).toMatchSnapshot();
+  });
+
+  it("does not let a rep open a colleague's quote", async () => {
+    getSessionMock.mockResolvedValue(repSession());
+    dbHandle.reset([
+      [
+        {
+          id: QUOTE_ID,
+          status: "SENT",
+          totalOre: 250_000,
+          orgId: "00000000-0000-0000-0000-0000000000aa",
+          salesRepId: "00000000-0000-0000-0000-0000000000ff",
+          validUntil: null,
+          createdAt: new Date("2026-05-14T08:00:00.000Z"),
+          updatedAt: new Date("2026-05-14T08:00:00.000Z"),
+        },
+      ],
+    ]);
+
+    const out = await callPortal(`/pipeline/deals/quote/${QUOTE_ID}`);
+    expect(out.status).toBe(403);
+  });
+
+  it("does not let a rep open a lead assigned to someone else", async () => {
+    getSessionMock.mockResolvedValue(repSession());
+    dbHandle.reset([
+      [
+        {
+          id: "00000000-0000-0000-0000-0000000000e1",
+          name: "IFK Lead-test",
+          orgNumber: null,
+          type: "club",
+          sportType: null,
+          municipality: null,
+          region: null,
+          website: null,
+          crmStatus: "LEAD",
+          leadSource: "WEB",
+          potentialScore: 40,
+          assignedAsmUserId: "00000000-0000-0000-0000-0000000000ff",
+          createdAt: new Date("2026-05-15T09:00:00.000Z"),
+        },
+      ],
+    ]);
+
+    const out = await callPortal(
+      "/pipeline/deals/lead/00000000-0000-0000-0000-0000000000e1"
+    );
+    expect(out.status).toBe(403);
   });
 });
 
