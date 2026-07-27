@@ -1,7 +1,13 @@
 import type { MetadataRoute } from "next";
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://roots.se";
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+// Server-side fetch, so it needs the backend's absolute URL. `NEXT_PUBLIC_API_URL`
+// is the *browser* base and is `/api` in production — relative URLs throw in Node,
+// and the catch below would swallow it, silently dropping every shop page.
+const API_URL =
+  process.env.API_BACKEND_URL ||
+  process.env.API_URL ||
+  "http://127.0.0.1:4000";
 
 // P2.47 (audit 2026-05-26): revalidate hourly så nya säljare
 // dyker upp utan att vi behöver bygga om hela siten.
