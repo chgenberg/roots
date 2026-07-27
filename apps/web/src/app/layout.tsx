@@ -15,17 +15,20 @@ export const metadata: Metadata = {
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_SITE_URL || "https://roots.se"
   ),
-  // Sprint E13: brandbook symbol used as favicon + app icon. The
-  // 4000×4000 source is resized by Next on demand; we pass the same
-  // file for every slot so iOS, Android and desktop tabs all match.
+  // Brandbook symbol as favicon + app icon, pre-rendered per size by
+  // scripts/build-favicons.py. Earlier revisions pointed every slot at the
+  // 4000×4000 brand source on the assumption Next would resize it — it
+  // doesn't for metadata icons, so Safari drew no tab icon at all and every
+  // visitor fetched 130 kB for a 16px slot.
   icons: {
     icon: [
-      { url: "/brand/roots-symbol-dark.png", type: "image/png" },
+      { url: "/favicon.ico", sizes: "16x16 32x32 48x48" },
+      { url: "/icons/icon-32.png", type: "image/png", sizes: "32x32" },
+      { url: "/icons/icon-192.png", type: "image/png", sizes: "192x192" },
+      { url: "/icons/icon-512.png", type: "image/png", sizes: "512x512" },
     ],
-    apple: [
-      { url: "/brand/roots-symbol-dark.png" },
-    ],
-    shortcut: ["/brand/roots-symbol-dark.png"],
+    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180" }],
+    shortcut: ["/favicon.ico"],
   },
   openGraph: {
     type: "website",
