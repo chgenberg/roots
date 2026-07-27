@@ -377,7 +377,7 @@ def build():
             "Di-t-Butyl-4-Hydroxyhydrocinnamate, Sodium Hydroxide.",
             accent=FOREST, soft=FOREST_SOFT)
         page_product(
-            pdf, 4, "PRODUKT 02 · BALSAM", "Roots Conditioner", "Balsam", "200 ml",
+            pdf, 4, "PRODUKT 02 · BALSAM", "Roots Conditioner", "Balsam", "250 ml",
             "images/p5.jpg",
             "Ger håret exakt det det behöver — inget mer, inget mindre",
             "Ett närande balsam som gör håret mjukt, följsamt och lätt att reda "

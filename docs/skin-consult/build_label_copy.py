@@ -85,7 +85,7 @@ PRODUCTS = [
     },
     {
         "name": "Roots Conditioner", "code": "P2026106", "cat": "Conditioner",
-        "vol": "200 ml", "img": "images/p5.jpg", "accent": SAND_DARK,
+        "vol": "250 ml", "img": "images/p5.jpg", "accent": SAND_DARK,
         "function": "Conditioner — rinse-off hair conditioner.",
         "descriptor": "Nourishing conditioner",
         "claim": ("Lightweight conditioning that detangles and smooths without "

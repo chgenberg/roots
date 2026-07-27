@@ -40,7 +40,7 @@ const UPDATES: CatalogEntry[] = [
     sku: "ROOTS-CO-001",
     name: "Roots Conditioner",
     description:
-      "Närande balsam med SyriCalm®, Pro-Vitamin B5 och E-vitamin. Mjukt, följsamt hår utan att tynga. 200 ml.",
+      "Närande balsam med SyriCalm®, Pro-Vitamin B5 och E-vitamin. Mjukt, följsamt hår utan att tynga. 250 ml.",
   },
   {
     sku: "ROOTS-BW-001",
@@ -52,7 +52,7 @@ const UPDATES: CatalogEntry[] = [
     sku: BUNDLE_SKU,
     name: "Roots Komplett paket",
     description:
-      "Schampo, balsam och kroppstvätt tillsammans — hela rutinen i ett paket. 250 + 200 + 250 ml.",
+      "Schampo, balsam och kroppstvätt tillsammans — hela rutinen i ett paket. 3 × 250 ml.",
     slug: BUNDLE_SLUG,
     priceOre: 29900,
   },

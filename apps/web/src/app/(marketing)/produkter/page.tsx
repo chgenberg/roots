@@ -28,7 +28,7 @@ const PRODUCTS = [
   {
     slug: "conditioner",
     name: "Roots Conditioner",
-    subtitle: "Balsam — 200 ml",
+    subtitle: "Balsam — 250 ml",
     tagline: "Ett närande balsam som gör håret mjukt och följsamt utan att tynga. Pro-Vitamin B5 och antioxidanter ger fukt, lyster och skydd — SyriCalm® lugnar hårbotten.",
     image: "/images/conditioner.jpg",
     price: "149 kr",
@@ -54,7 +54,7 @@ const PRODUCTS = [
     image: "/images/collection-4.jpg",
     price: "299 kr",
     badge: "Spara 128 kr",
-    highlights: ["Alla tre produkterna", "250 + 200 + 250 ml", "Lägsta pris per flaska"],
+    highlights: ["Alla tre produkterna", "3 × 250 ml", "Lägsta pris per flaska"],
   },
 ];
 

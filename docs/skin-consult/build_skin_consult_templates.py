@@ -70,7 +70,7 @@ PRODUCTS = [
     },
     {
         "name": "Roots Conditioner", "code": "P2026106", "cat": "Conditioner",
-        "vol": "200 ml", "img": "images/p5.jpg", "accent": SAND_DARK,
+        "vol": "250 ml", "img": "images/p5.jpg", "accent": SAND_DARK,
         "inci": ("Aqua, Cetearyl Alcohol, Caprylic/Capric Triglyceride, "
                  "Distearoylethyl Hydroxyethylmonium Methosulfate, Stearamidopropyl "
                  "Dimethylamine, Phenoxyethanol, Panthenol, Hydrolyzed Corn Starch, "

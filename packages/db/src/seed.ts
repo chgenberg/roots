@@ -149,7 +149,7 @@ async function seed() {
       name: "Roots Conditioner",
       slug: "conditioner",
       description:
-        "Närande balsam med SyriCalm®, Pro-Vitamin B5 och E-vitamin. Mjukt, följsamt hår utan att tynga. 200 ml.",
+        "Närande balsam med SyriCalm®, Pro-Vitamin B5 och E-vitamin. Mjukt, följsamt hår utan att tynga. 250 ml.",
       priceOre: 14900,
       currency: "SEK",
     },
@@ -170,7 +170,7 @@ async function seed() {
       name: "Roots Komplett paket",
       slug: BUNDLE_SLUG,
       description:
-        "Schampo, balsam och kroppstvätt tillsammans — hela rutinen i ett paket. 250 + 200 + 250 ml.",
+        "Schampo, balsam och kroppstvätt tillsammans — hela rutinen i ett paket. 3 × 250 ml.",
       priceOre: 29900,
       currency: "SEK",
     },
