@@ -11,6 +11,7 @@
     "db:migrate": "turbo db:migrate",
     "db:seed": "turbo db:seed",
     "db:seed:demo": "pnpm -F @roots/db db:seed:demo",
+    "waitlist:export": "pnpm -F @roots/db waitlist:export",
     "test": "turbo test"
   },
   "packageManager": "pnpm@10.6.5",
