@@ -9,9 +9,10 @@ const API_URL =
   process.env.API_URL ||
   "http://127.0.0.1:4000";
 
-// P2.47 (audit 2026-05-26): revalidate hourly så nya säljare
-// dyker upp utan att vi behöver bygga om hela siten.
-export const revalidate = 3600;
+// Render per request: the backend URL only exists at runtime, so a build-time
+// prerender would bake in an empty shop list (the fetch below fails and is
+// swallowed) and serve it until the next revalidate window.
+export const dynamic = "force-dynamic";
 
 interface SitemapShopRow {
   slug: string;
