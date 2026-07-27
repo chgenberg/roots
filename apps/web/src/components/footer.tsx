@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Separator } from "@/components/ui/separator";
 import { LegalIdentityBlock } from "@/components/legal-identity-block";
 import { RootsLogo } from "@/components/brand";
+import { HAIR_ANALYSIS_ENABLED } from "@/lib/feature-flags";
 
 const FOOTER_LINKS = [
   {
@@ -11,7 +12,9 @@ const FOOTER_LINKS = [
       { href: "/produkter/conditioner", label: "Roots Conditioner" },
       { href: "/produkter/body-wash", label: "Roots Body Wash" },
       { href: "/produkter/paket", label: "Roots Komplett paket" },
-      { href: "/haranalys", label: "Gratis håranalys" },
+      ...(HAIR_ANALYSIS_ENABLED
+        ? [{ href: "/haranalys", label: "Gratis håranalys" }]
+        : []),
     ],
   },
   {

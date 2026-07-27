@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import * as VisuallyHiddenPrimitive from "@radix-ui/react-visually-hidden";
 import { cn } from "@/lib/utils";
+import { HAIR_ANALYSIS_ENABLED } from "@/lib/feature-flags";
 import {
   Search,
   FileText,
@@ -25,7 +26,9 @@ const ITEMS: SearchItem[] = [
   { label: "Föreningsliv", href: "/foreningsliv", category: "pages" },
   { label: "Om oss", href: "/om-oss", category: "pages" },
   { label: "Kontakt", href: "/kontakt", category: "pages" },
-  { label: "Håranalys", href: "/haranalys", category: "pages" },
+  ...(HAIR_ANALYSIS_ENABLED
+    ? ([{ label: "Håranalys", href: "/haranalys", category: "pages" }] as SearchItem[])
+    : []),
   { label: "Integritetspolicy", href: "/integritet", category: "pages" },
   { label: "Köpvillkor", href: "/villkor", category: "pages" },
   { label: "Roots Schampoo", href: "/produkter/shampoo", category: "products" },
@@ -33,7 +36,9 @@ const ITEMS: SearchItem[] = [
   { label: "Roots Body Wash", href: "/produkter/body-wash", category: "products" },
   { label: "Roots Komplett paket", href: "/produkter/paket", category: "products" },
   { label: "Logga in", href: "/login", category: "quick" },
-  { label: "Starta håranalys", href: "/haranalys", category: "quick" },
+  ...(HAIR_ANALYSIS_ENABLED
+    ? ([{ label: "Starta håranalys", href: "/haranalys", category: "quick" }] as SearchItem[])
+    : []),
 ];
 
 const CATEGORY_META: Record<SearchItem["category"], { label: string; icon: typeof FileText }> = {

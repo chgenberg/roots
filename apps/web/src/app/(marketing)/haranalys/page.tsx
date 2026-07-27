@@ -15,6 +15,10 @@ import {
   ChevronDown,
 } from "lucide-react";
 
+// Medan HAIR_ANALYSIS_ENABLED är false nås den här sidan aldrig — middleware:n
+// skickar /haranalys vidare till startsidan. Gaten ligger där och inte här
+// eftersom notFound() i en klientkomponent hinner få statusen 200 skickad
+// innan strömningen avbryts, vilket ger en mjuk 404.
 export default function HaranalysPage() {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 

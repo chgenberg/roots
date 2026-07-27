@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { HAIR_ANALYSIS_ENABLED } from "@/lib/feature-flags";
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://roots.se";
 // Server-side fetch, so it needs the backend's absolute URL. `NEXT_PUBLIC_API_URL`
@@ -49,7 +50,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE_URL}/foreningsliv`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.9 },
     { url: `${BASE_URL}/om-oss`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.7 },
     { url: `${BASE_URL}/kontakt`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.7 },
-    { url: `${BASE_URL}/haranalys`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.8 },
+    // Sidan svarar 404 medan håranalysen är dold — den får inte ligga kvar
+    // i sitemapen och bjuda in crawlers till en död URL.
+    ...(HAIR_ANALYSIS_ENABLED
+      ? [
+          {
+            url: `${BASE_URL}/haranalys`,
+            lastModified: new Date(),
+            changeFrequency: "monthly" as const,
+            priority: 0.8,
+          },
+        ]
+      : []),
     { url: `${BASE_URL}/integritet`, lastModified: new Date(), changeFrequency: "yearly", priority: 0.3 },
     { url: `${BASE_URL}/villkor`, lastModified: new Date(), changeFrequency: "yearly", priority: 0.3 },
   ];

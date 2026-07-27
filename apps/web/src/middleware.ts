@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { HAIR_ANALYSIS_ENABLED } from "@/lib/feature-flags";
 
 /**
  * Site-wide middleware. Two responsibilities, in order:
@@ -125,8 +126,24 @@ function isPreviewGateDisabled(): boolean {
   return process.env.PREVIEW_GATE_DISABLED === "true";
 }
 
+// Publika sidor som är tillfälligt dolda bakom en funktionsflagga. De
+// hanteras här och inte i sidan själv: notFound() i en klientkomponent
+// renderar 404-sidan men hinner skicka statusen 200, och en mjuk 404 bjuder
+// in crawlers till något vi gömmer. Tillfällig redirect (307) — sidan ska
+// tillbaka.
+const HIDDEN_ROUTES: string[] = [
+  ...(HAIR_ANALYSIS_ENABLED ? [] : ["/haranalys"]),
+];
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // 0. Dolda sidor ───────────────────────────────────────────────
+  if (
+    HIDDEN_ROUTES.some((p) => pathname === p || pathname.startsWith(p + "/"))
+  ) {
+    return NextResponse.redirect(new URL("/", request.url));
+  }
 
   // 1. Gate check ────────────────────────────────────────────────
   const isBypassed = GATE_BYPASS_PREFIXES.some(
