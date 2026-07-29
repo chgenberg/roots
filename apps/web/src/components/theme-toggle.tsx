@@ -10,12 +10,13 @@ export function ThemeToggle() {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    const prefersDark =
-      stored === "dark" ||
-      (!stored && window.matchMedia("(prefers-color-scheme: dark)").matches);
-    setDark(prefersDark);
-    document.documentElement.classList.toggle("dark", prefersDark);
+    // Systemets prefers-color-scheme läses avsiktligt inte: med "Auto" på
+    // macOS och iOS slår den om vid solnedgången, så besökare som aldrig bett
+    // om mörkt läge fick sajten mörk på kvällen. Ljust är startläget, mörkt
+    // kräver ett klick här.
+    const stored = localStorage.getItem(STORAGE_KEY) === "dark";
+    setDark(stored);
+    document.documentElement.classList.toggle("dark", stored);
     setMounted(true);
   }, []);
 
