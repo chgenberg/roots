@@ -62,6 +62,20 @@ const KEY_PREFIX = "heartbeat:job:";
 const HEARTBEAT_TTL_S = 60 * 60 * 24 * 30;
 
 /**
+ * När vi först saknade ett hjärtslag för ett jobb.
+ *
+ * Ett jobb med sex timmars intervall har rimligen inte kört strax efter en
+ * deploy, och utan den här tidpunkten larmade vi "har aldrig kört" inom fem
+ * minuter varje gång vi rullade ut. Det är brus, och brus lär folk att inte
+ * läsa larmen — vilket gör hela dödmansgreppet meningslöst.
+ *
+ * Processens uppetid duger inte som referens: den nollställs vid varje deploy,
+ * så ett jobb som verkligen slutat triggas skulle aldrig hinna bli tyst nog
+ * när vi deployar ofta. Märket ligger därför i Redis och överlever omstarter.
+ */
+const FIRST_SEEN_PREFIX = "heartbeat:first-seen:";
+
+/**
  * Registrerar en lyckad körning. Anropas efter att jobbet gjort sitt, inte
  * före — annars mäter vi att cron triggade, inte att arbetet blev gjort.
  */
@@ -76,6 +90,10 @@ export async function recordJobRun(
       "EX",
       HEARTBEAT_TTL_S
     );
+    // Jobbet har kört; väntetiden räknas om från noll nästa gång hjärtslaget
+    // hunnit gå ut. Utan städningen skulle ett gammalt märke göra att vi
+    // larmade direkt efter att hjärtslagets TTL löpt ut.
+    await redis.del(`${FIRST_SEEN_PREFIX}${name}`);
   } catch (err) {
     // Ett jobb ska aldrig fela på att hjärtslaget inte kunde skrivas. Vi
     // förlorar synligheten, inte arbetet.
@@ -94,6 +112,40 @@ export interface JobStatus {
   meta?: Record<string, unknown>;
 }
 
+/**
+ * Har jobbet saknat hjärtslag längre än det borde ha behövt för att köra?
+ *
+ * Sätter märket första gången och svarar då nej: vid det tillfället vet vi
+ * bara att jobbet inte kört än, inte att något är fel.
+ *
+ * Kan vi inte nå Redis svarar vi nej. Att larma om ett jobb när vi egentligen
+ * inte vet något vore ett larm om Redis, och Redis övervakas för sig.
+ */
+async function missingLongEnough(job: JobExpectation): Promise<boolean> {
+  const key = `${FIRST_SEEN_PREFIX}${job.name}`;
+  const now = Date.now();
+  try {
+    const set = await redis.set(
+      key,
+      String(now),
+      "EX",
+      HEARTBEAT_TTL_S,
+      "NX"
+    );
+    if (set === "OK") return false;
+
+    const raw = await redis.get(key);
+    const since = raw ? Number(raw) : NaN;
+    if (!Number.isFinite(since)) return false;
+
+    const waitedHours = (now - since) / (1000 * 60 * 60);
+    return waitedHours > job.intervalHours + job.graceHours;
+  } catch (err) {
+    log.warn({ err, name: job.name }, "kunde inte läsa väntetid för jobb");
+    return false;
+  }
+}
+
 export async function getJobStatuses(): Promise<JobStatus[]> {
   const out: JobStatus[] = [];
 
@@ -106,15 +158,16 @@ export async function getJobStatuses(): Promise<JobStatus[]> {
     }
 
     if (!raw) {
+      // Aldrig körd är precis det problem vi letar efter — ofta en cron som
+      // inte konfigurerats. Men det blir bara ett problem när jobbet HUNNIT
+      // köra, så vi räknar från första gången vi saknade hjärtslaget.
       out.push({
         name: job.name,
         description: job.description,
         intervalHours: job.intervalHours,
         lastRunAt: null,
         ageHours: null,
-        // Aldrig körd räknas som tyst. Ett jobb som aldrig triggats är exakt
-        // det problem vi letar efter — ofta en cron som inte konfigurerats.
-        stale: true,
+        stale: await missingLongEnough(job),
       });
       continue;
     }

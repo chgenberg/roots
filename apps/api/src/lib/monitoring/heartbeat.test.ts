@@ -4,11 +4,15 @@ const store = new Map<string, string>();
 
 vi.mock("../redis", () => ({
   redis: {
-    set: vi.fn(async (key: string, value: string) => {
+    // NX måste efterliknas: koden skiljer på "jag satte märket nu" och "det
+    // fanns redan", och utan skillnaden testar vi inte väntelogiken alls.
+    set: vi.fn(async (key: string, value: string, ...rest: unknown[]) => {
+      if (rest.includes("NX") && store.has(key)) return null;
       store.set(key, value);
       return "OK";
     }),
     get: vi.fn(async (key: string) => store.get(key) ?? null),
+    del: vi.fn(async (key: string) => (store.delete(key) ? 1 : 0)),
   },
 }));
 
@@ -21,14 +25,44 @@ describe("hjärtslag för schemalagda jobb", () => {
     vi.clearAllMocks();
   });
 
-  it("räknar ett jobb som aldrig rapporterat som tystnat", async () => {
+  it("larmar inte direkt på ett jobb som ännu inte hunnit köra", async () => {
+    // Läget strax efter en deploy. Ett jobb med sex timmars intervall har
+    // rimligen inte kört, och att skrika då gör larmen till brus.
     const statuses = await getJobStatuses();
 
     expect(statuses).toHaveLength(MONITORED_JOBS.length);
     for (const status of statuses) {
-      expect(status.stale).toBe(true);
+      expect(status.stale).toBe(false);
       expect(status.lastRunAt).toBeNull();
     }
+  });
+
+  it("larmar på ett jobb som aldrig kört när det borde ha hunnit", async () => {
+    const job = MONITORED_JOBS.find((j) => j.name === "deletion-purge")!;
+    const waited = job.intervalHours + job.graceHours + 1;
+    store.set(
+      "heartbeat:first-seen:deletion-purge",
+      String(Date.now() - waited * 60 * 60 * 1000)
+    );
+
+    const status = (await getJobStatuses()).find(
+      (s) => s.name === "deletion-purge"
+    );
+    expect(status?.stale).toBe(true);
+    expect(status?.lastRunAt).toBeNull();
+  });
+
+  it("nollställer väntetiden när jobbet väl kört", async () => {
+    // Utan städningen skulle ett gammalt märke ligga kvar och larma direkt
+    // efter att hjärtslagets TTL löpt ut, trots att jobbet just kört.
+    store.set(
+      "heartbeat:first-seen:lead-retention",
+      String(Date.now() - 1000 * 60 * 60 * 100)
+    );
+
+    await recordJobRun("lead-retention");
+
+    expect(store.has("heartbeat:first-seen:lead-retention")).toBe(false);
   });
 
   it("räknar ett jobb som just kört som friskt", async () => {
@@ -82,10 +116,14 @@ describe("hjärtslag för schemalagda jobb", () => {
     await expect(recordJobRun("lead-retention")).resolves.toBeUndefined();
   });
 
-  it("räknar en tystnad som tystnad även om Redis inte svarar", async () => {
+  it("larmar inte om jobben när det är Redis som inte svarar", async () => {
+    // Utan hjärtslag OCH utan väntetid vet vi ingenting om jobben. Att larma
+    // om dem då vore ett larm om Redis, och Redis övervakas för sig — annars
+    // ger ett Redis-avbrott ett larm per jobb utöver det riktiga.
     vi.mocked(redis.get).mockRejectedValue(new Error("redis nere"));
+    vi.mocked(redis.set).mockRejectedValue(new Error("redis nere"));
 
     const statuses = await getJobStatuses();
-    expect(statuses.every((s) => s.stale)).toBe(true);
+    expect(statuses.every((s) => !s.stale)).toBe(true);
   });
 });
