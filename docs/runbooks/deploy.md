@@ -26,7 +26,7 @@
 
   ```bash
   railway variables --service api --kv > /tmp/prod.env   # eller kopiera från UI
-  pnpm --filter @roots/api env:check -- --file /tmp/prod.env
+  pnpm --filter @roots/api env:check /tmp/prod.env
   rm /tmp/prod.env
   ```
 
