@@ -23,6 +23,17 @@ ALERT_EMAIL=drift@rootsnordic.se
 
 Saknas den loggas larmen som fel och går till Sentry, men ingen blir väckt.
 
+> **Läget i produktion just nu (kontrollerat 2026-08-03): larmen når ingen.**
+> `ALERT_EMAIL` är osatt, `SENTRY_DSN` är osatt, och `FEATURE_EMAIL_DISABLED=true`
+> byter in mock-avsändaren — så alla mail returnerar `success=true` och
+> försvinner. Övervakningen nedan fungerar och loggar rätt, den kommer bara
+> inte fram till en människa. Ofarligt bakom lanseringsspärren, men det första
+> som måste lösas innan spärren tas ner. Medvetet uppskjutet, inte förbisett.
+>
+> Att sätta `ALERT_EMAIL` räcker inte så länge `FEATURE_EMAIL_DISABLED=true`
+> ligger kvar: avsändaren är mock oavsett mottagare. Vill man ha larm utan att
+> slå på all övrig mail är `SENTRY_DSN` den snabbare vägen.
+
 ### 2. Schemalägg kontrollen
 
 Var femte minut, med `INTERNAL_CRON_TOKEN` som bearer-token:

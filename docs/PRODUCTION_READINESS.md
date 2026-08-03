@@ -222,8 +222,17 @@ that is now in place — `apps/api/src/lib/monitoring/`, documented in
       on recovery, so a returning outage alerts immediately
 - [x] The check runs in-process every 5 min, so it works without any ops
       setup, and is also exposed as `POST /v1/internal/cron/monitoring-check`
-- [ ] `ALERT_EMAIL` is set. Without it alerts are logged and sent to Sentry,
-      but nobody gets woken up.
+- [ ] **Launch blocker — alerting is deaf in production today.** Verified
+      against the live environment 2026-08-03: `ALERT_EMAIL` is unset,
+      `SENTRY_DSN` is unset, and `FEATURE_EMAIL_DISABLED=true` swaps in the
+      mock sender, so *every* transactional mail returns `success=true` and
+      goes nowhere — order confirmations, invites, payout mail, password
+      resets, and these alerts. The monitoring below works and logs correctly;
+      it just cannot reach a human. Harmless while the launch gate is up, and
+      the first thing to fix before it comes down. Two details when enabling:
+      `RESEND_FROM_ADDRESS` still defaults to `hej@roots.se` while the site is
+      `roots.nu`, and the sending domain must be verified with Resend first.
+      Deliberately deferred by the owner, not an oversight.
 - [ ] External uptime watch on `/readyz` (see above). Two gaps depend on it:
       the API process being dead, and Redis being down — the in-process
       scheduler claims its slot via Redis, so without Redis the check itself
