@@ -18,6 +18,7 @@ import { getBrowserApiBase } from "@/lib/api-base";
 import { apiFetch } from "@/lib/api";
 import { useCart } from "@/lib/use-cart";
 import { formatKrValue } from "@/lib/format";
+import { vatOfGrossOre } from "@roots/contracts";
 
 const API_URL = getBrowserApiBase();
 
@@ -149,9 +150,9 @@ function CheckoutPageInner() {
       ? shippingFee
       : 0;
   const totalOre = subtotalOre + shippingOre;
-  // Prices on Roots are inclusive of 25% VAT (momssats för hygienprodukter).
-  // The VAT portion is therefore total * 25 / 125 (frakt har samma momssats).
-  const vatOre = Math.round((totalOre * 25) / 125);
+  // Priserna är inklusive moms. Samma helper som API:t och orderbekräftelsen
+  // använder, så kunden, Klarna och bokföringen ser samma öre.
+  const vatOre = vatOfGrossOre(totalOre);
   const campaignAcceptsOrders = shop?.campaign?.status === "ACTIVE";
 
   async function handleCheckout(e: React.FormEvent) {
@@ -179,6 +180,9 @@ function CheckoutPageInner() {
               deliveryType === "DIRECT" ? postalCode : undefined,
             items,
             note: note || undefined,
+            // Servern loggar vilken version av villkoren kunden godkände;
+            // kryssrutan här är beviset som skickas med.
+            acceptTerms: termsAccepted,
           },
         }
       );

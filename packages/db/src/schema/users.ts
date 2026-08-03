@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, timestamp, pgEnum, index, integer } from "drizzle-orm/pg-core";
+import { pgTable, uuid, varchar, timestamp, pgEnum, index, integer, text } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { organizations } from "./organizations";
 
@@ -27,13 +27,27 @@ export const users = pgTable("users", {
   addressLine2: varchar("address_line2", { length: 255 }),
   city: varchar("city", { length: 100 }),
   postalCode: varchar("postal_code", { length: 20 }),
+  // TOTP-hemligheten sätts när användaren börjar registrera sin app.
+  // `mfaEnabledAt` är det som avgör om kravet är uppfyllt — annars hade en
+  // stängd flik mitt i QR-skanningen låst ute användaren.
   mfaSecret: varchar("mfa_secret", { length: 255 }),
+  mfaEnabledAt: timestamp("mfa_enabled_at"),
+  // Hashade reservkoder som JSON-array. Utan dem blir en tappad telefon en
+  // permanent utelåsning.
+  mfaBackupCodes: text("mfa_backup_codes"),
   // Minor-protection fields. Added so we can show a guardian-consent gate
   // before a seller under 16 goes public. Nullable everywhere so existing
   // rows continue to validate.
   birthYear: integer("birth_year"),
   guardianUserId: uuid("guardian_user_id"),
   guardianConsentAt: timestamp("guardian_consent_at"),
+  // Vem som lämnade samtycket, och bevis på när/varifrån. Utan de här
+  // fälten kunde vi inte visa för en förälder — eller för IMY — vad som
+  // faktiskt godkändes när en 13-åring började sälja.
+  guardianName: varchar("guardian_name", { length: 255 }),
+  guardianEmail: varchar("guardian_email", { length: 255 }),
+  guardianConsentIp: varchar("guardian_consent_ip", { length: 45 }),
+  guardianConsentVersion: varchar("guardian_consent_version", { length: 40 }),
   // MASTERPLAN_01 KC2.7: GDPR account-deletion lifecycle. Alla nullable.
   // Användaren begär → deletionRequestedAt + scheduledDeletionAt (now+14d).
   // Inom 14d kan de ångra → båda nollas. Efter scheduled-tiden anonymiserar

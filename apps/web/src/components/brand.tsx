@@ -53,7 +53,35 @@ export function RootsLogo({
   variant = "black",
   className,
   priority = false,
-}: BrandImageProps & { variant?: LogoVariant }) {
+}: BrandImageProps & { variant?: LogoVariant | "auto" }) {
+  // "auto" är till för chrome som ligger på en tema-styrd yta — header,
+  // sidebar, footer. Den svarta wordmarken försvinner nästan helt mot den
+  // mörka bakgrunden, så vi lägger båda i DOM:en och låter CSS välja. Att
+  // läsa temat i JS skulle blinka fel logo en bildruta vid varje sidladdning.
+  if (variant === "auto") {
+    return (
+      <span className={cn("relative inline-block h-8 w-[80px]", className)}>
+        <Image
+          src={LOGO_SRC.black}
+          alt="Roots"
+          fill
+          className="object-contain dark:hidden"
+          priority={priority}
+          sizes="(max-width: 768px) 80px, 120px"
+        />
+        <Image
+          src={LOGO_SRC.white}
+          alt=""
+          aria-hidden="true"
+          fill
+          className="hidden object-contain dark:block"
+          priority={priority}
+          sizes="(max-width: 768px) 80px, 120px"
+        />
+      </span>
+    );
+  }
+
   return (
     <span className={cn("relative inline-block h-8 w-[80px]", className)}>
       <Image

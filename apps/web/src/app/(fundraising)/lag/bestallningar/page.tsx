@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -10,34 +10,23 @@ import {
   CreditCard,
   Search,
   Download,
+  Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { LoadError } from "@/components/load-error";
 import { Input } from "@/components/ui/input";
 import { OrderDetailDialog } from "@/components/order-detail-dialog";
 import { downloadCustomerOrdersCsv } from "@/lib/orders-csv";
+import { countsAsRevenue } from "@roots/contracts";
 import type { TeamDashboard, CustomerOrder, Seller } from "@/types/fundraising";
 
 import { getBrowserApiBase } from "@/lib/api-base";
 import { formatKrValue } from "@/lib/format";
+import { orderStatusColor, orderStatusLabel } from "@/lib/order-status";
 
 const API_URL = getBrowserApiBase();
 
 type FilterStatus = "ALL" | "PAID" | "PENDING" | "DRAFT" | "FAILED" | "CANCELLED";
-
-function statusLabel(status: string) {
-  const labels: Record<string, string> = {
-    PAID: "Betald",
-    PENDING: "Väntar",
-    CONFIRMED: "Bekräftad",
-    SHIPPED: "Skickad",
-    DELIVERED: "Levererad",
-    CANCELLED: "Avbruten",
-    REFUNDED: "Återbetald",
-    DRAFT: "Utkast",
-    FAILED: "Misslyckad",
-  };
-  return labels[status] || status;
-}
 
 function paymentMethodLabel(method: string) {
   const m = method.toLowerCase();
@@ -48,18 +37,12 @@ function paymentMethodLabel(method: string) {
   return method;
 }
 
-function statusColor(status: string) {
-  if (status === "PAID" || status === "CONFIRMED") return "bg-brand-100 text-brand-700";
-  if (status === "SHIPPED" || status === "DELIVERED") return "bg-brand-100 text-brand-700";
-  if (status === "FAILED" || status === "CANCELLED") return "bg-red-100 text-red-800";
-  return "";
-}
-
 export default function TeamOrdersPage() {
   const [data, setData] = useState<TeamDashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterStatus>("ALL");
+  const [onlyUnverified, setOnlyUnverified] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailOrderId, setDetailOrderId] = useState<string | null>(null);
   // Sprint E12: date range + free-text search + CSV.
@@ -67,35 +50,36 @@ export default function TeamOrdersPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const myTeamRes = await fetch(`${API_URL}/v1/dashboard/my-team`, {
-          credentials: "include",
-        });
-        if (!myTeamRes.ok) {
-          setError("Kunde inte hämta lagdata. Försök igen.");
-          return;
-        }
-        const { teamId } = await myTeamRes.json();
-
-        const teamRes = await fetch(
-          `${API_URL}/v1/dashboard/team/${teamId}`,
-          { credentials: "include" }
-        );
-        if (teamRes.ok) {
-          setData(await teamRes.json());
-        } else {
-          setError("Kunde inte hämta lagdata. Försök igen.");
-        }
-      } catch {
-        setError("Ett nätverksfel uppstod. Försök igen.");
-      } finally {
-        setLoading(false);
+  const load = useCallback(async () => {
+    try {
+      const myTeamRes = await fetch(`${API_URL}/v1/dashboard/my-team`, {
+        credentials: "include",
+      });
+      if (!myTeamRes.ok) {
+        setError("Kunde inte hämta lagdata.");
+        return;
       }
+      const { teamId } = await myTeamRes.json();
+
+      const teamRes = await fetch(`${API_URL}/v1/dashboard/team/${teamId}`, {
+        credentials: "include",
+      });
+      if (teamRes.ok) {
+        setData(await teamRes.json());
+        setError(null);
+      } else {
+        setError("Kunde inte hämta lagdata.");
+      }
+    } catch {
+      setError("Ett nätverksfel uppstod.");
+    } finally {
+      setLoading(false);
     }
-    load();
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   if (loading) {
     return (
@@ -106,14 +90,7 @@ export default function TeamOrdersPage() {
   }
 
   if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-3 py-20">
-        <p className="text-sm text-destructive">{error}</p>
-        <Button variant="outline" onClick={() => window.location.reload()}>
-          Försök igen
-        </Button>
-      </div>
-    );
+    return <LoadError message={error} onRetry={load} />;
   }
 
   if (!data) {
@@ -137,7 +114,24 @@ export default function TeamOrdersPage() {
   const toTs = dateTo ? new Date(dateTo + "T23:59:59.999").getTime() : null;
   const needle = search.trim().toLowerCase();
 
+  // En manuell order som är betald men obekräftad hålls utanför lagets
+  // utbetalning. Lagledaren behöver kunna hitta dem utan att öppna varje
+  // order, annars ligger pengar och väntar utan att någon vet om det.
+  const awaitingVerification = orders.filter(
+    (o: CustomerOrder) =>
+      o.isManual && countsAsRevenue(o.status) && !o.verifiedAt
+  );
+  const awaitingOre = awaitingVerification.reduce(
+    (sum, o) => sum + (o.totalOre || 0),
+    0
+  );
+
   const filteredOrders = orders.filter((o: CustomerOrder) => {
+    if (onlyUnverified) {
+      if (!o.isManual || !countsAsRevenue(o.status) || o.verifiedAt) {
+        return false;
+      }
+    }
     if (filter !== "ALL" && o.status !== filter) return false;
     const ts = new Date(o.createdAt).getTime();
     if (fromTs !== null && ts < fromTs) return false;
@@ -151,7 +145,7 @@ export default function TeamOrdersPage() {
   });
 
   const paidTotal = orders
-    .filter((o: CustomerOrder) => o.status === "PAID" || o.status === "CONFIRMED" || o.status === "SHIPPED" || o.status === "DELIVERED")
+    .filter((o: CustomerOrder) => countsAsRevenue(o.status))
     .reduce((sum: number, o: CustomerOrder) => sum + (o.totalOre || 0), 0);
 
   const filterButtons: FilterStatus[] = ["ALL", "PAID", "PENDING", "CANCELLED"];
@@ -166,7 +160,7 @@ export default function TeamOrdersPage() {
         customerName: o.customerName,
         customerEmail: o.customerEmail,
         sellerName: sellerMap.get(o.sellerId ?? "") ?? null,
-        status: statusLabel(o.status),
+        status: orderStatusLabel(o.status),
         paymentMethod: o.paymentMethod,
         deliveryType: o.deliveryType,
         totalOre: o.totalOre,
@@ -182,6 +176,36 @@ export default function TeamOrdersPage() {
           Ordersammanställning för {data.team?.name}
         </p>
       </div>
+
+      {awaitingVerification.length > 0 && (
+        <Card className="border-warning-edge bg-warning-surface">
+          <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
+            <div className="flex items-start gap-3">
+              <Clock className="mt-0.5 h-5 w-5 shrink-0 text-warning-strong" />
+              <div>
+                <p className="text-sm font-semibold">
+                  {awaitingVerification.length}{" "}
+                  {awaitingVerification.length === 1
+                    ? "manuell order väntar"
+                    : "manuella ordrar väntar"}{" "}
+                  på din bekräftelse
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {formatKrValue(awaitingOre)} kr räknas inte med i avräkningen
+                  förrän du bekräftat att pengarna kommit in.
+                </p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant={onlyUnverified ? "default" : "outline"}
+              onClick={() => setOnlyUnverified((v) => !v)}
+            >
+              {onlyUnverified ? "Visa alla ordrar" : "Visa dem"}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
@@ -218,7 +242,7 @@ export default function TeamOrdersPage() {
                 variant={filter === f ? "default" : "outline"}
                 onClick={() => setFilter(f)}
               >
-                {f === "ALL" ? "Alla" : statusLabel(f)}
+                {f === "ALL" ? "Alla" : orderStatusLabel(f)}
               </Button>
             ))}
             <div className="ml-auto">
@@ -272,7 +296,7 @@ export default function TeamOrdersPage() {
             <p className="text-sm text-muted-foreground text-center py-6">
               {filter === "ALL"
                 ? "Inga beställningar ännu"
-                : `Inga ordrar med status "${statusLabel(filter)}"`}
+                : `Inga ordrar med status "${orderStatusLabel(filter)}"`}
             </p>
           ) : (
             <div className="space-y-2">
@@ -295,9 +319,9 @@ export default function TeamOrdersPage() {
                     <div className="flex flex-wrap gap-1.5">
                       <Badge
                         variant="secondary"
-                        className={`text-xs ${statusColor(order.status)}`}
+                        className={`text-xs ${orderStatusColor(order.status)}`}
                       >
-                        {statusLabel(order.status)}
+                        {orderStatusLabel(order.status)}
                       </Badge>
                       {order.paymentMethod === "DIRECT_TO_LEADER" && (
                         <Badge variant="secondary" className="text-xs bg-brand-50 text-brand-600">
@@ -316,13 +340,25 @@ export default function TeamOrdersPage() {
                           {paymentMethodLabel(order.selectedPaymentMethod)}
                         </Badge>
                       )}
-                      {order.isManual && (
-                        <Badge variant="secondary" className="text-xs bg-amber-50 text-amber-700">
-                          Manuell
-                        </Badge>
-                      )}
+                      {order.isManual &&
+                        (countsAsRevenue(order.status) && !order.verifiedAt ? (
+                          <Badge
+                            variant="secondary"
+                            className="text-xs bg-warning-surface text-warning-strong"
+                          >
+                            <Clock className="h-3 w-3 mr-1" />
+                            Väntar på bekräftelse
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant="secondary"
+                            className="text-xs bg-warning-surface/60 text-warning-strong"
+                          >
+                            Manuell
+                          </Badge>
+                        ))}
                       {order.countsTowardStats === false && (
-                        <Badge variant="secondary" className="text-xs bg-slate-100 text-slate-600">
+                        <Badge variant="secondary" className="text-xs bg-muted text-muted-foreground">
                           Utanför period
                         </Badge>
                       )}
@@ -347,6 +383,29 @@ export default function TeamOrdersPage() {
         open={detailOpen}
         onOpenChange={setDetailOpen}
         orderId={detailOrderId}
+        onVerificationChange={(id, verified) => {
+          // Uppdatera raden direkt så banderollen och badgen stämmer medan
+          // dialogen fortfarande är öppen. Vi hämtar inte om allt — svaret
+          // säger redan vad som gäller.
+          setData((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  orders: prev.orders.map((o) =>
+                    o.id === id
+                      ? {
+                          ...o,
+                          verifiedAt: verified ? new Date().toISOString() : null,
+                        }
+                      : o
+                  ),
+                }
+              : prev
+          );
+        }}
+        // Statusbytet påverkar både raden och summan som väntar på
+        // bekräftelse, så här hämtas underlaget om.
+        onStatusChange={() => void load()}
       />
     </div>
   );

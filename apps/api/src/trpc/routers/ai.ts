@@ -9,7 +9,9 @@ import {
 } from "../../lib/ai/openclaw-client";
 import { buildSystemPrompt } from "../../lib/ai/system-prompt";
 import { recordAiUsage, recordAiIncident } from "../../lib/ai/usage";
-import { aiRateLimit } from "../../lib/rate-limit";
+import { scrubPiiText } from "../../lib/ai/pii";
+import { checkMedicalClaims, CLAIMS_BLOCKED_REPLY } from "../../lib/ai/claims-guard";
+import { aiRateLimit, aiGlobalChatDailyCap } from "../../lib/rate-limit";
 import { flags } from "../../lib/flags";
 
 const authedProcedure = publicProcedure.use(isAuthenticated);
@@ -57,6 +59,25 @@ export const aiRouter = router({
         }
       }
 
+      // Samma globala dygnstak som REST-rutterna. Utan det här var tRPC
+      // en dörr rakt förbi kostnadsskyddet: per-user-gränsen räcker inte
+      // när det är antalet användare som är variabeln.
+      const globalCap = await aiGlobalChatDailyCap();
+      if (!globalCap.allowed) {
+        recordAiIncident({
+          surface,
+          kind: "rate_limited",
+          userId,
+          orgId,
+          meta: { reason: "global_daily_cap" },
+        });
+        throw new TRPCError({
+          code: "TOO_MANY_REQUESTS",
+          message:
+            "AI-assistenten har nått dagens kapacitetstak. Försök igen efter midnatt.",
+        });
+      }
+
       if (!flags.aiEnabled() || !isAiConfigured()) {
         recordAiIncident({
           surface,
@@ -83,7 +104,11 @@ export const aiRouter = router({
               session?.demoProfile?.name
             ),
           },
-          { role: "user", content: input.message },
+          // REST-rutterna skrubbade PII innan de skickade vidare till
+          // OpenAI, tRPC-vägen gjorde det inte — samma fråga läckte
+          // alltså personnummer eller telefon beroende på vilken klient
+          // som råkade ställa den.
+          { role: "user", content: scrubPiiText(input.message) },
         ];
         const response = await chatCompletion(messages);
         recordAiUsage({
@@ -94,6 +119,21 @@ export const aiRouter = router({
           userId,
           orgId,
         });
+        const claims = checkMedicalClaims(response.content);
+        if (!claims.ok) {
+          recordAiIncident({
+            surface,
+            kind: "claims_blocked",
+            userId,
+            orgId,
+            meta: { matched: claims.matched ?? null },
+          });
+          return {
+            reply: CLAIMS_BLOCKED_REPLY,
+            conversationId,
+            disclaimer: DISCLAIMER,
+          };
+        }
         return {
           reply: response.content,
           conversationId,

@@ -64,6 +64,18 @@ export const flags = {
     return isEnabled("AI_ENABLED", true);
   },
 
+  /**
+   * Håranalysen (vision). Webben gömmer sidan bakom en konstant i
+   * apps/web/src/lib/feature-flags.ts, men endpointen låg öppen: den som
+   * hittade /v1/ai/hair-analysis kunde bränna hela vision-budgeten på en
+   * funktion vi inte ens visar. Flaggan måste sättas på båda sidor.
+   *
+   * Default av — sätt HAIR_ANALYSIS_ENABLED=true när funktionen ska leva.
+   */
+  hairAnalysisEnabled(): boolean {
+    return isEnabled("HAIR_ANALYSIS_ENABLED", false);
+  },
+
   /** Persist ChatWidget history in sessionStorage. */
   chatHistoryPersistence(): boolean {
     return isEnabled("FEATURE_CHAT_HISTORY_PERSISTENCE", false);

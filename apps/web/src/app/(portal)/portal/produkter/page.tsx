@@ -76,6 +76,9 @@ export default function ProdukterPortalPage() {
           );
         }
       })
+      // Tyst med flit: FALLBACK_PRODUCTS är den riktiga katalogen med
+      // aktuella priser, så sidan visar rätt innehåll även utan API:t. Ett
+      // felmeddelande här hade bara oroat utan att ge något att göra.
       .catch(() => {});
   }, []);
 

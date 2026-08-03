@@ -36,6 +36,7 @@ import { cn } from "@/lib/utils";
 
 interface OnboardingStep {
   id:
+    | "approval"
     | "org_details"
     | "campaign"
     | "team"
@@ -51,6 +52,8 @@ interface OnboardingStep {
 interface OnboardingStatus {
   orgId: string;
   orgName: string;
+  /** Godkänd för publik försäljning. Se lib/org-approval.ts i API:t. */
+  orgApproved?: boolean;
   completed: boolean;
   completedCount: number;
   totalSteps: number;

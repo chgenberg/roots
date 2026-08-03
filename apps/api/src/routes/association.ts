@@ -15,7 +15,12 @@
  */
 
 import { Hono } from "hono";
-import { eq, and, sql, gt, isNull } from "drizzle-orm";
+import { eq, and, sql, gt, isNull, inArray } from "drizzle-orm";
+import { REVENUE_ORDER_STATUSES } from "@roots/contracts";
+import {
+  isOrgApprovedForPublicSales,
+  ORG_NOT_APPROVED_MESSAGE,
+} from "../lib/org-approval";
 import { hash } from "@node-rs/argon2";
 import { randomBytes } from "crypto";
 import { db } from "@roots/db";
@@ -111,6 +116,7 @@ association.get("/onboarding-status", async (c) => {
         name: organizations.name,
         displayName: organizations.displayName,
         orgNumber: organizations.orgNumber,
+        verified: organizations.verified,
       })
       .from(organizations)
       .where(eq(organizations.id, orgId))
@@ -162,7 +168,7 @@ association.get("/onboarding-status", async (c) => {
       .where(
         and(
           eq(customerOrders.orgId, orgId),
-          eq(customerOrders.status, "PAID")
+          inArray(customerOrders.status, REVENUE_ORDER_STATUSES)
         )
       );
 
@@ -174,6 +180,19 @@ association.get("/onboarding-status", async (c) => {
     const firstSaleMade = (paidOrderCount?.c ?? 0) > 0;
 
     const steps = [
+      {
+        // Ligger först eftersom det är det enda steget föreningen inte kan
+        // bocka av själv. Utan det hade "Starta kampanj" bara gett ett
+        // avslag utan förklaring.
+        id: "approval" as const,
+        label: "Vi granskar föreningen",
+        description: org.verified
+          ? "Föreningen är godkänd och kan ta emot beställningar."
+          : "Innan er butik kan ta emot betalningar kontrollerar vi att uppgifterna stämmer. Ni kan sätta upp allt annat under tiden.",
+        completed: !!org.verified,
+        ctaHref: "/forening/installningar",
+        ctaLabel: org.verified ? "Visa uppgifter" : "Komplettera uppgifter",
+      },
       {
         id: "org_details" as const,
         label: "Fyll i föreningens uppgifter",
@@ -227,6 +246,7 @@ association.get("/onboarding-status", async (c) => {
     return c.json({
       orgId,
       orgName: org.displayName ?? org.name,
+      orgApproved: !!org.verified,
       completed,
       completedCount,
       totalSteps: steps.length,
@@ -926,6 +946,12 @@ association.post("/campaigns", async (c) => {
     100,
     Math.max(0, Math.floor(body.marginPercent ?? 25))
   );
+
+  // Kampanjen skapas direkt som ACTIVE nedan, så den här vägen måste ha
+  // samma spärr som tRPC-aktiveringen — annars är den ett kryphål.
+  if (!(await isOrgApprovedForPublicSales(session.orgId))) {
+    return c.json({ error: ORG_NOT_APPROVED_MESSAGE }, 403);
+  }
 
   try {
     const slug = await ensureUniqueSlug(slugify(name));

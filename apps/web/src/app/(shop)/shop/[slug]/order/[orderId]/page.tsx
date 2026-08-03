@@ -200,8 +200,8 @@ function OrderStatusPageInner() {
                         <div
                           className={`flex h-8 w-8 items-center justify-center rounded-full transition-colors ${
                             isActive
-                              ? "bg-brand-700 text-white"
-                              : "bg-gray-200 text-gray-400"
+                              ? "bg-brand-700 text-primary-foreground"
+                              : "bg-muted text-muted-foreground"
                           }`}
                         >
                           <StepIcon className="h-4 w-4" />
@@ -219,7 +219,7 @@ function OrderStatusPageInner() {
                     );
                   })}
                 </div>
-                <div className="absolute top-4 left-[10%] right-[10%] h-0.5 bg-gray-200 -z-0">
+                <div className="absolute top-4 left-[10%] right-[10%] h-0.5 bg-border -z-0">
                   <div
                     className="h-full bg-brand-700 transition-all duration-500"
                     style={{

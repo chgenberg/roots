@@ -171,7 +171,12 @@ export default function AIPage() {
             try {
               const parsed = JSON.parse(data);
               if (parsed.content) {
-                accumulated += parsed.content;
+                // replace:true = servern har stoppat svaret och skickar en
+                // ersättningstext i stället för att lägga till.
+                accumulated =
+                  parsed.replace === true
+                    ? parsed.content
+                    : accumulated + parsed.content;
                 setMessages((prev) => {
                   const updated = [...prev];
                   const idx = updated.findIndex((m) => m.id === assistantId);

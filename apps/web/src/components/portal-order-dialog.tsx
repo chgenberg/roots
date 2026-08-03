@@ -58,8 +58,11 @@ export interface PortalOrderDetail {
   }>;
 }
 
+// Klubbordrar (orders) har en egen statusenum än kundordrar
+// (customer_orders), så den här kartan är avsiktligt separat från
+// lib/order-status.ts.
 const ORDER_STATUS_COLORS: Record<string, string> = {
-  PENDING: "bg-yellow-100 text-yellow-800 border-yellow-300",
+  PENDING: "bg-warning-surface text-warning-strong border-warning-edge",
   CONFIRMED: "bg-success/15 text-success border-success/40",
   SHIPPED: "bg-success/15 text-success border-success/40",
   DELIVERED: "bg-success/15 text-success border-success/40",
@@ -74,8 +77,8 @@ const ORDER_STATUS_LABELS: Record<string, string> = {
 };
 const INVOICE_STATUS_COLORS: Record<string, string> = {
   NONE: "bg-muted text-muted-foreground border-border",
-  PENDING: "bg-yellow-100 text-yellow-800 border-yellow-300",
-  ISSUED: "bg-blue-100 text-blue-800 border-blue-300",
+  PENDING: "bg-warning-surface text-warning-strong border-warning-edge",
+  ISSUED: "bg-accent-sky/20 text-foreground border-accent-sky/50",
   PAID: "bg-success/15 text-success border-success/40",
   CANCELLED: "bg-destructive/10 text-destructive border-destructive/30",
 };

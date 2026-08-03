@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataSourceBadge } from "@/components/data-source-badge";
 import { portalFetch } from "@/lib/portal-api";
+import { LoadError } from "@/components/load-error";
 import {
   Users,
   ShoppingCart,
@@ -133,6 +134,7 @@ const FALLBACK_ADMIN_RECENT_ACTIVITY: Array<{
 function ClubDashboard({ name }: { name: string }) {
   const [stats, setStats] = useState(EMPTY_CLUB_STATS);
   const [activity, setActivity] = useState(EMPTY_CLUB_ACTIVITY);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     portalFetch<DashboardResponse>("/dashboard")
@@ -150,7 +152,7 @@ function ClubDashboard({ name }: { name: string }) {
           if (s.activity?.length) setActivity(s.activity);
         }
       })
-      .catch(() => {});
+      .catch(() => setLoadError(true));
   }, []);
 
   return (
@@ -163,6 +165,13 @@ function ClubDashboard({ name }: { name: string }) {
           Här är en översikt av er förening.
         </p>
       </div>
+
+      {loadError && (
+        <LoadError
+          message="Kunde inte hämta översikten. Siffrorna nedan kan vara ofullständiga."
+          inline
+        />
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((s) => (
@@ -252,6 +261,7 @@ function SalesDashboard({ name }: { name: string }) {
   const [pipeline, setPipeline] = useState(EMPTY_SALES_PIPELINE);
   const [topClubs, setTopClubs] = useState(EMPTY_SALES_TOP_CLUBS);
   const [isDemo, setIsDemo] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     portalFetch<DashboardResponse>("/dashboard")
@@ -271,7 +281,7 @@ function SalesDashboard({ name }: { name: string }) {
           if (s.topClubs?.length) setTopClubs(s.topClubs);
         }
       })
-      .catch(() => {});
+      .catch(() => setLoadError(true));
   }, []);
 
   return (
@@ -287,6 +297,13 @@ function SalesDashboard({ name }: { name: string }) {
         </div>
         <DataSourceBadge demo={isDemo} />
       </div>
+
+      {loadError && (
+        <LoadError
+          message="Kunde inte hämta översikten. Siffrorna nedan kan vara ofullständiga."
+          inline
+        />
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((s) => (
@@ -440,6 +457,7 @@ function AdminDashboard({ name }: { name: string }) {
     FALLBACK_ADMIN_RECENT_ACTIVITY
   );
   const [isDemo, setIsDemo] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     portalFetch<DashboardResponse>("/dashboard")
@@ -476,7 +494,7 @@ function AdminDashboard({ name }: { name: string }) {
           if (s.recentActivity?.length) setRecentActivity(s.recentActivity);
         }
       })
-      .catch(() => {});
+      .catch(() => setLoadError(true));
   }, []);
 
   return (
@@ -492,6 +510,13 @@ function AdminDashboard({ name }: { name: string }) {
         </div>
         <DataSourceBadge demo={isDemo} />
       </div>
+
+      {loadError && (
+        <LoadError
+          message="Kunde inte hämta översikten. Siffrorna nedan kan vara ofullständiga."
+          inline
+        />
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((s) => (

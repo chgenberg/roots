@@ -37,6 +37,9 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/components/ui/toast";
 import {
   Loader2,
   Mail,
@@ -46,8 +49,15 @@ import {
   Truck,
   Package,
   FileText,
+  BadgeCheck,
+  Clock,
+  Ban,
 } from "lucide-react";
+import { countsAsRevenue } from "@roots/contracts";
 import { getBrowserApiBase } from "@/lib/api-base";
+import { apiFetch } from "@/lib/api";
+import { formatKrValue } from "@/lib/format";
+import { orderStatusColor, orderStatusLabel } from "@/lib/order-status";
 
 const API_URL = getBrowserApiBase();
 
@@ -63,6 +73,19 @@ export interface OrderDetail {
     note: string | null;
     createdAt: string;
     updatedAt: string;
+    isManual?: boolean;
+    /** Null = väntar på bekräftelse och räknas inte i avräkningen. */
+    verifiedAt?: string | null;
+    /** Om just den inloggade användaren får bekräfta. Servern avgör. */
+    canVerify?: boolean;
+    shippedAt?: string | null;
+    deliveredAt?: string | null;
+    cancelledAt?: string | null;
+    cancelReason?: string | null;
+    /** Om användaren får flytta ordern mellan betald/skickad/levererad. */
+    canManageFulfillment?: boolean;
+    /** Om användaren får avboka eller återbetala ordern. */
+    canCancel?: boolean;
     customer: {
       name: string;
       email: string;
@@ -86,28 +109,6 @@ export interface OrderDetail {
   }>;
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  PAID: "bg-success/15 text-success border-success/40",
-  PENDING: "bg-yellow-100 text-yellow-800 border-yellow-300",
-  CANCELLED: "bg-destructive/10 text-destructive border-destructive/30",
-  CONFIRMED: "bg-success/15 text-success border-success/40",
-  SHIPPED: "bg-success/15 text-success border-success/40",
-  DELIVERED: "bg-success/15 text-success border-success/40",
-  REFUNDED: "bg-muted text-muted-foreground border-border",
-  FAILED: "bg-destructive/10 text-destructive border-destructive/30",
-  DRAFT: "bg-muted text-muted-foreground border-border",
-};
-const STATUS_LABELS: Record<string, string> = {
-  PAID: "Betald",
-  PENDING: "Avvaktar",
-  CANCELLED: "Avbruten",
-  CONFIRMED: "Bekräftad",
-  SHIPPED: "Skickad",
-  DELIVERED: "Levererad",
-  REFUNDED: "Återbetald",
-  FAILED: "Misslyckad",
-  DRAFT: "Utkast",
-};
 const PAYMENT_LABELS: Record<string, string> = {
   KLARNA: "Klarna",
   DIRECT_TO_LEADER: "Direkt till lagansvarig",
@@ -142,18 +143,60 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   /** Order UUID to load — set to null to close the dialog. */
   orderId: string | null;
+  /**
+   * Anropas när en manuell order bekräftats eller fått bekräftelsen
+   * återtagen. Listan som öppnade dialogen behöver ladda om, annars visar
+   * den kvar "väntar på bekräftelse" på en order som just godkänts.
+   */
+  onVerificationChange?: (orderId: string, verified: boolean) => void;
+  /**
+   * Anropas när orderns status ändrats (leverans, avbokning). Listan bakom
+   * dialogen visar annars kvar den gamla statusen.
+   */
+  onStatusChange?: (orderId: string, status: string) => void;
 }
 
-export function OrderDetailDialog({ open, onOpenChange, orderId }: Props) {
+/** Stegen en order rör sig genom när den blivit betald. */
+const FULFILLMENT_STEPS: Array<{
+  status: "PAID" | "SHIPPED" | "DELIVERED";
+  label: string;
+  action: string;
+}> = [
+  { status: "PAID", label: "Betald", action: "Ångra leverans" },
+  { status: "SHIPPED", label: "Skickad", action: "Markera skickad" },
+  { status: "DELIVERED", label: "Levererad", action: "Markera levererad" },
+];
+
+const CLOSED_STATUSES = ["CANCELLED", "REFUNDED", "FAILED"];
+
+export function OrderDetailDialog({
+  open,
+  onOpenChange,
+  orderId,
+  onVerificationChange,
+  onStatusChange,
+}: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<OrderDetail | null>(null);
+  const [verifying, setVerifying] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [savingStatus, setSavingStatus] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelKind, setCancelKind] = useState<"CANCELLED" | "REFUNDED">(
+    "CANCELLED"
+  );
+  const { toast } = useToast();
 
   useEffect(() => {
     if (!open || !orderId) return;
     let cancelled = false;
     setDetail(null);
     setError(null);
+    setConfirming(false);
+    setCancelOpen(false);
+    setCancelReason("");
     setLoading(true);
     (async () => {
       try {
@@ -183,6 +226,144 @@ export function OrderDetailDialog({ open, onOpenChange, orderId }: Props) {
     };
   }, [open, orderId]);
 
+  async function setVerified(verified: boolean) {
+    if (!orderId) return;
+    setVerifying(true);
+    const { ok, data } = await apiFetch<{
+      error?: string;
+      order?: { verifiedAt: string | null };
+    }>(`/v1/dashboard/orders/${orderId}/verify`, {
+      method: "POST",
+      body: { verified },
+    });
+    setVerifying(false);
+    setConfirming(false);
+
+    if (!ok) {
+      toast(data?.error || "Kunde inte uppdatera bekräftelsen.", "error");
+      return;
+    }
+
+    // Uppdatera dialogen på plats i stället för att hämta om allt. Svaret
+    // innehåller den nya tidsstämpeln, så det finns inget att vänta på.
+    setDetail((prev) =>
+      prev
+        ? {
+            ...prev,
+            order: {
+              ...prev.order,
+              verifiedAt: data?.order?.verifiedAt ?? null,
+            },
+          }
+        : prev
+    );
+    toast(
+      verified
+        ? "Ordern är bekräftad och räknas nu med i avräkningen."
+        : "Bekräftelsen är återtagen. Ordern räknas inte i avräkningen.",
+      "success"
+    );
+    onVerificationChange?.(orderId, verified);
+  }
+
+  async function setFulfillment(status: "PAID" | "SHIPPED" | "DELIVERED") {
+    if (!orderId) return;
+    setSavingStatus(true);
+    const { ok, data } = await apiFetch<{
+      error?: string;
+      order?: {
+        status: string;
+        shippedAt: string | null;
+        deliveredAt: string | null;
+      };
+    }>(`/v1/dashboard/orders/${orderId}/fulfillment`, {
+      method: "PATCH",
+      body: { status },
+    });
+    setSavingStatus(false);
+
+    if (!ok || !data?.order) {
+      toast(data?.error || "Kunde inte uppdatera leveransstatus.", "error");
+      return;
+    }
+
+    const next = data.order;
+    setDetail((prev) =>
+      prev
+        ? {
+            ...prev,
+            order: {
+              ...prev.order,
+              status: next.status,
+              shippedAt: next.shippedAt,
+              deliveredAt: next.deliveredAt,
+            },
+          }
+        : prev
+    );
+    toast(
+      status === "PAID"
+        ? "Leveransmarkeringen är borttagen."
+        : `Ordern är markerad som ${status === "SHIPPED" ? "skickad" : "levererad"}.`,
+      "success"
+    );
+    onStatusChange?.(orderId, next.status);
+  }
+
+  async function cancelOrder(force: boolean) {
+    if (!orderId) return;
+    setSavingStatus(true);
+    const { ok, data } = await apiFetch<{
+      error?: string;
+      requiresForce?: boolean;
+      manualStepRequired?: string | null;
+      order?: { status: string; cancelledAt: string | null };
+    }>(`/v1/dashboard/orders/${orderId}/cancel`, {
+      method: "POST",
+      body: { status: cancelKind, reason: cancelReason.trim(), force },
+    });
+    setSavingStatus(false);
+
+    if (!ok || !data?.order) {
+      // Servern svarar 409 när lagets utbetalning redan är fakturerad eller
+      // genomförd. Då är det inte ett fel att rätta utan ett beslut att ta,
+      // så vi visar vad det innebär och låter användaren bekräfta igen.
+      if (data?.requiresForce) {
+        const proceed = window.confirm(
+          `${data.error}\n\nVill du avboka ordern ändå? Den försvinner ur underlaget men det redan utbetalda beloppet ändras inte.`
+        );
+        if (proceed) await cancelOrder(true);
+        return;
+      }
+      toast(data?.error || "Kunde inte avboka ordern.", "error");
+      return;
+    }
+
+    setDetail((prev) =>
+      prev
+        ? {
+            ...prev,
+            order: {
+              ...prev.order,
+              status: data.order!.status,
+              cancelledAt: data.order!.cancelledAt,
+              cancelReason: cancelReason.trim(),
+            },
+          }
+        : prev
+    );
+    setCancelOpen(false);
+    toast(
+      data.manualStepRequired
+        ? `Ordern är markerad som återbetald. ${data.manualStepRequired}`
+        : cancelKind === "REFUNDED"
+          ? "Ordern är markerad som återbetald och räknas inte längre som intäkt."
+          : "Ordern är avbokad och räknas inte längre som intäkt.",
+      "success"
+    );
+    onStatusChange?.(orderId, data.order.status);
+  }
+
   const hasShipping =
     detail &&
     (detail.order.shipping.line1 ||
@@ -191,10 +372,16 @@ export function OrderDetailDialog({ open, onOpenChange, orderId }: Props) {
   const subtotalOre = detail
     ? detail.lines.reduce((sum, l) => sum + l.lineTotalOre, 0)
     : 0;
-  const statusClass = detail
-    ? STATUS_COLORS[detail.order.status] ||
-      "bg-muted text-muted-foreground border-border"
-    : "";
+  const statusClass = detail ? orderStatusColor(detail.order.status) : "";
+  const isClosed = !!detail && CLOSED_STATUSES.includes(detail.order.status);
+  const isRevenue = !!detail && countsAsRevenue(detail.order.status);
+  const stepIndex = detail
+    ? FULFILLMENT_STEPS.findIndex((s) => s.status === detail.order.status)
+    : -1;
+  // CONFIRMED ligger mellan PAID och SHIPPED men har inget eget steg, så den
+  // behandlas som betald.
+  const currentStep = stepIndex === -1 ? 0 : stepIndex;
+  const nextStep = FULFILLMENT_STEPS[currentStep + 1];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -224,7 +411,7 @@ export function OrderDetailDialog({ open, onOpenChange, orderId }: Props) {
                   variant="outline"
                   className={`text-[10px] uppercase tracking-wide ${statusClass}`}
                 >
-                  {STATUS_LABELS[detail.order.status] || detail.order.status}
+                  {orderStatusLabel(detail.order.status)}
                 </Badge>
                 <Badge variant="outline" className="text-xs">
                   <CreditCard className="mr-1 h-3 w-3" />
@@ -241,7 +428,349 @@ export function OrderDetailDialog({ open, onOpenChange, orderId }: Props) {
                     Klarna {detail.order.klarnaOrderId.slice(0, 10)}
                   </Badge>
                 )}
+                {detail.order.isManual && (
+                  <Badge
+                    variant="outline"
+                    className={
+                      detail.order.verifiedAt
+                        ? "bg-success/15 text-success border-success/40 text-xs"
+                        : "bg-warning-surface text-warning-strong border-warning-edge text-xs"
+                    }
+                  >
+                    {detail.order.verifiedAt ? (
+                      <BadgeCheck className="mr-1 h-3 w-3" />
+                    ) : (
+                      <Clock className="mr-1 h-3 w-3" />
+                    )}
+                    {detail.order.verifiedAt
+                      ? "Bekräftad"
+                      : "Väntar på bekräftelse"}
+                  </Badge>
+                )}
               </div>
+
+              {/* Manuella ordrar är säljarens ord på att pengarna kommit in.
+                  De räknas i statistiken direkt men hålls utanför
+                  utbetalningen tills någon annan bekräftat dem — det här är
+                  ytan där det sker. Utan den fastnar pengarna. */}
+              {detail.order.isManual && (
+                <section
+                  className={`rounded-lg border p-4 ${
+                    detail.order.verifiedAt
+                      ? "border-success/40 bg-success/5"
+                      : "border-warning-edge bg-warning-surface"
+                  }`}
+                >
+                  <h3 className="flex items-center gap-2 text-sm font-semibold">
+                    {detail.order.verifiedAt ? (
+                      <BadgeCheck className="h-4 w-4 text-success" />
+                    ) : (
+                      <Clock className="h-4 w-4 text-warning-strong" />
+                    )}
+                    Manuell betalning
+                  </h3>
+
+                  {detail.order.verifiedAt ? (
+                    <>
+                      <p className="mt-1.5 text-sm text-muted-foreground">
+                        Bekräftad {formatDateTime(detail.order.verifiedAt)}.
+                        Summan räknas med i lagets avräkning.
+                      </p>
+                      {detail.order.canVerify && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="mt-2 h-auto p-0 text-xs text-muted-foreground underline hover:text-destructive"
+                          disabled={verifying}
+                          onClick={() => setVerified(false)}
+                        >
+                          {verifying && (
+                            <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+                          )}
+                          Ta tillbaka bekräftelsen
+                        </Button>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <p className="mt-1.5 text-sm text-muted-foreground">
+                        {formatKrValue(detail.order.totalOre)} kr är registrerat
+                        som mottaget av säljaren, men räknas inte med i
+                        avräkningen förrän någon annan bekräftat att pengarna
+                        finns.
+                      </p>
+
+                      {detail.order.canVerify ? (
+                        confirming ? (
+                          <div className="mt-3 space-y-2">
+                            <p className="text-sm font-medium">
+                              Har du fått {formatKrValue(detail.order.totalOre)}{" "}
+                              kr för den här ordern?
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                size="sm"
+                                disabled={verifying}
+                                onClick={() => setVerified(true)}
+                              >
+                                {verifying && (
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                )}
+                                Ja, bekräfta
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={verifying}
+                                onClick={() => setConfirming(false)}
+                              >
+                                Avbryt
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <Button
+                            size="sm"
+                            className="mt-3"
+                            onClick={() => setConfirming(true)}
+                          >
+                            <BadgeCheck className="mr-2 h-4 w-4" />
+                            Bekräfta betalningen
+                          </Button>
+                        )
+                      ) : (
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          En lagledare eller föreningens admin behöver bekräfta
+                          ordern. Den som registrerat den kan inte bekräfta den
+                          själv.
+                        </p>
+                      )}
+                    </>
+                  )}
+                </section>
+              )}
+
+              {/* Avbokad eller återbetald: skälet är det enda som gör den
+                  här ordern begriplig i efterhand, så det visas i stället för
+                  knappar som inte längre går att trycka på. */}
+              {isClosed && (
+                <section className="rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+                  <h3 className="flex items-center gap-2 text-sm font-semibold text-destructive">
+                    <Ban className="h-4 w-4" />
+                    {detail.order.status === "REFUNDED"
+                      ? "Återbetald"
+                      : detail.order.status === "FAILED"
+                        ? "Betalningen gick inte igenom"
+                        : "Avbokad"}
+                    {detail.order.cancelledAt &&
+                      ` ${formatDateTime(detail.order.cancelledAt)}`}
+                  </h3>
+                  {detail.order.cancelReason && (
+                    <p className="mt-1.5 text-sm">
+                      <span className="text-muted-foreground">Skäl: </span>
+                      {detail.order.cancelReason}
+                    </p>
+                  )}
+                  <p className="mt-1.5 text-xs text-muted-foreground">
+                    Summan räknas inte som intäkt och ingår inte i lagets
+                    avräkning.
+                  </p>
+                </section>
+              )}
+
+              {/* Leveranssteg. Endpointen har funnits en tid men saknade yta,
+                  så en order kunde bli betald och sedan aldrig komma längre. */}
+              {!isClosed && isRevenue && detail.order.canManageFulfillment && (
+                <section>
+                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Leverans
+                  </h3>
+                  <div className="rounded-lg border p-4">
+                    <ol className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                      {FULFILLMENT_STEPS.map((step, i) => {
+                        const reached = currentStep >= i;
+                        return (
+                          <li
+                            key={step.status}
+                            className="flex items-center gap-2"
+                          >
+                            {i > 0 && (
+                              <span
+                                aria-hidden
+                                className={`h-px w-6 ${reached ? "bg-success" : "bg-border"}`}
+                              />
+                            )}
+                            <span
+                              className={`flex items-center gap-1.5 ${
+                                reached
+                                  ? "font-medium text-success"
+                                  : "text-muted-foreground"
+                              }`}
+                            >
+                              {reached ? (
+                                <BadgeCheck className="h-3.5 w-3.5" />
+                              ) : (
+                                <Clock className="h-3.5 w-3.5" />
+                              )}
+                              {step.label}
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ol>
+
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {nextStep && (
+                        <Button
+                          size="sm"
+                          disabled={savingStatus}
+                          onClick={() => setFulfillment(nextStep.status)}
+                        >
+                          {savingStatus ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            <Truck className="mr-2 h-4 w-4" />
+                          )}
+                          {nextStep.action}
+                        </Button>
+                      )}
+                      {currentStep > 0 && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={savingStatus}
+                          onClick={() => setFulfillment("PAID")}
+                        >
+                          Ångra leveransmarkering
+                        </Button>
+                      )}
+                    </div>
+
+                    {detail.order.shippedAt && (
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        Skickad {formatDateTime(detail.order.shippedAt)}
+                        {detail.order.deliveredAt &&
+                          ` · levererad ${formatDateTime(detail.order.deliveredAt)}`}
+                      </p>
+                    )}
+                  </div>
+                </section>
+              )}
+
+              {/* Avbokning. Skälet är obligatoriskt eftersom en avbokad order
+                  tas ur intäkten, och då behöver någon kunna se varför. */}
+              {!isClosed && detail.order.canCancel && (
+                <section>
+                  {cancelOpen ? (
+                    <div className="space-y-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+                      <div>
+                        <h3 className="text-sm font-semibold">
+                          {isRevenue
+                            ? "Återbetala eller avboka ordern"
+                            : "Avboka ordern"}
+                        </h3>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Summan tas ur lagets förtjänst och ur underlaget för
+                          utbetalning. Det går inte att ångra.
+                        </p>
+                      </div>
+
+                      {/* Skillnaden mellan de två är om pengar hunnit röra
+                          sig. Klarna-betalda ordrar kan bara återbetalas. */}
+                      {isRevenue && (
+                        <div className="flex flex-wrap gap-2">
+                          {(
+                            [
+                              {
+                                kind: "REFUNDED" as const,
+                                label: "Pengarna går tillbaka till kunden",
+                              },
+                              {
+                                kind: "CANCELLED" as const,
+                                label: "Inga pengar kom in",
+                              },
+                            ] as const
+                          ).map((opt) => {
+                            const blocked =
+                              opt.kind === "CANCELLED" &&
+                              detail.order.paymentMethod === "KLARNA";
+                            if (blocked) return null;
+                            return (
+                              <Button
+                                key={opt.kind}
+                                type="button"
+                                size="sm"
+                                variant={
+                                  cancelKind === opt.kind
+                                    ? "default"
+                                    : "outline"
+                                }
+                                onClick={() => setCancelKind(opt.kind)}
+                              >
+                                {opt.label}
+                              </Button>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      <div className="grid gap-1.5">
+                        <Label htmlFor="cancel-reason">Skäl</Label>
+                        <textarea
+                          id="cancel-reason"
+                          rows={2}
+                          value={cancelReason}
+                          maxLength={500}
+                          onChange={(e) => setCancelReason(e.target.value)}
+                          placeholder="T.ex. kunden ångrade köpet, eller fel belopp registrerat"
+                          className="flex w-full rounded-lg border border-border bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        />
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          disabled={
+                            savingStatus || cancelReason.trim().length < 3
+                          }
+                          onClick={() => cancelOrder(false)}
+                        >
+                          {savingStatus && (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          )}
+                          {cancelKind === "REFUNDED"
+                            ? "Markera som återbetald"
+                            : "Avboka ordern"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={savingStatus}
+                          onClick={() => setCancelOpen(false)}
+                        >
+                          Avbryt
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-auto p-0 text-xs text-muted-foreground underline hover:text-destructive"
+                      onClick={() => {
+                        // Har pengar kommit in är återbetalning förvalet.
+                        // Annars finns det inget att betala tillbaka.
+                        setCancelKind(isRevenue ? "REFUNDED" : "CANCELLED");
+                        setCancelOpen(true);
+                      }}
+                    >
+                      <Ban className="mr-1.5 h-3 w-3" />
+                      {isRevenue ? "Återbetala eller avboka" : "Avboka ordern"}
+                    </Button>
+                  )}
+                </section>
+              )}
 
               <section>
                 <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">

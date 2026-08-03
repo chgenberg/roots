@@ -17,6 +17,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { LoadError } from "@/components/load-error";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -52,7 +53,7 @@ const INVOICE_LABELS: Record<ApiOrder["invoiceStatus"], string> = {
 
 const INVOICE_BADGE: Record<ApiOrder["invoiceStatus"], string> = {
   NONE: "bg-muted text-muted-foreground border-border",
-  PENDING: "bg-yellow-100 text-yellow-800 border-yellow-300",
+  PENDING: "bg-warning-surface text-warning-strong border-warning-edge",
   ISSUED: "bg-brand-50 text-brand-700 border-brand-200",
   PAID: "bg-success/15 text-success border-success/40",
   CANCELLED: "bg-destructive/10 text-destructive border-destructive/30",
@@ -94,7 +95,8 @@ export default function ClubInvoicesPage() {
         const data = await portalFetch<{ orders: ApiOrder[] }>("/orders");
         setOrders(data.orders ?? []);
       } catch {
-        setError("Kunde inte hämta fakturor. Försök igen.");
+        // "Försök igen" står på knappen, inte i texten.
+        setError("Kunde inte hämta fakturorna.");
       } finally {
         setLoading(false);
       }
@@ -167,14 +169,7 @@ export default function ClubInvoicesPage() {
   }
 
   if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-3 py-20">
-        <p className="text-sm text-destructive">{error}</p>
-        <Button variant="outline" onClick={() => window.location.reload()}>
-          Försök igen
-        </Button>
-      </div>
-    );
+    return <LoadError message={error} onRetry={() => window.location.reload()} />;
   }
 
   return (

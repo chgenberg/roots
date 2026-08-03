@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { MessageCircle, X, Send, Loader2, Square } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getBrowserApiBase } from "@/lib/api-base";
+import { getCsrfToken } from "@/lib/api";
 
 interface Message {
   role: "user" | "assistant";
@@ -16,15 +17,6 @@ interface Message {
 
 const BASE_API = getBrowserApiBase();
 const API_URL = `${BASE_API}/v1/ai/public-chat`;
-
-let _csrfCache: string | null = null;
-async function getCsrf(): Promise<string> {
-  if (_csrfCache) return _csrfCache;
-  const r = await fetch(`${BASE_API}/v1/csrf-token`, { credentials: "include" });
-  const d = await r.json();
-  _csrfCache = d.token;
-  return _csrfCache!;
-}
 
 const WELCOME_MESSAGE: Message = {
   role: "assistant",
@@ -131,7 +123,7 @@ export function ChatWidget() {
     abortRef.current = controller;
 
     try {
-      const csrf = await getCsrf();
+      const csrf = await getCsrfToken();
       const res = await fetch(API_URL, {
         method: "POST",
         headers: {
@@ -176,7 +168,14 @@ export function ChatWidget() {
             try {
               const parsed = JSON.parse(data);
               if (parsed.content) {
-                accumulated += parsed.content;
+                // replace:true betyder att servern stoppat svaret mitt i
+                // (t.ex. ett medicinskt påstående som inte får stå kvar)
+                // och skickar ersättningstexten. Då byter vi ut allt,
+                // annars fortsätter vi bygga på.
+                accumulated =
+                  parsed.replace === true
+                    ? parsed.content
+                    : accumulated + parsed.content;
                 setMessages((prev) => {
                   const updated = [...prev];
                   updated[updated.length - 1] = {
@@ -327,7 +326,7 @@ export function ChatWidget() {
                   msg.role === "user"
                     ? "rounded-br-sm bg-inverse-surface text-inverse-on-surface"
                     : msg.fallback
-                      ? "rounded-bl-sm border border-amber-300 bg-amber-50 text-amber-900"
+                      ? "rounded-bl-sm border border-warning-edge bg-warning-surface text-warning-strong"
                       : "rounded-bl-sm bg-brand-50 text-foreground"
                 )}
               >
@@ -335,7 +334,7 @@ export function ChatWidget() {
                     fallback-flagga så användaren förstår att svaret
                     är en generisk hänvisning, inte AI:n som är på. */}
                 {msg.role === "assistant" && msg.fallback ? (
-                  <p className="mb-1 text-xs font-medium uppercase tracking-wide text-amber-700">
+                  <p className="mb-1 text-xs font-medium uppercase tracking-wide text-warning-strong">
                     AI är tillfälligt otillgänglig
                   </p>
                 ) : null}

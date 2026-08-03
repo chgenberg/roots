@@ -22,7 +22,9 @@ const FULL_PROD_ENV: NodeJS.ProcessEnv = {
   // P3.52 (audit 2026-05-26): INTERNAL_CRON_TOKEN är RECOMMENDED, inte
   // required. Sätter den ändå i baseline så att recommendedMissing-
   // testen får ett rent utfall.
-  INTERNAL_CRON_TOKEN: "0123456789abcdef0123456789abcdef0123456789abcdef",
+  // Distinkt värde: korskontrollen fäller två hemligheter som delar värde,
+  // så fixturen får inte återanvända CSRF_SECRET här.
+  INTERNAL_CRON_TOKEN: "cr0n0123456789abcdef0123456789abcdef0123456789ab",
   OPENAI_API_KEY: "sk-real-key",
   RESEND_API_KEY: "re_real_key",
   // MASTERPLAN_01 KC8.1: dessa adderades till RECOMMENDED_IN_PROD och
@@ -178,6 +180,81 @@ describe("checkEnv (production)", () => {
     const r = checkEnv(env, true);
     expect(r.ok).toBe(true);
     expect(r.recommendedMissing.join("\n")).toMatch(/INTERNAL_CRON_TOKEN/);
+  });
+
+  // Korskontroller: varje variabel kan vara satt och kombinationen ändå
+  // vara trasig. Det är den klassen av fel som är billigast att stoppa
+  // vid boot och dyrast att felsöka i produktion.
+  it("rejects boot when CORS_ORIGIN does not cover the site origin", () => {
+    const env: NodeJS.ProcessEnv = {
+      ...FULL_PROD_ENV,
+      CORS_ORIGIN: "https://staging.roots.se",
+    };
+    const r = checkEnv(env, true);
+    expect(r.ok).toBe(false);
+    expect(r.conflicts.join("\n")).toMatch(/CORS_ORIGIN/);
+  });
+
+  it("accepts a comma-separated CORS_ORIGIN that includes the site origin", () => {
+    const env: NodeJS.ProcessEnv = {
+      ...FULL_PROD_ENV,
+      CORS_ORIGIN: "https://staging.roots.se,https://roots.se",
+    };
+    const r = checkEnv(env, true);
+    expect(r.ok).toBe(true);
+    expect(r.conflicts).toEqual([]);
+  });
+
+  it("rejects a non-https site URL in production", () => {
+    const env: NodeJS.ProcessEnv = {
+      ...FULL_PROD_ENV,
+      NEXT_PUBLIC_SITE_URL: "http://roots.se",
+      CORS_ORIGIN: "http://roots.se",
+    };
+    const r = checkEnv(env, true);
+    expect(r.ok).toBe(false);
+    expect(r.conflicts.join("\n")).toMatch(/https/);
+  });
+
+  it("rejects secrets that are too short", () => {
+    const env: NodeJS.ProcessEnv = { ...FULL_PROD_ENV, SESSION_SECRET: "kort" };
+    const r = checkEnv(env, true);
+    expect(r.ok).toBe(false);
+    expect(r.conflicts.join("\n")).toMatch(/SESSION_SECRET/);
+  });
+
+  it("rejects two secrets sharing the same value", () => {
+    const env: NodeJS.ProcessEnv = {
+      ...FULL_PROD_ENV,
+      SESSION_SECRET: FULL_PROD_ENV.CSRF_SECRET,
+    };
+    const r = checkEnv(env, true);
+    expect(r.ok).toBe(false);
+    expect(r.conflicts.join("\n")).toMatch(/samma värde/);
+  });
+
+  it.each([
+    "REDIS_DISABLED",
+    "ROOTS_KLARNA_STUB",
+    "ROOTS_ALLOW_UNSIGNED_KLARNA_WEBHOOK",
+    "ROOTS_ALLOW_DEMO_WRITES",
+    "SCHEDULER_DISABLED",
+  ])("rejects the dev override %s=true in production", (name) => {
+    const env: NodeJS.ProcessEnv = { ...FULL_PROD_ENV, [name]: "true" };
+    const r = checkEnv(env, true);
+    expect(r.ok).toBe(false);
+    expect(r.conflicts.join("\n")).toMatch(name);
+  });
+
+  it("requires a strong demo password when demo accounts are enabled", () => {
+    const env: NodeJS.ProcessEnv = {
+      ...FULL_PROD_ENV,
+      ROOTS_ENABLE_DEMO_ACCOUNTS: "true",
+      ROOTS_DEMO_PASSWORD: "kort",
+    };
+    const r = checkEnv(env, true);
+    expect(r.ok).toBe(false);
+    expect(r.conflicts.join("\n")).toMatch(/ROOTS_DEMO_PASSWORD/);
   });
 
   // Audit 2.43

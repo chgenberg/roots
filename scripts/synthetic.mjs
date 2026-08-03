@@ -108,16 +108,6 @@ async function run() {
     }
   );
 
-  await check(
-    "web.products-catalog",
-    `${API_BASE}/v1/products`,
-    async (r) => {
-      if (r.status !== 200) return false;
-      const body = await r.json().catch(() => null);
-      return Array.isArray(body?.products) && body.products.length > 0;
-    }
-  );
-
   // En representativ shop-sida att smoke-testa. Slug kan över-
   // styras med SYNTHETIC_SHOP_SLUG om vi inte vill leaka en
   // demo-säljares URL utåt.
@@ -127,6 +117,30 @@ async function run() {
       `web.shop.${shopSlug}`,
       `${WEB_BASE}/shop/${shopSlug}`,
       (r) => r.status === 200 || r.status === 404, // 404 är OK om slug medvetet tas bort
+    );
+
+    // Katalogen bakom shop-sidan. Kontrollen låg tidigare på
+    // `GET /v1/products`, men den routen togs bort i 83810bc — så checken
+    // hade varit permanent röd sedan dess, och en grind som alltid larmar
+    // slutar folk läsa. Butikens egen endpoint är dessutom närmare det vi
+    // vill veta: att en köpare får produkter att lägga i korgen, med pris.
+    //
+    // 404 accepteras eftersom slugen kan vara borttagen med flit, men bara
+    // om det ÄR ett 404 — ett 200 med tom katalog är ett trasigt läge där
+    // sidan renderar men ingenting går att köpa.
+    await check(
+      "api.shop-catalog",
+      `${API_BASE}/v1/shop/by-slug/${shopSlug}`,
+      async (r) => {
+        if (r.status === 404) return true;
+        if (r.status !== 200) return false;
+        const body = await r.json().catch(() => null);
+        return (
+          Array.isArray(body?.products) &&
+          body.products.length > 0 &&
+          body.products.every((p) => typeof p.priceOre === "number" && p.priceOre > 0)
+        );
+      }
     );
   }
 

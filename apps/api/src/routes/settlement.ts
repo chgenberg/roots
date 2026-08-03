@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
-import { eq, and, sql, isNull } from "drizzle-orm";
+import { eq, and, sql, isNull, inArray } from "drizzle-orm";
+import { REVENUE_ORDER_STATUSES } from "@roots/contracts";
 import { db } from "@roots/db";
 import {
   campaigns,
@@ -63,10 +64,22 @@ settlement.post("/generate/:campaignId", async (c) => {
   try {
     acquired = (await redis.set(lockKey, "1", "EX", 120, "NX")) as "OK" | null;
   } catch (err) {
-    log.warn(
+    log.error(
       { err, campaignId },
-      "settlement lock unavailable (redis) — proceeding best-effort"
+      "settlement lock unavailable (redis)"
     );
+    // Fail closed i produktion: avräkningen skriver riktiga utbetalningar,
+    // och utan lås kan två parallella körningar dubbla belopp. Att vänta
+    // några minuter på Redis är billigare än att betala ut fel summa.
+    if (process.env.NODE_ENV === "production") {
+      return c.json(
+        {
+          error:
+            "Avräkningen kan inte köras just nu (låstjänsten är otillgänglig). Försök igen om några minuter.",
+        },
+        503
+      );
+    }
     acquired = "error";
   }
   if (acquired === null) {
@@ -110,20 +123,56 @@ settlement.post("/generate/:campaignId", async (c) => {
       const txResults: Array<Record<string, unknown>> = [];
 
       for (const team of teamList) {
+        // Tre saker skiljer den här summeringen från den gamla:
+        //
+        //   1. Betald räknas via REVENUE_ORDER_STATUSES, inte bara `PAID`.
+        //      Tidigare föll varje order som markerats SHIPPED/DELIVERED ur
+        //      utbetalningen, eftersom leveransstatus skriver över
+        //      betalstatus i samma kolumn. Ett lag som skötte sig och
+        //      markerade sina ordrar som levererade fick alltså mindre
+        //      pengar än ett lag som lät dem ligga kvar.
+        //   2. Manuella ordrar (kontant i handen) räknas bara med när de
+        //      verifierats av lagledare eller föreningsadmin. Annars kunde
+        //      ett kapat säljarkonto skapa PAID-rader som blev pengar.
+        //   3. Team-andelen räknas per order med den marginal som gällde när
+        //      ordern lades, inte med kampanjens nuvarande marginal.
         const salesResult = await tx
           .select({
             total: sql<number>`COALESCE(SUM(${customerOrders.totalOre}), 0)`,
+            teamShare: sql<number>`COALESCE(SUM(ROUND(${customerOrders.totalOre} * COALESCE(${customerOrders.marginPercentAtSale}, ${campaign.marginPercent})::numeric / 100)), 0)`,
           })
           .from(customerOrders)
           .where(
             and(
               eq(customerOrders.teamId, team.id),
               eq(customerOrders.campaignId, campaignId),
-              eq(customerOrders.status, "PAID")
+              inArray(customerOrders.status, REVENUE_ORDER_STATUSES),
+              sql`(${customerOrders.isManual} = false OR ${customerOrders.verifiedAt} IS NOT NULL)`
             )
           );
 
         const totalSalesOre = Number(salesResult[0]?.total || 0);
+        const frozenTeamShareOre = Number(salesResult[0]?.teamShare || 0);
+
+        // Vad som lämnats utanför, så att admin ser att det finns pengar
+        // kvar att bekräfta istället för att undra över en låg summa.
+        const [pendingResult] = await tx
+          .select({
+            total: sql<number>`COALESCE(SUM(${customerOrders.totalOre}), 0)`,
+            count: sql<number>`COUNT(*)`,
+          })
+          .from(customerOrders)
+          .where(
+            and(
+              eq(customerOrders.teamId, team.id),
+              eq(customerOrders.campaignId, campaignId),
+              inArray(customerOrders.status, REVENUE_ORDER_STATUSES),
+              eq(customerOrders.isManual, true),
+              isNull(customerOrders.verifiedAt)
+            )
+          );
+        const unverifiedOre = Number(pendingResult?.total || 0);
+        const unverifiedCount = Number(pendingResult?.count || 0);
 
         // MASTERPLAN_01 KC1.8: don't manufacture payout-rows for teams
         // that didn't sell anything. They clutter Fortnox, confuse the
@@ -148,13 +197,14 @@ settlement.post("/generate/:campaignId", async (c) => {
             totalSalesOre: 0,
             teamShareOre: 0,
             rootsShareOre: 0,
+            unverifiedManualOre: unverifiedOre,
+            unverifiedManualCount: unverifiedCount,
             skipped: true,
           });
           continue;
         }
 
-        const marginPercent = campaign.marginPercent;
-        const teamShareOre = Math.round(totalSalesOre * (marginPercent / 100));
+        const teamShareOre = frozenTeamShareOre;
         const rootsShareOre = totalSalesOre - teamShareOre;
 
         if (existing) {
@@ -214,6 +264,8 @@ settlement.post("/generate/:campaignId", async (c) => {
             totalSalesOre,
             teamShareOre,
             rootsShareOre,
+            unverifiedManualOre: unverifiedOre,
+            unverifiedManualCount: unverifiedCount,
             payoutId: existing.id,
             updated: true,
           });
@@ -237,6 +289,8 @@ settlement.post("/generate/:campaignId", async (c) => {
             totalSalesOre,
             teamShareOre,
             rootsShareOre,
+            unverifiedManualOre: unverifiedOre,
+            unverifiedManualCount: unverifiedCount,
             payoutId: payout.id,
           });
         }

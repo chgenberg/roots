@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { eq, and, sql, inArray, gte } from "drizzle-orm";
+import { createHash } from "node:crypto";
 import { hash } from "@node-rs/argon2";
 import { db } from "@roots/db";
 import {
@@ -11,7 +12,9 @@ import {
   customerOrderLines,
   teamGoals,
   products,
+  payouts,
 } from "@roots/db/schema";
+import { REVENUE_ORDER_STATUSES, countsAsRevenue } from "@roots/contracts";
 import { isDemoSession } from "../lib/session";
 import { requireSession } from "../lib/http-session";
 import { getAchievedMilestones, getNextMilestone, getSellerGrade } from "../lib/milestones";
@@ -19,6 +22,8 @@ import { getEmailSender } from "../lib/email";
 import { welcomeEmail } from "../lib/email/templates";
 import { childLogger } from "../lib/logger";
 import { stockholmDateIso } from "../lib/date";
+import { auditLog, requestContext } from "../lib/audit";
+import { resolveCampaignCatalog } from "../lib/campaign-catalog";
 import { validatePassword } from "./auth";
 
 const ARGON2_OPTIONS = {
@@ -32,6 +37,32 @@ const log = childLogger("dashboard");
 
 export const dashboard = new Hono();
 
+/**
+ * Får den inloggade användaren bekräfta den här manuella ordern?
+ *
+ * Samma villkor som POST /orders/:orderId/verify faktiskt tillämpar. Vi
+ * svarar på frågan i orderlistan i stället för att låta varje vy räkna ut
+ * den själv: en vy som gissar fel visar antingen en knapp som ger 403,
+ * eller ingen knapp åt någon som hade fått bekräfta.
+ *
+ * Den viktigaste raden är den sista. Den som registrerat ordern får inte
+ * godkänna den — annars är kontrollen meningslös för precis det scenario
+ * den finns till för.
+ */
+function canVerifyManualOrder(
+  session: { userId: string; role: string; orgId: string | null },
+  order: { isManual: boolean; orgId: string; placedByUserId: string | null },
+  team: { leaderId: string | null }
+): boolean {
+  if (!order.isManual) return false;
+  const inScope =
+    session.role === "INTERNAL_ADMIN" ||
+    (session.role === "ASSOCIATION_ADMIN" && session.orgId === order.orgId) ||
+    (session.role === "TEAM_LEADER" && team.leaderId === session.userId);
+  if (!inScope) return false;
+  return order.placedByUserId !== session.userId;
+}
+
 /* ───────────────────────── Statistik / grafer ─────────────────────────
  * Tidsserie-data för dashboard-graferna. Alla aggregat filtrerar på
  * PAID + countsTowardStats=true (samma regel som KPI-aggregaten ovan) så
@@ -40,8 +71,12 @@ export const dashboard = new Hono();
  * ------------------------------------------------------------------- */
 
 const STATS_WINDOW_DAYS = 90;
+// REVENUE_ORDER_STATUSES i stället för bara "PAID": leveransstatus skriver
+// över betalstatus i samma kolumn, så ett `= 'PAID'` tappade varje order
+// som hunnit markeras som skickad eller levererad. Grafer och KPI:er visade
+// då mindre än laget faktiskt sålt.
 const PAID_IN_STATS = and(
-  eq(customerOrders.status, "PAID"),
+  inArray(customerOrders.status, REVENUE_ORDER_STATUSES),
   eq(customerOrders.countsTowardStats, true)
 );
 
@@ -160,7 +195,7 @@ dashboard.get("/association", async (c) => {
       .where(
         and(
           eq(customerOrders.orgId, orgId),
-          eq(customerOrders.status, "PAID"),
+          inArray(customerOrders.status, REVENUE_ORDER_STATUSES),
           // Endast ordrar inom säljperioden räknas i statistik/topplistor.
           eq(customerOrders.countsTowardStats, true)
         )
@@ -374,7 +409,7 @@ dashboard.get("/team/:teamId", async (c) => {
       .where(
         and(
           eq(customerOrders.teamId, teamId),
-          eq(customerOrders.status, "PAID"),
+          inArray(customerOrders.status, REVENUE_ORDER_STATUSES),
           eq(customerOrders.countsTowardStats, true)
         )
       )
@@ -388,6 +423,21 @@ dashboard.get("/team/:teamId", async (c) => {
 
     const totalSales = salesBySeller.reduce((s, r) => s + Number(r.total), 0);
     const totalOrderCount = salesBySeller.reduce((s, r) => s + Number(r.count), 0);
+
+    // Villkoret speglar settlement.ts: en manuell order som är betald men
+    // obekräftad räknas i statistiken men hålls utanför utbetalningen.
+    // Skulle de två någon gång glida ifrån varandra visar lagledaren en
+    // siffra som avräkningen inte känner igen, så de hör ihop.
+    const unverifiedManual = orders.reduce(
+      (acc, o) => {
+        if (o.isManual && countsAsRevenue(o.status) && !o.verifiedAt) {
+          acc.ore += o.totalOre;
+          acc.count += 1;
+        }
+        return acc;
+      },
+      { ore: 0, count: 0 }
+    );
 
     const [campaign] = await db
       .select()
@@ -436,12 +486,26 @@ dashboard.get("/team/:teamId", async (c) => {
         isManual: o.isManual,
         countsTowardStats: o.countsTowardStats,
         createdAt: o.createdAt,
+        // En obekräftad manuell order räknas inte in i någon utbetalning.
+        // Utan det här fältet kan gränssnittet inte skilja på "väntar på
+        // dig" och "klar", och lagledaren har ingen aning om varför
+        // avräkningen är lägre än vad laget sagt.
+        verifiedAt: o.verifiedAt,
+        // Reglerna för vem som får bekräfta bor i verify-endpointen. Vi
+        // svarar hellre på frågan här än låter varje vy försöka räkna ut
+        // dem igen och riskera att gissa fel.
+        canVerify: canVerifyManualOrder(session, o, team),
       })),
       stats: {
         totalSalesOre: totalSales,
         totalOrders: totalOrderCount,
         teamEarningsOre,
         marginPercent,
+        // Summan som väntar på bekräftelse, så avräkningsvyn kan visa
+        // varför den skiljer sig från lagets egen räkning i stället för
+        // att bara redovisa ett lägre tal.
+        unverifiedManualOre: unverifiedManual.ore,
+        unverifiedManualCount: unverifiedManual.count,
       },
       milestones: {
         achieved: achieved.map((m) => ({ id: m.id, label: m.label, description: m.description })),
@@ -1011,21 +1075,18 @@ dashboard.post("/team/:teamId/rotate-invite-token", async (c) => {
       .where(eq(teams.id, teamId))
       .returning();
 
-    void (async () => {
-      const { auditLog, requestContext } = await import("../lib/audit");
-      void auditLog({
-        userId: session.userId,
-        action: "team.invite_token.rotated",
-        entityType: "team",
-        entityId: teamId,
-        meta: {
-          ...requestContext((n) => c.req.header(n)),
-          orgId: team.orgId,
-          expiresAt: expiresAt?.toISOString() ?? null,
-          maxUses,
-        },
-      });
-    })();
+    void auditLog({
+      userId: session.userId,
+      action: "team.invite_token.rotated",
+      entityType: "team",
+      entityId: teamId,
+      meta: {
+        ...requestContext((n) => c.req.header(n)),
+        orgId: team.orgId,
+        expiresAt: expiresAt?.toISOString() ?? null,
+        maxUses,
+      },
+    });
 
     return c.json({
       ok: true,
@@ -1075,7 +1136,7 @@ dashboard.get("/seller", async (c) => {
       .where(
         and(
           eq(customerOrders.sellerId, seller.id),
-          eq(customerOrders.status, "PAID"),
+          inArray(customerOrders.status, REVENUE_ORDER_STATUSES),
           eq(customerOrders.countsTowardStats, true)
         )
       );
@@ -1123,6 +1184,11 @@ dashboard.get("/seller", async (c) => {
         totalOre: o.totalOre,
         status: o.status,
         createdAt: o.createdAt,
+        // Säljaren ska se att en egen registrerad order väntar på
+        // lagledaren. Annars ser den ut som klar, och när avräkningen
+        // landar lägre än väntat finns ingen förklaring i gränssnittet.
+        isManual: o.isManual,
+        verifiedAt: o.verifiedAt,
       })),
     });
   } catch (err) {
@@ -1153,12 +1219,21 @@ dashboard.post("/seller/orders", async (c) => {
     return c.json({ error: "Demoläget kan inte registrera riktiga ordrar." }, 403);
   }
 
+  // Rå body behövs för idempotensnyckeln — ett dubbeltryck eller en retry
+  // på mobilen ska inte bli två ordrar som båda hamnar i avräkningen.
+  const rawBody = await c.req.text();
   let body: any;
   try {
-    body = await c.req.json();
+    body = JSON.parse(rawBody);
   } catch {
     return c.json({ error: "Ogiltig JSON i request body." }, 400);
   }
+
+  const headerKey = c.req.header("idempotency-key")?.trim() ?? "";
+  const idempotencyKey = createHash("sha256")
+    .update(`manual:${session.userId}:${headerKey}:${rawBody}`)
+    .digest("hex")
+    .slice(0, 120);
 
   const items = Array.isArray(body?.items) ? body.items : [];
   if (items.length === 0) {
@@ -1196,6 +1271,26 @@ dashboard.post("/seller/orders", async (c) => {
       : null;
 
   try {
+    const [existingByKey] = await db
+      .select()
+      .from(customerOrders)
+      .where(eq(customerOrders.idempotencyKey, idempotencyKey))
+      .limit(1);
+    if (existingByKey) {
+      return c.json({
+        ok: true,
+        idempotent: true,
+        order: {
+          id: existingByKey.id,
+          totalOre: existingByKey.totalOre,
+          status: existingByKey.status,
+          selectedPaymentMethod: existingByKey.selectedPaymentMethod,
+          countsTowardStats: existingByKey.countsTowardStats,
+          createdAt: existingByKey.createdAt,
+        },
+      });
+    }
+
     const [seller] = await db
       .select()
       .from(sellers)
@@ -1234,11 +1329,8 @@ dashboard.post("/seller/orders", async (c) => {
     }
     const countsTowardStats = withinPeriod;
 
-    const productList = await db
-      .select()
-      .from(products)
-      .where(eq(products.active, true));
-    const productMap = new Map(productList.map((p) => [p.id, p]));
+    // Samma katalog och samma pris som den publika kassan använder.
+    const productMap = await resolveCampaignCatalog(seller.campaignId);
 
     let totalOre = 0;
     const lines: Array<{ productId: string; qty: number; unitPriceOre: number }> =
@@ -1248,11 +1340,11 @@ dashboard.post("/seller/orders", async (c) => {
       if (!product) {
         return c.json({ error: `Produkt hittades inte: ${item.productId}` }, 400);
       }
-      totalOre += product.priceOre * item.qty;
+      totalOre += product.effectivePriceOre * item.qty;
       lines.push({
         productId: product.id,
         qty: item.qty,
-        unitPriceOre: product.priceOre,
+        unitPriceOre: product.effectivePriceOre,
       });
     }
     if (totalOre === 0) {
@@ -1273,12 +1365,17 @@ dashboard.post("/seller/orders", async (c) => {
           deliveryType: "BULK",
           paymentMethod: "DIRECT_TO_LEADER",
           selectedPaymentMethod,
+          // Säljaren säger att hen fått kontanter i handen. Vi tror på det i
+          // statistiken, men ordern räknas inte in i någon utbetalning förrän
+          // lagledare eller föreningsadmin bekräftat den (verifiedAt).
           status: "PAID",
           totalOre,
           shippingOre: 0,
           countsTowardStats,
           isManual: true,
           placedByUserId: session.userId,
+          marginPercentAtSale: campaign.marginPercent,
+          idempotencyKey,
           note,
         })
         .returning();
@@ -1401,8 +1498,31 @@ dashboard.get("/seller/orders/:orderId", async (c) => {
         note: order.note,
         shippedAt: order.shippedAt,
         deliveredAt: order.deliveredAt,
+        cancelledAt: order.cancelledAt,
+        cancelReason: order.cancelReason,
         createdAt: order.createdAt,
         updatedAt: order.updatedAt,
+        // Säljaren ser att den egna ordern väntar på lagledaren, och
+        // lagledaren får knappen. Bara den ena av dem får `canVerify`.
+        verifiedAt: order.verifiedAt,
+        canVerify:
+          !!orderTeam &&
+          canVerifyManualOrder(session, order, orderTeam),
+        // Behörigheterna räknas ut här istället för i klienten. Dialogen
+        // visas för fyra olika roller och skulle annars behöva känna till
+        // reglerna själv — och då hamnar en knapp förr eller senare framför
+        // någon som inte får trycka på den.
+        canManageFulfillment: isInternalAdmin || isTeamLeader || isAssocAdmin,
+        canCancel:
+          isInternalAdmin ||
+          isTeamLeader ||
+          isAssocAdmin ||
+          // Säljaren får rätta sin egen felregistrering fram till att
+          // lagledaren bekräftat den.
+          (isOwner &&
+            order.isManual &&
+            !order.verifiedAt &&
+            order.placedByUserId === session.userId),
         customer: {
           name: order.customerName,
           email: order.customerEmail,
@@ -1488,12 +1608,32 @@ dashboard.patch("/orders/:orderId/fulfillment", async (c) => {
         orderTeam.leaderId === session.userId);
     if (!hasAccess) return c.json({ error: "Behörighet saknas" }, 403);
 
+    // En avbokad eller återbetald order är stängd. Utan den här kontrollen
+    // kunde "ångra leveransmarkering" (status: PAID) sätta tillbaka den till
+    // betald från vilket läge som helst, och därmed återuppliva pengar som
+    // redan lämnat systemet. Vägen tillbaka går via en ny order, inte via
+    // leveransstatus.
+    if (
+      order.status === "CANCELLED" ||
+      order.status === "REFUNDED" ||
+      order.status === "FAILED"
+    ) {
+      return c.json(
+        {
+          error:
+            "Ordern är avbokad eller återbetald och kan inte ändras. Registrera en ny order istället.",
+        },
+        400
+      );
+    }
+
     // Endast betalda/bekräftade ordrar kan markeras skickade/levererade.
     if (
       (status === "SHIPPED" || status === "DELIVERED") &&
       order.status !== "PAID" &&
       order.status !== "CONFIRMED" &&
-      order.status !== "SHIPPED"
+      order.status !== "SHIPPED" &&
+      order.status !== "DELIVERED"
     ) {
       return c.json(
         { error: "Endast betalda ordrar kan markeras som skickade/levererade." },
@@ -1536,6 +1676,339 @@ dashboard.patch("/orders/:orderId/fulfillment", async (c) => {
   } catch (err) {
     log.error({ err, orderId }, "Failed to update order fulfillment");
     return c.json({ error: "Kunde inte uppdatera leveransstatus." }, 500);
+  }
+});
+
+/**
+ * Bekräfta (eller ta tillbaka bekräftelsen på) en manuell order.
+ *
+ * En manuell order är säljarens egen registrering av "jag fick 300 kr i
+ * handen". Den syns i statistiken direkt, men räknas inte in i någon
+ * utbetalning förrän lagledaren eller föreningsadmin bekräftat att pengarna
+ * finns. Säljaren kan aldrig bekräfta sin egen order.
+ *
+ *   POST /v1/dashboard/orders/:orderId/verify   { verified: boolean }
+ */
+dashboard.post("/orders/:orderId/verify", async (c) => {
+  const session = await requireSession(c);
+  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  if (isDemoSession(session)) {
+    return c.json({ error: "Demoläget kan inte bekräfta ordrar." }, 403);
+  }
+  if (
+    session.role !== "TEAM_LEADER" &&
+    session.role !== "ASSOCIATION_ADMIN" &&
+    session.role !== "INTERNAL_ADMIN"
+  ) {
+    return c.json({ error: "Behörighet saknas" }, 403);
+  }
+
+  const orderId = c.req.param("orderId");
+  if (!/^[0-9a-f-]{36}$/i.test(orderId)) {
+    return c.json({ error: "Ogiltigt order-ID." }, 400);
+  }
+
+  let body: { verified?: boolean };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+  }
+  const verified = body.verified !== false;
+
+  try {
+    const [order] = await db
+      .select()
+      .from(customerOrders)
+      .where(eq(customerOrders.id, orderId))
+      .limit(1);
+    if (!order) return c.json({ error: "Order hittades inte" }, 404);
+    if (!order.isManual) {
+      return c.json(
+        { error: "Bara manuella ordrar behöver bekräftas." },
+        400
+      );
+    }
+    if (order.status === "CANCELLED" || order.status === "REFUNDED") {
+      return c.json(
+        { error: "Ordern är avbokad och kan inte bekräftas." },
+        400
+      );
+    }
+
+    const [orderTeam] = await db
+      .select()
+      .from(teams)
+      .where(eq(teams.id, order.teamId))
+      .limit(1);
+
+    const hasAccess =
+      session.role === "INTERNAL_ADMIN" ||
+      (session.role === "ASSOCIATION_ADMIN" && session.orgId === order.orgId) ||
+      (session.role === "TEAM_LEADER" &&
+        !!orderTeam &&
+        orderTeam.leaderId === session.userId);
+    if (!hasAccess) return c.json({ error: "Behörighet saknas" }, 403);
+
+    // Den som lade ordern får inte godkänna den. Annars är kontrollen
+    // meningslös för precis det scenario den finns till för.
+    if (order.placedByUserId && order.placedByUserId === session.userId) {
+      return c.json(
+        { error: "Du kan inte bekräfta en order du själv har registrerat." },
+        403
+      );
+    }
+
+    const [updated] = await db
+      .update(customerOrders)
+      .set({
+        verifiedAt: verified ? (order.verifiedAt ?? new Date()) : null,
+        verifiedByUserId: verified ? session.userId : null,
+        updatedAt: new Date(),
+      })
+      .where(eq(customerOrders.id, orderId))
+      .returning();
+
+    void auditLog({
+      userId: session.userId,
+      action: verified
+        ? "order.manual.verified"
+        : "order.manual.verification_revoked",
+      entityType: "customer_order",
+      entityId: orderId,
+      meta: {
+        ...requestContext((n) => c.req.header(n)),
+        totalOre: order.totalOre,
+        teamId: order.teamId,
+      },
+    });
+
+    return c.json({
+      ok: true,
+      order: {
+        id: updated.id,
+        verifiedAt: updated.verifiedAt,
+        verifiedByUserId: updated.verifiedByUserId,
+      },
+    });
+  } catch (err) {
+    log.error({ err, orderId }, "Failed to verify manual order");
+    return c.json({ error: "Kunde inte bekräfta ordern." }, 500);
+  }
+});
+
+/**
+ * Avboka eller återbetala en kundorder.
+ *
+ *   POST /v1/dashboard/orders/:orderId/cancel
+ *   body: { status: "CANCELLED" | "REFUNDED", reason: string, force?: boolean }
+ *
+ * CANCELLED och REFUNDED har funnits i statusenumen sedan första
+ * migrationen men sattes aldrig av någon kodväg. En felregistrerad manuell
+ * order gick alltså bara att rätta direkt i databasen, och en order som
+ * kunden fått pengarna tillbaka för låg kvar som intäkt i lagets förtjänst.
+ *
+ * Skillnaden mellan de två statusarna är om pengar hunnit röra sig:
+ * CANCELLED betyder att ordern aldrig blev en betalning, REFUNDED att den
+ * blev det och gick tillbaka. Båda faller ur REVENUE_ORDER_STATUSES och
+ * därmed ur avräkningen.
+ */
+dashboard.post("/orders/:orderId/cancel", async (c) => {
+  const session = await requireSession(c);
+  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  if (isDemoSession(session)) {
+    return c.json({ error: "Demoläget kan inte avboka ordrar." }, 403);
+  }
+
+  const orderId = c.req.param("orderId");
+  if (!/^[0-9a-f-]{36}$/i.test(orderId)) {
+    return c.json({ error: "Ogiltigt order-ID." }, 400);
+  }
+
+  let body: { status?: string; reason?: string; force?: boolean };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+  }
+
+  const target = body.status;
+  if (target !== "CANCELLED" && target !== "REFUNDED") {
+    return c.json(
+      { error: "status måste vara CANCELLED eller REFUNDED." },
+      400
+    );
+  }
+
+  // Skälet är inte formalia. Utan det går det inte att i efterhand skilja
+  // "kunden ångrade sig" från "säljaren skrev fel belopp", och det är just
+  // den skillnaden som avgör om försäljningen ska räknas om eller inte.
+  const reason = (body.reason ?? "").trim();
+  if (reason.length < 3) {
+    return c.json({ error: "Ange ett skäl (minst 3 tecken)." }, 400);
+  }
+  if (reason.length > 500) {
+    return c.json({ error: "Skälet får vara högst 500 tecken." }, 400);
+  }
+
+  try {
+    const [order] = await db
+      .select()
+      .from(customerOrders)
+      .where(eq(customerOrders.id, orderId))
+      .limit(1);
+    if (!order) return c.json({ error: "Order hittades inte" }, 404);
+
+    // Redan avbokad — svara med nuvarande läge istället för att fela, så
+    // att en dubbelklick inte ser ut som ett fel för användaren.
+    if (order.status === "CANCELLED" || order.status === "REFUNDED") {
+      return c.json({
+        ok: true,
+        alreadyClosed: true,
+        order: {
+          id: order.id,
+          status: order.status,
+          cancelledAt: order.cancelledAt,
+          cancelReason: order.cancelReason,
+        },
+      });
+    }
+
+    const [orderTeam] = await db
+      .select()
+      .from(teams)
+      .where(eq(teams.id, order.teamId))
+      .limit(1);
+
+    const isLeaderOrAbove =
+      session.role === "INTERNAL_ADMIN" ||
+      (session.role === "ASSOCIATION_ADMIN" && session.orgId === order.orgId) ||
+      (session.role === "TEAM_LEADER" &&
+        !!orderTeam &&
+        orderTeam.leaderId === session.userId);
+
+    // En säljare får rätta sin egen felregistrering så länge lagledaren inte
+    // hunnit bekräfta den. Efter bekräftelse är den en del av underlaget för
+    // utbetalning och då krävs lagledare eller uppåt — annars kunde en
+    // säljare i efterhand plocka bort spår av en order som redan räknats.
+    const isOwnUnverifiedManual =
+      order.isManual &&
+      !order.verifiedAt &&
+      !!order.placedByUserId &&
+      order.placedByUserId === session.userId;
+
+    if (!isLeaderOrAbove && !isOwnUnverifiedManual) {
+      return c.json({ error: "Behörighet saknas" }, 403);
+    }
+
+    // Kundens pengar ligger hos Klarna. Att bara markera ordern som avbokad
+    // hos oss lämnar dem där, så den vägen måste gå via återbetalning.
+    if (
+      target === "CANCELLED" &&
+      order.paymentMethod === "KLARNA" &&
+      countsAsRevenue(order.status)
+    ) {
+      return c.json(
+        {
+          error:
+            "Ordern är betald via Klarna. Använd återbetalning istället för avbokning.",
+        },
+        400
+      );
+    }
+
+    // Pengar som redan lämnat oss kan inte tas tillbaka genom en
+    // statusändring. Avräkningen skyddar fakturerade och utbetalda payouts
+    // mot omräkning, vilket betyder att en avbokning här skulle göra
+    // underlaget och det utbetalda beloppet oense. Kräv ett aktivt val.
+    const [lockedPayout] = await db
+      .select({ id: payouts.id, status: payouts.status })
+      .from(payouts)
+      .where(
+        and(
+          eq(payouts.campaignId, order.campaignId),
+          eq(payouts.teamId, order.teamId),
+          inArray(payouts.status, ["INVOICED", "PAID"])
+        )
+      )
+      .limit(1);
+
+    const countedInPayout = countsAsRevenue(order.status) && !!lockedPayout;
+    if (countedInPayout && body.force !== true) {
+      return c.json(
+        {
+          error:
+            "Lagets utbetalning är redan fakturerad eller genomförd. Ordern räknades in i den, så avbokningen måste hanteras manuellt i bokföringen också.",
+          requiresForce: true,
+          payoutStatus: lockedPayout.status,
+        },
+        409
+      );
+    }
+
+    const now = new Date();
+    const [updated] = await db
+      .update(customerOrders)
+      .set({
+        status: target,
+        cancelledAt: now,
+        cancelledByUserId: session.userId,
+        cancelReason: reason,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(customerOrders.id, orderId),
+          // Optimistisk låsning: någon annan kan ha avbokat under tiden.
+          eq(customerOrders.status, order.status)
+        )
+      )
+      .returning();
+
+    if (!updated) {
+      return c.json(
+        { error: "Ordern ändrades av någon annan. Ladda om och försök igen." },
+        409
+      );
+    }
+
+    void auditLog({
+      userId: session.userId,
+      action: target === "REFUNDED" ? "order.refunded" : "order.cancelled",
+      entityType: "customer_order",
+      entityId: orderId,
+      meta: {
+        ...requestContext((n) => c.req.header(n)),
+        previousStatus: order.status,
+        totalOre: order.totalOre,
+        teamId: order.teamId,
+        campaignId: order.campaignId,
+        isManual: order.isManual,
+        paymentMethod: order.paymentMethod,
+        reason,
+        countedInLockedPayout: countedInPayout,
+        forced: countedInPayout && body.force === true,
+      },
+    });
+
+    return c.json({
+      ok: true,
+      order: {
+        id: updated.id,
+        status: updated.status,
+        cancelledAt: updated.cancelledAt,
+        cancelReason: updated.cancelReason,
+      },
+      // Klarna-återbetalningen kan vi inte utföra själva ännu, så säg det
+      // rakt ut istället för att låta användaren tro att pengarna är på väg.
+      manualStepRequired:
+        target === "REFUNDED" && order.paymentMethod === "KLARNA"
+          ? "Återbetalningen måste också utföras i Klarnas portal."
+          : null,
+    });
+  } catch (err) {
+    log.error({ err, orderId }, "Failed to cancel order");
+    return c.json({ error: "Kunde inte avboka ordern." }, 500);
   }
 });
 

@@ -851,6 +851,8 @@ describe("POST /v1/portal/orders", () => {
     } as any);
 
     dbHandle.reset([
+      // idempotensuppslag — ingen tidigare order med samma nyckel
+      [],
       // products lookup
       [
         {
@@ -881,6 +883,30 @@ describe("POST /v1/portal/orders", () => {
     });
     // Regression: `quantity` must NOT be present (schema has `qty`).
     expect(lineValues[0]).not.toHaveProperty("quantity");
+  });
+
+  // Ett dubbelklick eller en retry på dålig uppkoppling ska inte bli två
+  // beställningar — och därmed två fakturor till samma klubb.
+  it("returns the existing order instead of creating a duplicate", async () => {
+    getSessionMock.mockResolvedValue({
+      userId: "00000000-0000-0000-0000-000000000051",
+      role: "CLUB_ADMIN",
+      orgId: "00000000-0000-0000-0000-0000000000ab",
+      createdAt: 0,
+    } as any);
+
+    dbHandle.reset([
+      // idempotensuppslag — samma nyckel finns redan
+      [{ id: "00000000-0000-0000-0000-000000000099", totalOre: 38_700 }],
+    ]);
+
+    const out = await postOrder({
+      items: [{ productId: "00000000-0000-0000-0000-0000000000f1", qty: 3 }],
+    });
+
+    expect(out.status).toBe(200);
+    expect(out.body).toMatchObject({ ok: true, idempotent: true });
+    expect(dbHandle.inserts).toHaveLength(0);
   });
 });
 

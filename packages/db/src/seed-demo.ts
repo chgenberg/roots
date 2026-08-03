@@ -667,7 +667,10 @@ async function seedDemo() {
     { email: "william.assoc@demo-if.se", name: "William Holm", shopSlug: "demo-assoc-william", individualGoal: 5000 },
   ];
 
-  const assocSellerRows: { id: string; shopSlug: string }[] = [];
+  // userId följer med så vi kan sätta `placedByUserId` på den manuella
+  // demo-ordern nedan. Utan den skulle lagledaren se en order som saknar
+  // avsändare, och självbekräftelse-spärren blir omöjlig att visa.
+  const assocSellerRows: { id: string; shopSlug: string; userId: string }[] = [];
   for (const s of ASSOC_SELLERS) {
     const sellerUser = await ensureUser({
       email: s.email,
@@ -683,7 +686,11 @@ async function seedDemo() {
       .where(eq(sellers.shopSlug, s.shopSlug))
       .limit(1);
     if (existing) {
-      assocSellerRows.push({ id: existing.id, shopSlug: existing.shopSlug });
+      assocSellerRows.push({
+        id: existing.id,
+        shopSlug: existing.shopSlug,
+        userId: existing.userId,
+      });
       continue;
     }
 
@@ -698,7 +705,11 @@ async function seedDemo() {
         individualGoal: s.individualGoal,
         status: "ACTIVE",
       })
-      .returning({ id: sellers.id, shopSlug: sellers.shopSlug });
+      .returning({
+        id: sellers.id,
+        shopSlug: sellers.shopSlug,
+        userId: sellers.userId,
+      });
     assocSellerRows.push(created);
   }
 
@@ -813,8 +824,52 @@ async function seedDemo() {
         }))
       );
     }
+    // En manuell order som väntar på bekräftelse. Säljaren har fått
+    // kontanter i handen och registrerat det själv; summan syns i
+    // statistiken men hålls utanför avräkningen tills lagledaren bekräftat
+    // den. Demot behöver den — annars ser bekräftelseflödet ut som om det
+    // inte finns, och det är en av de viktigaste kontrollerna i hela
+    // pengavägen.
+    const manualSeller = assocSellerRows[0];
+    if (manualSeller) {
+      const shampooForManual = await getRequiredProduct("ROOTS-SH-001");
+      const manualCreated = daysAgo(2);
+      const manualLines = [
+        { productId: shampooForManual.id, priceOre: shampooForManual.priceOre, qty: 3 },
+      ];
+      const [manualOrder] = await db
+        .insert(customerOrders)
+        .values({
+          orgId: associationOrg.id,
+          campaignId: assocCampaign.id,
+          teamId: assocTeam.id,
+          sellerId: manualSeller.id,
+          customerName: "Kontantköp — Gunilla Ek",
+          customerEmail: "",
+          status: "PAID",
+          totalOre: manualLines.reduce((s, l) => s + l.priceOre * l.qty, 0),
+          isManual: true,
+          paymentMethod: "DIRECT_TO_LEADER",
+          selectedPaymentMethod: "swish",
+          placedByUserId: manualSeller.userId,
+          marginPercentAtSale: assocCampaign.marginPercent,
+          note: "Betalade med Swish på plats.",
+          createdAt: manualCreated,
+          updatedAt: manualCreated,
+        })
+        .returning({ id: customerOrders.id });
+      await db.insert(customerOrderLines).values(
+        manualLines.map((l) => ({
+          orderId: manualOrder.id,
+          productId: l.productId,
+          qty: l.qty,
+          unitPriceOre: l.priceOre,
+        }))
+      );
+    }
+
     console.log(
-      `Customer orders: inserted ${fakeCustomers.length} demo orders for ${ASSOC_TEAM_NAME}`
+      `Customer orders: inserted ${fakeCustomers.length} demo orders + 1 obekräftad manuell for ${ASSOC_TEAM_NAME}`
     );
   } else {
     console.log(

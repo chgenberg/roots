@@ -20,6 +20,21 @@
 
 ## 3. Env-variabler
 
+- [ ] **Kör förhandskontrollen mot produktionsvariablerna.** Boot-kontrollen
+  avslutar processen på varje konflikt, så en felkonfiguration som inte fångas
+  här visar sig som en omstartsloop i produktion i stället:
+
+  ```bash
+  railway variables --service api --kv > /tmp/prod.env   # eller kopiera från UI
+  pnpm --filter @roots/api env:check -- --file /tmp/prod.env
+  rm /tmp/prod.env
+  ```
+
+  Skriptet skriver bara variabelnamn och vad som är fel, aldrig värden. Det
+  fångar bland annat för korta hemligheter (< 32 tecken), två hemligheter med
+  samma värde, `CORS_ORIGIN` som inte innehåller `NEXT_PUBLIC_SITE_URL`, och
+  `ROOTS_ENABLE_DEMO_ACCOUNTS=true` utan lösenord. De kontrollerna är nyare än
+  miljön, så en uppsättning som fungerat länge kan falla på dem första gången.
 - [ ] Nya env-vars (om någon) tillagda i Railway/Vercel **innan** koden mergs.
 - [ ] `apps/api/src/lib/validate-env.ts` uppdaterad så boot failar tydligt
   om de saknas i prod (MASTERPLAN_01 KC8.1).
@@ -35,7 +50,9 @@
 
 ## 5. Synthetic baseline
 
-- [ ] Kör `node scripts/synthetic.mjs` mot **staging** — alla 5 checks PASS.
+- [ ] Kör `node scripts/synthetic.mjs` mot **staging** — alla 9 checks PASS.
+  Sätt `SYNTHETIC_SHOP_SLUG` till en riktig säljarslug, annars hoppar
+  katalogkontrollen över prisvalideringen och godkänner ett 404.
 - [ ] Snapshotta nuvarande versionsnummer (`git rev-parse HEAD`) — behövs vid rollback.
 
 ## 6. Sign-off

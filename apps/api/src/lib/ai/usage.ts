@@ -60,7 +60,7 @@ export function recordAiUsage(event: AiUsageEvent): void {
  */
 export function recordAiIncident(event: {
   surface: string;
-  kind: "rate_limited" | "fallback" | "upstream_error";
+  kind: "rate_limited" | "fallback" | "upstream_error" | "claims_blocked";
   status?: number;
   userId?: string | null;
   orgId?: string | null;

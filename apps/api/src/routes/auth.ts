@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import type { Context } from "hono";
 import { setCookie, deleteCookie } from "hono/cookie";
 import { hash, verify } from "@node-rs/argon2";
 import { eq, and, ilike, sql } from "drizzle-orm";
@@ -27,17 +28,45 @@ import {
   welcomeEmail,
   deletionRequestEmail,
   deletionCancelledEmail,
+  passwordResetEmail,
+  guardianConsentNoticeEmail,
 } from "../lib/email/templates";
 import {
   issueDeletionCancelToken,
   verifyDeletionCancelToken,
 } from "../lib/deletion-tokens";
 import {
+  issuePasswordResetToken,
+  parsePasswordResetToken,
+  verifyPasswordResetSignature,
+  PASSWORD_RESET_TTL_S,
+} from "../lib/password-reset-tokens";
+import {
   loginRateLimit,
   registrationRateLimit,
   deletionCancelRateLimit,
   deleteAccountRateLimit,
+  changePasswordRateLimit,
+  passwordResetRequestRateLimit,
+  passwordResetConfirmRateLimit,
+  mfaAttemptRateLimit,
 } from "../lib/rate-limit";
+import {
+  generateMfaSecret,
+  verifyMfaToken,
+  mfaRequiredForRole,
+  generateBackupCodes,
+  hashBackupCodes,
+  consumeBackupCode,
+  countBackupCodes,
+  issueMfaChallenge,
+  verifyMfaChallenge,
+  BACKUP_CODE_COUNT,
+} from "../lib/mfa";
+import {
+  GUARDIAN_CONSENT_AGE,
+  GUARDIAN_CONSENT_VERSION,
+} from "@roots/contracts";
 import { childLogger } from "../lib/logger";
 import { auditLog, requestContext } from "../lib/audit";
 import { scheduleOrgNormalize } from "../lib/jobs/schedule-org-normalize";
@@ -49,9 +78,31 @@ export const auth = new Hono();
 
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
 
-/** Off by default in production; set ROOTS_ENABLE_DEMO_ACCOUNTS=true for staging demos. */
+/**
+ * Off by default in production; set ROOTS_ENABLE_DEMO_ACCOUNTS=true for staging demos.
+ *
+ * I produktion krävs dessutom ROOTS_DEMO_PASSWORD (≥12 tecken). Lösenorden
+ * nedan står i klartext i ett publikt repo — kan de aktiveras i produktion
+ * med bara en flagga så är INTERNAL_ADMIN ett felklick bort.
+ */
+const DEMO_PASSWORD_OVERRIDE = process.env.ROOTS_DEMO_PASSWORD?.trim() || null;
 const DEMO_ACCOUNTS_ENABLED =
-  !IS_PRODUCTION || process.env.ROOTS_ENABLE_DEMO_ACCOUNTS === "true";
+  !IS_PRODUCTION ||
+  (process.env.ROOTS_ENABLE_DEMO_ACCOUNTS === "true" &&
+    !!DEMO_PASSWORD_OVERRIDE &&
+    DEMO_PASSWORD_OVERRIDE.length >= 12);
+
+if (
+  IS_PRODUCTION &&
+  process.env.ROOTS_ENABLE_DEMO_ACCOUNTS === "true" &&
+  !DEMO_ACCOUNTS_ENABLED
+) {
+  log.error(
+    "ROOTS_ENABLE_DEMO_ACCOUNTS=true i produktion men ROOTS_DEMO_PASSWORD saknas eller är för kort — demo-konton förblir avstängda."
+  );
+}
+
+const DEMO_PASSWORD = DEMO_PASSWORD_OVERRIDE ?? "Demo1234!";
 
 const ARGON2_OPTIONS = {
   memoryCost: 19456,
@@ -83,19 +134,19 @@ const DEMO_ACCOUNTS: Record<
 > = DEMO_ACCOUNTS_ENABLED
   ? {
       "klubb@demo.se": {
-        password: "Demo1234!",
+        password: DEMO_PASSWORD,
         role: "CLUB_ADMIN",
         name: "Anna Klubbsson",
         orgName: "Demo Fotbollsklubb",
       },
       "salj@roots.se": {
-        password: "Demo1234!",
+        password: DEMO_PASSWORD,
         role: "SALES_REP",
         name: "Erik Säljare",
         orgName: "Roots AB",
       },
       "admin@roots.se": {
-        password: "Demo1234!",
+        password: DEMO_PASSWORD,
         role: "INTERNAL_ADMIN",
         name: "Roots Admin",
         orgName: "Roots AB",
@@ -107,19 +158,90 @@ const DEMO_ACCOUNTS: Record<
       // (`Ingen organisation`) because session.orgId is null on the
       // in-memory path.
       "forening@demo-if.se": {
-        password: "Demo1234!",
+        password: DEMO_PASSWORD,
         role: "ASSOCIATION_ADMIN",
         name: "Karin Lindgren",
         orgName: "Demo IF Sundsvall",
       },
       "lag@demo-if.se": {
-        password: "Demo1234!",
+        password: DEMO_PASSWORD,
         role: "TEAM_LEADER",
         name: "Mikael Berg",
         orgName: "Demo IF Sundsvall",
       },
     }
   : {};
+
+/**
+ * Slutför inloggningen när alla faktorer är avklarade.
+ *
+ * Bryts ut eftersom både lösenordssteget och kodsteget landar här. Låg
+ * duplikationen kvar skulle de två vägarna förr eller senare glida ifrån
+ * varandra — och den ena är den som har MFA.
+ */
+async function completeLogin(c: Context, user: typeof users.$inferSelect) {
+  const sessionData: SessionData = {
+    userId: user.id,
+    role: user.role as SessionData["role"],
+    orgId: user.orgId,
+    createdAt: Date.now(),
+  };
+
+  let orgName: string | null = null;
+  if (user.orgId) {
+    try {
+      const [org] = await db
+        .select()
+        .from(organizations)
+        .where(eq(organizations.id, user.orgId))
+        .limit(1);
+      orgName = org?.name ?? null;
+    } catch (err) {
+      // Org lookup is best-effort — a stale schema shouldn't kill
+      // an otherwise-valid login. We just present an empty orgName.
+      log.warn({ err, userId: user.id }, "org lookup failed during login");
+    }
+  }
+
+  // Connection-audit P0 #4: a Redis hiccup must not surface as a 500
+  // on real accounts (the demo branch already returned 503; align them).
+  let sessionId: string;
+  try {
+    sessionId = await createSession(sessionData);
+  } catch (err) {
+    log.error({ err, userId: user.id }, "createSession failed during DB login");
+    return c.json({ error: "Sessionshantering otillgänglig." }, 503);
+  }
+  setCookie(c, SESSION_COOKIE_NAME, sessionId, SESSION_COOKIE_OPTIONS);
+
+  // En roll som kräver MFA men saknar den får logga in — annars låser vi ut
+  // befintliga administratörer i samma sekund som kravet slås på. Istället
+  // säger svaret att registreringen behövs, och guarden i mfa-required.ts
+  // stänger de känsliga ytorna tills den är gjord.
+  const enrollmentRequired =
+    mfaRequiredForRole(user.role) && !user.mfaEnabledAt;
+
+  void auditLog({
+    userId: user.id,
+    action: "auth.login.success",
+    meta: {
+      ...requestContext((n) => c.req.header(n)),
+      role: user.role,
+      mfa: user.mfaEnabledAt ? "verified" : enrollmentRequired ? "missing" : "n/a",
+    },
+  });
+
+  return c.json({
+    ok: true,
+    mfaEnrollmentRequired: enrollmentRequired,
+    user: {
+      email: user.email,
+      role: user.role,
+      name: user.contactName || user.email,
+      orgName: orgName || "",
+    },
+  });
+}
 
 auth.post("/login", async (c) => {
   let body: { email: string; password: string };
@@ -183,61 +305,38 @@ auth.post("/login", async (c) => {
         return c.json({ error: "Felaktig e-post eller lösenord." }, 401);
       }
 
-      const sessionData: SessionData = {
-        userId: user.id,
-        role: user.role as SessionData["role"],
-        orgId: user.orgId,
-        createdAt: Date.now(),
-      };
-
-      let orgName: string | null = null;
-      if (user.orgId) {
-        try {
-          const [org] = await db
-            .select()
-            .from(organizations)
-            .where(eq(organizations.id, user.orgId))
-            .limit(1);
-          orgName = org?.name ?? null;
-        } catch (err) {
-          // Org lookup is best-effort — a stale schema shouldn't kill
-          // an otherwise-valid login. We just present an empty orgName.
-          log.warn({ err, userId: user.id }, "org lookup failed during login");
-        }
+      // Andra faktorn. Sessionen får inte skapas här — då hade lösenordet
+      // ensamt räckt, och hela poängen är att det inte ska göra det. Vi
+      // svarar med en kortlivad utmaning istället.
+      if (user.mfaEnabledAt && user.mfaSecret) {
+        void auditLog({
+          userId: user.id,
+          action: "auth.login.mfa_challenged",
+          meta: { ...requestContext((n) => c.req.header(n)), role: user.role },
+        });
+        return c.json({
+          mfaRequired: true,
+          challenge: issueMfaChallenge(user.id),
+          backupCodesRemaining: countBackupCodes(user.mfaBackupCodes),
+        });
       }
 
-      // Connection-audit P0 #4: a Redis hiccup must not surface as a 500
-      // on real accounts (the demo branch already returned 503; align them).
-      let sessionId: string;
-      try {
-        sessionId = await createSession(sessionData);
-      } catch (err) {
-        log.error({ err, userId: user.id }, "createSession failed during DB login");
-        return c.json({ error: "Sessionshantering otillgänglig." }, 503);
-      }
-      setCookie(c, SESSION_COOKIE_NAME, sessionId, SESSION_COOKIE_OPTIONS);
-
-      void auditLog({
-        userId: user.id,
-        action: "auth.login.success",
-        meta: { ...requestContext((n) => c.req.header(n)), role: user.role },
-      });
-
-      return c.json({
-        ok: true,
-        user: {
-          email: user.email,
-          role: user.role,
-          name: user.contactName || email,
-          orgName: orgName || "",
-        },
-      });
+      return completeLogin(c, user);
     }
   } catch (err) {
-    // Log loudly so schema drift is visible in production, but DON'T
-    // return 401 here — that swallowed the demo fallback in prod when
-    // migration 0001 hadn't been applied. Fall through instead.
-    log.warn({ err, email: email.slice(0, 120) }, "DB user lookup failed during login — falling back to demo accounts");
+    // I produktion failar vi CLOSED: ett DB-fel får inte innebära att
+    // inloggningen faller igenom till in-memory-demokonton, för då kan en
+    // databasincident förvandlas till "vem som helst med demolösenordet
+    // loggar in som INTERNAL_ADMIN". Lokalt behåller vi fallthrough så att
+    // `pnpm dev` fungerar innan migrationerna körts.
+    log.error(
+      { err, email: email.slice(0, 120) },
+      "DB user lookup failed during login"
+    );
+    if (IS_PRODUCTION) {
+      return c.json({ error: "Inloggning är tillfälligt otillgänglig." }, 503);
+    }
+    log.warn("faller tillbaka på demo-konton (icke-produktion)");
   }
 
   void auditLog({
@@ -270,6 +369,447 @@ auth.post("/login", async (c) => {
   }
 
   return c.json({ error: "Felaktig e-post eller lösenord." }, 401);
+});
+
+/**
+ * Steg två i inloggningen: TOTP-koden eller en reservkod.
+ *
+ *   POST /v1/auth/login/mfa   { challenge, code }
+ *
+ * Utmaningen är signerad och lever i fem minuter. Den bär bara ett
+ * användar-ID — den ger ingen behörighet i sig, så den kan inte användas
+ * som en session om den läcker.
+ */
+auth.post("/login/mfa", async (c) => {
+  let body: { challenge?: string; code?: string };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+  }
+
+  const userId = verifyMfaChallenge(body.challenge);
+  if (!userId) {
+    return c.json(
+      { error: "Inloggningen har gått ut. Börja om från början." },
+      401
+    );
+  }
+
+  const code = (body.code ?? "").trim();
+  if (!code) return c.json({ error: "Ange koden från din app." }, 400);
+
+  // Sex siffror är gissningsbart i tillräckligt många försök, så det här är
+  // den enda spärren som gör andra faktorn värd något.
+  const ip =
+    c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const rl = await mfaAttemptRateLimit(ip, userId);
+  if (!rl.allowed) {
+    void auditLog({
+      userId,
+      action: "auth.login.mfa_rate_limited",
+      meta: requestContext((n) => c.req.header(n)),
+    });
+    return c.json(
+      { error: "För många försök. Vänta en stund och försök igen." },
+      429
+    );
+  }
+
+  let user: typeof users.$inferSelect | undefined;
+  try {
+    [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  } catch (err) {
+    log.error({ err, userId }, "DB lookup failed during MFA verification");
+    return c.json({ error: "Inloggning är tillfälligt otillgänglig." }, 503);
+  }
+
+  if (!user || user.deletedAt || !user.mfaEnabledAt || !user.mfaSecret) {
+    return c.json({ error: "Tvåfaktor är inte aktiverad för kontot." }, 400);
+  }
+
+  if (verifyMfaToken(user.mfaSecret, code)) {
+    return completeLogin(c, user);
+  }
+
+  // Reservkod. Den förbrukas oavsett om inloggningen sedan lyckas, så en
+  // avlyssnad kod inte kan spelas upp igen.
+  const backup = consumeBackupCode(user.mfaBackupCodes, code);
+  if (backup.ok) {
+    try {
+      await db
+        .update(users)
+        .set({ mfaBackupCodes: backup.remaining, updatedAt: new Date() })
+        .where(eq(users.id, user.id));
+    } catch (err) {
+      log.error({ err, userId }, "failed to consume MFA backup code");
+      return c.json({ error: "Inloggning är tillfälligt otillgänglig." }, 503);
+    }
+    void auditLog({
+      userId: user.id,
+      action: "auth.login.mfa_backup_code_used",
+      meta: {
+        ...requestContext((n) => c.req.header(n)),
+        remaining: countBackupCodes(backup.remaining),
+      },
+    });
+    return completeLogin(c, user);
+  }
+
+  void auditLog({
+    userId: user.id,
+    action: "auth.login.mfa_failed",
+    meta: requestContext((n) => c.req.header(n)),
+  });
+  return c.json({ error: "Koden stämmer inte. Försök igen." }, 401);
+});
+
+/**
+ * Status för den inloggade användarens tvåfaktor.
+ *
+ *   GET /v1/auth/mfa
+ */
+auth.get("/mfa", async (c) => {
+  const session = await getSession(
+    (c.req.header("cookie") || "").match(
+      new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`)
+    )?.[1] ?? ""
+  );
+  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  if (isDemoSession(session)) {
+    return c.json({
+      enabled: false,
+      required: false,
+      backupCodesRemaining: 0,
+      demo: true,
+    });
+  }
+
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(eq(users.id, session.userId))
+    .limit(1);
+  if (!user) return c.json({ error: "Användare hittades inte" }, 404);
+
+  return c.json({
+    enabled: !!user.mfaEnabledAt,
+    required: mfaRequiredForRole(user.role),
+    enabledAt: user.mfaEnabledAt,
+    backupCodesRemaining: countBackupCodes(user.mfaBackupCodes),
+  });
+});
+
+/**
+ * Påbörja registrering av en autentiseringsapp.
+ *
+ *   POST /v1/auth/mfa/setup   { password }              — första gången
+ *   POST /v1/auth/mfa/setup   { password, code }        — byta till ny app
+ *
+ * Lösenordet krävs igen: en kapad session ska inte kunna byta ut andra
+ * faktorn mot en angripares egen app. Är tvåfaktorn redan aktiv krävs
+ * dessutom en kod från appen som gäller nu — se kommentaren nedan.
+ */
+auth.post("/mfa/setup", async (c) => {
+  const currentSessionId =
+    (c.req.header("cookie") || "").match(
+      new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`)
+    )?.[1] ?? "";
+  const session = await getSession(currentSessionId);
+  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  if (isDemoSession(session)) {
+    return c.json({ error: "Demoläget kan inte ändra tvåfaktor." }, 403);
+  }
+
+  let body: { password?: string; code?: string };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+  }
+  if (!body.password) {
+    return c.json({ error: "Ange ditt lösenord." }, 400);
+  }
+
+  const rl = await changePasswordRateLimit(session.userId);
+  if (!rl.allowed) {
+    return c.json({ error: "För många försök. Försök igen senare." }, 429);
+  }
+
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(eq(users.id, session.userId))
+    .limit(1);
+  if (!user) return c.json({ error: "Användare hittades inte" }, 404);
+
+  if (!(await verify(user.passwordHash, body.password.trim()))) {
+    void auditLog({
+      userId: user.id,
+      action: "auth.mfa.setup_bad_password",
+      meta: requestContext((n) => c.req.header(n)),
+    });
+    return c.json({ error: "Fel lösenord." }, 401);
+  }
+
+  // Byta till en ny app på ett konto som redan har tvåfaktor kräver båda
+  // faktorerna, precis som att stänga av den.
+  //
+  // Tidigare räckte lösenordet. En kapad session plus lösenordet kunde då byta
+  // ut hemligheten mot angriparens egen app: offrets authenticator slutade
+  // fungera, och angriparen kunde svara på inloggningsutmaningen. En
+  // tillfällig sessionsstöld blev därmed varaktig kontroll över kontot.
+  //
+  // Att bara neka går inte — roller som kräver tvåfaktor får inte stänga av
+  // den, så de skulle sakna varje väg till en ny telefon.
+  const currentSecret = user.mfaEnabledAt ? user.mfaSecret : null;
+  const isRebind = !!currentSecret;
+  if (currentSecret) {
+    const code = (body.code ?? "").trim();
+    const validCode =
+      verifyMfaToken(currentSecret, code) ||
+      consumeBackupCode(user.mfaBackupCodes, code).ok;
+    if (!validCode) {
+      void auditLog({
+        userId: user.id,
+        action: "auth.mfa.rebind_bad_code",
+        meta: requestContext((n) => c.req.header(n)),
+      });
+      return c.json(
+        {
+          error: code
+            ? "Koden stämmer inte."
+            : "Ange en kod från din nuvarande app för att byta till en ny.",
+        },
+        401
+      );
+    }
+  }
+
+  const { secret, uri } = generateMfaSecret(user.email);
+  // Hemligheten sparas nu men aktiveras inte förrän en kod bekräftats.
+  // Stänger användaren fliken mitt i är kontot orört.
+  await db
+    .update(users)
+    .set(
+      isRebind
+        ? {
+            // Vid byte nollställs aktiveringen: den gamla appen slutar gälla
+            // direkt, och kontot står i samma läge som ett nyregistrerat
+            // tills den nya appen bekräftats. Avbryter användaren mitt i kan
+            // hon fortfarande logga in med lösenordet och göra om det —
+            // `mfaPending` håller de känsliga ytorna stängda tills dess.
+            // Reservkoderna hör till den gamla hemligheten och måste bort.
+            mfaSecret: secret,
+            mfaEnabledAt: null,
+            mfaBackupCodes: null,
+            updatedAt: new Date(),
+          }
+        : { mfaSecret: secret, updatedAt: new Date() }
+    )
+    .where(eq(users.id, user.id));
+
+  if (isRebind) {
+    // Ett byte av andra faktorn ska kicka alla andra enheter.
+    let revokedCount = 0;
+    try {
+      revokedCount = await destroyUserSessions(user.id, currentSessionId);
+    } catch (err) {
+      log.warn(
+        { err, userId: user.id },
+        "kunde inte återkalla övriga sessioner vid byte av tvåfaktor-app"
+      );
+    }
+    void auditLog({
+      userId: user.id,
+      action: "auth.mfa.rebind_started",
+      meta: {
+        ...requestContext((n) => c.req.header(n)),
+        revokedSessions: revokedCount,
+      },
+    });
+  }
+
+  return c.json({ ok: true, secret, uri, rebind: isRebind });
+});
+
+/**
+ * Bekräfta och aktivera tvåfaktor.
+ *
+ *   POST /v1/auth/mfa/enable   { code }
+ *
+ * Reservkoderna visas en enda gång här. Att kunna hämta dem igen senare
+ * skulle göra dem lika värdefulla för en angripare med en kapad session
+ * som för användaren.
+ */
+auth.post("/mfa/enable", async (c) => {
+  const currentSessionId =
+    (c.req.header("cookie") || "").match(
+      new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`)
+    )?.[1] ?? "";
+  const session = await getSession(currentSessionId);
+  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  if (isDemoSession(session)) {
+    return c.json({ error: "Demoläget kan inte ändra tvåfaktor." }, 403);
+  }
+
+  let body: { code?: string };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+  }
+
+  const ip =
+    c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const rl = await mfaAttemptRateLimit(ip, session.userId);
+  if (!rl.allowed) {
+    return c.json({ error: "För många försök. Vänta en stund." }, 429);
+  }
+
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(eq(users.id, session.userId))
+    .limit(1);
+  if (!user) return c.json({ error: "Användare hittades inte" }, 404);
+  if (!user.mfaSecret) {
+    return c.json({ error: "Börja med att skanna QR-koden." }, 400);
+  }
+  if (user.mfaEnabledAt) {
+    return c.json({ error: "Tvåfaktor är redan aktiverad." }, 400);
+  }
+  if (!verifyMfaToken(user.mfaSecret, (body.code ?? "").trim())) {
+    return c.json({ error: "Koden stämmer inte. Försök igen." }, 401);
+  }
+
+  const codes = generateBackupCodes();
+  await db
+    .update(users)
+    .set({
+      mfaEnabledAt: new Date(),
+      mfaBackupCodes: hashBackupCodes(codes),
+      updatedAt: new Date(),
+    })
+    .where(eq(users.id, user.id));
+
+  // Kicka alla andra sessioner, behåll den som just registrerade.
+  //
+  // Före aktiveringen kunde man logga in med bara lösenordet. Sådana
+  // sessioner var begränsade av `mfaPending`, men flaggan räknas om mot
+  // `mfaEnabledAt` vid varje sync — så i samma sekund som den riktiga
+  // användaren blev klar öppnades de sessionerna helt, utan att någon
+  // besvarat en inloggningsutmaning. Aktiveringen hade då stärkt skyddet för
+  // framtida inloggningar men släppt in den som redan tagit sig in.
+  //
+  // Best-effort: hemligheten är redan sparad, och ett Redis-hicka här får
+  // inte få aktiveringen att se ut som misslyckad.
+  let revokedCount = 0;
+  try {
+    revokedCount = await destroyUserSessions(user.id, currentSessionId);
+  } catch (err) {
+    log.warn(
+      { err, userId: user.id },
+      "kunde inte återkalla övriga sessioner efter mfa-aktivering"
+    );
+  }
+
+  void auditLog({
+    userId: user.id,
+    action: "auth.mfa.enabled",
+    meta: {
+      ...requestContext((n) => c.req.header(n)),
+      role: user.role,
+      revokedSessions: revokedCount,
+    },
+  });
+
+  return c.json({ ok: true, backupCodes: codes, count: BACKUP_CODE_COUNT });
+});
+
+/**
+ * Stäng av tvåfaktor.
+ *
+ *   POST /v1/auth/mfa/disable   { password, code }
+ *
+ * Kräver båda faktorerna. Annars vore avstängningen en väg runt kravet för
+ * den som redan har lösenordet.
+ */
+auth.post("/mfa/disable", async (c) => {
+  const session = await getSession(
+    (c.req.header("cookie") || "").match(
+      new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`)
+    )?.[1] ?? ""
+  );
+  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  if (isDemoSession(session)) {
+    return c.json({ error: "Demoläget kan inte ändra tvåfaktor." }, 403);
+  }
+
+  let body: { password?: string; code?: string };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+  }
+
+  const ip =
+    c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const rl = await mfaAttemptRateLimit(ip, session.userId);
+  if (!rl.allowed) {
+    return c.json({ error: "För många försök. Vänta en stund." }, 429);
+  }
+
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(eq(users.id, session.userId))
+    .limit(1);
+  if (!user) return c.json({ error: "Användare hittades inte" }, 404);
+  if (!user.mfaEnabledAt || !user.mfaSecret) {
+    return c.json({ error: "Tvåfaktor är inte aktiverad." }, 400);
+  }
+  if (!body.password || !(await verify(user.passwordHash, body.password.trim()))) {
+    return c.json({ error: "Fel lösenord." }, 401);
+  }
+  const code = (body.code ?? "").trim();
+  const validCode =
+    verifyMfaToken(user.mfaSecret, code) ||
+    consumeBackupCode(user.mfaBackupCodes, code).ok;
+  if (!validCode) {
+    return c.json({ error: "Koden stämmer inte." }, 401);
+  }
+
+  // Rollen kräver MFA: att stänga av den skulle bara flytta kontot till
+  // "måste registrera igen", vilket är mer förvirrande än att neka.
+  if (mfaRequiredForRole(user.role)) {
+    return c.json(
+      {
+        error:
+          "Din roll kräver tvåfaktor. Byt till en ny app istället — det gör " +
+          "du under Tvåfaktor i portalen, med lösenord och en kod härifrån.",
+      },
+      400
+    );
+  }
+
+  await db
+    .update(users)
+    .set({
+      mfaSecret: null,
+      mfaEnabledAt: null,
+      mfaBackupCodes: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(users.id, user.id));
+
+  void auditLog({
+    userId: user.id,
+    action: "auth.mfa.disabled",
+    meta: { ...requestContext((n) => c.req.header(n)), role: user.role },
+  });
+
+  return c.json({ ok: true });
 });
 
 auth.post("/logout", async (c) => {
@@ -347,6 +887,14 @@ auth.post("/change-password", async (c) => {
   if (!current || !next) {
     return c.json({ error: "Båda fälten krävs." }, 400);
   }
+
+  const chpwRl = await changePasswordRateLimit(session.userId);
+  if (!chpwRl.allowed) {
+    return c.json(
+      { error: "För många försök. Försök igen om en stund." },
+      429
+    );
+  }
   const pwErr = validatePassword(next);
   if (pwErr) return c.json({ error: pwErr }, 400);
   if (next === current) {
@@ -415,6 +963,168 @@ auth.post("/change-password", async (c) => {
   } catch (err) {
     log.error({ err, userId: session.userId }, "change-password failed");
     return c.json({ error: "Kunde inte byta lösenord just nu." }, 500);
+  }
+});
+
+// ── Glömt lösenord ─────────────────────────────────────────────────
+//
+//   POST /v1/auth/forgot-password  — begär länk (svarar alltid ok)
+//   POST /v1/auth/reset-password   — lös in token och sätt nytt lösenord
+//
+// Svaret på forgot-password är medvetet identiskt oavsett om kontot
+// finns eller inte — annars blir endpointen en användarlista. Token:en
+// är HMAC-signerad och bunden till nuvarande passwordHash, så den blir
+// ogiltig i samma sekund lösenordet byts (engångsanvändning utan tabell).
+
+const SITE_BASE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || "https://roots.se";
+
+auth.post("/forgot-password", async (c) => {
+  let body: { email?: string };
+  try {
+    body = await c.req.json<{ email?: string }>();
+  } catch {
+    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+  }
+
+  const email = (body.email ?? "").toLowerCase().trim();
+  if (!email || !email.includes("@")) {
+    return c.json({ error: "Ange en giltig e-postadress." }, 400);
+  }
+
+  const ip =
+    c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const rl = await passwordResetRequestRateLimit(ip, email);
+  if (!rl.allowed) {
+    return c.json(
+      { error: "För många försök. Försök igen om en stund." },
+      429
+    );
+  }
+
+  const genericOk = { ok: true } as const;
+
+  try {
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, email))
+      .limit(1);
+
+    if (!user || user.deletedAt) return c.json(genericOk);
+
+    // Inbjudna konton har en `invite-pending-…`-sentinel istället för en
+    // riktig hash. De ska gå via inbjudningslänken, inte återställning.
+    if (!user.passwordHash || user.passwordHash.startsWith("invite-pending")) {
+      return c.json(genericOk);
+    }
+
+    const token = issuePasswordResetToken(user.id, user.passwordHash);
+    const resetUrl = `${SITE_BASE_URL}/aterstall-losenord?token=${encodeURIComponent(token)}`;
+
+    void auditLog({
+      userId: user.id,
+      action: "auth.password_reset.requested",
+      meta: { ...requestContext((n) => c.req.header(n)) },
+    });
+
+    getEmailSender()
+      .sendEmail({
+        to: user.email,
+        ...passwordResetEmail({
+          name:
+            user.contactName?.split(" ")[0] || user.email.split("@")[0] || "där",
+          resetUrl,
+          expiresInMinutes: Math.round(PASSWORD_RESET_TTL_S / 60),
+        }),
+      })
+      .catch((err) =>
+        log.error({ err, userId: user.id }, "password reset email failed")
+      );
+  } catch (err) {
+    // Ett DB- eller mailfel får inte avslöja något om kontot heller.
+    log.error({ err }, "forgot-password failed");
+  }
+
+  return c.json(genericOk);
+});
+
+auth.post("/reset-password", async (c) => {
+  let body: { token?: string; newPassword?: string };
+  try {
+    body = await c.req.json<{ token?: string; newPassword?: string }>();
+  } catch {
+    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+  }
+
+  const ip =
+    c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const rl = await passwordResetConfirmRateLimit(ip);
+  if (!rl.allowed) {
+    return c.json(
+      { error: "För många försök. Försök igen om en stund." },
+      429
+    );
+  }
+
+  const newPassword = (body.newPassword ?? "").trim();
+  const pwErr = validatePassword(newPassword);
+  if (pwErr) return c.json({ error: pwErr }, 400);
+
+  const parsed = parsePasswordResetToken(body.token);
+  const invalid = { error: "Länken är ogiltig eller har gått ut." } as const;
+  if (!parsed) return c.json(invalid, 400);
+
+  try {
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, parsed.userId))
+      .limit(1);
+
+    if (!user || user.deletedAt) return c.json(invalid, 400);
+    if (!verifyPasswordResetSignature(parsed, user.passwordHash)) {
+      void auditLog({
+        userId: user.id,
+        action: "auth.password_reset.failed",
+        meta: {
+          ...requestContext((n) => c.req.header(n)),
+          reason: "bad_signature",
+        },
+      });
+      return c.json(invalid, 400);
+    }
+
+    const newHash = await hash(newPassword, ARGON2_OPTIONS);
+    await db
+      .update(users)
+      .set({ passwordHash: newHash, updatedAt: new Date() })
+      .where(eq(users.id, user.id));
+
+    // Den som återställer lösenordet kan ha blivit kapad. Kicka allt.
+    let revokedCount = 0;
+    try {
+      revokedCount = await destroyUserSessions(user.id);
+    } catch (err) {
+      log.warn(
+        { err, userId: user.id },
+        "failed to revoke sessions after password reset"
+      );
+    }
+
+    void auditLog({
+      userId: user.id,
+      action: "auth.password_reset.ok",
+      meta: {
+        ...requestContext((n) => c.req.header(n)),
+        revokedSessions: revokedCount,
+      },
+    });
+
+    return c.json({ ok: true });
+  } catch (err) {
+    log.error({ err }, "reset-password failed");
+    return c.json({ error: "Kunde inte återställa lösenordet just nu." }, 500);
   }
 });
 
@@ -821,6 +1531,11 @@ auth.get("/me", async (c) => {
           orgName,
           orgId: session.orgId,
           userId: session.userId,
+          // Rollen kräver tvåfaktor men ingen app är registrerad. /me är en
+          // av få endpoints som mfa-guarden släpper igenom, just för att
+          // klienten ska kunna visa vägen ut istället för att bara få 403
+          // på allt annat.
+          mfaEnrollmentRequired: !!session.mfaPending,
         },
       });
     }
@@ -859,7 +1574,6 @@ auth.post("/register/association", async (c) => {
     password,
     contactName,
     phone,
-    personalNumber,
     addressLine1,
     city,
     postalCode,
@@ -906,7 +1620,6 @@ auth.post("/register/association", async (c) => {
           orgId: org.id,
           contactName,
           phone: phone || null,
-          personalNumber: personalNumber || null,
           addressLine1: addressLine1 || null,
           city: city || null,
           postalCode: postalCode || null,
@@ -991,7 +1704,6 @@ auth.post("/register/team-leader", async (c) => {
     password,
     contactName,
     phone,
-    personalNumber,
     addressLine1,
     city,
     postalCode,
@@ -1073,7 +1785,6 @@ auth.post("/register/team-leader", async (c) => {
           orgId,
           contactName,
           phone: phone || null,
-          personalNumber: personalNumber || null,
           addressLine1: addressLine1 || null,
           city: city || null,
           postalCode: postalCode || null,
@@ -1178,7 +1889,17 @@ auth.post("/register/seller", async (c) => {
     return c.json({ error: "Ogiltig JSON i request body." }, 400);
   }
 
-  const { inviteToken, email, password, displayName, phone } = body;
+  const {
+    inviteToken,
+    email,
+    password,
+    displayName,
+    phone,
+    birthYear,
+    guardianName,
+    guardianEmail,
+    guardianConsent,
+  } = body;
 
   if (!inviteToken || !email || !password || !displayName) {
     return c.json({ error: "Alla obligatoriska fält måste fyllas i." }, 400);
@@ -1186,6 +1907,71 @@ auth.post("/register/seller", async (c) => {
 
   const pwErr = validatePassword(password);
   if (pwErr) return c.json({ error: pwErr }, 400);
+
+  // Målsmanssamtycke. Kolumnerna har funnits sedan 0001 men samlades aldrig
+  // in: en 13-åring kunde registrera sig, publicera en butik med sitt namn
+  // och sälja en kosmetisk produkt utan att någon vuxen tillfrågats. Under
+  // GDPR (art. 8) och för vår egen del måste samtycket finnas och kunna
+  // visas i efterhand.
+  const currentYear = new Date().getFullYear();
+  const parsedBirthYear = Number(birthYear);
+  if (
+    !Number.isInteger(parsedBirthYear) ||
+    parsedBirthYear < currentYear - 100 ||
+    parsedBirthYear > currentYear
+  ) {
+    return c.json({ error: "Ange ditt födelseår." }, 400);
+  }
+  // Konservativt: vi jämför bara årtal, så den som fyller år senare i år
+  // räknas som yngre. Det gör att gränsfallen hamnar på den säkra sidan.
+  const approximateAge = currentYear - parsedBirthYear;
+  const needsGuardian = approximateAge < GUARDIAN_CONSENT_AGE;
+
+  const guardianNameTrimmed =
+    typeof guardianName === "string" ? guardianName.trim() : "";
+  const guardianEmailTrimmed =
+    typeof guardianEmail === "string" ? guardianEmail.toLowerCase().trim() : "";
+
+  if (needsGuardian) {
+    if (guardianConsent !== true) {
+      return c.json(
+        {
+          error:
+            "Är du under 18 år måste en vårdnadshavare godkänna att du säljer.",
+          requiresGuardianConsent: true,
+        },
+        400
+      );
+    }
+    if (guardianNameTrimmed.length < 2) {
+      return c.json(
+        { error: "Ange vårdnadshavarens namn.", requiresGuardianConsent: true },
+        400
+      );
+    }
+    if (
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guardianEmailTrimmed) ||
+      guardianEmailTrimmed.length > 254
+    ) {
+      return c.json(
+        {
+          error: "Ange vårdnadshavarens e-postadress.",
+          requiresGuardianConsent: true,
+        },
+        400
+      );
+    }
+    if (guardianEmailTrimmed === String(email).toLowerCase().trim()) {
+      return c.json(
+        {
+          error:
+            "Vårdnadshavarens e-post måste vara en annan än säljarens egen.",
+          requiresGuardianConsent: true,
+        },
+        400
+      );
+    }
+  }
 
   try {
     const [team] = await db
@@ -1277,6 +2063,14 @@ auth.post("/register/seller", async (c) => {
             orgId: team.orgId,
             contactName: displayName,
             phone: phone || null,
+            birthYear: parsedBirthYear,
+            guardianName: needsGuardian ? guardianNameTrimmed : null,
+            guardianEmail: needsGuardian ? guardianEmailTrimmed : null,
+            guardianConsentAt: needsGuardian ? new Date() : null,
+            guardianConsentIp: needsGuardian ? ip : null,
+            guardianConsentVersion: needsGuardian
+              ? GUARDIAN_CONSENT_VERSION
+              : null,
           })
           .returning();
 
@@ -1321,7 +2115,14 @@ auth.post("/register/seller", async (c) => {
       action: "auth.register.seller",
       entityType: "user",
       entityId: user.id,
-      meta: { ...requestContext((n) => c.req.header(n)), teamId: team.id, shopSlug },
+      meta: {
+        ...requestContext((n) => c.req.header(n)),
+        teamId: team.id,
+        shopSlug,
+        birthYear: parsedBirthYear,
+        guardianConsent: needsGuardian,
+        guardianConsentVersion: needsGuardian ? GUARDIAN_CONSENT_VERSION : null,
+      },
     });
 
     getEmailSender()
@@ -1330,6 +2131,29 @@ auth.post("/register/seller", async (c) => {
         ...welcomeEmail(displayName, "SELLER"),
       })
       .catch((e) => log.error({ err: e }, "Seller registration email failed"));
+
+    if (needsGuardian) {
+      void (async () => {
+        try {
+          const [org] = await db
+            .select({ name: organizations.name })
+            .from(organizations)
+            .where(eq(organizations.id, team.orgId))
+            .limit(1);
+          await getEmailSender().sendEmail({
+            to: guardianEmailTrimmed,
+            ...guardianConsentNoticeEmail({
+              guardianName: guardianNameTrimmed.split(" ")[0] || "där",
+              sellerName: displayName,
+              teamName: team.name,
+              associationName: org?.name ?? "föreningen",
+            }),
+          });
+        } catch (err) {
+          log.error({ err, userId: user.id }, "guardian consent notice failed");
+        }
+      })();
+    }
 
     return c.json({
       ok: true,

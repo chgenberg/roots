@@ -166,7 +166,7 @@ export default function GoalsPage() {
                   {overshoot > 0 ? "Över mål" : "Kvar att fördela"}
                 </p>
                 <p
-                  className={`text-xl font-bold ${overshoot > 0 ? "text-amber-600" : ""}`}
+                  className={`text-xl font-bold ${overshoot > 0 ? "text-warning-strong" : ""}`}
                 >
                   {(overshoot > 0 ? overshoot : remaining).toLocaleString("sv-SE")} {goalUnit}
                 </p>

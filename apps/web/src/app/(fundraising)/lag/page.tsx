@@ -21,6 +21,7 @@ import { OrderDetailDialog } from "@/components/order-detail-dialog";
 import type { TeamDashboard as TeamDashboardData, Seller, Milestone, CustomerOrder } from "@/types/fundraising";
 import { getBrowserApiBase } from "@/lib/api-base";
 import { formatKrValue } from "@/lib/format";
+import { orderStatusColor, orderStatusLabel } from "@/lib/order-status";
 
 const PODIUM_ICONS = ["🥇", "🥈", "🥉"];
 
@@ -314,15 +315,9 @@ export default function TeamDashboard() {
                     <div className="flex gap-2 mt-0.5">
                       <Badge
                         variant="secondary"
-                        className={`text-xs ${
-                          order.status === "PAID"
-                            ? "bg-brand-100 text-brand-700"
-                            : order.paymentMethod === "DIRECT_TO_LEADER"
-                            ? "bg-brand-50 text-brand-600"
-                            : ""
-                        }`}
+                        className={`text-xs ${orderStatusColor(order.status)}`}
                       >
-                        {order.status === "PAID" ? "Betald" : order.status}
+                        {orderStatusLabel(order.status)}
                       </Badge>
                       {order.deliveryType === "DIRECT" && (
                         <Badge variant="secondary" className="text-xs">
@@ -345,6 +340,9 @@ export default function TeamDashboard() {
         open={detailOpen}
         onOpenChange={setDetailOpen}
         orderId={detailOrderId}
+        // Avbokning tar summan ur lagets försäljning, så KPI:erna på den
+        // här sidan blir fel om vi bara byter status på raden.
+        onStatusChange={() => void load(true)}
       />
     </div>
   );

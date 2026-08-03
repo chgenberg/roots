@@ -95,6 +95,11 @@ function LoginPageInner() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  // Andra faktorn. Utmaningen är en kortlivad signerad token från servern
+  // och ger ingen behörighet i sig — den bär bara vilket konto som väntar.
+  const [challenge, setChallenge] = useState<string | null>(null);
+  const [code, setCode] = useState("");
+  const [backupCodesLeft, setBackupCodesLeft] = useState(0);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -102,10 +107,21 @@ function LoginPageInner() {
     setLoading(true);
 
     try {
-      const { ok, data } = await apiFetch<{ error?: string; user?: { role: string } }>(
-        "/v1/auth/login",
-        { method: "POST", body: { email, password } }
-      );
+      const { ok, data } = await apiFetch<{
+        error?: string;
+        user?: { role: string };
+        mfaRequired?: boolean;
+        challenge?: string;
+        backupCodesRemaining?: number;
+      }>("/v1/auth/login", { method: "POST", body: { email, password } });
+
+      // Lösenordet stämde men kontot har tvåfaktor. Ingen session har
+      // skapats ännu, så vi visar kodsteget istället för att navigera.
+      if (data.mfaRequired && data.challenge) {
+        setChallenge(data.challenge);
+        setBackupCodesLeft(data.backupCodesRemaining ?? 0);
+        return;
+      }
 
       if (!ok) {
         setError(data.error || "Något gick fel. Försök igen.");
@@ -120,6 +136,99 @@ function LoginPageInner() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleMfaSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+      const { ok, data } = await apiFetch<{
+        error?: string;
+        user?: { role: string };
+      }>("/v1/auth/login/mfa", {
+        method: "POST",
+        body: { challenge, code },
+      });
+
+      if (!ok) {
+        setError(data.error || "Koden stämmer inte. Försök igen.");
+        setCode("");
+        return;
+      }
+      router.push(safeNext ?? roleHome(data.user?.role));
+    } catch {
+      setError("Kunde inte nå servern. Försök igen.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (challenge) {
+    return (
+      <Card className="w-full max-w-md shadow-lg">
+        <CardHeader className="text-center">
+          <CardTitle className="text-2xl">Tvåfaktor</CardTitle>
+          <CardDescription>
+            Ange den sexsiffriga koden från din autentiseringsapp
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleMfaSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="mfa-code">Kod</Label>
+              <Input
+                id="mfa-code"
+                // Sifferblock på mobil, och koden hör inte i en
+                // lösenordshanterare.
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                autoFocus
+                placeholder="123456"
+                required
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Har du inte appen tillgänglig? Använd en av dina reservkoder.
+                {backupCodesLeft > 0 && ` Du har ${backupCodesLeft} kvar.`}
+              </p>
+            </div>
+
+            {error && (
+              <p role="alert" className="text-sm text-destructive">
+                {error}
+              </p>
+            )}
+
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Kontrollerar…
+                </>
+              ) : (
+                "Fortsätt"
+              )}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full"
+              onClick={() => {
+                setChallenge(null);
+                setCode("");
+                setError("");
+                setPassword("");
+              }}
+            >
+              Avbryt
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (
@@ -143,7 +252,15 @@ function LoginPageInner() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password">Lösenord</Label>
+            <div className="flex items-baseline justify-between">
+              <Label htmlFor="password">Lösenord</Label>
+              <Link
+                href="/glomt-losenord"
+                className="text-xs text-muted-foreground underline-offset-4 hover:underline"
+              >
+                Glömt lösenordet?
+              </Link>
+            </div>
             <Input
               id="password"
               type="password"

@@ -16,6 +16,10 @@ import {
   UpdateCampaignSchema,
   SetTeamGoalSchema,
 } from "@roots/contracts";
+import {
+  isOrgApprovedForPublicSales,
+  ORG_NOT_APPROVED_MESSAGE,
+} from "../../lib/org-approval";
 
 const protectedProcedure = publicProcedure.use(isAuthenticated);
 const teamLeaderProcedure = publicProcedure.use(isTeamLeader);
@@ -150,6 +154,18 @@ export const campaignsRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { id, ...updates } = input;
 
+      // Samma spärr som i activate — annars vore `update({ status: "ACTIVE" })`
+      // en väg runt den.
+      if (
+        updates.status === "ACTIVE" &&
+        !(await isOrgApprovedForPublicSales(ctx.orgId))
+      ) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: ORG_NOT_APPROVED_MESSAGE,
+        });
+      }
+
       const [updated] = await db
         .update(campaigns)
         .set({ ...updates, updatedAt: new Date() })
@@ -166,6 +182,15 @@ export const campaignsRouter = router({
   activate: associationMutation
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
+      // Här står användaren när hen vill gå live, så det är här
+      // felmeddelandet gör mest nytta. Kassan har samma spärr som backstop.
+      if (!(await isOrgApprovedForPublicSales(ctx.orgId))) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: ORG_NOT_APPROVED_MESSAGE,
+        });
+      }
+
       const [updated] = await db
         .update(campaigns)
         .set({ status: "ACTIVE", updatedAt: new Date() })
@@ -209,7 +234,12 @@ export const teamsRouter = router({
       return { ...team, inviteToken };
     }),
 
-  listByCampaign: protectedProcedure
+  // En inbjudningslänk är i praktiken ett lösenord: den som har den kan
+  // registrera ett säljarkonto i laget. Därför ligger den inte i
+  // listsvaret, och listan är stängd för SELLER — annars kunde en säljare
+  // skörda alla lagens tokens. Ledare hämtar sin egen token via
+  // teams.create, teams.regenerateInviteToken eller /v1/dashboard.
+  listByCampaign: teamLeaderProcedure
     .input(z.object({ campaignId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       await verifyCampaignOwnership(input.campaignId, ctx.orgId!);
@@ -219,7 +249,6 @@ export const teamsRouter = router({
           id: teams.id,
           name: teams.name,
           memberCount: teams.memberCount,
-          inviteToken: teams.inviteToken,
           leaderId: teams.leaderId,
           createdAt: teams.createdAt,
         })

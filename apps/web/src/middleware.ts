@@ -195,11 +195,22 @@ export async function middleware(request: NextRequest) {
   try {
     const apiUrl =
       process.env.API_BACKEND_URL || process.env.API_URL || "http://127.0.0.1:4000";
+    // Utan timeout kan en hängande backend hålla varje sidladdning i
+    // Next:s middleware-fönster och se ut som en död sajt.
     const res = await fetch(`${apiUrl.replace(/\/$/, "")}/trpc/auth.me`, {
       headers: {
         cookie: `rootsSessionId=${sessionCookie.value}`,
       },
+      signal: AbortSignal.timeout(5000),
     });
+
+    // Ett API som blinkar (502/503/504 från proxyn) betyder inte att
+    // sessionen är ogiltig. Skickar vi alla till /login vid varje hicka
+    // ser det ut som en massutloggning mitt i ett arbetspass. 5xx och
+    // nätverksfel ger istället en tillfällig felsida med samma URL kvar.
+    if (res.status >= 500) {
+      return serviceUnavailable();
+    }
 
     if (!res.ok) {
       const loginUrl = new URL("/login", request.url);
@@ -231,10 +242,40 @@ export async function middleware(request: NextRequest) {
 
     return NextResponse.next();
   } catch {
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("next", pathname);
-    return NextResponse.redirect(loginUrl);
+    // Timeout eller nätverksfel mot API:et — samma resonemang som 5xx ovan.
+    return serviceUnavailable();
   }
+}
+
+function serviceUnavailable(): NextResponse {
+  return new NextResponse(
+    `<!doctype html><html lang="sv"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Tillfälligt problem — Roots</title>
+<style>
+  body{margin:0;min-height:100vh;display:grid;place-items:center;background:#faf9f7;
+    color:#1c1917;font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+  main{max-width:26rem;padding:2rem;text-align:center}
+  h1{font-size:1.35rem;margin:0 0 .75rem}
+  p{margin:0 0 1.5rem;color:#57534e}
+  a{display:inline-block;background:#1c1917;color:#fff;padding:.7rem 1.6rem;
+    border-radius:.5rem;text-decoration:none;font-weight:600;font-size:.9rem}
+</style></head><body><main>
+<h1>Vi har ett tillfälligt problem</h1>
+<p>Portalen kan inte nås just nu. Du är fortfarande inloggad — försök igen om en
+liten stund. Kvarstår det, mejla hej@roots.se.</p>
+<a href="javascript:location.reload()">Försök igen</a>
+</main></body></html>`,
+    {
+      status: 503,
+      headers: {
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "no-store",
+        "retry-after": "30",
+      },
+    }
+  );
 }
 
 // Match every request EXCEPT static files. The internal gate-bypass

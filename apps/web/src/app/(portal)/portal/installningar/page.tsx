@@ -17,7 +17,8 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { usePortalUser } from "@/lib/portal-context";
-import { Shield, Bell, Palette, AlertTriangle } from "lucide-react";
+import { Shield, Bell, Palette, AlertTriangle, KeyRound } from "lucide-react";
+import { MfaSection } from "@/components/mfa-section";
 import { useToast } from "@/components/ui/toast";
 import { apiFetch } from "@/lib/api";
 import { broadcastLogout } from "@/lib/use-cross-tab-logout";
@@ -150,7 +151,7 @@ function BytLosenordDialog({
             />
           </div>
           {error && (
-            <p className="text-xs text-red-600" role="alert">
+            <p className="text-xs text-destructive" role="alert">
               {error}
             </p>
           )}
@@ -261,9 +262,9 @@ function RaderaKontoDialog({
         {/* KC6.8-mönstret: form-wrapper så Enter triggar submit */}
         <form onSubmit={handleSubmit} noValidate>
           <div className="space-y-4 px-6 py-2">
-            <div className="rounded-lg bg-amber-50 p-3 text-xs text-amber-900">
+            <div className="rounded-lg bg-warning-surface p-3 text-xs text-warning-strong">
               <p className="font-medium">Det här går att ångra inom 14 dagar.</p>
-              <p className="mt-1 text-amber-800/80">
+              <p className="mt-1 text-warning-strong/80">
                 Efter 14 dagar anonymiseras dina personliga uppgifter
                 permanent. Beställningar och fakturor sparas anonymiserat
                 i 7 år som bokföringslagen kräver.
@@ -296,7 +297,7 @@ function RaderaKontoDialog({
               />
             </div>
             {error && (
-              <p className="text-xs text-red-600" role="alert">
+              <p className="text-xs text-destructive" role="alert">
                 {error}
               </p>
             )}
@@ -467,6 +468,17 @@ export default function InstallningarPage() {
       <Card>
         <CardContent className="space-y-6 p-6">
           <div className="flex items-center gap-2">
+            <KeyRound className="h-4 w-4 text-muted-foreground" />
+            <h2 className="font-semibold">Tvåfaktorsautentisering</h2>
+          </div>
+          <Separator />
+          <MfaSection />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="space-y-6 p-6">
+          <div className="flex items-center gap-2">
             <Palette className="h-4 w-4 text-muted-foreground" />
             <h2 className="font-semibold">Konto</h2>
           </div>
@@ -493,10 +505,10 @@ export default function InstallningarPage() {
           {delStatus?.status === "scheduled" && delStatus.scheduledDeletionAt && (
             <div
               role="status"
-              className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
+              className="rounded-lg border border-warning-edge bg-warning-surface p-4 text-sm text-warning-strong"
             >
               <p className="font-medium">Ditt konto är schemalagt för radering</p>
-              <p className="mt-1 text-amber-800/80">
+              <p className="mt-1 text-warning-strong/80">
                 Vi raderar kontot{" "}
                 <strong>
                   {new Date(delStatus.scheduledDeletionAt).toLocaleDateString(

@@ -26,7 +26,9 @@ import { sales } from "./routes/sales";
 import { admin } from "./routes/admin";
 import { notifications } from "./routes/notifications";
 import { preview } from "./routes/preview";
+import { clientErrors } from "./routes/client-errors";
 import { securityHeaders } from "./middleware/security-headers";
+import { mfaRequired } from "./middleware/mfa-required";
 import { generateCsrfToken, verifyCsrfToken } from "./lib/csrf";
 import { checkReadiness } from "./lib/health-checks";
 import { captureException } from "./lib/sentry";
@@ -159,6 +161,15 @@ const CSRF_EXEMPT_PATHS = [
   // bypass. Listet är nu explicit per-endpoint så nya rutter måste
   // läggas till medvetet och granskas separat.
   "/v1/internal/cron/deletion-purge",
+  "/v1/internal/cron/lead-retention",
+  "/v1/internal/cron/monitoring-check",
+  // Felrapportering från webben. Ett fel kan inträffa innan sidan hunnit
+  // hämta en CSRF-token — och en global-error-boundary har ofta ingen
+  // fungerande app kvar att hämta den med. Att kräva token här skulle
+  // betyda att vi missar precis de allvarligaste felen. Skyddet är i
+  // stället hårt tak per IP i routes/client-errors.ts, och det finns
+  // inget tillstånd att ändra: endpointen skriver bara till Sentry.
+  "/v1/telemetry/client-errors",
 ];
 
 // Pre-push fix 2026-05-26: tidigare användes startsWith vilket gjorde
@@ -185,6 +196,10 @@ app.use("*", async (c, next) => {
   if (CSRF_ENFORCEMENT_DISABLED) return next();
   return c.json({ error: "Invalid or missing CSRF token." }, 403);
 });
+
+// Efter CSRF, före rutterna: en administratörsroll som kräver tvåfaktor men
+// saknar den får bara nå sig själv och registreringsflödet.
+app.use("*", mfaRequired);
 
 app.get("/", (c) =>
   c.json({
@@ -251,6 +266,7 @@ app.route("/v1/sales", sales);
 app.route("/v1/admin", admin);
 app.route("/v1/notifications", notifications);
 app.route("/v1/preview", preview);
+app.route("/v1/telemetry", clientErrors);
 app.route("/v1/integrations/fortnox", fortnoxWebhook);
 
 const v1Ai = new Hono();

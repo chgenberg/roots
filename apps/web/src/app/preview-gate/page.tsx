@@ -46,7 +46,7 @@ export default function PreviewGatePage() {
         <div className="rounded-3xl bg-card p-7 shadow-[var(--shadow-dialog)] sm:p-9">
           <div className="flex justify-center">
             <RootsLogo
-              variant="black"
+              variant="auto"
               className="h-10 w-[100px] sm:h-11 sm:w-[110px]"
               priority
             />

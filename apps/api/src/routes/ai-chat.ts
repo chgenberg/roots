@@ -11,6 +11,11 @@ import {
 import { buildSystemPrompt } from "../lib/ai/system-prompt";
 import { recordAiUsage, recordAiIncident } from "../lib/ai/usage";
 import { scrubPiiText } from "../lib/ai/pii";
+import {
+  checkMedicalClaims,
+  createClaimsStreamFilter,
+  CLAIMS_BLOCKED_REPLY,
+} from "../lib/ai/claims-guard";
 import { childLogger } from "../lib/logger";
 import { flags } from "../lib/flags";
 
@@ -180,11 +185,62 @@ aiChat.post("/chat", async (c) => {
     // till OpenAI så att vi inte fortsätter generera (= betala för)
     // tokens efter att browsern stängt.
     const upstreamSignal = c.req.raw.signal;
+    const guard = createClaimsStreamFilter();
     return streamSSE(c, async (stream) => {
       try {
-        for await (const chunk of chatCompletionStream(messages, upstreamSignal)) {
+        const generator = chatCompletionStream(
+          messages,
+          upstreamSignal,
+          (usage) => {
+            recordAiUsage({
+              surface: "portal_chat",
+              model: usage.model,
+              promptTokens: usage.promptTokens,
+              completionTokens: usage.completionTokens,
+              userId: session.userId,
+              orgId: session.orgId,
+              meta: { streamed: true, aborted: usage.aborted },
+            });
+          }
+        );
+        let blocked = false;
+        for await (const chunk of generator) {
           if (upstreamSignal.aborted) break;
-          await stream.writeSSE({ data: JSON.stringify({ content: chunk }) });
+          const result = guard.push(chunk);
+          if (result.blocked) {
+            blocked = true;
+            recordAiIncident({
+              surface: "portal_chat",
+              kind: "claims_blocked",
+              userId: session.userId,
+              orgId: session.orgId,
+              meta: { matched: result.matched ?? null },
+            });
+            await generator.return(undefined as never);
+            break;
+          }
+          if (result.emit) {
+            await stream.writeSSE({ data: JSON.stringify({ content: result.emit }) });
+          }
+        }
+        if (!blocked) {
+          const tail = guard.flush();
+          if (tail.blocked) {
+            blocked = true;
+            recordAiIncident({
+              surface: "portal_chat",
+              kind: "claims_blocked",
+              userId: session.userId,
+              orgId: session.orgId,
+            });
+          } else if (tail.emit) {
+            await stream.writeSSE({ data: JSON.stringify({ content: tail.emit }) });
+          }
+        }
+        if (blocked) {
+          await stream.writeSSE({
+            data: JSON.stringify({ content: CLAIMS_BLOCKED_REPLY, replace: true }),
+          });
         }
         if (!upstreamSignal.aborted) {
           await stream.writeSSE({ data: "[DONE]" });
@@ -213,6 +269,17 @@ aiChat.post("/chat", async (c) => {
       userId: session.userId,
       orgId: session.orgId,
     });
+    const claims = checkMedicalClaims(response.content);
+    if (!claims.ok) {
+      recordAiIncident({
+        surface: "portal_chat",
+        kind: "claims_blocked",
+        userId: session.userId,
+        orgId: session.orgId,
+        meta: { matched: claims.matched ?? null },
+      });
+      return c.json({ reply: CLAIMS_BLOCKED_REPLY, disclaimer: DISCLAIMER });
+    }
     return c.json({
       reply: response.content,
       disclaimer: DISCLAIMER,

@@ -110,7 +110,7 @@ export default function PublicCalculatorPage() {
   if (status === "notfound" || !data) {
     return (
       <div className="mx-auto flex min-h-[60vh] max-w-md flex-col items-center justify-center px-4 text-center">
-        <RootsLogo variant="black" className="mb-6 h-8 w-20" />
+        <RootsLogo variant="auto" className="mb-6 h-8 w-20" />
         <h1 className="text-xl font-bold">Kalkylen hittades inte</h1>
         <p className="mt-2 text-sm text-muted-foreground">
           Länken är felaktig eller borttagen. Kontakta din Roots-kontakt för en
@@ -126,7 +126,7 @@ export default function PublicCalculatorPage() {
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 sm:py-14">
       <header className="mb-8 flex flex-col items-start gap-4">
-        <RootsLogo variant="black" className="h-7 w-[70px]" />
+        <RootsLogo variant="auto" className="h-7 w-[70px]" />
         <div>
           <p className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-700">
             <Sparkles className="h-4 w-4" />

@@ -13,7 +13,20 @@ export default function ShopLayout({
 }) {
   return (
     <div className="flex min-h-screen flex-col">
-      <div className="flex-1">{children}</div>
+      {/* Målet för skip-länken i root layout. Den pekade tidigare på ett id
+          som inte fanns i den här route-gruppen, så "Hoppa till innehåll"
+          gjorde ingenting i hela butiken — alltså på de sidor där en
+          supporter faktiskt betalar.
+
+          Id:t sitter på wrappern och inte på ett <main>, eftersom varje
+          shop-sida redan har sin egen <main> för respektive tillstånd
+          (laddar, fel, normal). Nästlade <main> är ogiltig HTML, och att
+          lägga id:t på alla åtta vore något att glömma nästa gång någon
+          lägger till en sida. tabIndex behövs för att fokus ska flytta —
+          en div är inte fokuserbar av sig själv. */}
+      <div id="main-content" tabIndex={-1} className="flex-1">
+        {children}
+      </div>
       <footer className="border-t bg-background">
         <div className="mx-auto flex max-w-3xl flex-col gap-3 px-4 py-5 text-xs text-muted-foreground">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

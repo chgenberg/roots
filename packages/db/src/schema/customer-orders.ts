@@ -87,9 +87,30 @@ export const customerOrders = pgTable(
     // till skillnad från en kund som handlat online via shoppen.
     isManual: boolean("is_manual").notNull().default(false),
     placedByUserId: uuid("placed_by_user_id"),
+    // Avräkningen räknade tidigare om team-andelen med kampanjens
+    // NUVARANDE marginal. Ändrade någon marginalen efter halva kampanjen
+    // flyttades pengar på försäljning som redan var gjord. Marginalen som
+    // gällde när ordern lades fryses därför på ordern.
+    marginPercentAtSale: integer("margin_percent_at_sale"),
+    // Manuella ordrar (kontant/Swish i handen) måste bekräftas av lagledare
+    // eller föreningsadmin innan de räknas in i en utbetalning. Utan detta
+    // kunde ett kapat säljarkonto skapa PAID-ordrar som blev riktiga pengar.
+    verifiedAt: timestamp("verified_at"),
+    verifiedByUserId: uuid("verified_by_user_id"),
+    // Vilka köpvillkor kunden faktiskt godkände, och när.
+    termsAcceptedAt: timestamp("terms_accepted_at"),
+    termsVersion: varchar("terms_version", { length: 40 }),
     // Leveransspårning för BULK→klubb och DIRECT→kund.
     shippedAt: timestamp("shipped_at"),
     deliveredAt: timestamp("delivered_at"),
+    // Avbokning och återbetalning. CANCELLED/REFUNDED fanns i enumen från
+    // början men sattes aldrig av någon kodväg, så en felregistrerad eller
+    // återbetald order låg kvar och räknades som intäkt. Skälet sparas
+    // eftersom "kunden ångrade sig" och "säljaren skrev fel" ser identiska
+    // ut i efterhand utan det.
+    cancelledAt: timestamp("cancelled_at"),
+    cancelledByUserId: uuid("cancelled_by_user_id"),
+    cancelReason: text("cancel_reason"),
     // P2.13 (audit 2026-05-26): klient-genererad nyckel (sha256 av
     // body) som dedup:ar /v1/checkout/create-retries. Unikt index i
     // 0010-migrationen.

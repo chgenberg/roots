@@ -65,6 +65,22 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <head>
+        {/*
+         * Temat måste sättas innan första målningen, annars blinkar sidan
+         * vit en bildruta för den som valt mörkt läge. Tidigare satte
+         * ThemeToggle klassen i en useEffect, och eftersom växeln bara
+         * finns i marketing-headern blev portalen ljus vid direktladdning
+         * men mörk om man klickat sig dit — samma sida, två utseenden.
+         *
+         * Systemets prefers-color-scheme läses avsiktligt inte: med "Auto"
+         * på macOS och iOS slår den om vid solnedgången, så besökare som
+         * aldrig bett om mörkt läge fick sajten mörk på kvällen.
+         */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{if(localStorage.getItem("roots-theme")==="dark")document.documentElement.classList.add("dark")}catch(e){}`,
+          }}
+        />
         <OrganizationJsonLd />
         {/* MASTERPLAN_01 KC7.10: site-wide WebSite + SearchAction JSON-LD
             så Google kan rendera brand-search-box i sitelinks. */}

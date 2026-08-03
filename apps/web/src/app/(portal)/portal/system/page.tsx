@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { portalFetch } from "@/lib/portal-api";
+import { LoadError } from "@/components/load-error";
 import {
   Activity,
   Server,
@@ -59,8 +60,11 @@ export default function SystemPage() {
   const [rateLimits, setRateLimits] = useState<RateLimitRow[]>([]);
   const [recentEvents, setRecentEvents] = useState<RecentEventRow[] | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setLoading(true);
+    setError(null);
     portalFetch<{
       services?: Array<Omit<ServiceRow, "icon">>;
       aiUsage?: AiUsageRow;
@@ -78,9 +82,18 @@ export default function SystemPage() {
         setRateLimits(data.rateLimits ?? []);
         setRecentEvents(data.recentEvents ?? null);
       })
-      .catch(() => {})
+      .catch(() => {
+        // En driftsida som tiger är särskilt illa: "ingen systemstatus
+        // tillgänglig" lästes som att allt var lugnt, när det i själva
+        // verket var statusanropet som inte gick fram.
+        setError("Kunde inte hämta systemstatus.");
+      })
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   return (
     <div className="page-enter space-y-6">
@@ -90,6 +103,8 @@ export default function SystemPage() {
           Systemhälsa, AI-användning och driftstatus.
         </p>
       </div>
+
+      {error && <LoadError message={error} onRetry={load} inline />}
 
       {/* Service health */}
       {services.length > 0 ? (

@@ -88,7 +88,7 @@ export function ChatThread({
               <div
                 className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-sm ${
                   m.fromMe
-                    ? "bg-brand-700 text-white"
+                    ? "bg-brand-700 text-primary-foreground"
                     : m.isBroadcast
                       ? "bg-brand-50 text-foreground ring-1 ring-brand-200"
                       : "bg-brand-100 text-foreground"

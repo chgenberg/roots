@@ -82,6 +82,46 @@ export async function registrationRateLimit(ip: string): Promise<RateLimitResult
   return checkRateLimit(key, 5, 60 * 60); // 5 per hour per IP
 }
 
+/**
+ * Lösenordsbyte kräver nuvarande lösenord, vilket gör endpointen till ett
+ * orakel för den som redan kapat en session. Utan tak kan den gissa fritt.
+ */
+export async function changePasswordRateLimit(
+  userId: string
+): Promise<RateLimitResult> {
+  return checkRateLimit(`chpw:${userId}`, 5, 15 * 60); // 5 per 15 min
+}
+
+/**
+ * TOTP-försök. En sexsiffrig kod har en miljon möjliga värden och fönstret
+ * ±1 gör tre av dem giltiga samtidigt, så utan tak är andra faktorn i
+ * praktiken bara en fördröjning. Taket räknas per konto OCH per IP, så att
+ * en angripare inte kan sprida gissningarna över många adresser.
+ */
+export async function mfaAttemptRateLimit(
+  ip: string,
+  userId: string
+): Promise<RateLimitResult> {
+  const perUser = await checkRateLimit(`mfa:user:${userId}`, 8, 15 * 60);
+  if (!perUser.allowed) return perUser;
+  return checkRateLimit(`mfa:ip:${ip}`, 30, 15 * 60);
+}
+
+/** Begäran om återställningslänk — per IP och per e-post. */
+export async function passwordResetRequestRateLimit(
+  ip: string,
+  email: string
+): Promise<RateLimitResult> {
+  return checkRateLimit(`pwreset-req:${ip}:${email}`, 5, 60 * 60);
+}
+
+/** Inlösen av återställningstoken — bromsar token-gissning. */
+export async function passwordResetConfirmRateLimit(
+  ip: string
+): Promise<RateLimitResult> {
+  return checkRateLimit(`pwreset-confirm:${ip}`, 10, 60 * 60);
+}
+
 export async function aiRateLimit(userId: string): Promise<RateLimitResult> {
   const key = `ai:${userId}`;
   return checkRateLimit(key, 30, 60); // 30 requests per minute
@@ -110,8 +150,13 @@ export async function calculatorLeadRateLimit(ip: string): Promise<RateLimitResu
  * per AI-yta som hard-stop på request-nivå. Konfigurerbart via env
  * så ops kan justera utan deploy.
  *
- *   AI_GLOBAL_CHAT_DAILY_CAP        (default 50 000)
- *   AI_GLOBAL_VISION_DAILY_CAP      (default 2 000)
+ *   AI_GLOBAL_CHAT_DAILY_CAP        (default 5 000)
+ *   AI_GLOBAL_VISION_DAILY_CAP      (default 300)
+ *
+ * Taken sänktes 2026-08-03: 50 000 chattsvar och 2 000 vision-anrop per
+ * dygn är inte ett kostnadstak för ett bolag av vår storlek, det är ett
+ * teoretiskt maxtak. Ett dygn på taket ska kosta något vi kan bära utan
+ * att bli förvånade. Höj medvetet när trafiken motiverar det.
  *
  * Bucket-key inkluderar UTC-datum så räknaren auto-rullar varje
  * midnatt utan att vi behöver ttl:a manuellt.
@@ -128,13 +173,13 @@ function readCap(envName: string, defaultValue: number): number {
 }
 
 export async function aiGlobalChatDailyCap(): Promise<RateLimitResult> {
-  const cap = readCap("AI_GLOBAL_CHAT_DAILY_CAP", 50_000);
+  const cap = readCap("AI_GLOBAL_CHAT_DAILY_CAP", 5_000);
   const key = `ai-global:chat:${todayUtcKey()}`;
   return checkRateLimit(key, cap, 26 * 60 * 60); // TTL > 24h så vi inte tappar mätning vid DST/restart
 }
 
 export async function aiGlobalVisionDailyCap(): Promise<RateLimitResult> {
-  const cap = readCap("AI_GLOBAL_VISION_DAILY_CAP", 2_000);
+  const cap = readCap("AI_GLOBAL_VISION_DAILY_CAP", 300);
   const key = `ai-global:vision:${todayUtcKey()}`;
   return checkRateLimit(key, cap, 26 * 60 * 60);
 }

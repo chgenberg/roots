@@ -25,6 +25,13 @@ import {
   verifyOrderViewToken,
 } from "../lib/order-view-tokens";
 import { checkoutCreateRateLimit } from "../lib/rate-limit";
+import { resolveCampaignCatalog } from "../lib/campaign-catalog";
+import { isOrgApprovedForPublicSales } from "../lib/org-approval";
+import {
+  VAT_RATE_BASIS_POINTS,
+  vatOfGrossOre,
+  TERMS_VERSION,
+} from "@roots/contracts";
 import { stockholmDateIso } from "../lib/date";
 import { wasWebhookEventSeen, clearWebhookEventSeen } from "../lib/webhook-dedup";
 
@@ -263,6 +270,16 @@ checkout.post("/create", async (c) => {
       return c.json({ error: "Alla obligatoriska fält krävs." }, 400);
     }
 
+    // Distansavtalslagen kräver ett aktivt godkännande före köp. Kryssrutan
+    // fanns i kassan men kontrollerades bara i klienten och sparades aldrig,
+    // så vi kunde inte visa vad kunden faktiskt godkände.
+    if (body?.acceptTerms !== true) {
+      return c.json(
+        { error: "Du måste godkänna köpvillkoren och integritetspolicyn." },
+        400
+      );
+    }
+
     // MASTERPLAN_01 KC4.3: validera e-postformat innan vi skapar order /
     // skickar till Klarna. Tidigare accepterades "foo" → bekräftelse-
     // mail studsar tyst och supportern får aldrig kvitto.
@@ -351,6 +368,21 @@ checkout.post("/create", async (c) => {
       return c.json({ error: "Kampanjen är inte aktiv." }, 400);
     }
 
+    // Backstop för godkännandet. Aktiveringen är spärrad på vägen in, men
+    // en kampanj kan ha blivit aktiv före den spärren fanns, eller genom en
+    // framtida kodväg. Det är här riktiga pengar byter händer, så det är
+    // här spärren måste hålla även om allt annat missats.
+    if (!(await isOrgApprovedForPublicSales(team.orgId))) {
+      log.warn(
+        { orgId: team.orgId, campaignId: campaign.id },
+        "checkout blockerad: föreningen är inte godkänd för publik försäljning"
+      );
+      return c.json(
+        { error: "Butiken tar inte emot beställningar just nu." },
+        403
+      );
+    }
+
     // Säljperiod: jämför dagens datum (YYYY-MM-DD) mot kampanjens
     // start/slut. `date`-kolumnerna kommer tillbaka som ISO-strängar så
     // lexikografisk jämförelse är korrekt. Vi räknar i Europe/Stockholm
@@ -390,8 +422,9 @@ checkout.post("/create", async (c) => {
       );
     }
 
-    const productList = await db.select().from(products).where(eq(products.active, true));
-    const productMap = new Map(productList.map((p) => [p.id, p]));
+    // Priset kommer från kampanjens katalog, inte från klientens payload,
+    // och en produkt utanför katalogen kan inte beställas.
+    const productMap = await resolveCampaignCatalog(campaign.id);
 
     let totalOre = 0;
     const orderLines: Array<{
@@ -418,10 +451,10 @@ checkout.post("/create", async (c) => {
       }
 
       const qty = item.qty;
-      const unitPrice = product.priceOre;
+      const unitPrice = product.effectivePriceOre;
       const lineTotal = unitPrice * qty;
-      const taxRate = 2500;
-      const taxAmount = Math.round(lineTotal - lineTotal / 1.25);
+      const taxRate = VAT_RATE_BASIS_POINTS;
+      const taxAmount = vatOfGrossOre(lineTotal);
 
       totalOre += lineTotal;
       orderLines.push({
@@ -460,9 +493,9 @@ checkout.post("/create", async (c) => {
           name: "Frakt",
           quantity: 1,
           unit_price: shippingOre,
-          tax_rate: 2500,
+          tax_rate: VAT_RATE_BASIS_POINTS,
           total_amount: shippingOre,
-          total_tax_amount: Math.round(shippingOre - shippingOre / 1.25),
+          total_tax_amount: vatOfGrossOre(shippingOre),
         });
         totalOre += shippingOre;
       }
@@ -504,6 +537,9 @@ checkout.post("/create", async (c) => {
             totalOre,
             shippingOre,
             countsTowardStats,
+            marginPercentAtSale: campaign.marginPercent,
+            termsAcceptedAt: new Date(),
+            termsVersion: TERMS_VERSION,
             note: note ? String(note).trim() : null,
             idempotencyKey,
           })

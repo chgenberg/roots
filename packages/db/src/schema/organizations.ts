@@ -37,7 +37,13 @@ export const organizations = pgTable(
     type: varchar("type", { length: 50 }).notNull().default("club"),
     nationalFederation: varchar("national_federation", { length: 255 }),
     sportType: varchar("sport_type", { length: 100 }),
+    // Godkänd för publik försäljning. Se apps/api/src/lib/org-approval.ts:
+    // registrering är fri, men kassan öppnar först när någon hos oss tittat
+    // på föreningen — annars kan vem som helst sälja i en riktig förenings
+    // namn.
     verified: boolean("verified").notNull().default(false),
+    verifiedAt: timestamp("verified_at"),
+    verifiedByUserId: uuid("verified_by_user_id"),
     fortnoxCustomerId: varchar("fortnox_customer_id", { length: 100 }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { useFocusTrap } from "@/lib/use-focus-trap";
 import { ArrowRight, User, CalendarCheck, Search } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SearchTrigger } from "@/components/search-dialog";
@@ -71,10 +72,11 @@ export function Header() {
     setMenuOpen(false);
   }, [pathname]);
 
-  useEffect(() => {
-    document.body.style.overflow = menuOpen ? "hidden" : "";
-    return () => { document.body.style.overflow = ""; };
-  }, [menuOpen]);
+  // Escape, fokuslås och scroll-lås. Menyn hade tidigare bara scroll-låset,
+  // så den som navigerar med tangentbord tabbade vidare ner i innehållet
+  // bakom mörkläggningen utan väg tillbaka.
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
+  const menuRef = useFocusTrap(menuOpen, closeMenu);
 
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(href + "/");
@@ -112,7 +114,7 @@ export function Header() {
             className="relative z-[60] inline-flex items-center transition-opacity duration-200 hover:opacity-70"
           >
             <RootsLogo
-              variant="black"
+              variant="auto"
               priority
               className={cn(
                 "transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
@@ -199,9 +201,16 @@ export function Header() {
 
       {/* Fullscreen mobile overlay */}
       <div
+        ref={menuRef as React.RefObject<HTMLDivElement>}
         role="dialog"
         aria-modal="true"
         aria-label="Navigeringsmeny"
+        // Panelen ligger kvar i DOM:en för att övergången ska fungera. Utan
+        // `inert` är länkarna kvar i tab-ordningen även när menyn är stängd,
+        // så Tab landar i osynliga länkar mitt på en vanlig sida — opacity
+        // tar inte bort något ur fokusordningen. `inert` gör det, och till
+        // skillnad från visibility:hidden stör det inte inledningen.
+        inert={!menuOpen}
         className={cn(
           "fixed inset-0 z-[55] flex flex-col bg-background transition-opacity duration-200 ease-out md:hidden",
           menuOpen

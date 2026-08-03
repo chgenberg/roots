@@ -16,6 +16,7 @@
 
 import { Hono } from "hono";
 import { eq, and, sql, inArray } from "drizzle-orm";
+import { REVENUE_ORDER_STATUSES } from "@roots/contracts";
 import { db } from "@roots/db";
 import {
   organizations,
@@ -139,6 +140,13 @@ sales.post("/leads", async (c) => {
         municipality,
         website,
         assignedAsmUserId: session.userId,
+        // Skapad av en säljare hos oss, alltså efter mänsklig kontakt. Att
+        // låta en av våra egna registrera en kund och sedan låta någon
+        // annan hos oss godkänna samma kund vore en rundgång utan värde —
+        // spärren finns för okända självregistreringar.
+        verified: true,
+        verifiedAt: new Date(),
+        verifiedByUserId: session.userId,
       })
       .returning();
 
@@ -224,7 +232,7 @@ sales.get("/calendar", async (c) => {
         .where(
           and(
             inArray(customerOrders.campaignId, campaignIds),
-            eq(customerOrders.status, "PAID"),
+            inArray(customerOrders.status, REVENUE_ORDER_STATUSES),
             eq(customerOrders.countsTowardStats, true)
           )
         )

@@ -169,6 +169,146 @@ interface ValidationReport {
   recommendedMissing: string[];
   /** Vars som krävs pga en aktiverad feature (ex: FORTNOX_ENABLED=true). */
   conditionalMissing: string[];
+  /**
+   * Variabler som var för sig ser rätt ut men tillsammans är fel — eller
+   * dev-genvägar som aldrig får vara på i prod.
+   */
+  conflicts: string[];
+}
+
+/** Normaliserar en URL till "https://host" för jämförelse. */
+function originOf(raw: string): string | null {
+  try {
+    const u = new URL(raw.trim());
+    return `${u.protocol}//${u.host}`;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Korskontroller.
+ *
+ * Varje variabel kan vara satt och ändå ge en trasig produktion, för det
+ * som gör dem rätt är hur de förhåller sig till varandra. Ett CORS_ORIGIN
+ * som inte matchar NEXT_PUBLIC_SITE_URL ger en sajt där varje inloggning
+ * tystnar i preflight — allt ser konfigurerat ut, inget fungerar. Den
+ * klassen av fel är dyrast att felsöka i efterhand och billigast att
+ * stoppa vid boot.
+ *
+ * Här ligger också dev-genvägarna: stubbad Klarna, osignerade webhooks,
+ * Redis avstängt, demoskrivningar. De är rimliga lokalt och oacceptabla i
+ * prod, så de fäller bootan i stället för att ligga kvar och glömmas.
+ */
+function crossCheck(env: NodeJS.ProcessEnv): string[] {
+  const conflicts: string[] = [];
+
+  const siteUrl = env.NEXT_PUBLIC_SITE_URL?.trim();
+  const corsOrigin = env.CORS_ORIGIN?.trim();
+
+  if (siteUrl) {
+    const site = originOf(siteUrl);
+    if (!site) {
+      conflicts.push(
+        `NEXT_PUBLIC_SITE_URL är inte en giltig absolut URL ("${siteUrl}"). Förväntat format: https://roots.se`
+      );
+    } else {
+      if (!site.startsWith("https://")) {
+        conflicts.push(
+          `NEXT_PUBLIC_SITE_URL måste vara https i prod (är "${site}"). Klarna-redirects och e-postlänkar bygger på den.`
+        );
+      }
+      if (corsOrigin) {
+        // CORS_ORIGIN kan vara kommaseparerad lista.
+        const allowed = corsOrigin
+          .split(",")
+          .map((o) => originOf(o))
+          .filter((o): o is string => o !== null);
+        if (allowed.length === 0) {
+          conflicts.push(
+            `CORS_ORIGIN innehåller inga giltiga origins ("${corsOrigin}").`
+          );
+        } else if (!allowed.includes(site)) {
+          conflicts.push(
+            `CORS_ORIGIN (${allowed.join(", ")}) saknar NEXT_PUBLIC_SITE_URL:s origin (${site}). ` +
+              "Webben kommer få CORS-fel på varje /v1-anrop."
+          );
+        }
+      }
+    }
+  }
+
+  // Hemligheter: för korta secrets ger signaturer som går att brute-forca,
+  // och samma värde på två secrets betyder att en läcka blir två.
+  const secretMinLength = 32;
+  const secrets = [
+    "CSRF_SECRET",
+    "SESSION_SECRET",
+    "DELETION_TOKEN_SECRET",
+    "ORDER_VIEW_TOKEN_SECRET",
+    "PASSWORD_RESET_TOKEN_SECRET",
+    "INTERNAL_CRON_TOKEN",
+  ];
+  const seen = new Map<string, string>();
+  for (const name of secrets) {
+    const value = env[name]?.trim();
+    if (!value) continue;
+    if (value.length < secretMinLength) {
+      conflicts.push(
+        `${name} är bara ${value.length} tecken. Minst ${secretMinLength} krävs (openssl rand -hex 32).`
+      );
+    }
+    const previous = seen.get(value);
+    if (previous) {
+      conflicts.push(
+        `${name} har samma värde som ${previous}. Använd separata hemligheter så en läcka inte blir två.`
+      );
+    } else {
+      seen.set(value, name);
+    }
+  }
+
+  // Dev-genvägar som aldrig får följa med till prod.
+  const forbiddenWhenTrue: ReadonlyArray<[string, string]> = [
+    [
+      "REDIS_DISABLED",
+      "Sessioner, rate-limits och settlement-lås kräver Redis i prod.",
+    ],
+    [
+      "ROOTS_KLARNA_STUB",
+      "Stubbad Klarna markerar ordrar som betalda utan att pengar rört sig.",
+    ],
+    [
+      "ROOTS_ALLOW_UNSIGNED_KLARNA_WEBHOOK",
+      "Utan HMAC kan vem som helst markera en order som PAID.",
+    ],
+    [
+      "ROOTS_ALLOW_DEMO_WRITES",
+      "Demokonton skulle kunna skriva i skarp data.",
+    ],
+    [
+      "SCHEDULER_DISABLED",
+      "Utan schemaläggaren körs inga cron-jobb (avräkning, retention).",
+    ],
+  ];
+  for (const [name, why] of forbiddenWhenTrue) {
+    if (env[name]?.trim().toLowerCase() === "true") {
+      conflicts.push(`${name}=true är inte tillåtet i produktion. ${why}`);
+    }
+  }
+
+  // Demokonton i prod kräver ett eget, starkt lösenord — se auth.ts.
+  if (env.ROOTS_ENABLE_DEMO_ACCOUNTS?.trim().toLowerCase() === "true") {
+    const demoPw = env.ROOTS_DEMO_PASSWORD?.trim();
+    if (!demoPw || demoPw.length < 12) {
+      conflicts.push(
+        "ROOTS_ENABLE_DEMO_ACCOUNTS=true kräver ROOTS_DEMO_PASSWORD med minst 12 tecken. " +
+          "Utan det är demokontona avstängda och inloggningen misslyckas ändå."
+      );
+    }
+  }
+
+  return conflicts;
 }
 
 /** Pure function so tests can drive it without touching `process.exit`. */
@@ -180,6 +320,7 @@ export function checkEnv(
   const placeholders: string[] = [];
   const recommendedMissing: string[] = [];
   const conditionalMissing: string[] = [];
+  const conflicts: string[] = crossCheck(env);
 
   for (const v of REQUIRED_IN_PROD) {
     const raw = env[v.name];
@@ -269,9 +410,17 @@ export function checkEnv(
   const ok = isProd
     ? missing.length === 0 &&
       placeholders.length === 0 &&
-      conditionalMissing.length === 0
+      conditionalMissing.length === 0 &&
+      conflicts.length === 0
     : true;
-  return { ok, missing, placeholders, recommendedMissing, conditionalMissing };
+  return {
+    ok,
+    missing,
+    placeholders,
+    recommendedMissing,
+    conditionalMissing,
+    conflicts,
+  };
 }
 
 /**
@@ -332,6 +481,24 @@ export function validateEnvOrExit(): void {
       log.warn(
         { conditionalMissing: report.conditionalMissing },
         "Activated integration is misconfigured (would refuse to start in production)"
+      );
+    }
+  }
+
+  if (report.conflicts.length > 0) {
+    if (isProd) {
+      log.error(
+        { conflicts: report.conflicts },
+        "Env-vars conflict or contain unsafe dev overrides — refusing to start"
+      );
+      process.exit(1);
+    } else {
+      // Lokalt är flera av de här flaggorna avsiktliga (REDIS_DISABLED,
+      // korta dev-secrets). Debug i stället för warn så dev-loggen inte
+      // fylls med brus vi lärt oss att ignorera.
+      log.debug(
+        { conflicts: report.conflicts },
+        "Env-vars would be rejected in production"
       );
     }
   }

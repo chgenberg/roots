@@ -134,7 +134,9 @@ export default function AssociationCalendarPage() {
                   <CardTitle className="flex items-center gap-2 text-base">
                     {c.name}
                     {active && (
-                      <Badge className="bg-brand-700 text-white">Pågår nu</Badge>
+                      <Badge className="bg-brand-700 text-primary-foreground">
+                        Pågår nu
+                      </Badge>
                     )}
                   </CardTitle>
                   <Badge className={status.cls}>{status.label}</Badge>

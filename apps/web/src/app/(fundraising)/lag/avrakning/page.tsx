@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { LoadError } from "@/components/load-error";
 import { Badge } from "@/components/ui/badge";
 import {
   CreditCard,
@@ -11,7 +11,9 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   Package,
+  Clock,
 } from "lucide-react";
+import { countsAsRevenue } from "@roots/contracts";
 import type { TeamDashboard, CustomerOrder } from "@/types/fundraising";
 import { OrderDetailDialog } from "@/components/order-detail-dialog";
 
@@ -27,35 +29,36 @@ export default function TeamSettlementPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailOrderId, setDetailOrderId] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const myTeamRes = await fetch(`${API_URL}/v1/dashboard/my-team`, {
-          credentials: "include",
-        });
-        if (!myTeamRes.ok) {
-          setError("Kunde inte hämta lagdata. Försök igen.");
-          return;
-        }
-        const { teamId } = await myTeamRes.json();
-
-        const teamRes = await fetch(
-          `${API_URL}/v1/dashboard/team/${teamId}`,
-          { credentials: "include" }
-        );
-        if (teamRes.ok) {
-          setData(await teamRes.json());
-        } else {
-          setError("Kunde inte hämta lagdata. Försök igen.");
-        }
-      } catch {
-        setError("Ett nätverksfel uppstod. Försök igen.");
-      } finally {
-        setLoading(false);
+  const load = useCallback(async () => {
+    try {
+      const myTeamRes = await fetch(`${API_URL}/v1/dashboard/my-team`, {
+        credentials: "include",
+      });
+      if (!myTeamRes.ok) {
+        setError("Kunde inte hämta lagdata.");
+        return;
       }
+      const { teamId } = await myTeamRes.json();
+
+      const teamRes = await fetch(`${API_URL}/v1/dashboard/team/${teamId}`, {
+        credentials: "include",
+      });
+      if (teamRes.ok) {
+        setData(await teamRes.json());
+        setError(null);
+      } else {
+        setError("Kunde inte hämta lagdata.");
+      }
+    } catch {
+      setError("Ett nätverksfel uppstod.");
+    } finally {
+      setLoading(false);
     }
-    load();
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   if (loading) {
     return (
@@ -66,14 +69,7 @@ export default function TeamSettlementPage() {
   }
 
   if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-3 py-20">
-        <p className="text-sm text-destructive">{error}</p>
-        <Button variant="outline" onClick={() => window.location.reload()}>
-          Försök igen
-        </Button>
-      </div>
-    );
+    return <LoadError message={error} onRetry={load} />;
   }
 
   if (!data) {
@@ -91,12 +87,10 @@ export default function TeamSettlementPage() {
   const teamEarnings = data.stats?.teamEarningsOre || 0;
   const rootsShare = totalSales - teamEarnings;
 
-  const paidOrders = orders.filter(
-    (o: CustomerOrder) =>
-      o.status === "PAID" ||
-      o.status === "CONFIRMED" ||
-      o.status === "SHIPPED" ||
-      o.status === "DELIVERED"
+  // Samma definition som avräkningen på servern använder, så vyn och
+  // utbetalningen aldrig kan visa olika uppfattning om vad som är betalt.
+  const paidOrders = orders.filter((o: CustomerOrder) =>
+    countsAsRevenue(o.status)
   );
 
   const klarnaOrders = paidOrders.filter(
@@ -116,6 +110,16 @@ export default function TeamSettlementPage() {
   const directPaidTotal = directOrders.reduce(
     (sum: number, o: CustomerOrder) => sum + (o.totalOre || 0),
     0
+  );
+
+  // Siffrorna ovan bygger på all betald försäljning, men avräkningen som
+  // faktiskt genereras utesluter obekräftade manuella ordrar. Utan den här
+  // upplysningen ser lagledaren en förtjänst som är högre än utbetalningen
+  // och har inget sätt att förstå varför.
+  const unverifiedOre = data.stats?.unverifiedManualOre ?? 0;
+  const unverifiedCount = data.stats?.unverifiedManualCount ?? 0;
+  const unverifiedEarningsOre = Math.round(
+    unverifiedOre * (marginPercent / 100)
   );
 
   return (
@@ -148,6 +152,13 @@ export default function TeamSettlementPage() {
             <p className="text-xs text-muted-foreground mt-0.5">
               {marginPercent}% av försäljningen
             </p>
+            {unverifiedEarningsOre > 0 && (
+              <p className="mt-1.5 text-xs text-warning-strong">
+                Varav {formatKrValue(unverifiedEarningsOre)} kr väntar på att du
+                bekräftar {unverifiedCount}{" "}
+                {unverifiedCount === 1 ? "manuell order" : "manuella ordrar"}.
+              </p>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -257,6 +268,15 @@ export default function TeamSettlementPage() {
                           Direktleverans
                         </Badge>
                       )}
+                      {order.isManual && !order.verifiedAt && (
+                        <Badge
+                          variant="secondary"
+                          className="text-xs bg-warning-surface text-warning-strong"
+                        >
+                          <Clock className="h-3 w-3 mr-1" />
+                          Väntar på bekräftelse
+                        </Badge>
+                      )}
                     </div>
                   </div>
                   <div className="text-right">
@@ -278,6 +298,10 @@ export default function TeamSettlementPage() {
         open={detailOpen}
         onOpenChange={setDetailOpen}
         orderId={detailOrderId}
+        // Här räknas förtjänsten om på servern, så en lokal justering
+        // räcker inte — vi hämtar om hela underlaget.
+        onVerificationChange={() => void load()}
+        onStatusChange={() => void load()}
       />
     </div>
   );

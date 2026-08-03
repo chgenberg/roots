@@ -12,8 +12,9 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { FileText, Plus, Send, CheckCircle2 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { portalFetch } from "@/lib/portal-api";
+import { LoadError } from "@/components/load-error";
 import { quotesListResponseSchema } from "@roots/contracts";
 import { formatKr } from "@/lib/format";
 import { NyOffertDialog } from "@/components/ny-offert-dialog";
@@ -61,9 +62,12 @@ function statusBadge(status: string) {
 export default function OfferterPage() {
   const [quotes, setQuotes] = useState<QuoteRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setLoading(true);
+    setError(null);
     portalFetch("/quotes", { schema: quotesListResponseSchema })
       .then((data) => {
         setQuotes(
@@ -79,9 +83,15 @@ export default function OfferterPage() {
           }))
         );
       })
-      .catch(() => {})
+      .catch(() => {
+        setError("Kunde inte hämta offerterna.");
+      })
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const totalSent = quotes.filter((q) => q.status === "Skickad").length;
   const totalAccepted = quotes.filter((q) => q.status === "Accepterad").length;
@@ -104,6 +114,8 @@ export default function OfferterPage() {
           Ny offert
         </Button>
       </div>
+
+      {error && <LoadError message={error} onRetry={load} inline />}
 
       <NyOffertDialog
         open={dialogOpen}

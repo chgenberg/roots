@@ -10,6 +10,11 @@ import {
 } from "../lib/ai/openclaw-client";
 import { PUBLIC_CHAT_SYSTEM_PROMPT } from "../lib/ai/system-prompt";
 import { recordAiUsage, recordAiIncident } from "../lib/ai/usage";
+import {
+  checkMedicalClaims,
+  createClaimsStreamFilter,
+  CLAIMS_BLOCKED_REPLY,
+} from "../lib/ai/claims-guard";
 import { flags } from "../lib/flags";
 import { childLogger } from "../lib/logger";
 
@@ -48,8 +53,8 @@ publicChat.post("/public-chat", async (c) => {
   }
 
   // Scout fix 2026-05-26 (AI-CRIT-01): globalt dygnstak. Per-IP räcker
-  // inte mot botnet eller delade kontorsnätverk. Default 50 000
-  // chat-anrop/dygn över hela plattformen — justera via env.
+  // inte mot botnet eller delade kontorsnätverk. Taket över hela
+  // plattformen sätts i rate-limit.ts och justeras via env.
   const globalCap = await aiGlobalChatDailyCap();
   if (!globalCap.allowed) {
     recordAiIncident({
@@ -145,11 +150,53 @@ publicChat.post("/public-chat", async (c) => {
     // till upstream OpenAI så vi inte fortsätter token-spend efter
     // att en publik chatt-flik stängts.
     const upstreamSignal = c.req.raw.signal;
+    const guard = createClaimsStreamFilter();
     return streamSSE(c, async (stream) => {
       try {
-        for await (const chunk of chatCompletionStream(messages, upstreamSignal)) {
+        const generator = chatCompletionStream(
+          messages,
+          upstreamSignal,
+          (usage) => {
+            recordAiUsage({
+              surface: "public_chat",
+              model: usage.model,
+              promptTokens: usage.promptTokens,
+              completionTokens: usage.completionTokens,
+              meta: { streamed: true, aborted: usage.aborted },
+            });
+          }
+        );
+        let blocked = false;
+        for await (const chunk of generator) {
           if (upstreamSignal.aborted) break;
-          await stream.writeSSE({ data: JSON.stringify({ content: chunk }) });
+          const result = guard.push(chunk);
+          if (result.blocked) {
+            blocked = true;
+            recordAiIncident({
+              surface: "public_chat",
+              kind: "claims_blocked",
+              meta: { matched: result.matched ?? null },
+            });
+            await generator.return(undefined as never);
+            break;
+          }
+          if (result.emit) {
+            await stream.writeSSE({ data: JSON.stringify({ content: result.emit }) });
+          }
+        }
+        if (!blocked) {
+          const tail = guard.flush();
+          if (tail.blocked) {
+            blocked = true;
+            recordAiIncident({ surface: "public_chat", kind: "claims_blocked" });
+          } else if (tail.emit) {
+            await stream.writeSSE({ data: JSON.stringify({ content: tail.emit }) });
+          }
+        }
+        if (blocked) {
+          await stream.writeSSE({
+            data: JSON.stringify({ content: CLAIMS_BLOCKED_REPLY, replace: true }),
+          });
         }
         if (!upstreamSignal.aborted) {
           await stream.writeSSE({ data: "[DONE]" });
@@ -177,6 +224,18 @@ publicChat.post("/public-chat", async (c) => {
       promptTokens: response.usage?.promptTokens,
       completionTokens: response.usage?.completionTokens,
     });
+    const claims = checkMedicalClaims(response.content);
+    if (!claims.ok) {
+      recordAiIncident({
+        surface: "public_chat",
+        kind: "claims_blocked",
+        meta: { matched: claims.matched ?? null },
+      });
+      return c.json({
+        reply: CLAIMS_BLOCKED_REPLY,
+        disclaimer: DISCLAIMER,
+      });
+    }
     return c.json({
       reply: response.content,
       disclaimer: DISCLAIMER,

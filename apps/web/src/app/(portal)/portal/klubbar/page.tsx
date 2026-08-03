@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { portalFetch } from "@/lib/portal-api";
 import { clubsListResponseSchema } from "@roots/contracts";
+import { LoadError } from "@/components/load-error";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
@@ -59,8 +60,11 @@ export default function KlubbarPage() {
   const [search, setSearch] = useState("");
   const [clubs, setClubs] = useState<ClubRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setLoading(true);
+    setError(null);
     portalFetch("/clubs", { schema: clubsListResponseSchema })
       .then((data) => {
         setClubs(
@@ -80,9 +84,18 @@ export default function KlubbarPage() {
           }))
         );
       })
-      .catch(() => {})
+      .catch(() => {
+        // Tidigare blev ett misslyckat anrop en tom lista, vilket för en
+        // säljare ser ut som "du har inga klubbar" snarare än "det gick
+        // inte att hämta".
+        setError("Kunde inte hämta klubbarna. Kontrollera din anslutning.");
+      })
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const filtered = clubs.filter((c) =>
     c.name.toLowerCase().includes(search.toLowerCase())
@@ -96,6 +109,8 @@ export default function KlubbarPage() {
           Alla föreningar i ditt säljterritorium.
         </p>
       </div>
+
+      {error && <LoadError message={error} onRetry={load} inline />}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>

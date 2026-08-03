@@ -12,10 +12,11 @@
  * apps/api/src/routes/dashboard.ts → orders array).
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { LoadError } from "@/components/load-error";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -26,25 +27,16 @@ import {
   Download,
   Filter,
   ChevronRight,
+  Clock,
 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
+import { countsAsRevenue } from "@roots/contracts";
 import type { SellerDashboard as SellerDashboardData } from "@/types/fundraising";
 import { getBrowserApiBase } from "@/lib/api-base";
 import { OrderDetailDialog } from "@/components/order-detail-dialog";
+import { orderStatusColor, orderStatusLabel } from "@/lib/order-status";
 
 const API_URL = getBrowserApiBase();
-
-const STATUS_COLORS: Record<string, string> = {
-  PAID: "bg-success/15 text-success border-success/40",
-  PENDING: "bg-yellow-100 text-yellow-800 border-yellow-300",
-  CANCELLED: "bg-destructive/10 text-destructive border-destructive/30",
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  PAID: "Betald",
-  PENDING: "Avvaktar",
-  CANCELLED: "Avbruten",
-};
 
 type SellerOrder = SellerDashboardData["orders"][number];
 
@@ -90,24 +82,27 @@ export default function SellerOrdersPage() {
     setDetailOpen(true);
   }
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch(`${API_URL}/v1/dashboard/seller`, {
-          credentials: "include",
-        });
-        if (res.ok) {
-          setData(await res.json());
-        } else {
-          setError("Kunde inte hämta dina beställningar.");
-        }
-      } catch {
-        setError("Nätverksfel. Försök igen.");
-      } finally {
-        setLoading(false);
+  const load = useCallback(async () => {
+    setError(null);
+    try {
+      const res = await fetch(`${API_URL}/v1/dashboard/seller`, {
+        credentials: "include",
+      });
+      if (res.ok) {
+        setData(await res.json());
+      } else {
+        setError("Kunde inte hämta dina beställningar.");
       }
-    })();
+    } catch {
+      setError("Nätverksfel.");
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   // Egen memo: `data?.orders ?? []` gav en ny array-referens per render, vilket
   // invaliderade filter- och sorterings-memona nedan varje gång.
@@ -176,14 +171,7 @@ export default function SellerOrdersPage() {
   }
 
   if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-3 py-20">
-        <p className="text-sm text-destructive">{error}</p>
-        <Button variant="outline" onClick={() => window.location.reload()}>
-          Försök igen
-        </Button>
-      </div>
-    );
+    return <LoadError message={error} onRetry={() => void load()} />;
   }
 
   return (
@@ -298,9 +286,7 @@ export default function SellerOrdersPage() {
           <CardContent className="p-0">
             <div className="divide-y">
               {sortedFiltered.map((o) => {
-                const statusClass =
-                  STATUS_COLORS[o.status] ||
-                  "bg-muted text-muted-foreground border-border";
+                const statusClass = orderStatusColor(o.status);
                 return (
                   <button
                     key={o.id}
@@ -317,12 +303,26 @@ export default function SellerOrdersPage() {
                         {formatDate(o.createdAt)}
                       </p>
                     </div>
-                    <Badge
-                      variant="outline"
-                      className={`text-[10px] uppercase tracking-wide ${statusClass}`}
-                    >
-                      {STATUS_LABELS[o.status] || o.status}
-                    </Badge>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] uppercase tracking-wide ${statusClass}`}
+                      >
+                        {orderStatusLabel(o.status)}
+                      </Badge>
+                      {/* En egen registrerad order syns i statistiken men
+                          betalas inte ut förrän lagledaren bekräftat den.
+                          Säljaren behöver veta det innan avräkningen. */}
+                      {o.isManual && countsAsRevenue(o.status) && !o.verifiedAt && (
+                        <Badge
+                          variant="outline"
+                          className="border-warning-edge bg-warning-surface text-[10px] text-warning-strong"
+                        >
+                          <Clock className="mr-1 h-3 w-3" />
+                          Väntar på lagledaren
+                        </Badge>
+                      )}
+                    </div>
                     <p className="text-sm font-semibold whitespace-nowrap">
                       {formatSek(o.totalOre)}
                     </p>
@@ -339,6 +339,9 @@ export default function SellerOrdersPage() {
         open={detailOpen}
         onOpenChange={setDetailOpen}
         orderId={detailOrderId}
+        // En avbokning ändrar både status och de summor sidan visar, så
+        // underlaget hämtas om istället för att lappas lokalt.
+        onStatusChange={() => void load()}
       />
     </div>
   );

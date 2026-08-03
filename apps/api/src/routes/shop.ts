@@ -1,5 +1,6 @@
 import { Hono } from "hono";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, inArray } from "drizzle-orm";
+import { REVENUE_ORDER_STATUSES } from "@roots/contracts";
 import { db } from "@roots/db";
 import {
   sellers,
@@ -12,6 +13,7 @@ import {
   bundleProducts,
 } from "@roots/db/schema";
 import { childLogger } from "../lib/logger";
+import { resolveCampaignCatalog, catalogToList } from "../lib/campaign-catalog";
 
 const log = childLogger("shop");
 
@@ -91,7 +93,20 @@ shop.get("/by-slug/:slug", async (c) => {
           .limit(1)
       : [null];
 
-    const productList = await db.select().from(products).where(eq(products.active, true));
+    // Butiken visar kampanjens katalog med kampanjens priser, så att det
+    // kunden ser är exakt det kassan sedan tar betalt för.
+    const productList = campaign
+      ? catalogToList(await resolveCampaignCatalog(campaign.id)).map(
+          // effectivePriceOre och sortOrder är interna för katalogupp-
+          // slagningen. Butikens svarsform ska se ut som en produkt, inte
+          // som en kampanjrad, så priset skrivs in i priceOre och hjälp-
+          // fälten faller bort.
+          ({ effectivePriceOre, sortOrder: _sortOrder, ...product }) => ({
+            ...product,
+            priceOre: effectivePriceOre,
+          })
+        )
+      : await db.select().from(products).where(eq(products.active, true));
     const bundleList = await db.select().from(bundles);
     const bundleProductLinks = await db.select().from(bundleProducts);
 
@@ -104,7 +119,7 @@ shop.get("/by-slug/:slug", async (c) => {
       .where(
         and(
           eq(customerOrders.sellerId, seller.id),
-          eq(customerOrders.status, "PAID"),
+          inArray(customerOrders.status, REVENUE_ORDER_STATUSES),
           eq(customerOrders.countsTowardStats, true)
         )
       );
@@ -117,7 +132,7 @@ shop.get("/by-slug/:slug", async (c) => {
       .where(
         and(
           eq(customerOrders.sellerId, seller.id),
-          eq(customerOrders.status, "PAID"),
+          inArray(customerOrders.status, REVENUE_ORDER_STATUSES),
           eq(customerOrders.countsTowardStats, true)
         )
       );

@@ -16,6 +16,10 @@ import {
 import { Loader2, CheckCircle2, ShoppingBag, ExternalLink, LayoutDashboard } from "lucide-react";
 
 import { apiFetch } from "@/lib/api";
+import { GUARDIAN_CONSENT_AGE } from "@roots/contracts";
+
+const CURRENT_YEAR = new Date().getFullYear();
+const MIN_PASSWORD_LENGTH = 12;
 
 export default function SellerRegistrationPage() {
   const params = useParams();
@@ -25,10 +29,30 @@ export default function SellerRegistrationPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [phone, setPhone] = useState("");
+  const [birthYear, setBirthYear] = useState("");
+  const [guardianName, setGuardianName] = useState("");
+  const [guardianEmail, setGuardianEmail] = useState("");
+  const [guardianConsent, setGuardianConsent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [shopSlug, setShopSlug] = useState("");
+
+  // Vi jämför bara årtal, precis som servern, så gränsfall hamnar på den
+  // säkra sidan: den som fyller 18 senare i år får ändå frågan.
+  const parsedBirthYear = Number(birthYear);
+  const validBirthYear =
+    /^\d{4}$/.test(birthYear) &&
+    parsedBirthYear <= CURRENT_YEAR &&
+    parsedBirthYear >= CURRENT_YEAR - 100;
+  const needsGuardian =
+    validBirthYear && CURRENT_YEAR - parsedBirthYear < GUARDIAN_CONSENT_AGE;
+  const guardianComplete =
+    !needsGuardian ||
+    (guardianConsent &&
+      guardianName.trim().length >= 2 &&
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guardianEmail.trim()) &&
+      guardianEmail.trim().toLowerCase() !== email.trim().toLowerCase());
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -48,6 +72,10 @@ export default function SellerRegistrationPage() {
             password,
             displayName,
             phone: phone || undefined,
+            birthYear: parsedBirthYear,
+            guardianName: needsGuardian ? guardianName.trim() : undefined,
+            guardianEmail: needsGuardian ? guardianEmail.trim() : undefined,
+            guardianConsent: needsGuardian ? guardianConsent : undefined,
           },
         }
       );
@@ -152,17 +180,82 @@ export default function SellerRegistrationPage() {
           </FormField>
           <FormField
             label="Lösenord"
-            description="Minst 8 tecken — använd gärna en lösenordshanterare."
+            description={`Minst ${MIN_PASSWORD_LENGTH} tecken — använd gärna en lösenordshanterare.`}
             required
           >
             <Input
               type="password"
-              placeholder="Minst 8 tecken"
+              placeholder={`Minst ${MIN_PASSWORD_LENGTH} tecken`}
               autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
           </FormField>
+          <FormField
+            label="Födelseår"
+            description={`Är du under ${GUARDIAN_CONSENT_AGE} år behöver en vårdnadshavare godkänna att du säljer.`}
+            required
+          >
+            <Input
+              type="text"
+              inputMode="numeric"
+              placeholder="2011"
+              maxLength={4}
+              autoComplete="bday-year"
+              value={birthYear}
+              onChange={(e) =>
+                setBirthYear(e.target.value.replace(/\D/g, "").slice(0, 4))
+              }
+            />
+          </FormField>
+
+          {needsGuardian && (
+            <div className="space-y-4 rounded-lg border border-brand-200 bg-brand-50/60 p-4">
+              <p className="text-sm font-medium text-foreground">
+                Vårdnadshavarens godkännande
+              </p>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                Vi mejlar vårdnadshavaren att kontot skapats, så att de vet vad
+                som gäller och kan säga till om något inte stämmer.
+              </p>
+              <FormField label="Vårdnadshavarens namn" required>
+                <Input
+                  placeholder="Förnamn Efternamn"
+                  value={guardianName}
+                  onChange={(e) => setGuardianName(e.target.value)}
+                />
+              </FormField>
+              <FormField label="Vårdnadshavarens e-post" required>
+                <Input
+                  type="email"
+                  placeholder="foralder@epost.se"
+                  value={guardianEmail}
+                  onChange={(e) => setGuardianEmail(e.target.value)}
+                />
+              </FormField>
+              <label className="flex cursor-pointer items-start gap-3 text-sm">
+                <input
+                  type="checkbox"
+                  checked={guardianConsent}
+                  onChange={(e) => setGuardianConsent(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-brand-700"
+                />
+                <span className="leading-relaxed text-muted-foreground">
+                  En vårdnadshavare har godkänt att jag registrerar mig som
+                  säljare och att Roots hanterar mina uppgifter enligt{" "}
+                  <Link
+                    href="/integritet"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline underline-offset-2 hover:text-foreground"
+                  >
+                    integritetspolicyn
+                  </Link>
+                  .
+                </span>
+              </label>
+            </div>
+          )}
           <FormField
             label="Telefon"
             description="Frivilligt — vi använder det bara om vi behöver nå dig om en leverans."
@@ -189,7 +282,14 @@ export default function SellerRegistrationPage() {
           <Button
             type="submit"
             className="w-full"
-            disabled={loading || !displayName || !email || password.length < 8}
+            disabled={
+              loading ||
+              !displayName ||
+              !email ||
+              password.length < MIN_PASSWORD_LENGTH ||
+              !validBirthYear ||
+              !guardianComplete
+            }
           >
             {loading ? (
               <>

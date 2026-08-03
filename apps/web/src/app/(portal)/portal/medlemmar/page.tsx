@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { portalFetch } from "@/lib/portal-api";
+import { LoadError } from "@/components/load-error";
 import {
   membersListResponseSchema,
   inviteMemberResponseSchema,
@@ -183,7 +184,7 @@ function BjudInMedlemDialog({
               </div>
             </div>
             {error && (
-              <p className="text-xs text-red-600" role="alert">
+              <p className="text-xs text-destructive" role="alert">
                 {error}
               </p>
             )}
@@ -211,10 +212,13 @@ export default function MedlemmarPage() {
   const [search, setSearch] = useState("");
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [listError, setListError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const { toast } = useToast();
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setLoading(true);
+    setListError(null);
     // API shape: { members: [{ id, email, name, role, createdAt }] }
     portalFetch("/members", { schema: membersListResponseSchema })
       .then((data) => {
@@ -228,9 +232,17 @@ export default function MedlemmarPage() {
           }))
         );
       })
-      .catch(() => {})
+      .catch(() => {
+        // En tom medlemslista efter ett misslyckat anrop får en admin att
+        // tro att medlemmarna försvunnit.
+        setListError("Kunde inte hämta medlemslistan.");
+      })
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const activeCount = members.filter((m) => m.status === "Aktiv").length;
   const pendingInvites = members.filter((m) => m.status === "Inbjuden").length;
@@ -262,6 +274,8 @@ export default function MedlemmarPage() {
           Bjud in medlem
         </Button>
       </div>
+
+      {listError && <LoadError message={listError} onRetry={load} inline />}
 
       <BjudInMedlemDialog
         open={dialogOpen}

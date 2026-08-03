@@ -52,7 +52,7 @@ export function Footer() {
       <div className="mx-auto max-w-[1280px] px-6 py-16 md:px-10">
         <div className="grid gap-10 md:grid-cols-4">
           <div>
-            <RootsLogo variant="black" className="h-8 w-[80px]" />
+            <RootsLogo variant="auto" className="h-8 w-[80px]" />
             <p className="mt-4 max-w-[25ch] text-sm leading-relaxed text-muted-foreground">
               Naturlig hudvård som stärker föreningslivet i Sverige.
             </p>

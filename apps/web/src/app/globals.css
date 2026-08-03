@@ -86,6 +86,14 @@
   --color-warning:              #ECD488;     /* sun */
   --color-warning-foreground:   #1D1D1B;
 
+  /* Sun är för ljus att sätta text på i ljust läge, så varningsytan får
+   * egna tokens. De vänder i .dark och håller AA i båda teman — tidigare
+   * satt "väntar"-brickorna på hårdkodad bg-yellow-100/text-yellow-800,
+   * som lyste som en lampa mot den mörka bakgrunden. */
+  --color-warning-surface:      #FDF7E7;
+  --color-warning-strong:       #6B5A16;
+  --color-warning-edge:         #E8D9A8;
+
   /* ── Surfaces ────────────────────────────────────────────────── */
   --color-card:                 #FFFFFF;
   --color-card-foreground:      #1D1D1B;
@@ -262,6 +270,10 @@ h5, h6 { font-weight: 600; letter-spacing: -0.005em; line-height: 1.35; }
   --color-brand-300:            #7F715B;
   --color-brand-400:            #B2A491;
   --color-brand-500:            #C1BF99;
+  /* brand-600 saknades här länge och behöll sitt ljusa #8B7E69, vilket
+   * gav 4,13:1 mot kortytan — under AA. Varje "text-brand-600" i portalen
+   * och lagvyerna satt på det värdet. */
+  --color-brand-600:            #A79A82;
   --color-brand-700:            #8FA065;   /* lifted forest for AA on dark */
   --color-brand-800:            #D5CABF;
   --color-brand-900:            #F1EBE2;
@@ -275,6 +287,9 @@ h5, h6 { font-weight: 600; letter-spacing: -0.005em; line-height: 1.35; }
   --color-secondary-foreground: #F1EBE2;
   --color-success:              #8FA065;
   --color-warning:              #ECD488;
+  --color-warning-surface:      #2A2416;
+  --color-warning-strong:       #ECD488;
+  --color-warning-edge:         #4A3F22;
   --color-destructive:          #E18754;
   --shadow-card:     0 1px 2px rgba(241, 235, 226, 0.04), 0 8px 24px rgba(241, 235, 226, 0.06);
   --shadow-elevated: 0 4px 32px rgba(241, 235, 226, 0.08);

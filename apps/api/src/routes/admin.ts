@@ -18,10 +18,11 @@ import type { Context } from "hono";
 import { and, desc, eq, gte, like, lt, lte, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { db } from "@roots/db";
-import { auditLogs, users } from "@roots/db/schema";
+import { auditLogs, users, organizations } from "@roots/db/schema";
 import type { SessionData } from "../lib/session";
 import { requireSession } from "../lib/http-session";
 import { childLogger } from "../lib/logger";
+import { auditLog, requestContext } from "../lib/audit";
 
 const log = childLogger("admin");
 
@@ -156,6 +157,132 @@ admin.get("/audit-log/actions", async (c) => {
   } catch (err) {
     log.error({ err }, "audit-log actions failed");
     return c.json({ error: "Kunde inte hämta åtgärds-lista" }, 500);
+  }
+});
+
+/**
+ * ── Godkännande av självregistrerade föreningar ──────────────────────
+ *
+ * En förening som registrerar sig själv får ASSOCIATION_ADMIN direkt, men
+ * kan inte ta emot publika betalningar förrän någon hos oss tittat på
+ * uppgifterna. Se apps/api/src/lib/org-approval.ts för varför.
+ *
+ *   GET  /v1/admin/organizations/pending
+ *   POST /v1/admin/organizations/:orgId/approve   { approved?: boolean }
+ */
+
+admin.get("/organizations/pending", async (c) => {
+  const guard = await requireInternalAdmin(c);
+  if (!guard.ok) return c.json({ error: guard.error }, guard.status);
+
+  try {
+    const rows = await db
+      .select({
+        id: organizations.id,
+        name: organizations.name,
+        orgNumber: organizations.orgNumber,
+        nationalFederation: organizations.nationalFederation,
+        sportType: organizations.sportType,
+        createdAt: organizations.createdAt,
+        // Alla kontaktpersoner samlade på föreningens rad.
+        //
+        // Joinen gav tidigare en rad per administratör, så en förening med två
+        // admins dök upp två gånger och `limit(200)` räknade joinade rader i
+        // stället för föreningar — med tillräckligt många dubbletter kunde en
+        // förening som väntar på granskning falla utanför listan helt och
+        // därmed aldrig bli godkänd.
+        contacts: sql<
+          Array<{ email: string; name: string | null; phone: string | null }>
+        >`coalesce(
+            jsonb_agg(
+              distinct jsonb_build_object(
+                'email', ${users.email},
+                'name', ${users.contactName},
+                'phone', ${users.phone}
+              )
+            ) filter (where ${users.email} is not null),
+            '[]'::jsonb
+          )`,
+      })
+      .from(organizations)
+      // Kontaktpersonen är det granskaren faktiskt behöver — namnet på
+      // föreningen säger ingenting om vem som skrev in det.
+      .leftJoin(
+        users,
+        and(eq(users.orgId, organizations.id), eq(users.role, "ASSOCIATION_ADMIN"))
+      )
+      .where(eq(organizations.verified, false))
+      // Föreningens id är primärnyckel, så Postgres tillåter att de övriga
+      // kolumnerna väljs utan att räknas upp här.
+      .groupBy(organizations.id)
+      .orderBy(desc(organizations.createdAt))
+      .limit(200);
+
+    return c.json({ organizations: rows });
+  } catch (err) {
+    log.error({ err }, "pending organizations failed");
+    return c.json({ error: "Kunde inte hämta föreningar att granska" }, 500);
+  }
+});
+
+admin.post("/organizations/:orgId/approve", async (c) => {
+  const guard = await requireInternalAdmin(c);
+  if (!guard.ok) return c.json({ error: guard.error }, guard.status);
+
+  const orgId = c.req.param("orgId");
+  if (!/^[0-9a-f-]{36}$/i.test(orgId)) {
+    return c.json({ error: "Ogiltigt organisations-id." }, 400);
+  }
+
+  let body: { approved?: boolean } = {};
+  try {
+    body = await c.req.json();
+  } catch {
+    // Tom body betyder godkänn — det är det vanliga fallet.
+  }
+  const approved = body.approved !== false;
+
+  try {
+    const [updated] = await db
+      .update(organizations)
+      .set({
+        verified: approved,
+        verifiedAt: approved ? new Date() : null,
+        verifiedByUserId: approved ? guard.session.userId : null,
+        updatedAt: new Date(),
+      })
+      .where(eq(organizations.id, orgId))
+      .returning();
+
+    if (!updated) {
+      return c.json({ error: "Föreningen hittades inte." }, 404);
+    }
+
+    void auditLog({
+      userId: guard.session.userId,
+      action: approved
+        ? "admin.organization.approved"
+        : "admin.organization.approval_revoked",
+      entityType: "organization",
+      entityId: orgId,
+      meta: {
+        ...requestContext((n) => c.req.header(n)),
+        orgName: updated.name,
+      },
+    });
+
+    return c.json({
+      ok: true,
+      organization: {
+        id: updated.id,
+        name: updated.name,
+        verified: updated.verified,
+        verifiedAt: updated.verifiedAt,
+      },
+    });
+  } catch (err) {
+    log.error({ err, orgId }, "organization approval failed");
+    return c.json({ error: "Kunde inte uppdatera föreningen" }, 500);
   }
 });
 

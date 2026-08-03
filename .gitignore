@@ -19,3 +19,14 @@ docs/**/_cache/
 # Väntelista-exporter innehåller personuppgifter (e-post) och ska aldrig
 # checkas in. Kör `pnpm waitlist:export` för att generera dem lokalt.
 exports/
+
+# Databasdumpar från scripts/db-backup.sh. Innehåller hela kundregistret,
+# inklusive minderåriga säljare och deras målsmän. Ska krypteras och lagras
+# utanför både repot och Railway — se docs/runbooks/backup-restore.md.
+backups/
+
+# Ersättningsförslaget är ett förhandlingsunderlag och hör inte i ett repo som
+# fler har tillgång till. Hela mappen, inte bara dokumenten: byggskriptet
+# innehåller belopp och villkor i klartext, så att undanta bara .md och .pdf
+# lämnade förhandlingsunderlaget kvar i diffen.
+docs/ersattning/

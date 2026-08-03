@@ -159,8 +159,10 @@ export default function NotificationBell() {
         className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-brand-50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <Bell className="h-4 w-4" />
+        {/* brand-600 med vit text landade på 3,97:1 — under AA för 10px.
+            brand-900/brand-50 vänder med temat och håller sig läsbar. */}
         {unreadCount > 0 && (
-          <span className="absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-brand-600 px-1 text-[10px] font-bold text-white">
+          <span className="absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-brand-900 px-1 text-[10px] font-bold text-brand-50">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}

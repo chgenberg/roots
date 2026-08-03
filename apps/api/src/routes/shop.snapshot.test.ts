@@ -126,6 +126,9 @@ describe("GET /v1/shop/by-slug/:slug", () => {
       ],
       // organizations
       [{ name: "IFK Roots" }],
+      // campaign_products — tom, så katalogen faller tillbaka till hela
+      // den aktiva produktlistan (se resolveCampaignCatalog).
+      [],
       // products
       [
         {

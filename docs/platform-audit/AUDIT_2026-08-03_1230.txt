@@ -1,0 +1,507 @@
+ROOTS PLATFORM AUDIT — PRODUKTIONSBEREDSKAP
+============================================
+Datum: 2026-08-03 12:30
+Metod: 8 parallella read-only sub-agenter + pnpm typecheck/lint/test
+Omfattning: hela monorepot (apps/web, apps/api, packages/*)
+Fraga: vad ar kvar innan vi ar produktionsklara?
+
+BYGGSTATUS
+----------
+typecheck: 5/5 paket OK
+lint:      0 errors, 11 warnings (10 x no-explicit-any i apps/api, 1 oanvand
+           import i packages/ui)
+test:      16 filer, 154 tester, alla gronar (apps/api). Ingen frontend-E2E
+           korning i CI.
+
+SAMMANFATTAD DOM
+----------------
+Plattformen ar tekniskt valbyggd — server-sidig prissattning i ore, CSRF,
+Argon2id, rate limits, sakerhetsheaders, boot-validering av env, migrations
+med advisory lock. Men den ar INTE produktionsklar. Blockeraren ar
+PENGAFLODET: Klarna kan ta betalning utan att ordern nagonsin blir PAID,
+det finns ingen aterbetalningsvag, manuella saljarordrar rakans som betalda
+utan verifikation, och Fortnox-integrationen ar till storre delen tomma
+stubbar. Dessutom finns ingen larmning — om kassan slutar fungera far ni
+veta det av en kund.
+
+Antal fynd: 92 (efter dedup)
+  P1 Kritiska / launch-blockerande: 14
+  P2 Hoga:                          31
+  P3 Medel:                         24
+  P4 Laga:                          18
+  P5 Nice-to-have:                   5
+
+=====================================================
+PRIORITET 1 — KRITISKT, BLOCKERAR LANSERING
+=====================================================
+
+[1.1] Klarna-ordrar kan fastna i PENDING for alltid efter genomford betalning
+Agent: Commerce
+File: apps/api/src/routes/checkout.ts
+Line: 875-985
+Detail: Overgangen till PAID sker bara via webhook eller nar kopraren sjalv
+traffar /confirm/:orderId. Missas webhooken och kunden stanger fliken ligger
+ordern kvar som PENDING medan Klarna kan ha dragit pengarna. Det finns inget
+cronjobb som stammer av gamla PENDING-ordrar mot Klarna. Bygg en
+avstamningsjobb + larm pa PENDING aldre an N minuter med klarnaOrderId.
+
+[1.2] Ingen aterbetalningsvag finns overhuvudtaget
+Agent: Commerce
+File: packages/db/src/schema/customer-orders.ts
+Line: 20-30
+Detail: REFUNDED finns i enum och visas i UI, men ingen endpoint anropar
+Klarnas refund-API och ingen justering gors i avrakningen. En aterbetald
+order star kvar som PAID och blaser upp foreningens utbetalning. Kravs
+refund-endpoint + Klarna-refund + kreditering i settlement fore lansering.
+
+[1.3] Manuella saljarordrar skrivs som PAID och gar in i avrakningen utan
+verifikation
+Agent: Backend, Commerce
+File: apps/api/src/routes/dashboard.ts
+Line: 1262-1294 (settlement.ts:118-123)
+Detail: POST /v1/dashboard/seller/orders satter status PAID med
+paymentMethod DIRECT_TO_LEADER utan nagon kontroll. Settlement summerar alla
+PAID-ordrar, sa ett kapat eller ohederligt saljarkonto kan blasa upp
+teamShareOre och darmed en riktig utbetalning. Kraver godkannandeflode eller
+separat hink som inte auto-avraknas.
+
+[1.4] Fortnox: webhook och invoice-sync ar tomma stubbar
+Agent: Backend, Commerce
+File: apps/api/src/routes/fortnox-webhook.ts
+Line: 76-84 (apps/api/src/jobs/sync-invoice-status.ts:11-30)
+Detail: invoice-paid och invoice-cancelled loggar bara "Would update invoice
+status". sync-invoice-status har alltid en tom lista och skriver aldrig till
+DB. Bokforingen kommer glida ifran plattformens state. Lansera inte med
+FORTNOX_ENABLED=true fore handlers faktiskt skriver.
+
+[1.5] Fortnox OAuth och token-refresh saknas — tabellen finns men anvands aldrig
+Agent: Commerce
+File: apps/api/src/lib/invoicing/index.ts
+Line: 15-24
+Detail: integration_fortnox finns i schemat men laser/skriver ingen kod.
+Providern anvander en statisk FORTNOX_ACCESS_TOKEN utan hantering av
+utgang. Token slutar gala tyst och fakturering falerar i drift.
+
+[1.6] Inget losenordsaterstallningsflode finns
+Agent: Backend, Auth
+File: apps/api/src/routes/auth.ts
+Line: — (ingen route; tRPC-stubben borttagen i trpc/routers/auth.ts:13-17)
+Detail: Anvandare som glommer sitt losenord har ingen vag tillbaka, vilket
+tvingar fram osakra supportgenvagar. Bygg token-baserad aterstallning
+(hoge entropi, engangs, kort TTL, rate limit, likalydande felmeddelanden).
+
+[1.7] SELLER kan hamta lagens invite-tokens via tRPC och skapa konton
+Agent: Auth
+File: apps/api/src/trpc/routers/campaigns.ts
+Line: 212-229
+Detail: teams.listByCampaign ar protectedProcedure (vilken inloggad
+org-medlem som helst) och returnerar inviteToken for varje lag. En inloggad
+saljare kan skorda tokens och registrera godtyckliga konton via
+/v1/auth/register/seller. Begransa till TEAM_LEADER/ASSOCIATION_ADMIN och
+plocka bort inviteToken ur listsvaret.
+
+[1.8] Hair-analysis-API:et ar oppet fast funktionen ar avstangd i UI
+Agent: AI
+File: apps/web/src/lib/feature-flags.ts
+Line: 17
+Detail: HAIR_ANALYSIS_ENABLED=false stanger bara /haranalys i middleware.
+/v1/ai/hair-analysis kor vidare och nagon som hittar endpointen kan branna
+hela vision-budgeten (2 000 anrop/dygn). Spegla flaggan pa API-sidan.
+
+[1.9] Barns foton skickas till GPT Vision — ageConfirmed ar hardkodat true
+Agent: AI
+File: apps/web/src/components/hair-analysis-lead-dialog.tsx
+Line: 324
+Detail: Klienten skickar alltid ageConfirmed: true utan kryssruta eller
+text, och servern sparar vad klienten sager utan att validera alder.
+Minderariga kan ladda upp portratt som vidarebefordras till OpenAI. Kravs
+riktig aldersgrind i UI och server-sidig kontroll.
+
+[1.10] Inget server-sidigt filter mot medicinska pastaenden i AI-svar
+Agent: AI
+File: apps/api/src/routes/hair-analysis.ts
+Line: 259-268
+Detail: Modellens rasvar returneras och renderas direkt. Prompten forbjuder
+diagnoser, men jailbreak eller modelldrift kan anda ge "behandlar mjall"
+eller "botar eksem" — exakt den regulatoriska risk ett kosmetikbolag inte
+far ta. Lagg pa JSON-schemavalidering plus blocklista pa summary,
+scalpNotes, lifestyleTips fore svar.
+
+[1.11] campaign_products anvands aldrig — kassan slapper igenom alla aktiva
+produkter och per-kampanjpris fungerar inte
+Agent: Commerce
+File: apps/api/src/routes/checkout.ts
+Line: 393-422
+Detail: Kassan laser alla products.active=true och anvander product.priceOre,
+helt utan koppling till saljarens kampanj. En klient kan alltsa kopa
+produkter som inte visas i butiken, och customPriceOre far ingen effekt.
+Joina campaign_products for seller.campaignId och anvand
+customPriceOre ?? priceOre.
+
+[1.12] getCsrfToken saknar felhantering — ett hicka fran API:et braker alla
+mutationer (login, kassa, portal)
+Agent: Frontend
+File: apps/web/src/lib/api.ts
+Line: 6-16
+Detail: Anropet parsar JSON utan att kolla res.ok eller att data.token finns,
+och returnerar csrfToken!. En 502 fran proxyn kastar darfor ett ohanterat
+undantag in i varje POST/PATCH. Kolla res.ok, validera token, nollstall
+modul-cachen vid fel. Samma monster i chat-widget.tsx:21-27.
+
+[1.13] Ingen driftsovervakning eller larmning — ni far veta av kunderna
+Agent: DevOps
+File: docs/PRODUCTION_READINESS.md
+Line: 172-176
+Detail: Ingen uptime-monitor pa /readyz, ingen frontend-Sentry, ingen
+schemalagd synthetic-korning (scripts/synthetic.mjs finns men anropas inte
+fran CI eller cron), inget larm pa kassafel. En tyst checkout-krasch ger
+noll signal. Satt upp uptime-poll + Sentry DSN + larm innan DNS pekas om.
+
+[1.14] Backup och restore ar odokumenterat och otestat
+Agent: DevOps
+File: docs/PRODUCTION_READINESS.md
+Line: 83-84
+Detail: Checklistans krav pa nattlig snapshot verifierad genom restore till
+en scratch-databas ar fortfarande obockad. Det finns ingen runbook for
+Railway PITR och inget restore-skript. En dalig migration eller ett
+felklick kan betyda oaterkallelig dataforlust.
+
+=====================================================
+PRIORITET 2 — HOGT
+=====================================================
+
+[2.1] Personnummer lagras i klartext
+Agent: Backend | packages/db/src/schema/users.ts:25
+Krypterat i vila (pgcrypto eller applikationslager), minimera insamling.
+
+[2.2] Malsmansamtycke samlas aldrig in fast kolumnerna finns
+Agent: Auth, AI | packages/db/src/schema/users.ts:30-36
+guardianUserId/guardianConsentAt finns men inget flode fyller dem. Saljarna
+ar barn — blockera butiksaktivering till samtycke ar registrerat.
+
+[2.3] Hair-analysis-leads sparas for alltid utan raderingsvag
+Agent: Backend | packages/db/src/schema/leads.ts:3-12
+E-post och IP persisteras, purgeDueDeletions ror bara users. Satt retention
+och koppla till raderingsbegaran.
+
+[2.4] tRPC ai.chat gar runt globala dagstaket och PII-scrubbing
+Agent: AI | apps/api/src/trpc/routers/ai.ts:43-87
+REST-vagen har aiGlobalChatDailyCap + scrubPiiText, tRPC-vagen har bara
+per-user rate limit och skickar meddelandet oront. Porta samma skydd.
+
+[2.5] Streamade chattsvar loggar aldrig tokenanvandning
+Agent: AI | apps/api/src/routes/public-chat.ts:143-169
+Bada chattytorna kor stream: true som default, och SSE-hanterarna anropar
+aldrig recordAiUsage. Verklig kostnad ar alltsa hogre an vad ni ser.
+
+[2.6] Globala AI-tak ar satta hogt och utan kronbelopp
+Agent: AI | apps/api/src/lib/rate-limit.ts:130-139
+50 000 chattanrop och 2 000 vision-anrop per dygn ar taket. Grov
+varsta-fall-kostnad pa en full dag: nagra hundra till ett par tusen dollar.
+Sank defaults och lagg pa en USD-cap med larm.
+
+[2.7] Demokonton med kanda losenord kan aktiveras i produktion
+Agent: Backend, Auth | apps/api/src/routes/auth.ts:52-54, 80-122
+ROOTS_ENABLE_DEMO_ACCOUNTS=true ger admin@roots.se / Demo1234! med
+INTERNAL_ADMIN. Vagra starta med flaggan satt nar NODE_ENV=production.
+
+[2.8] Login faller igenom till demokonton nar DB-uppslaget kastar
+Agent: Backend | apps/api/src/routes/auth.ts:236-270
+Ett DB-avbrott kan alltsa slappa in demo-inlogg. Fail closed i produktion.
+
+[2.9] /checkout/confirm/:orderId delar ut viewToken till den som kan gissa UUID
+Agent: Backend, Auth | apps/api/src/routes/checkout.ts:875-1007
+Undergraver skyddet pa /order-status. Krav token aven pa confirm, eller
+bind utdelningen till sessionen som satts vid kassan.
+
+[2.10] Ingen idempotens pa B2B-portalordrar fast kontraktet kraver det
+Agent: Backend | apps/api/src/routes/portal.ts:415-541
+CreateOrderSchema kraver idempotencyKey, routen ignorerar den. Dubbelklick
+ger dubbla ordrar.
+
+[2.11] Webbkassan skickar ingen Idempotency-Key
+Agent: Commerce | apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx:165-184
+API:et stodjer headern, klienten utelamnar den. Retry med minimalt andrad
+body ger dubbelorder.
+
+[2.12] Villkorsgodkannandet sparas aldrig pa servern
+Agent: Commerce | .../kassa/page.tsx:519-553
+Kryssrutan stoppar submit i UI men termsAccepted skickas inte in. Ni kan
+inte bevisa samtycke enligt distansavtalslagen. Spara termsAcceptedAt +
+version pa ordern.
+
+[2.13] Marginalen raknas om vid avrakning istallet for att frysas per order
+Agent: Commerce | apps/api/src/routes/settlement.ts:156-158
+Andras campaign.marginPercent glider PENDING-utbetalningar. Spara andelen
+pa ordern nar den skapas.
+
+[2.14] Klarnas beloppskontroll hoppas over nar order_amount ar null
+Agent: Commerce | apps/api/src/routes/checkout.ts:756-758
+Fail closed istallet — vagra PAID utan beloppsbevis.
+
+[2.15] Webhook-dedup faller tillbaka pa processminne nar Redis felar
+Agent: Backend | apps/api/src/lib/webhook-dedup.ts:71-84
+Med flera repliker kan samma betalningswebhook behandlas tva ganger.
+
+[2.16] Settlement-lasen faller open nar Redis ar nere
+Agent: Backend, Commerce | apps/api/src/routes/settlement.ts:62-70
+Tva parallella generate-anrop kan racea. Fail closed eller DB advisory lock.
+
+[2.17] Fortnox-faktura skapas utanfor transaktionen — foraldralosa fakturor
+Agent: Backend, Commerce | apps/api/src/routes/settlement.ts:545-614
+Lyckas Fortnox men DB-uppdateringen traffar 0 rader finns fakturan externt
+medan plattformen star PENDING. Bygg kompenserande steg eller uppslag pa
+YourOrderNumber fore create.
+
+[2.18] Moms hardkodad till 25 % och avrundas olika i API och UI
+Agent: Backend, Commerce | apps/api/src/routes/checkout.ts:423-424 vs
+kassa/page.tsx:154
+Ingen vatRate per produkt. Byter ni produktmix blir Klarnas skattetotal fel.
+
+[2.19] MFA finns i schema och helpers men ar inte inkopplad
+Agent: Auth | apps/api/src/lib/mfa.ts:1-35
+Referensarkitekturen kraver MFA for SALES_ADMIN och INTERNAL_ADMIN.
+
+[2.20] Oppen sjalvregistrering av forening ger direkt admin-rattigheter
+Agent: Auth | apps/api/src/routes/auth.ts:832-964
+Ingen manuell granskning eller orgnummerkontroll. Lagg pa godkannandeflode.
+
+[2.21] Ingen lagerhantering — obegransad oversalj mojlig
+Agent: Backend, Commerce | packages/db/src/schema/products.ts
+Antingen stock-kolumn med transaktionell minskning, eller dokumentera
+medvetet val.
+
+[2.22] Bundles visas i butiken men kan inte kopas
+Agent: Backend | apps/api/src/routes/shop.ts:95-158 vs checkout.ts:414-443
+
+[2.23] Ingen frontend-felrapportering
+Agent: Frontend, DevOps | apps/web/package.json
+@sentry/nextjs saknas helt. Klarna-iframe-fel och portal-krascher ar
+osynliga. CSP tillater redan Sentry-domanerna.
+
+[2.24] Tysta .catch(() => {}) over hela portalen doljer API-fel som tomma vyer
+Agent: UX, Frontend | apps/web/src/app/(portal)/portal/page.tsx:137-153 m.fl.
+Operatoren kan inte skilja "inga data" fran "trasigt". Flytta till
+useApiData eller visa felbanner.
+
+[2.25] Morkt lage ar halvfardigt men vaxeln ar synlig, och logotypen forsvinner
+Agent: Design | apps/web/src/components/header.tsx:114-116
+RootsLogo ar alltid variant="black" mot en bakgrund som blir mork. Bara ~6
+filer har dark:-varianter. Gom vaxeln till lage ar genomgangen, eller fixa
+logotyp + alert/chart-ytor.
+
+[2.26] API_BACKEND_URL maste vara satt i produktion
+Agent: Frontend | apps/web/src/middleware.ts:196-202
+Saknas den faller den tillbaka pa 127.0.0.1:4000 och alla skyddade rutter
+skickar inloggade anvandare till /login.
+
+[2.27] NEXT_PUBLIC_SITE_URL maste bakas in vid Docker-bygget
+Agent: Frontend | apps/web/Dockerfile:26-31
+Saknas den blir delningslankar, OG-taggar och QR-koder localhost.
+
+[2.28] CORS_ORIGIN kontrolleras inte mot NEXT_PUBLIC_SITE_URL vid boot
+Agent: DevOps | apps/api/src/app.ts:126-131
+En www-glapp gor att varje POST tyst falerar i webblasaren.
+
+[2.29] Resend saknas -> orderbekraftelser skickas aldrig, men API:et startar
+Agent: DevOps | .env.example:162-174
+Mock-providern returnerar success och skickar ingenting.
+
+[2.30] Middleware loggar ut alla nar API:et blinkar
+Agent: Frontend | apps/web/src/middleware.ts:232-237
+catch-blocket redirectar alltid till /login, oskiljbart fran utgangen
+session. Visa hellre en 503-sida.
+
+[2.31] Kassaflodet har varken E2E- eller integrationstest
+Agent: DevOps | apps/api/src/routes/checkout.ts
+Bara klarna-webhook.test.ts finns. tests/persona-test.mjs kors inte i CI.
+En trasig kassa upptacks alltsa av kunder.
+
+=====================================================
+PRIORITET 3 — MEDEL
+=====================================================
+
+[3.1]  Rollnedgraderingar slar igenom forst efter upp till 30 s — session.ts:28-37
+[3.2]  Login ogiltigforklarar inte andra sessioner — auth.ts:186-218
+[3.3]  /change-password saknar rate limit — auth.ts:310-419
+[3.4]  Gamla invite-tokens har varken utgang eller anvandningstak — auth.ts:1201
+[3.5]  /v1/ai/chat slapper in alla roller, inte bara portalroller — ai-chat.ts:69
+[3.6]  Ingen RAG — AI svarar fritt om produkter och regelverk — system-prompt.ts:47
+[3.7]  Systemprompten innehaller terapeutiskt sprak ("lugnar hud och harbotten")
+[3.8]  imageValidationFailed fran modellen hanteras inte — hair-analysis.ts:259
+[3.9]  Vision-svarsfalt valideras inte -> promptinjektion — hair-analysis.ts:150
+[3.10] Bilduppladdning kollar MIME-prefix, inte magic bytes — hair-analysis.ts:72
+[3.11] Retry pa 429/503 kan dubbeldebitera — openclaw-client.ts:61-102
+[3.12] Ingen fallback-modell nar den pinnade modellen pensioneras
+[3.13] Portal-AI:n foreslar "Sammanfatta min pipeline" utan dataatkomst
+[3.14] tokensToday/tokensMonth visas alltid som null i admin — portal.ts:2081
+[3.15] Chattwidgeten har ingen samtyckesruta fore forsta meddelandet
+[3.16] CONFIRMED och CANCELLED sats aldrig av nagon kod — customer-orders.ts
+[3.17] Overgivna PENDING-ordrar stadas aldrig — checkout.ts:503
+[3.18] Manuella ordrar sparar tom customerEmail mot NOT NULL — dashboard.ts:1271
+[3.19] Saknade foreign keys: placedByUserId, orders.quoteId, guardianUserId
+[3.20] REST-mutationer validerar ad hoc istallet for via packages/contracts
+[3.21] CSP tillater 'unsafe-inline' pa script-src — next.config.ts:54
+[3.22] Ingen cookie-banner (kan vara OK — Plausible ar cookiefritt, kolla juridik)
+[3.23] Telefonnummret i legal-identity.ts:26 ar en platshallare (+46 8 000 000 00)
+[3.24] Fortnox Price via toFixed(2) tappar ore-precision — fortnox-provider.ts:183
+
+Ovriga medel-fynd fran UX: trasig /integritet#cookies-ankare, saknat
+#main-content i shop/kalkylator-layouterna, ingen Escape/focus-trap i
+mobilmenyn, portalrutter utan sidtitlar, saknad loading.tsx i (fundraising),
+sitemap saknar /sa-fungerar-det och /hjalp, placeholderkort i
+installningar och admin-dashboarden.
+
+=====================================================
+PRIORITET 4 — LAGT
+=====================================================
+
+- Ingen hemlighetsskanning (gitleaks) i CI — bara en grep-tips i runbooken
+- Dev-CVE:er: vitest < 3.2.6 (kritisk), xlsx (hog, bara i db-skript)
+- robots.ts blockerar inte /forening, /lag, /min-shop
+- API:et saknar COOP/CORP (lag risk for JSON)
+- ~80 MB oanvanda bilder i apps/web/public/images
+- Fontpaketet ar ~2,1 MB over 11 skarningar utan subsetting
+- packages/ui ar dott — inga importer nagonstans, men transpileras
+- @tanstack/react-query och @trpc/react-query ar installerade men oanvanda
+- Button size="lg" anvander h-13 som inte finns i temat
+- global-error.tsx ar helt off-brand (ingen brandfont, inga tokens)
+- E-postmallar anvander gamla #1C1410 istallet for #1D1D1B
+- QR-koden i min-shop anvander samma gamla hex
+- Hardkodade neutral-*/slate-*/amber-* istallet for semantiska tokens
+- animate-pulse pa login respekterar inte prefers-reduced-motion
+- Engelska strangar i svenskt UI: "Close" i sheet.tsx, "Uptime", "Live",
+  "Roots portal", "t.ex. organization"
+- Ingen .nvmrc trots engines >=20
+- 11 lint-warnings (10 x any i api, 1 oanvand import i ui)
+- Sitemap ar force-dynamic och traffar backend vid varje crawl
+
+=====================================================
+PRIORITET 5 — NICE TO HAVE
+=====================================================
+
+- Ingen llms.txt / ai.txt for AI-assistenters upptackbarhet
+- Chatthistorik-flaggan finns men ar inte inkopplad
+- mcp-tools.ts ar dod kod med gamla priser (149 kr)
+- Gamification-sektionen visar generiska milstolpar, inte riktig social proof
+- Ingen print-stylesheet for kvitton och rapporter
+
+=====================================================
+OMRADEN SOM AR RENA
+=====================================================
+
+- Pengar lagras som heltal ore hela vagen (priceOre, totalOre, Klarna)
+- Kassan: server-sidig prissattning, transaktioner, idempotens pa API-sidan,
+  Klarna belopp/valuta-grindar, webhook HMAC + IP-allowlist
+- Losenord: Argon2id med rimliga parametrar, minst 12 tecken
+- Sessionscookies: httpOnly, secure i prod, sameSite korrekt for cross-origin
+- CSRF pa alla muterande REST- och tRPC-anrop, fail closed i prod
+- Rate limits pa login, registrering, kassa, kontakt, BankID och AI
+- Agarskapskontroller pa dashboard-, portal- och settlement-rutter
+- Sakerhetsheaders pa webben ar mer kompletta an referenskravet: CSP skarpt
+  lage, HSTS 2 ar med preload, X-Frame-Options DENY, COOP, CORP
+- CORS ar single-origin, inte wildcard
+- Boot-validering av env vagrar starta med platshallare i produktion
+- Migrations kors vid boot med advisory lock — repliker ar sakra
+- API-Sentry ar inkopplad (route-fel, unhandledRejection, bootfel)
+- Docker: non-root, healthcheck, standalone-output
+- CI kor typecheck, lint, static-refs, build och API-tester
+- GDPR: raderingslivscykel med cooldown, purge-jobb och cancel-token
+- Legala sidor har verkligt svenskt innehall (angerratt, reklamation, ARN,
+  IMY), Organization/Product/FAQ JSON-LD, canonicals
+- Ingen radsql-injektion hittad — Drizzle parametriserar genomgaende
+- Inga API-nycklar i klientbundlar eller i repot
+- TypeScript strict, noll @ts-ignore i apps/web/src
+
+=====================================================
+FORESLAGEN ORDNING
+=====================================================
+
+Steg 1 — pengaflodet (utan detta kan ni inte ta emot en krona)
+  1.1 avstamning av PENDING-ordrar mot Klarna + larm
+  1.2 refund-endpoint + settlement-justering
+  1.3 manuella ordrar ut ur auto-avrakningen
+  1.11 kampanjscopad produktkatalog och pris
+  2.11-2.13 idempotency-key fran klienten, sparat villkorsgodkannande,
+       fryst marginal per order
+
+Steg 2 — sakerhet och juridik
+  1.7 invite-token-lackan (liten fix, stor risk)
+  1.6 losenordsaterstallning
+  2.1-2.3 personnummer, malsmansamtycke, retention pa leads
+  2.7-2.9 demokonton, fail-closed login, confirm-token
+
+Steg 3 — AI innan den moter publik
+  1.8-1.10 API-flagga, aldersgrind, pastaendefilter
+  2.4-2.6 tRPC-bypass, tokenmatning pa stream, sankta tak
+
+Steg 4 — drift
+  1.13 uptime + Sentry i frontend + larm pa kassafel
+  1.14 verifierad backup-restore, dokumenterad
+  2.31 E2E-test av kassan i CI
+  1.12 getCsrfToken-harndningen
+  2.26-2.29 env-konfigurationen i produktion
+
+Steg 5 — polish fore publik lansering
+  Morkt lage: gom vaxeln eller gor jobbet
+  2.24 riktiga felstates i portalen
+  P3/P4-listan enligt eget tycke
+
+=====================================================
+TILLAGG: OMPRIORITERING UTAN KLARNA OCH FORTNOX
+=====================================================
+Klarna ar inte signat och Fortnox ar inte klart. Da faller foljande fynd
+bort ur den akuta listan tills avtalen finns: 1.1 (PENDING-avstamning),
+1.2 (refund via Klarna), 1.4, 1.5 (Fortnox-stubbar och OAuth),
+2.14 (Klarnas beloppskontroll), 2.15 (webhook-dedup), 2.17 (foraldralosa
+Fortnox-fakturor).
+
+Kvar star 12 av de 14 P1-fynden. Och en av dem blir VIKTIGARE, inte mindre
+viktig: utan Klarna ar den manuella orderingangen det enda stallet dar
+pengar rors, och det ar den minst skyddade delen av systemet.
+
+DEN MANUELLA PENGAVAGEN AR NU HUVUDVAGEN
+  1.3  manuella ordrar skrivs som PAID utan verifikation och gar rakt in
+       i avrakningen -> ni kan betala ut pengar ni aldrig fatt in
+  2.13 marginalen raknas om vid avrakning istallet for att frysas per order
+  2.16 settlement-lasen faller open nar Redis ar nere
+  2.10 ingen idempotens pa portalordrar
+  2.12 villkorsgodkannandet sparas aldrig pa servern
+  2.18 moms hardkodad 25 % och avrundas olika i API och UI
+  1.11 kampanjscopad katalog och pris anvands inte alls
+
+BARN OCH JURIDIK (min bedomning: det verkliga lanseringsstoppet)
+  2.2  malsmansamtycke samlas aldrig in fast kolumnerna finns
+  2.1  personnummer i klartext
+  1.9  ageConfirmed hardkodat true nar barns foton gar till GPT Vision
+  2.3  hair-analysis-leads sparas for alltid utan raderingsvag
+
+AI INNAN DEN MOTER PUBLIK
+  1.8  API:et oppet fast funktionen ar avstangd i UI
+  1.10 inget filter mot medicinska pastaenden i svaren
+  2.4  tRPC-vagen gar runt dagstak och PII-scrubbing
+  2.5  streamade svar loggar ingen tokenanvandning
+  2.6  taken ar hoga och utan kronbelopp
+
+AUTH
+  1.7  invite-token-lackan (liten fix, stor risk)
+  1.6  losenordsaterstallning saknas
+  2.7  demokonton med kanda losenord kan aktiveras i produktion
+  2.8  login faller igenom till demokonton nar DB kastar
+  2.19 MFA inte inkopplad for admin- och saljadminroller
+  2.20 oppen sjalvregistrering av forening ger direkt admin
+
+DRIFT
+  1.13 ingen overvakning eller larmning
+  1.14 backup-restore odokumenterat och otestat
+  1.12 getCsrfToken saknar felhantering
+  2.31 inget E2E-test av orderflodet i CI
+  2.23 ingen frontend-Sentry
+  2.26-2.29 env-konfiguration i produktion, inkl. Resend for bekraftelser
+  2.30 middleware loggar ut alla nar API:et blinkar
+
+POLISH FORE PUBLIK
+  preview-gate av, 2.25 morkt lage (gom vaxeln eller gor jobbet),
+  2.24 riktiga felstates i portalen, 2.21 lager, 2.22 kopbara bundles
+
+--- SLUT PA RAPPORT ---

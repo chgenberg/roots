@@ -2,10 +2,11 @@
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { TrendingUp, Wallet, CalendarDays } from "lucide-react";
 import { portalFetch } from "@/lib/portal-api";
 import { incomeResponseSchema } from "@roots/contracts";
+import { LoadError } from "@/components/load-error";
 
 interface MonthRow {
   month: string;
@@ -42,8 +43,11 @@ export default function IntakterPage() {
   const [months, setMonths] = useState<MonthRow[]>([]);
   const [totalEarnedOre, setTotalEarnedOre] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setLoading(true);
+    setError(null);
     // API shape: { months: [{ month, revenueOre, orderCount }], totalEarnedOre }
     portalFetch("/income", { schema: incomeResponseSchema })
       .then((data) => {
@@ -61,9 +65,20 @@ export default function IntakterPage() {
         );
         setTotalEarnedOre(data.totalEarnedOre ?? 0);
       })
-      .catch(() => {})
+      .catch(() => {
+        // Tidigare svaldes felet här, och sidan visade 0 kr. En förening som
+        // faktiskt sålt för 40 000 kr fick alltså se noll utan att något
+        // antydde att siffran inte gick att lita på.
+        setError(
+          "Kunde inte hämta era intäkter. Siffrorna nedan visas inte eftersom de skulle bli felaktiga."
+        );
+      })
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const totalEarned =
     totalEarnedOre !== null
@@ -85,14 +100,29 @@ export default function IntakterPage() {
     return d.toLocaleDateString("sv-SE", { day: "numeric", month: "short" });
   })();
 
+  const header = (
+    <div>
+      <h1 className="text-2xl font-bold tracking-tight">Intäkter</h1>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Följ era intäkter från Roots-försäljningen.
+      </p>
+    </div>
+  );
+
+  // Vid fel visar vi inga siffror alls. Ett nollställt belopp är värre än
+  // ingen uppgift: det ser ut som ett svar.
+  if (error) {
+    return (
+      <div className="page-enter space-y-6">
+        {header}
+        <LoadError message={error} onRetry={load} inline />
+      </div>
+    );
+  }
+
   return (
     <div className="page-enter space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Intäkter</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Följ era intäkter från Roots-försäljningen.
-        </p>
-      </div>
+      {header}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>

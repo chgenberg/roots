@@ -138,6 +138,14 @@ export async function chatCompletion(
   }
 }
 
+export interface StreamUsage {
+  model: string;
+  promptTokens?: number;
+  completionTokens?: number;
+  /** True när klienten kopplade ner mitt i strömmen. */
+  aborted: boolean;
+}
+
 export async function* chatCompletionStream(
   messages: ChatMessage[],
   // P2.31 (audit 2026-05-26): caller kan skicka in en upstream-signal
@@ -145,7 +153,15 @@ export async function* chatCompletionStream(
   // OpenAI-anropet när klienten stänger. Tidigare körde OpenAI-
   // streaming vidare till TIMEOUT_MS*3 även när browsern var död →
   // bränd pengar på tokens ingen läser.
-  upstreamSignal?: AbortSignal
+  upstreamSignal?: AbortSignal,
+  // Streaming-svaren var tidigare helt omätta: all token-bokföring
+  // hängde på chatCompletion(), och eftersom både chatt-widgeten och
+  // portalen streamar per default betydde det att kostnadsstatistiken
+  // visade nära noll medan nästan all faktisk spend gick via den här
+  // funktionen. Vi ber OpenAI om ett avslutande usage-chunk och
+  // rapporterar det via callback — även vid abort, för de tokens är
+  // redan betalda.
+  onUsage?: (usage: StreamUsage) => void
 ): AsyncGenerator<string> {
   if (!isAiConfigured()) {
     throw new Error("OpenAI is not configured");
@@ -154,6 +170,10 @@ export async function* chatCompletionStream(
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS * 3);
   const onUpstreamAbort = () => controller.abort();
+  let reportedModel = OPENAI_MODEL;
+  let promptTokens: number | undefined;
+  let completionTokens: number | undefined;
+  let streamedChars = 0;
   if (upstreamSignal) {
     if (upstreamSignal.aborted) controller.abort();
     else upstreamSignal.addEventListener("abort", onUpstreamAbort, { once: true });
@@ -171,6 +191,7 @@ export async function* chatCompletionStream(
         messages,
         max_completion_tokens: 1024,
         stream: true,
+        stream_options: { include_usage: true },
       }),
       signal: controller.signal,
     });
@@ -199,8 +220,17 @@ export async function* chatCompletionStream(
           if (data === "[DONE]") return;
           try {
             const parsed = JSON.parse(data);
+            if (parsed.model) reportedModel = parsed.model;
+            // Usage-chunket kommer sist och har en tom choices-array.
+            if (parsed.usage) {
+              promptTokens = parsed.usage.prompt_tokens;
+              completionTokens = parsed.usage.completion_tokens;
+            }
             const content = parsed.choices?.[0]?.delta?.content;
-            if (content) yield content;
+            if (content) {
+              streamedChars += content.length;
+              yield content;
+            }
           } catch {
             // Skip malformed SSE lines
           }
@@ -211,6 +241,25 @@ export async function* chatCompletionStream(
     clearTimeout(timeout);
     if (upstreamSignal) {
       upstreamSignal.removeEventListener("abort", onUpstreamAbort);
+    }
+    if (onUsage) {
+      // Vid abort hinner usage-chunket sällan fram. Vi skattar då
+      // completion-tokens från antalet levererade tecken (~4 tecken per
+      // token för svensk text) så en avbruten ström inte bokförs som
+      // gratis. Prompt-tokens lämnas okända snarare än gissade.
+      const estimated =
+        completionTokens ??
+        (streamedChars > 0 ? Math.ceil(streamedChars / 4) : undefined);
+      try {
+        onUsage({
+          model: reportedModel,
+          promptTokens,
+          completionTokens: estimated,
+          aborted: controller.signal.aborted,
+        });
+      } catch {
+        // Mätning får aldrig fälla ett svar som redan levererats.
+      }
     }
   }
 }

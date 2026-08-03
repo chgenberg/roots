@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import {
   broadcastLogout,
@@ -29,6 +29,11 @@ import { getBrowserApiBase } from "@/lib/api-base";
 import { apiFetch } from "@/lib/api";
 import NotificationBell from "@/components/notification-bell";
 import { RootsLogo } from "@/components/brand";
+import { ThemeToggle } from "@/components/theme-toggle";
+import {
+  useDocumentTitle,
+  titleFromNav,
+} from "@/lib/use-document-title";
 
 const API_URL = getBrowserApiBase();
 
@@ -41,6 +46,52 @@ interface FundraisingUser {
   userId?: string;
 }
 
+/**
+ * Navigationen per roll. Låg tidigare inline i komponenten, men flyttades ut
+ * hit för att fliktiteln ska kunna räknas ut före de tidiga returerna —
+ * hooken som sätter den måste anropas på varje rendering.
+ */
+function buildNavItems(role: string) {
+  if (role === "ASSOCIATION_ADMIN") {
+    return [
+      { href: "/forening", label: "Översikt", icon: BarChart3 },
+      { href: "/forening/statistik", label: "Statistik", icon: LineChart },
+      // MASTERPLAN_01 KC3.1: kom-igång alltid synlig i sidebar så
+      // användaren kan hitta tillbaka även efter att de hoppat över
+      // den vid signup. Banner-komponenten gör att det dessutom är
+      // tydligt när checklistan inte är klar.
+      { href: "/forening/kom-igang", label: "Kom igång", icon: Sparkles },
+      { href: "/forening/lag", label: "Lag", icon: Users },
+      { href: "/forening/mal", label: "Mål", icon: Target },
+      { href: "/forening/kalender", label: "Kalender", icon: CalendarDays },
+      { href: "/forening/avrakning", label: "Avräkning", icon: CreditCard },
+      { href: "/installningar", label: "Inställningar", icon: Settings },
+    ];
+  }
+  if (role === "TEAM_LEADER") {
+    return [
+      { href: "/lag", label: "Översikt", icon: BarChart3 },
+      { href: "/lag/statistik", label: "Statistik", icon: LineChart },
+      { href: "/lag/saljare", label: "Säljare", icon: Users },
+      { href: "/lag/bestallningar", label: "Beställningar", icon: ClipboardList },
+      { href: "/lag/chatt", label: "Chatt", icon: MessageCircle },
+      { href: "/lag/avrakning", label: "Avräkning", icon: CreditCard },
+      { href: "/installningar", label: "Inställningar", icon: Settings },
+    ];
+  }
+  return [
+    { href: "/min-shop", label: "Min shop", icon: ShoppingBag },
+    { href: "/min-shop/statistik", label: "Statistik", icon: LineChart },
+    {
+      href: "/min-shop/bestallningar",
+      label: "Beställningar",
+      icon: ClipboardList,
+    },
+    { href: "/min-shop/chatt", label: "Chatt med laget", icon: MessageCircle },
+    { href: "/installningar", label: "Inställningar", icon: Settings },
+  ];
+}
+
 export default function FundraisingLayout({
   children,
 }: {
@@ -51,6 +102,22 @@ export default function FundraisingLayout({
   const [user, setUser] = useState<FundraisingUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  // Menyn fälls ut och trycker ner innehållet, så den är inte modal — ett
+  // fokuslås hör inte hit. Vad som saknades var Escape, och att fokus kommer
+  // tillbaka till knappen när panelen stängs. Utan det står den som navigerar
+  // med tangentbord kvar i en meny som inte längre finns.
+  useEffect(() => {
+    if (!mobileOpen) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== "Escape") return;
+      setMobileOpen(false);
+      menuButtonRef.current?.focus();
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [mobileOpen]);
 
   useEffect(() => {
     async function load() {
@@ -94,6 +161,12 @@ export default function FundraisingLayout({
   }, [router]);
   useCrossTabLogout(onCrossTabLogout);
 
+  // Före de tidiga returerna: hooken måste anropas på varje rendering. Alla
+  // 18 sidor här är "use client" och kunde därför inte exportera `metadata`,
+  // så de visade root-titeln — tre öppna flikar såg identiska ut.
+  const navItems = user ? buildNavItems(user.role) : [];
+  useDocumentTitle(titleFromNav(pathname, navItems, "Roots"));
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -109,43 +182,6 @@ export default function FundraisingLayout({
 
   const isAssociation = user?.role === "ASSOCIATION_ADMIN";
   const isTeamLeader = user?.role === "TEAM_LEADER";
-
-  const navItems = isAssociation
-    ? [
-        { href: "/forening", label: "Översikt", icon: BarChart3 },
-        { href: "/forening/statistik", label: "Statistik", icon: LineChart },
-        // MASTERPLAN_01 KC3.1: kom-igång alltid synlig i sidebar så
-        // användaren kan hitta tillbaka även efter att de hoppat över
-        // den vid signup. Banner-komponenten gör att det dessutom är
-        // tydligt när checklistan inte är klar.
-        { href: "/forening/kom-igang", label: "Kom igång", icon: Sparkles },
-        { href: "/forening/lag", label: "Lag", icon: Users },
-        { href: "/forening/mal", label: "Mål", icon: Target },
-        { href: "/forening/kalender", label: "Kalender", icon: CalendarDays },
-        { href: "/forening/avrakning", label: "Avräkning", icon: CreditCard },
-        { href: "/installningar", label: "Inställningar", icon: Settings },
-      ]
-    : isTeamLeader
-    ? [
-        { href: "/lag", label: "Översikt", icon: BarChart3 },
-        { href: "/lag/statistik", label: "Statistik", icon: LineChart },
-        { href: "/lag/saljare", label: "Säljare", icon: Users },
-        { href: "/lag/bestallningar", label: "Beställningar", icon: ClipboardList },
-        { href: "/lag/chatt", label: "Chatt", icon: MessageCircle },
-        { href: "/lag/avrakning", label: "Avräkning", icon: CreditCard },
-        { href: "/installningar", label: "Inställningar", icon: Settings },
-      ]
-    : [
-        { href: "/min-shop", label: "Min shop", icon: ShoppingBag },
-        { href: "/min-shop/statistik", label: "Statistik", icon: LineChart },
-        {
-          href: "/min-shop/bestallningar",
-          label: "Beställningar",
-          icon: ClipboardList,
-        },
-        { href: "/min-shop/chatt", label: "Chatt med laget", icon: MessageCircle },
-        { href: "/installningar", label: "Inställningar", icon: Settings },
-      ];
 
   const roleBadge = isAssociation
     ? { label: "Förening", className: "bg-brand-100 text-brand-700" }
@@ -174,7 +210,7 @@ export default function FundraisingLayout({
             aria-label="Roots — startsida"
             className="inline-flex items-center transition-opacity duration-200 hover:opacity-70"
           >
-            <RootsLogo variant="black" className="h-7 w-[70px]" />
+            <RootsLogo variant="auto" className="h-7 w-[70px]" />
           </Link>
           <Badge className={`text-xs ${roleBadge.className}`}>
             {roleBadge.label}
@@ -217,7 +253,7 @@ export default function FundraisingLayout({
             always visible no matter where the user scrolled <main>. */}
         <div className="border-t p-3">
           <div className="mb-2 flex items-center gap-3 rounded-lg px-2 py-2">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-700 text-sm font-semibold text-white">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-700 text-sm font-semibold text-primary-foreground">
               {initials}
             </div>
             <div className="min-w-0 flex-1">
@@ -229,13 +265,19 @@ export default function FundraisingLayout({
               </p>
             </div>
           </div>
-          <button
-            onClick={handleLogout}
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-brand-50 hover:text-foreground"
-          >
-            <LogOut className="h-4 w-4" />
-            Logga ut
-          </button>
+          {/* Temaväxeln sitter här och inte i sidebar-headern: där finns
+              redan logo, rollbricka, hjälp och klocka, och en fjärde ikon
+              sprängde de 256 px så knappen la sig över sidans rubrik. */}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={handleLogout}
+              className="flex flex-1 items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-brand-50 hover:text-foreground"
+            >
+              <LogOut className="h-4 w-4" />
+              Logga ut
+            </button>
+            <ThemeToggle />
+          </div>
         </div>
       </aside>
 
@@ -247,14 +289,17 @@ export default function FundraisingLayout({
             aria-label="Roots — startsida"
             className="inline-flex items-center transition-opacity duration-200 hover:opacity-70"
           >
-            <RootsLogo variant="black" className="h-6 w-[60px]" />
+            <RootsLogo variant="auto" className="h-6 w-[60px]" />
           </Link>
           <div className="flex items-center gap-1">
             <NotificationBell />
+            <ThemeToggle />
             <button
+              ref={menuButtonRef}
               onClick={() => setMobileOpen(!mobileOpen)}
               aria-label={mobileOpen ? "Stäng meny" : "Öppna meny"}
               aria-expanded={mobileOpen}
+              aria-controls="fundraising-mobile-nav"
               className="ml-1 inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:bg-brand-50 hover:text-foreground"
             >
               {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -263,9 +308,13 @@ export default function FundraisingLayout({
         </header>
 
         {mobileOpen && (
-          <nav className="space-y-1 border-b bg-background p-3 lg:hidden">
+          <nav
+            id="fundraising-mobile-nav"
+            aria-label="Huvudmeny"
+            className="space-y-1 border-b bg-background p-3 lg:hidden"
+          >
             <div className="mb-2 flex items-center gap-3 rounded-lg bg-brand-50 p-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-700 text-sm font-semibold text-white">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-700 text-sm font-semibold text-primary-foreground">
                 {initials}
               </div>
               <div className="min-w-0 flex-1">

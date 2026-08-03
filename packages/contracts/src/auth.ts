@@ -26,7 +26,9 @@ export const RegisterAssociationSchema = z.object({
   password: z.string().min(8, "Lösenord måste vara minst 8 tecken"),
   contactName: z.string().min(2, "Kontaktperson krävs"),
   phone: z.string().optional(),
-  personalNumber: z.string().optional(),
+  // personalNumber togs bort medvetet: fältet samlades in i klartext utan
+  // att någon funktion läste det. Behöver vi identitet i framtiden gör vi
+  // det via BankID, inte via ett fritextfält i ett registreringsformulär.
   addressLine1: z.string().optional(),
   city: z.string().optional(),
   postalCode: z.string().optional(),
@@ -45,7 +47,6 @@ export const RegisterTeamLeaderSchema = z.object({
   password: z.string().min(8, "Lösenord måste vara minst 8 tecken"),
   contactName: z.string().min(2, "Kontaktperson krävs"),
   phone: z.string().optional(),
-  personalNumber: z.string().optional(),
   addressLine1: z.string().optional(),
   city: z.string().optional(),
   postalCode: z.string().optional(),
@@ -56,9 +57,13 @@ export type RegisterTeamLeaderInput = z.infer<typeof RegisterTeamLeaderSchema>;
 export const RegisterSellerSchema = z.object({
   inviteToken: z.string(),
   email: z.string().email("Ogiltig e-postadress"),
-  password: z.string().min(8, "Lösenord måste vara minst 8 tecken"),
+  password: z.string().min(12, "Lösenord måste vara minst 12 tecken"),
   displayName: z.string().min(2, "Namn krävs"),
   phone: z.string().optional(),
+  birthYear: z.number().int(),
+  guardianName: z.string().min(2).optional(),
+  guardianEmail: z.string().email().optional(),
+  guardianConsent: z.boolean().optional(),
 });
 
 export type RegisterSellerInput = z.infer<typeof RegisterSellerSchema>;

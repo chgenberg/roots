@@ -135,4 +135,8 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Merparten av sviten mockar @roots/db, men integrationstestet för
+      # pengavägen kör mot den riktiga Postgres här ovan. Utan migreringarna
+      # skulle det falla på saknade tabeller i stället för att testa något.
+      - run: pnpm db:migrate
       - run: pnpm test

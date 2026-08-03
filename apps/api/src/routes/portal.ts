@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { eq, sql, desc, and, gte, lt, inArray, isNull } from "drizzle-orm";
+import { createHash } from "node:crypto";
 import { db } from "@roots/db";
 import {
   users,
@@ -14,6 +15,9 @@ import { isDemoSession } from "../lib/session";
 import { requireSession } from "../lib/http-session";
 import { childLogger } from "../lib/logger";
 import { auditLog } from "../lib/audit";
+import { getEmailSender } from "../lib/email";
+import { memberInviteEmail } from "../lib/email/templates";
+import { issuePasswordResetToken } from "../lib/password-reset-tokens";
 import type {
   DashboardResponse,
   StatisticsResponse,
@@ -25,6 +29,9 @@ import type {
 const log = childLogger("portal");
 
 export const portal = new Hono();
+
+/** Inbjudningslänken lever längre än en glömt-lösenord-länk: 7 dagar. */
+const INVITE_TTL_S = 7 * 24 * 60 * 60;
 
 // ── Role / tenancy guards ──────────────────────────────────────────────
 // Connection-audit P0 #1: prevent CLUB/fundraising sessions from falling
@@ -440,12 +447,33 @@ portal.post("/orders", async (c) => {
   }
 
   try {
-    const body = await c.req.json<{
-      items: { productId: string; qty: number }[];
-    }>();
+    // Rå body för idempotensnyckel: ett dubbelklick eller en retry på
+    // dålig uppkoppling ska inte bli två beställningar (och två fakturor).
+    const rawBody = await c.req.text();
+    let body: { items: { productId: string; qty: number }[] };
+    try {
+      body = JSON.parse(rawBody);
+    } catch {
+      return c.json({ error: "Ogiltig JSON i request body." }, 400);
+    }
 
     if (!body.items || body.items.length === 0) {
       return c.json({ error: "Inga produkter valda" }, 400);
+    }
+
+    const headerKey = c.req.header("idempotency-key")?.trim() ?? "";
+    const idempotencyKey = createHash("sha256")
+      .update(`portal:${session.orgId}:${session.userId}:${headerKey}:${rawBody}`)
+      .digest("hex")
+      .slice(0, 100);
+
+    const [existingByKey] = await db
+      .select()
+      .from(orders)
+      .where(eq(orders.idempotencyKey, idempotencyKey))
+      .limit(1);
+    if (existingByKey) {
+      return c.json({ ok: true, idempotent: true, order: existingByKey });
     }
 
     // P2.22 (audit 2026-05-26): tidigare hoppades item-validering
@@ -523,6 +551,7 @@ portal.post("/orders", async (c) => {
           userId: session.userId,
           status: "PENDING",
           totalOre,
+          idempotencyKey,
         })
         .returning();
 
@@ -803,10 +832,9 @@ portal.post("/members/invite", async (c) => {
       return c.json({ error: "E-postadressen är redan registrerad" }, 409);
     }
 
-    // Unguessable random bytes serialized as hex. Real password reset/
-    // accept-invite flow will replace this; until then the user simply
-    // cannot log in. (auth.ts verifies argon2 — a 64-char hex blob is
-    // not a valid argon2 hash and will reject.)
+    // Kontot skapas utan användbart lösenord: sentinel-strängen är inget
+    // giltigt argon2-hash, så inloggning avvisas. Vägen in är i stället
+    // inbjudningsmejlet nedan, som bär en signerad "välj lösenord"-token.
     const blockingHash = `invite-pending-${crypto.randomUUID()}${crypto.randomUUID()}`;
 
     const [created] = await db
@@ -825,6 +853,40 @@ portal.post("/members/invite", async (c) => {
         role: users.role,
         createdAt: users.createdAt,
       });
+
+    void (async () => {
+      try {
+        const [org] = await db
+          .select({ name: organizations.name })
+          .from(organizations)
+          .where(eq(organizations.id, orgId))
+          .limit(1);
+        const token = issuePasswordResetToken(
+          created.id,
+          blockingHash,
+          INVITE_TTL_S
+        );
+        const siteBase = (
+          process.env.NEXT_PUBLIC_SITE_URL ||
+          process.env.SITE_URL ||
+          "https://roots.se"
+        ).replace(/\/$/, "");
+        await getEmailSender().sendEmail({
+          to: created.email,
+          ...memberInviteEmail({
+            name:
+              created.contactName?.split(" ")[0] ||
+              created.email.split("@")[0] ||
+              "där",
+            orgName: org?.name ?? "Din klubb",
+            inviteUrl: `${siteBase}/aterstall-losenord?token=${encodeURIComponent(token)}`,
+            expiresInDays: Math.round(INVITE_TTL_S / 86400),
+          }),
+        });
+      } catch (err) {
+        log.error({ err, userId: created.id }, "member invite email failed");
+      }
+    })();
 
     return c.json(
       {

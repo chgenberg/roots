@@ -28,6 +28,7 @@ import QRCode from "qrcode";
 
 import { getBrowserApiBase } from "@/lib/api-base";
 import { formatKrValue } from "@/lib/format";
+import { orderStatusColor, orderStatusLabel } from "@/lib/order-status";
 
 const API_URL = getBrowserApiBase();
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
@@ -384,13 +385,9 @@ export default function SellerDashboard() {
                     <p className="text-sm font-medium">{order.customerName}</p>
                     <Badge
                       variant="secondary"
-                      className={`text-xs ${
-                        order.status === "PAID"
-                          ? "bg-brand-100 text-brand-700"
-                          : ""
-                      }`}
+                      className={`text-xs ${orderStatusColor(order.status)}`}
                     >
-                      {order.status === "PAID" ? "Betald" : order.status}
+                      {orderStatusLabel(order.status)}
                     </Badge>
                   </div>
                   <p className="text-sm font-semibold">
@@ -407,6 +404,8 @@ export default function SellerDashboard() {
         open={detailOpen}
         onOpenChange={setDetailOpen}
         orderId={detailOrderId}
+        // Säljarens egen försäljning och nivå räknas om på servern.
+        onStatusChange={() => void load(true)}
       />
 
       <ManualOrderDialog

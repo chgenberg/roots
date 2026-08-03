@@ -6,6 +6,9 @@ import {
   broadcastLogout,
   useCrossTabLogout,
 } from "@/lib/use-cross-tab-logout";
+import { useFocusTrap } from "@/lib/use-focus-trap";
+import { useIsDesktop } from "@/lib/use-media-query";
+import { useDocumentTitle, titleFromNav } from "@/lib/use-document-title";
 import Link from "next/link";
 import {
   LayoutDashboard,
@@ -23,6 +26,7 @@ import {
   FileText,
   Activity,
   ShieldCheck,
+  ShieldAlert,
   HelpCircle,
   Calculator,
 } from "lucide-react";
@@ -35,6 +39,7 @@ import { getBrowserApiBase } from "@/lib/api-base";
 import { apiFetch } from "@/lib/api";
 import NotificationBell from "@/components/notification-bell";
 import { RootsLogo } from "@/components/brand";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const API_URL = getBrowserApiBase();
 
@@ -74,6 +79,41 @@ const ADMIN_NAV: NavItem[] = [
   { href: "/portal/installningar", label: "Inställningar", icon: Settings },
 ];
 
+/**
+ * När rollen kräver tvåfaktor men ingen app är registrerad svarar API:et 403
+ * på i princip allt. Utan den här bannern hade sidorna bara sett trasiga ut,
+ * och den enda ledtråden legat i ett felmeddelande långt ner i en lista.
+ */
+function MfaEnrollmentBanner() {
+  const pathname = usePathname();
+  if (pathname === "/portal/installningar") return null;
+  return (
+    <div
+      role="alert"
+      className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warning-edge bg-warning-surface p-4"
+    >
+      <div className="flex items-start gap-2.5">
+        <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning-strong" />
+        <div>
+          <p className="text-sm font-medium text-warning-strong">
+            Aktivera tvåfaktor för att fortsätta
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Din roll ser data för alla föreningar. Portalen är låst tills du
+            registrerat en autentiseringsapp.
+          </p>
+        </div>
+      </div>
+      <Link
+        href="/portal/installningar"
+        className="rounded-lg bg-inverse-surface px-4 py-2 text-sm font-medium text-inverse-on-surface transition-opacity hover:opacity-90"
+      >
+        Till inställningar
+      </Link>
+    </div>
+  );
+}
+
 function getNavItems(role: string): NavItem[] {
   if (role === "CLUB_ADMIN" || role === "CLUB_MEMBER") return CLUB_NAV;
   if (role === "SALES_REP") {
@@ -87,12 +127,8 @@ function getNavItems(role: string): NavItem[] {
 }
 
 function getPageTitle(pathname: string, items: NavItem[]): string {
-  const exact = items.find((i) => i.href === pathname);
-  if (exact) return exact.label;
-  const prefix = items
-    .filter((i) => i.href !== "/portal" && pathname.startsWith(i.href))
-    .sort((a, b) => b.href.length - a.href.length)[0];
-  return prefix?.label ?? "Portal";
+  // Delad med fundraising-layouten — de hade varsin kopia av samma logik.
+  return titleFromNav(pathname, items, "Portal");
 }
 
 function getRoleLabel(role: string) {
@@ -112,13 +148,14 @@ export default function PortalLayout({
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") setSidebarOpen(false);
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  // Escape fanns redan, men inte fokuslåset: menyn öppnades och fokus låg
+  // kvar i innehållet bakom mörkläggningen. Hooken lägger till fokuslås och
+  // scroll-lås och behåller Escape.
+  const closeSidebar = useCallback(() => setSidebarOpen(false), []);
+  // Fokuslåset ska bara gälla när sidebaren är en utfälld panel. På desktop
+  // är den en permanent del av sidan och ska inte fånga fokus.
+  const isDesktop = useIsDesktop();
+  const sidebarRef = useFocusTrap(sidebarOpen && !isDesktop, closeSidebar);
 
   useEffect(() => {
     // P2.27 (audit 2026-05-26): tidigare saknades cancel-guard på
@@ -175,6 +212,13 @@ export default function PortalLayout({
   }, [router]);
   useCrossTabLogout(onCrossTabLogout);
 
+  // Räknas ut före de tidiga returerna nedan, eftersom hooken måste anropas
+  // på varje rendering. Under laddning ger getPageTitle "Portal", vilket är
+  // en riktigare fliktitel än root-defaulten ändå.
+  const navItems = user ? getNavItems(user.role) : [];
+  const pageTitle = getPageTitle(pathname, navItems);
+  useDocumentTitle(pageTitle);
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-brand-50/30">
@@ -185,9 +229,7 @@ export default function PortalLayout({
 
   if (!user) return null;
 
-  const navItems = getNavItems(user.role);
   const roleLabel = getRoleLabel(user.role);
-  const pageTitle = getPageTitle(pathname, navItems);
 
   return (
     <PortalUserProvider user={user}>
@@ -201,6 +243,13 @@ export default function PortalLayout({
 
         <aside
           id="portal-sidebar"
+          ref={sidebarRef as React.RefObject<HTMLElement>}
+          // Utfälld på mobil, permanent på desktop. När den är utanför
+          // skärmen ligger länkarna kvar i tab-ordningen — translate flyttar
+          // dem bara visuellt — så en mobilanvändare tabbar genom en meny
+          // hen inte ser. `inert` tar dem ur ordningen, men bara i det läget
+          // där sidebaren faktiskt är dold.
+          inert={!sidebarOpen && !isDesktop}
           className={cn(
             "fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-border bg-background transition-transform duration-200 lg:static lg:translate-x-0",
             sidebarOpen ? "translate-x-0" : "-translate-x-full"
@@ -212,7 +261,7 @@ export default function PortalLayout({
               aria-label="Roots — startsida"
               className="inline-flex items-center transition-opacity duration-200 hover:opacity-70"
             >
-              <RootsLogo variant="black" className="h-7 w-[70px]" />
+              <RootsLogo variant="auto" className="h-7 w-[70px]" />
             </Link>
             {/* Sprint E11: header gets help-link + notification bell so
                 every portal page surfaces them consistently. Mobile-close
@@ -226,6 +275,7 @@ export default function PortalLayout({
                 <HelpCircle className="h-4 w-4" />
               </Link>
               <NotificationBell />
+              <ThemeToggle />
               <button
                 type="button"
                 onClick={() => setSidebarOpen(false)}
@@ -303,6 +353,7 @@ export default function PortalLayout({
           {/* P2.56 (audit 2026-05-26): id="main-content" så att den
               globala skip-link:en i root layout.tsx kan hoppa hit. */}
           <main id="main-content" className="flex-1 p-6 md:p-8">
+            {user.mfaEnrollmentRequired && <MfaEnrollmentBanner />}
             {children}
           </main>
         </div>

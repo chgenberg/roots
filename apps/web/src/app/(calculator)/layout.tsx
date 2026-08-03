@@ -14,7 +14,11 @@ export default function CalculatorLayout({
 }) {
   return (
     <div className="flex min-h-screen flex-col bg-brand-50/30">
-      <div className="flex-1">{children}</div>
+      {/* Mål för skip-länken i root layout — se kommentaren i (shop)/layout.tsx.
+          Kalkylatorn saknade både <main> och id, så skip-länken var död här. */}
+      <main id="main-content" className="flex-1">
+        {children}
+      </main>
       <footer className="border-t bg-background">
         <div className="mx-auto flex max-w-4xl flex-col gap-3 px-4 py-5 text-xs text-muted-foreground">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

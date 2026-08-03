@@ -7,6 +7,12 @@ export interface PortalUser {
   role: string;
   name: string;
   orgName: string;
+  /**
+   * Rollen kräver tvåfaktor men ingen app är registrerad. API:et svarar 403
+   * på allt utom /me och registreringsflödet, så utan den här flaggan hade
+   * portalen sett trasig ut istället för att visa vägen framåt.
+   */
+  mfaEnrollmentRequired?: boolean;
 }
 
 const PortalUserContext = createContext<PortalUser | null>(null);

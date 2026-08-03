@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { reportWebError } from "@/lib/report-error";
 
 export default function ErrorBoundary({
   error,
@@ -10,7 +11,8 @@ export default function ErrorBoundary({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error("[GlobalError]", error);
+    console.error("[ErrorBoundary]", error);
+    reportWebError(error, { kind: "render", digest: error.digest });
   }, [error]);
 
   return (

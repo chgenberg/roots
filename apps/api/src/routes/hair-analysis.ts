@@ -121,6 +121,13 @@ hairAnalysis.post("/hair-analysis", async (c) => {
     answers?: Partial<HairAnswers>;
     idempotencyKey?: string;
   };
+  // Funktionen är gömd i webbens UI via en konstant. Utan samma spärr här
+  // ligger endpointen öppen för den som hittar den — och varje anrop är
+  // vision-tokens vi betalar för.
+  if (!flags.hairAnalysisEnabled()) {
+    return c.json({ error: "Funktionen är inte tillgänglig." }, 404);
+  }
+
   try {
     body = await c.req.json();
   } catch {
@@ -129,6 +136,21 @@ hairAnalysis.post("/hair-analysis", async (c) => {
 
   if (!body.consentAccepted) {
     return c.json({ error: "Samtycke krävs" }, 400);
+  }
+
+  // Åldersgrind. Klienten skickade tidigare alltid ageConfirmed: true utan
+  // att någon kryssruta fanns, och servern sparade vad klienten sa. Det
+  // innebar att porträtt av minderåriga kunde skickas till OpenAI Vision.
+  // Nu krävs ett aktivt ja, och kryssrutan finns i dialogen.
+  if (body.ageConfirmed !== true) {
+    return c.json(
+      {
+        error:
+          "Analysen kräver att du är 18 år eller äldre, eller har målsmans godkännande.",
+        requiresAgeConfirmation: true,
+      },
+      400
+    );
   }
 
   if (!body.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email)) {
@@ -222,7 +244,7 @@ hairAnalysis.post("/hair-analysis", async (c) => {
       email: body.email!,
       consentVersion: body.consentVersion || "2026-04-02",
       newsletterConsent: body.newsletterConsent ?? false,
-      ageConfirmed: body.ageConfirmed ?? false,
+      ageConfirmed: true,
       ipAddress: ip,
       idempotencyKey: idempotencyKey ?? undefined,
     });

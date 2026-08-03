@@ -4,6 +4,7 @@ import { childLogger } from "./logger";
 import { db } from "@roots/db";
 import { users } from "@roots/db/schema";
 import { eq } from "drizzle-orm";
+import { mfaRequiredForRole } from "./mfa";
 
 const log = childLogger("session");
 
@@ -33,6 +34,7 @@ const userSyncCache = new Map<
     orgId: string | null;
     deletedAt: Date | null;
     isDemoAccount: boolean;
+    mfaEnabled: boolean;
     expiresAt: number;
   }
 >();
@@ -77,6 +79,7 @@ async function syncUserAuthFromDb(
   orgId: string | null;
   deletedAt: Date | null;
   isDemoAccount: boolean;
+  mfaEnabled: boolean;
 } | null> {
   const now = Date.now();
   const cached = userSyncCache.get(userId);
@@ -86,6 +89,7 @@ async function syncUserAuthFromDb(
       orgId: cached.orgId,
       deletedAt: cached.deletedAt,
       isDemoAccount: cached.isDemoAccount,
+      mfaEnabled: cached.mfaEnabled,
     };
   }
   try {
@@ -95,6 +99,7 @@ async function syncUserAuthFromDb(
         orgId: users.orgId,
         deletedAt: users.deletedAt,
         email: users.email,
+        mfaEnabledAt: users.mfaEnabledAt,
       })
       .from(users)
       .where(eq(users.id, userId))
@@ -108,6 +113,10 @@ async function syncUserAuthFromDb(
       orgId: row.orgId,
       deletedAt: row.deletedAt,
       isDemoAccount: isDemoEmail(row.email),
+      // Läses här av samma skäl som rollen: en administratör som just
+      // registrerat sin app ska släppas in inom en halvminut, inte behöva
+      // logga ut och in.
+      mfaEnabled: !!row.mfaEnabledAt,
     };
     userSyncCache.set(userId, { ...fresh, expiresAt: now + USER_SYNC_TTL_MS });
     pruneUserSyncCache();
@@ -149,6 +158,13 @@ export interface SessionData {
    * dessa som demo även när userId är riktig.
    */
   isDemoAccount?: boolean;
+  /**
+   * Rollen kräver tvåfaktor men användaren har inte registrerat någon app.
+   * Sessionen finns — vi låser inte ut befintliga administratörer — men de
+   * känsliga ytorna är stängda tills registreringen är gjord. Räknas om vid
+   * varje sync, så en ny roll slår igenom inom 30 sekunder.
+   */
+  mfaPending?: boolean;
 }
 
 // In-memory fallback for development when Redis is unavailable
@@ -228,6 +244,20 @@ export async function getSession(id: string): Promise<SessionData | null> {
         role: fresh.role,
         orgId: fresh.orgId,
         isDemoAccount: fresh.isDemoAccount,
+        // Kravet räknas ut mot den färska rollen, inte mot den som gällde
+        // vid inloggningen. Blir någon uppgraderad till INTERNAL_ADMIN mitt
+        // i en session ska kravet börja gälla direkt.
+        //
+        // Demokonton undantas. De kan inte registrera en app (mfa/setup
+        // nekar demosessioner) och skulle annars vara permanent utelåsta
+        // från portalen — en spärr som bara stoppade vår egen demo. Att
+        // kravet inte tillför något där beror på att demokonton redan är
+        // skrivskyddade av mutation-guarderna, och i produktion är de av
+        // om inte ROOTS_DEMO_PASSWORD satts explicit.
+        mfaPending:
+          !fresh.isDemoAccount &&
+          mfaRequiredForRole(fresh.role) &&
+          !fresh.mfaEnabled,
       };
     }
   }

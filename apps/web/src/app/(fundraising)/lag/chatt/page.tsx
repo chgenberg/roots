@@ -204,7 +204,7 @@ export default function LeaderChatPage() {
                       <span className="truncate">{t.displayName}</span>
                     </span>
                     {t.unread > 0 && (
-                      <Badge className="bg-brand-700 text-white">
+                      <Badge className="bg-brand-700 text-primary-foreground">
                         {t.unread}
                       </Badge>
                     )}

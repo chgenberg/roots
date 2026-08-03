@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +23,7 @@ import {
 import { ShoppingCart, Plus, Minus, Package, Truck, CheckCircle2, Search, Download } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { portalFetch } from "@/lib/portal-api";
+import { LoadError } from "@/components/load-error";
 import {
   publicProductHref,
   byCatalogOrder,
@@ -89,12 +90,18 @@ export default function BestallningarPage() {
   const [cart, setCart] = useState<Record<string, number>>({});
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
+  const [ordersError, setOrdersError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [apiProducts, setApiProducts] = useState<PortalOrderProduct[]>(
     CATALOG_FALLBACK_PRODUCTS
   );
 
-  useEffect(() => {
+  const loadOrders = useCallback(() => {
+    setLoadingOrders(true);
+    setOrdersError(null);
+    // Katalogen har en inbyggd fallback (CATALOG_FALLBACK_PRODUCTS), så ett
+    // misslyckat produktanrop hindrar inte klubben från att lägga en order.
+    // Därför får det förbli tyst.
     portalFetch<{ products: PortalOrderProduct[] }>("/products")
       .then((data) => {
         if (data.products.length > 0) {
@@ -117,9 +124,19 @@ export default function BestallningarPage() {
           }))
         );
       })
-      .catch(() => {})
+      .catch(() => {
+        // Orderhistoriken har ingen fallback. Utan det här meddelandet ser
+        // en klubb som lagt tio beställningar ut som om de aldrig gjort en.
+        setOrdersError(
+          "Kunde inte hämta er orderhistorik. Nya beställningar går fortfarande att lägga."
+        );
+      })
       .finally(() => setLoadingOrders(false));
   }, []);
+
+  useEffect(() => {
+    loadOrders();
+  }, [loadOrders]);
 
   function updateQty(productId: string, delta: number) {
     setCart((prev) => {
@@ -418,6 +435,10 @@ export default function BestallningarPage() {
               </CardContent>
             </Card>
 
+      {ordersError && (
+        <LoadError message={ordersError} onRetry={loadOrders} inline />
+      )}
+
       <Card>
         <CardContent className="p-5">
           {/* MASTERPLAN_01 KC6.5: 5-kolums-tabellen är bekväm på desktop
@@ -465,7 +486,7 @@ export default function BestallningarPage() {
                 Inga beställningar matchade dina filter.
               </li>
             )}
-            {!loadingOrders && orders.length === 0 && (
+            {!loadingOrders && !ordersError && orders.length === 0 && (
               <li className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
                 Inga beställningar ännu. Klicka på &ldquo;Ny beställning&rdquo; för
                 att lägga er första.
@@ -523,7 +544,7 @@ export default function BestallningarPage() {
                     </TableCell>
                   </TableRow>
                 )}
-                {!loadingOrders && orders.length === 0 && (
+                {!loadingOrders && !ordersError && orders.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
                       Inga beställningar ännu. Klicka på &ldquo;Ny beställning&rdquo; för att lägga er första.

@@ -65,6 +65,18 @@ export interface CustomerOrder {
   shippedAt?: string | null;
   deliveredAt?: string | null;
   createdAt: string;
+  /**
+   * Satt när någon behörig bekräftat att pengarna för en manuell order
+   * faktiskt kommit in. Är den null räknas ordern i statistiken men hålls
+   * utanför avräkningen.
+   */
+  verifiedAt?: string | null;
+  /**
+   * Om den inloggade användaren får bekräfta just den här ordern. Beräknas
+   * på servern med samma villkor som verify-endpointen tillämpar, så vyn
+   * inte behöver upprepa behörighetsreglerna.
+   */
+  canVerify?: boolean;
 }
 
 export interface Milestone {
@@ -110,6 +122,9 @@ export interface TeamDashboard {
     totalOrders: number;
     teamEarningsOre: number;
     marginPercent: number;
+    /** Betalda manuella ordrar som ännu inte bekräftats, i öre. */
+    unverifiedManualOre?: number;
+    unverifiedManualCount?: number;
   };
   milestones: {
     achieved: Milestone[];
@@ -144,5 +159,8 @@ export interface SellerDashboard {
     totalOre: number;
     status: string;
     createdAt: string;
+    isManual?: boolean;
+    /** Null på en manuell order = väntar på lagledarens bekräftelse. */
+    verifiedAt?: string | null;
   }>;
 }

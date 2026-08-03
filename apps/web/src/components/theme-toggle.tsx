@@ -10,13 +10,10 @@ export function ThemeToggle() {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    // Systemets prefers-color-scheme läses avsiktligt inte: med "Auto" på
-    // macOS och iOS slår den om vid solnedgången, så besökare som aldrig bett
-    // om mörkt läge fick sajten mörk på kvällen. Ljust är startläget, mörkt
-    // kräver ett klick här.
-    const stored = localStorage.getItem(STORAGE_KEY) === "dark";
-    setDark(stored);
-    document.documentElement.classList.toggle("dark", stored);
+    // Klassen är redan satt av skriptet i app/layout.tsx, så här läser vi
+    // bara av den. Att sätta den igen skulle göra växeln till enda platsen
+    // temat gäller, vilket var buggen: portalen har ingen marketing-header.
+    setDark(document.documentElement.classList.contains("dark"));
     setMounted(true);
   }, []);
 

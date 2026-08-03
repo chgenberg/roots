@@ -1,3 +1,5 @@
+import { vatOfGrossOre } from "@roots/contracts";
+
 const BRAND_COLOR = "#1C1410";
 
 function siteUrl(): string {
@@ -112,8 +114,8 @@ export function orderConfirmationEmail(params: {
   // använder svensk standardmoms 25% på hudvård/hårvård. Beloppen
   // visas både exkl. och inkl. så att supportern ser exakt vad som
   // går till skatten.
-  const totalExVatOre = Math.round(params.totalOre / 1.25);
-  const vatOre = params.totalOre - totalExVatOre;
+  const vatOre = vatOfGrossOre(params.totalOre);
+  const totalExVatOre = params.totalOre - vatOre;
   const fmt = (ore: number) => `${(ore / 100).toLocaleString("sv-SE")} kr`;
   const orderShortId = params.orderId.slice(0, 8);
 
@@ -388,6 +390,108 @@ export function deletionCancelledEmail(params: {
         Om det här inte var du som ångrade — kontakta oss direkt på
         <a href="mailto:hej@roots.se" style="color:${BRAND_COLOR}">hej@roots.se</a>
         så hjälper vi dig.
+      </p>
+    `),
+  };
+}
+
+/**
+ * Skickas till vårdnadshavaren när en säljare under 18 registrerat sig med
+ * deras samtycke. Poängen är dubbel: föräldern får veta vad som händer, och
+ * vi får en spårbar kanal om samtycket inte var äkta.
+ */
+/**
+ * Inbjudan till en klubbmedlem. Kontot skapas med en icke-inloggningsbar
+ * sentinel-hash; det här mejlet är enda vägen in. Utan det fanns kontot men
+ * kunde aldrig användas.
+ */
+export function memberInviteEmail(params: {
+  name: string;
+  orgName: string;
+  inviteUrl: string;
+  expiresInDays: number;
+}): { subject: string; html: string } {
+  return {
+    subject: `Du är inbjuden till ${params.orgName} på Roots`,
+    html: wrap(`
+      <h2 style="margin:0 0 16px;color:${BRAND_COLOR};font-size:22px">
+        Välkommen till Roots
+      </h2>
+      <p style="color:#444;line-height:1.6;margin:0 0 16px">
+        Hej ${params.name}, ${params.orgName} har bjudit in dig till sin
+        Roots-portal. Välj ett lösenord för att komma igång.
+      </p>
+      <a href="${params.inviteUrl}" style="display:inline-block;background:${BRAND_COLOR};color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">
+        Välj lösenord
+      </a>
+      <p style="color:#999;line-height:1.6;margin:24px 0 0;font-size:12px">
+        Länken fungerar i ${params.expiresInDays} dagar. Har den gått ut kan du
+        använda "Glömt lösenordet?" på inloggningssidan, eller be den som bjöd
+        in dig att skicka en ny.
+      </p>
+    `),
+  };
+}
+
+export function guardianConsentNoticeEmail(params: {
+  guardianName: string;
+  sellerName: string;
+  teamName: string;
+  associationName: string;
+}): { subject: string; html: string } {
+  return {
+    subject: `${params.sellerName} har registrerat sig som säljare hos Roots`,
+    html: wrap(`
+      <h2 style="margin:0 0 16px;color:${BRAND_COLOR};font-size:22px">
+        Ett samtycke har lämnats i ditt namn
+      </h2>
+      <p style="color:#444;line-height:1.6;margin:0 0 16px">
+        Hej ${params.guardianName}, <strong>${params.sellerName}</strong> har
+        registrerat sig som säljare i ${params.teamName}
+        (${params.associationName}) och angett att du som vårdnadshavare
+        godkänner det.
+      </p>
+      <p style="color:#444;line-height:1.6;margin:0 0 16px">
+        Försäljningen sker via en personlig webbutik med Roots hudvårds- och
+        hårvårdsprodukter. Vi hanterar betalning och leverans; laget får sin
+        andel av försäljningen.
+      </p>
+      <p style="color:#444;line-height:1.6;margin:0 0 16px">
+        Var det inte du som godkände — eller ändrar du dig — svara på det här
+        mejlet eller skriv till
+        <a href="mailto:hej@roots.se" style="color:${BRAND_COLOR}">hej@roots.se</a>.
+        Vi stänger butiken och raderar uppgifterna.
+      </p>
+      <p style="color:#999;line-height:1.6;margin:24px 0 0;font-size:12px">
+        Du kan när som helst begära ett utdrag av vilka uppgifter vi har om
+        ditt barn, eller att de rättas eller raderas.
+      </p>
+    `),
+  };
+}
+
+export function passwordResetEmail(params: {
+  name: string;
+  resetUrl: string;
+  expiresInMinutes: number;
+}): { subject: string; html: string } {
+  return {
+    subject: "Återställ ditt lösenord hos Roots",
+    html: wrap(`
+      <h2 style="margin:0 0 16px;color:${BRAND_COLOR};font-size:22px">
+        Återställ ditt lösenord
+      </h2>
+      <p style="color:#444;line-height:1.6;margin:0 0 16px">
+        Hej ${params.name}, någon har begärt en återställning av lösenordet
+        för ditt Roots-konto. Klicka på knappen nedan för att välja ett nytt.
+      </p>
+      <a href="${params.resetUrl}" style="display:inline-block;background:${BRAND_COLOR};color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">
+        Välj nytt lösenord
+      </a>
+      <p style="color:#999;line-height:1.6;margin:24px 0 0;font-size:12px">
+        Länken fungerar i ${params.expiresInMinutes} minuter och bara en gång.
+        Var det inte du som begärde den behöver du inte göra något — ditt
+        nuvarande lösenord fortsätter att gälla.
       </p>
     `),
   };

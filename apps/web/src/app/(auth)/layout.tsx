@@ -11,7 +11,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
           aria-label="Roots — startsida"
           className="inline-flex items-center transition-opacity duration-200 hover:opacity-70"
         >
-          <RootsLogo variant="black" className="h-7 w-[70px]" />
+          <RootsLogo variant="auto" className="h-7 w-[70px]" />
         </Link>
       </header>
       <main id="main-content" className="flex flex-1 items-center justify-center px-6 pb-16 animate-fade-in">
