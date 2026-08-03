@@ -111,6 +111,7 @@ async function run() {
   // En representativ shop-sida att smoke-testa. Slug kan över-
   // styras med SYNTHETIC_SHOP_SLUG om vi inte vill leaka en
   // demo-säljares URL utåt.
+  const shopSlugExplicit = !!process.env.SYNTHETIC_SHOP_SLUG?.trim();
   const shopSlug = (process.env.SYNTHETIC_SHOP_SLUG || "demo").trim();
   if (shopSlug) {
     await check(
@@ -125,23 +126,39 @@ async function run() {
     // slutar folk läsa. Butikens egen endpoint är dessutom närmare det vi
     // vill veta: att en köpare får produkter att lägga i korgen, med pris.
     //
-    // 404 accepteras eftersom slugen kan vara borttagen med flit, men bara
-    // om det ÄR ett 404 — ett 200 med tom katalog är ett trasigt läge där
-    // sidan renderar men ingenting går att köpa.
-    await check(
-      "api.shop-catalog",
-      `${API_BASE}/v1/shop/by-slug/${shopSlug}`,
-      async (r) => {
-        if (r.status === 404) return true;
-        if (r.status !== 200) return false;
-        const body = await r.json().catch(() => null);
-        return (
-          Array.isArray(body?.products) &&
-          body.products.length > 0 &&
-          body.products.every((p) => typeof p.priceOre === "number" && p.priceOre > 0)
-        );
-      }
-    );
+    // Kravet måste vara uttalat. Att godta 404 "eftersom slugen kan vara
+    // borttagen med flit" gjorde kontrollen omöjlig att fela: i produktion
+    // rapporterade den PASS på en 404, alltså grönt för en butik som inte
+    // fanns. Nu gäller: sluggen angiven → katalogen MÅSTE fungera. Ingen slug
+    // → hoppa över och säg det, i stället för att låtsas ha kontrollerat.
+    if (shopSlugExplicit) {
+      await check(
+        "api.shop-catalog",
+        `${API_BASE}/v1/shop/by-slug/${shopSlug}`,
+        async (r) => {
+          if (r.status !== 200) return false;
+          const body = await r.json().catch(() => null);
+          return (
+            Array.isArray(body?.products) &&
+            body.products.length > 0 &&
+            body.products.every(
+              (p) => typeof p.priceOre === "number" && p.priceOre > 0
+            )
+          );
+        }
+      );
+    } else {
+      results.push({
+        name: "api.shop-catalog",
+        url: `${API_BASE}/v1/shop/by-slug/${shopSlug}`,
+        status: 0,
+        ms: 0,
+        ok: false,
+        skipped: true,
+        reason:
+          "sätt SYNTHETIC_SHOP_SLUG till en riktig butik för att kräva att katalogen fungerar",
+      });
+    }
   }
 
   // MASTERPLAN_01 KC2.7: deletion-purge cron-trigger. Synthetic-runnern
@@ -194,19 +211,28 @@ async function run() {
 
   console.log("\n[synthetic] results:");
   for (const r of results) {
-    const tag = r.ok ? "PASS" : "FAIL";
+    // SKIP är ett eget utfall och inte ett grönt. Att visa "PASS" för något vi
+    // aldrig kontrollerade är sämre än att inte ha kontrollen: rapporten
+    // säger att butiken fungerar när den bara säger att vi inte kollade.
+    const tag = r.skipped ? "SKIP" : r.ok ? "PASS" : "FAIL";
     console.log(
       `  [${tag}] ${r.name.padEnd(16)} ${String(r.status).padStart(3)} ` +
-        `${String(r.ms).padStart(5)}ms  ${r.url}${r.error ? `  err=${r.error}` : ""}`
+        `${String(r.ms).padStart(5)}ms  ${r.url}` +
+        `${r.reason ? `  (${r.reason})` : ""}` +
+        `${r.error ? `  err=${r.error}` : ""}`
     );
   }
 
-  const failed = results.filter((r) => !r.ok);
+  const failed = results.filter((r) => !r.ok && !r.skipped);
+  const skipped = results.filter((r) => r.skipped);
   if (failed.length > 0) {
     console.error(`\n[synthetic] ${failed.length} check(s) failed`);
     process.exit(1);
   }
-  console.log(`\n[synthetic] all ${results.length} checks passed`);
+  console.log(
+    `\n[synthetic] all ${results.length - skipped.length} checks passed` +
+      (skipped.length ? ` (${skipped.length} skipped)` : "")
+  );
 }
 
 run().catch((err) => {

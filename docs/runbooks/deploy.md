@@ -64,12 +64,37 @@
 
 ## Under deploy
 
-1. Trigga deploy (Railway / Vercel).
-2. Vänta tills health-check är grön (`curl https://api.roots.se/readyz` returnerar 200).
+Adresserna i produktion (Railway-projektet `Roots`, miljö `production`):
+
+| Vad | Tjänst | Adress |
+| --- | --- | --- |
+| Webben | `web` | `https://roots.nu` |
+| API:t | `roots` | `https://roots-production-f6b3.up.railway.app` |
+
+API:t har ingen egen domän. Webben proxar `/api/v1/*` vidare, men bara det —
+`/healthz` och `/readyz` finns inte den vägen, så health-checkar och synthetic
+måste gå mot Railway-adressen ovan. Runbooken pekade tidigare på
+`api.roots.se`, som aldrig existerat; kontrollerna såg då ut att vara röda i
+produktion när de i själva verket frågade fel värd.
+
+1. Trigga deploy. Railway bygger automatiskt på push till `main` — en
+   variabeländring räknas också som en deploy.
+2. Vänta tills health-check är grön:
+   ```bash
+   curl -s -o /dev/null -w '%{http_code}\n' https://roots-production-f6b3.up.railway.app/readyz
+   ```
+   Failar uppstarten (t.ex. på env-validering) behåller Railway den gamla
+   versionen och deployen markeras FAILED. Produktionen ligger alltså inte
+   nere — men webben kan hinna rulla ut mot ett äldre API, så kontrollera
+   båda tjänsterna: `railway deployment list --service roots`.
 3. Kör synthetic mot prod:
    ```bash
-   API_BASE=https://api.roots.se WEB_BASE=https://roots.se node scripts/synthetic.mjs
+   API_BASE=https://roots-production-f6b3.up.railway.app \
+     WEB_BASE=https://roots.nu node scripts/synthetic.mjs
    ```
+   Katalogkontrollen hoppas över om inte `SYNTHETIC_SHOP_SLUG` sätts till en
+   butik som ska finnas. Sätt den när shopen är live, annars kontrollerar vi
+   ingenting där.
 4. Öppna `/portal/system` och verifiera att inga services är "Nere".
 5. Postera "deploy OK + sha=<short>" i `#deploy`.
 
