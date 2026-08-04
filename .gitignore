@@ -16,6 +16,13 @@ __pycache__/
 scripts/roots-shots/out/
 docs/**/_cache/
 
+# Presentationerna byggs ur kollegans Master Source med
+# docs/presentations/build_decks.py. Byggskripten versionshanteras, men varken
+# den extraherade källtexten eller de färdiga filerna gör det.
+docs/knowledge-os/_extract/
+docs/presentations/_preview/
+docs/presentations/*.pptx
+
 # Väntelista-exporter innehåller personuppgifter (e-post) och ska aldrig
 # checkas in. Kör `pnpm waitlist:export` för att generera dem lokalt.
 exports/
