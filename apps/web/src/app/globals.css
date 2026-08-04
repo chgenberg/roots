@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+/* Temat styrs av klassen `.dark` på <html> (se layout.tsx och
+   theme-toggle.tsx) — aldrig av systeminställningen. Utan den här raden
+   utgår `dark:`-varianten från prefers-color-scheme, och då hamnar
+   utilities och färgtokens i olika lägen: en besökare med mörkt OS men
+   sajten i ljust läge fick den vita logotypen målad på en ljus yta, alltså
+   ingen logotyp alls. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /*
  * P3.82 (audit 2026-05-26): z-index-strategi.
  * Tidigare hade vi z-30, z-40, z-50, z-[60], z-[100] sprida över
@@ -136,6 +144,7 @@
   --animate-slide-up:     slide-up 0.4s ease-out;
   --animate-slide-down:   slide-down 0.3s ease-out;
   --animate-spin-slow:    spin-slow 4s linear infinite;
+  --animate-marquee:      marquee 46s linear infinite;
 }
 
 /* ── Shadow tokens — tuned to ink (was the cold brown #1C1410) ── */
@@ -175,6 +184,13 @@
   to { transform: rotate(360deg); }
 }
 
+/* Bandet innehåller två identiska kopior av listan sida vid sida, så
+   -50 % landar exakt där kopia två börjar och loopen blir sömlös. */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
 @keyframes pulse-shadow {
   0%, 100% { box-shadow: 0 0 0 0 rgba(29, 29, 27, 0.25); }
   50% { box-shadow: 0 0 0 12px rgba(29, 29, 27, 0); }
@@ -190,9 +206,13 @@
     animation-iteration-count: 1 !important;
     transition-duration: 150ms !important;
   }
+  /* `animation-iteration-count: 1` ovan räcker inte för bandet — det
+     skulle spela klart en gång och parkera på -50 %, alltså en tom rad.
+     Det måste stängas av helt så kopia ett ligger kvar i utgångsläget. */
   .animate-float,
   .animate-subtle-pulse,
-  .animate-spin-slow {
+  .animate-spin-slow,
+  .animate-marquee {
     animation: none !important;
   }
 }

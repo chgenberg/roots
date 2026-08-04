@@ -8,6 +8,7 @@ import { useFocusTrap } from "@/lib/use-focus-trap";
 import { ArrowRight, User, CalendarCheck, Search } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SearchTrigger } from "@/components/search-dialog";
+import { AnnouncementBar } from "@/components/announcement-bar";
 import { RootsLogo } from "@/components/brand";
 
 const NAV_ITEMS = [
@@ -16,6 +17,19 @@ const NAV_ITEMS = [
   { href: "/om-oss", label: "Om oss" },
   { href: "/sa-fungerar-det", label: "Så fungerar det" },
 ];
+
+// Logotypen sitter mitt i navigeringen, så länkarna delas jämnt på var
+// sin sida om den. Läsordningen i DOM:en är oförändrad.
+const NAV_LEFT = NAV_ITEMS.slice(0, 2);
+const NAV_RIGHT = NAV_ITEMS.slice(2);
+
+// Båda flytande grupperna delar yta: samma radie, kant, ljusgenomsläpp
+// och skugga. Inre element är 40 px höga, plus 4 px padding = 48 px.
+// bg-background/90 och inte /80: grupperna svävar över hero-bilder när
+// sidan rullas, och vid lägre täckning tappar de dämpade länkarna
+// kontrast mot en mörk bild bakom.
+const PILL =
+  "rounded-full border border-border/60 bg-background/90 p-1 shadow-[var(--shadow-card)] backdrop-blur-xl";
 
 function MorphingBurger({ open }: { open: boolean }) {
   return (
@@ -48,9 +62,34 @@ function MorphingBurger({ open }: { open: boolean }) {
 // (woman in a beige top against a beige backdrop) and every other
 // marketing route opens with bg-brand-50 sand sections, so the
 // white-logo branch never had a surface dark enough to read against.
-// Keeping the logic simple — black logo + warm sand backdrop on the
-// header at the top of every page — means the logotype is always
-// visible from frame 1, with zero per-route special cases.
+// Keeping the logic simple — black logo on a light, translucent
+// surface on every page — means the logotype is always visible from
+// frame 1, with zero per-route special cases.
+
+function NavLink({
+  href,
+  label,
+  active,
+}: {
+  href: string;
+  label: string;
+  active: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "flex h-10 items-center whitespace-nowrap rounded-full px-3 text-sm tracking-wide transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        active
+          ? "bg-brand-50 text-foreground"
+          : "text-muted-foreground hover:bg-brand-50/70 hover:text-foreground"
+      )}
+    >
+      {label}
+    </Link>
+  );
+}
 
 export function Header() {
   const pathname = usePathname();
@@ -81,87 +120,103 @@ export function Header() {
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(href + "/");
 
+  // Bandet fälls ihop vid rullning, och även när mobilmenyn är öppen —
+  // annars ligger en rullande textremsa kvar över helskärmsmenyn.
+  const bandHidden = scrolled || menuOpen;
+
   return (
     <>
-      {/* Scroll progress */}
-      <div className="fixed left-0 top-0 z-[60] h-[2px] w-full">
+      {/* Scroll progress — ligger över bandet, därav z-index ovanför
+          hela den fasta stapeln. */}
+      <div className="fixed left-0 top-0 z-[65] h-[2px] w-full">
         <div
-          className="h-full bg-foreground/20 transition-[width] duration-150"
+          className="h-full bg-foreground/25 transition-[width] duration-150"
           style={{ width: `${scrollProgress * 100}%` }}
         />
       </div>
 
-      <header
-        className={cn(
-          "fixed left-0 right-0 top-0 z-50 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
-          // Two surface states, both light:
-          //  - scrolled   → translucent background backdrop + shadow
-          //  - !scrolled  → warm sand backdrop (brand-50/70 + blur)
-          // Both keep the BLACK logotype readable from frame 1.
-          scrolled
-            ? "h-14 border-b border-border/40 bg-background/90 shadow-[var(--shadow-card)] backdrop-blur-xl"
-            : "h-20 bg-brand-50/70 backdrop-blur-xl"
-        )}
-      >
-        <div className="relative mx-auto flex h-full max-w-[1280px] items-center px-6 md:px-10">
-          {/* Logo — Sprint E14: real brand logotype from the kit.
-              Always uses the BLACK variant — the header has a light
-              sand/cream backdrop on every page state, so a single
-              variant is enough. */}
-          <Link
-            href="/"
-            aria-label="Roots — startsida"
-            className="relative z-[60] inline-flex items-center transition-opacity duration-200 hover:opacity-70"
-          >
-            <RootsLogo
-              variant="auto"
-              priority
-              className={cn(
-                "transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
-                scrolled ? "h-7 w-[70px] md:h-8 md:w-[80px]" : "h-8 w-[80px] md:h-9 md:w-[90px]"
-              )}
-            />
-          </Link>
+      {/* Ligger över mobilmenyn (z-55) så att logotypen och krysset syns
+          medan menyn är öppen. Låg z-index här gjorde tidigare att
+          overlayen målades ovanpå stängknappen. */}
+      <div className="fixed left-0 right-0 top-0 z-[60]">
+        {/* Rullande band. Det syns högst upp på sidan och fälls ihop så
+            fort man börjar läsa, så att den flytande navigeringen får
+            hela överkanten för sig själv. */}
+        <div
+          className={cn(
+            "overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
+            bandHidden ? "max-h-0 opacity-0" : "max-h-9 opacity-100"
+          )}
+          // Ihopfällt band ska inte gå att tabba in i eller läsas upp.
+          inert={bandHidden}
+        >
+          <AnnouncementBar />
+        </div>
 
-          {/* Centrerad nav — absolut positionerad för äkta centrering
-              oavsett logotypens och ikonernas bredd. */}
-          <nav className="absolute inset-y-0 left-1/2 hidden -translate-x-1/2 items-center gap-8 md:flex">
-              {NAV_ITEMS.map((item) => {
-                const active = isActive(item.href);
-                return (
-                  <Link
+        <header
+          className={cn(
+            "transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
+            scrolled ? "py-2" : "py-3"
+          )}
+        >
+          {/* Brytpunkten är lg, inte md: den centrerade grupp­en är 535 px
+              bred och ikongruppen 176 px, så under ~1000 px skär de in i
+              varandra. Surfplattor får därför samma logotyp + menyknapp
+              som telefoner. */}
+          <div className="relative mx-auto flex max-w-[1400px] items-center px-4 lg:px-8">
+            {/* Mobil och surfplatta: logotypen ligger kvar till vänster. */}
+            <Link
+              href="/"
+              aria-label="Roots — startsida"
+              className={cn(
+                PILL,
+                // h-12 explicit så logotypgruppen blir exakt lika hög som
+                // menyknappen till höger.
+                "relative z-[60] flex h-12 items-center px-5 transition-opacity duration-200 hover:opacity-70 lg:hidden"
+              )}
+            >
+              <RootsLogo variant="auto" priority className="h-7 w-[72px]" />
+            </Link>
+
+            {/* Centrerad navigering — absolut positionerad för äkta
+                centrering oavsett hur bred ikongruppen till höger är. */}
+            <nav className="absolute left-1/2 top-1/2 hidden -translate-x-1/2 -translate-y-1/2 lg:block">
+              <div className={cn(PILL, "flex items-center gap-1")}>
+                {NAV_LEFT.map((item) => (
+                  <NavLink
                     key={item.href}
                     href={item.href}
-                    className="group relative rounded-md px-1 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                  >
-                    <span
-                      className={cn(
-                        "text-sm tracking-wide transition-colors duration-200",
-                        active
-                          ? "text-foreground"
-                          : "text-muted-foreground group-hover:text-foreground"
-                      )}
-                    >
-                      {item.label}
-                    </span>
-                    <span
-                      className={cn(
-                        "absolute -bottom-0.5 left-0 h-[1.5px] bg-foreground transition-all duration-200 ease-[cubic-bezier(0.77,0,0.18,1)]",
-                        active ? "w-full" : "w-0 group-hover:w-full"
-                      )}
-                    />
-                  </Link>
-                );
-              })}
-          </nav>
+                    label={item.label}
+                    active={isActive(item.href)}
+                  />
+                ))}
 
-          {/* Ikoner till höger */}
-          <div className="ml-auto hidden items-center gap-1 md:flex">
+                <Link
+                  href="/"
+                  aria-label="Roots — startsida"
+                  className="mx-1 flex h-10 items-center rounded-full border border-border/50 px-4 transition-opacity duration-200 hover:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <RootsLogo variant="auto" priority className="h-6 w-[64px]" />
+                </Link>
+
+                {NAV_RIGHT.map((item) => (
+                  <NavLink
+                    key={item.href}
+                    href={item.href}
+                    label={item.label}
+                    active={isActive(item.href)}
+                  />
+                ))}
+              </div>
+            </nav>
+
+            {/* Ikoner till höger, i en egen flytande grupp */}
+            <div className={cn(PILL, "ml-auto hidden items-center gap-0.5 lg:flex")}>
               <SearchTrigger />
               <ThemeToggle />
               <Link
                 href="/login"
-                className="group relative flex h-10 w-10 items-center justify-center rounded-full transition-colors duration-200 hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="group flex h-10 w-10 items-center justify-center rounded-full transition-colors duration-200 hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 aria-label="Logga in"
               >
                 <User className="h-[18px] w-[18px] text-muted-foreground transition-colors duration-200 group-hover:text-foreground" />
@@ -172,31 +227,36 @@ export function Header() {
                 // Användare med skärmläsare/keyboard fick fel mål.
                 // Skicka till /kontakt där demo-bokningen sker.
                 href="/kontakt?intent=demo"
-                className="group relative flex h-10 w-10 items-center justify-center rounded-full transition-colors duration-200 hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="group flex h-10 w-10 items-center justify-center rounded-full transition-colors duration-200 hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 aria-label="Boka demo"
               >
                 <CalendarCheck className="h-[18px] w-[18px] text-muted-foreground transition-colors duration-200 group-hover:text-foreground" />
               </Link>
+            </div>
+
+            {/* Mobile burger */}
+            {/* MASTERPLAN_01 KC6.1: 44x44 minimum touch-target (WCAG 2.5.5).
+                Tidigare p-2 runt 24x20 burger gav ~40x36 — fail. */}
+            <button
+              onClick={() => setMenuOpen(!menuOpen)}
+              className={cn(
+                PILL,
+                "relative z-[60] ml-auto inline-flex h-12 w-12 items-center justify-center lg:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              )}
+              aria-label={menuOpen ? "Stäng meny" : "Öppna meny"}
+              aria-expanded={menuOpen}
+            >
+              <MorphingBurger open={menuOpen} />
+            </button>
           </div>
+        </header>
+      </div>
 
-          {/* Mobile burger */}
-          {/* MASTERPLAN_01 KC6.1: 44x44 minimum touch-target (WCAG 2.5.5).
-              Tidigare p-2 runt 24x20 burger gav ~40x36 — fail. */}
-          <button
-            onClick={() => setMenuOpen(!menuOpen)}
-            className="relative z-[60] -mr-2 ml-auto inline-flex h-11 w-11 items-center justify-center rounded-md md:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            aria-label={menuOpen ? "Stäng meny" : "Öppna meny"}
-            aria-expanded={menuOpen}
-          >
-            <MorphingBurger open={menuOpen} />
-          </button>
-        </div>
-      </header>
-
-      {/* Spacer */}
+      {/* Spacer — band (36) + luft (2×12) + grupphöjd (48) = 108,
+          och utan band 2×8 + 48 = 64 när sidan har rullats. */}
       <div className={cn(
-        "transition-all duration-500",
-        scrolled ? "h-14" : "h-20"
+        "transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
+        scrolled ? "h-16" : "h-[108px]"
       )} />
 
       {/* Fullscreen mobile overlay */}
@@ -212,7 +272,7 @@ export function Header() {
         // skillnad från visibility:hidden stör det inte inledningen.
         inert={!menuOpen}
         className={cn(
-          "fixed inset-0 z-[55] flex flex-col bg-background transition-opacity duration-200 ease-out md:hidden",
+          "fixed inset-0 z-[55] flex flex-col bg-background transition-opacity duration-200 ease-out lg:hidden",
           menuOpen
             ? "pointer-events-auto opacity-100"
             : "pointer-events-none opacity-0"
@@ -294,7 +354,7 @@ export function Header() {
             )}
           />
           <p className="mt-4 text-xs text-muted-foreground">
-            Naturlig hudvård för föreningslivet
+            Naturlig hårvård för föreningslivet
           </p>
         </div>
       </div>
