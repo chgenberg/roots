@@ -27,7 +27,23 @@ const nextConfig: NextConfig = {
   },
   images: {
     remotePatterns: [],
-    formats: ["image/avif", "image/webp"],
+    // Bildoptimeringen körs i samma container som resten av sajten och har
+    // ingen egen CPU att ta av. Tidigare kodade den AVIF i 3840 px ur 5 MB-
+    // källor, vilket tog längre tid än Railways 300-sekundersgräns: klienten
+    // fick 502 och kodningen låste CPU:n så att kön bakom den — inklusive
+    // logotypen — också föll. Tre justeringar håller varje kodning under en
+    // sekund.
+    //
+    // 1. WebP i stället för AVIF. AVIF ger ca 20 % mindre filer men kodar en
+    //    tiopotens långsammare, och det är kodningstiden som fäller oss.
+    formats: ["image/webp"],
+    // 2. Inget 3840. Största variant blir 2048, vilket täcker en 1024 px bred
+    //    yta på dubbel pixeltäthet. Källbilderna är ändå bara 2400 px breda,
+    //    så 3840 var uppskalning av något vi inte har.
+    deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048],
+    // 3. Behåll det som kodats. Standard är 60 sekunder, så en bild som ingen
+    //    råkar begära under en minut kodas om från grunden nästa gång.
+    minimumCacheTTL: 60 * 60 * 24 * 31,
   },
   async headers() {
     // P2.37 (audit 2026-05-26): CSP är nu enforced.
