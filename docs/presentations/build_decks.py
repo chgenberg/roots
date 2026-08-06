@@ -25,7 +25,8 @@ from pptx.oxml.ns import qn  # noqa: E402
 from pptx.util import Inches  # noqa: E402
 
 import roots_deck as rd  # noqa: E402
-from decks import DECKS  # noqa: E402
+from decks import DECKS as MS_DECKS  # noqa: E402
+import deck_salj  # noqa: E402
 from slide_model import Deck  # noqa: E402
 
 HERE = Path(__file__).parent
@@ -35,10 +36,18 @@ FOOTERS = {
     "Roots_Saljpresentation.pptx": "Roots · Säljpresentation",
     "Roots_Roadmap_Ar_1-5.pptx": "Roots · Roadmap år 1–5",
     "Roots_Oversiktspresentation.pptx": "Roots · Det här är Roots",
+    "Roots_Ar_1_Execution_Roadmap.pptx": "Roots · År 1 – Execution Roadmap",
 }
 KEYS = {"d1": "Roots_Saljpresentation.pptx",
         "d2": "Roots_Roadmap_Ar_1-5.pptx",
-        "d3": "Roots_Oversiktspresentation.pptx"}
+        "d3": "Roots_Oversiktspresentation.pptx",
+        "d4": "Roots_Ar_1_Execution_Roadmap.pptx"}
+
+# D1 kommer ur deck_salj (noter + MS). Övriga MS-decks lämnas orörda.
+DECKS = {
+    **MS_DECKS,
+    "Roots_Saljpresentation.pptx": deck_salj.build,
+}
 
 
 def register_notes_master(prs: Presentation) -> None:

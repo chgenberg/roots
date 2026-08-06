@@ -46,17 +46,21 @@ FOOTER_Y = 6.92
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 PUBLIC = os.path.join(REPO, "apps", "web", "public")
+# Bilder som bara hör till en presentation och inte till sajten.
+ASSETS = os.path.join(os.path.dirname(__file__), "_assets")
 CACHE = os.path.join(os.path.dirname(__file__), "_cache")
 
 
 # ───────────────────────────── Bildhantering ──────────────────────────
 def image_path(rel: str) -> str | None:
-    """Skalar ned en bild ur apps/web/public till _cache och returnerar den.
+    """Skalar ned en bild ur apps/web/public eller _assets och returnerar den.
 
     Presentationerna mejlas runt, så originalen (flera megabyte styck) får inte
     bäddas in råa.
     """
     src = os.path.join(PUBLIC, rel)
+    if not os.path.exists(src):
+        src = os.path.join(ASSETS, rel)
     if not os.path.exists(src):
         return None
     os.makedirs(CACHE, exist_ok=True)
@@ -65,6 +69,53 @@ def image_path(rel: str) -> str | None:
         im = Image.open(src).convert("RGB")
         im.thumbnail((1700, 1700))
         im.save(dst, "JPEG", quality=82)
+    return dst
+
+
+def _content_bottom(im: Image.Image, skip_left: float) -> int:
+    """Sista bildraden som innehåller något annat än bakgrund.
+
+    Skärmbilder av portalen slutar ofta med en halv skärm tom yta. Sidomenyn
+    går däremot ända ned, så vi tittar bara till höger om den — annars hittar
+    vi alltid dess användarruta och kan aldrig beskära något.
+    """
+    w, h = im.size
+    x0 = int(w * skip_left)
+    strip = im.crop((x0, 0, w, h))
+    bg = strip.getpixel((strip.width - 4, 4))
+    px = strip.load()
+    step = max(1, strip.width // 90)
+    for y in range(h - 1, 0, -1):
+        for x in range(0, strip.width, step):
+            r, g, b = px[x, y]
+            if abs(r - bg[0]) + abs(g - bg[1]) + abs(b - bg[2]) > 24:
+                return y
+    return h - 1
+
+
+def screenshot_path(rel: str, skip_left: float = 0.0) -> str | None:
+    """Beskär bort tom yta under innehållet och cachar skärmbilden.
+
+    Sparas som PNG, inte JPEG: en skärmbild är gränssnittstext mot enfärgad
+    botten, och där syns JPEG-artefakterna direkt runt bokstäverna.
+    """
+    src = os.path.join(ASSETS, "skarm", rel)
+    if not os.path.exists(src):
+        return None
+    os.makedirs(CACHE, exist_ok=True)
+    dst = os.path.join(CACHE, f"skarm__{rel}")
+    if os.path.exists(dst) and os.path.getmtime(dst) >= os.path.getmtime(src):
+        return dst
+
+    im = Image.open(src).convert("RGB")
+    bottom = _content_bottom(im, skip_left)
+    # Lite luft under sista elementet, och beskär bara när det är värt det.
+    pad = int(im.height * 0.03)
+    cut = min(im.height, bottom + pad)
+    if cut < im.height * 0.92:
+        im = im.crop((0, 0, im.width, cut))
+    im.thumbnail((1600, 1600))
+    im.save(dst, "PNG", optimize=True)
     return dst
 
 
@@ -179,6 +230,22 @@ def image_cover(slide, path, x, y, w, h, rounded=False, focus_y=0.5):
     return pic
 
 
+def image_contain(slide, path, x, y, w, h):
+    """Lägger bilden hel inuti rutan och centrerar den, utan beskärning.
+
+    Används för bilder som inte tål beskärning — ett fotograferat föremål mot
+    vit botten förlorar sin poäng om kanterna skärs bort.
+    """
+    if not path or not os.path.exists(path):
+        return None
+    iw, ih = Image.open(path).size
+    scale = min(w / iw, h / ih)
+    draw_w, draw_h = iw * scale, ih * scale
+    return slide.shapes.add_picture(
+        path, Inches(x + (w - draw_w) / 2), Inches(y + (h - draw_h) / 2),
+        Inches(draw_w), Inches(draw_h))
+
+
 # ───────────────────── Uppskattning av radbrytning ────────────────────
 # Bredden per tecken som andel av fontstorleken. Uppmätt i renderad utskrift
 # till cirka 0,46 för båda fonterna; värdena här ligger medvetet något högre så
@@ -248,8 +315,13 @@ def kicker(slide, content, x=MARGIN, y=KICKER_Y, color=SAND_DARK, w=CONTENT_W,
 
 
 def title_block(slide, slide_spec, color=INK, sub_color=SAND_DARK,
-                base_pt=37.0, width=None) -> float:
-    """Skriver kicker, rubrik, underrubrik och linje. Returnerar y för brödtext."""
+                base_pt=37.0, width=None, gap=0.0) -> float:
+    """Skriver kicker, rubrik, underrubrik och linje. Returnerar y för brödtext.
+
+    gap skjuter ned linjen under rubriken. Standardläget lägger den tätt intill
+    texten, vilket är avsikten — men en rubrik som slutar med en bokstav med
+    underhäng, som g eller j, får då stapeln att nudda linjen.
+    """
     width = width or CONTENT_W
     kicker(slide, slide_spec.kicker)
 
@@ -268,8 +340,8 @@ def title_block(slide, slide_spec, color=INK, sub_color=SAND_DARK,
              [[(slide_spec.subtitle, BODY, sub_pt, sub_color, False)]], space_after=0)
         y += sub_h + 0.20
 
-    hairline(slide, MARGIN, y, 1.5, FOREST, 0.022)
-    return y + 0.42
+    hairline(slide, MARGIN, y + gap, 1.5, FOREST, 0.022)
+    return y + gap + 0.42
 
 
 def footer(slide, deck_name, page, light=False):
@@ -281,14 +353,35 @@ def footer(slide, deck_name, page, light=False):
          space_after=0)
 
 
-def caption(slide, spec, y):
+def caption(slide, spec, y, w=CONTENT_W):
     """Master Sources "Nederst:"-rad — en sammanfattande rad under innehållet."""
     if not getattr(spec, "caption", ""):
         return
-    size = fit_size(spec.caption, CONTENT_W, 14, 10.5, 2)
-    text(slide, MARGIN, y, CONTENT_W, 0.62,
+    size = fit_size(spec.caption, w, 14, 10.5, 2)
+    text(slide, MARGIN, y, w, 0.62,
          [[(spec.caption, BODY, size, FOREST, False)]], space_after=0,
          line_spacing=1.3)
+
+
+def bullets_extent(items, w, base_pt=14.5, gap_extra=0.20, max_h=None):
+    """Storleken och höjden som bullets() skulle välja för samma indata.
+
+    Finns för att en layout ska kunna centrera punktlistan innan den ritas —
+    höjden beror på vilken storlek listan landar på, och den vet man annars
+    först efteråt.
+    """
+    if not items:
+        return base_pt, 0.0
+
+    def height(size):
+        return sum(line_count(i, w - 0.34, size) * size * 1.32 / 72 + gap_extra
+                   for i in items)
+
+    size = base_pt
+    if max_h:
+        while size > 10.5 and height(size) > max_h:
+            size -= 0.5
+    return size, height(size) - gap_extra
 
 
 def bullets(slide, items, x, y, w, base_pt=14.5, gap_extra=0.20, dot_color=FOREST,
@@ -296,14 +389,7 @@ def bullets(slide, items, x, y, w, base_pt=14.5, gap_extra=0.20, dot_color=FORES
     """Punktlista med små runda markörer. Krymper texten om utrymmet är knappt."""
     if not items:
         return y
-    size = base_pt
-    if max_h:
-        while size > 10.5:
-            total = sum(line_count(i, w - 0.34, size) * size * 1.32 / 72 + gap_extra
-                        for i in items)
-            if total <= max_h:
-                break
-            size -= 0.5
+    size, _ = bullets_extent(items, w, base_pt, gap_extra, max_h)
 
     dot = 0.075
     cursor = y
@@ -399,7 +485,10 @@ def r_points(slide, spec: Slide, ctx: Ctx):
     if img:
         image_cover(slide, img, SW - MARGIN - 4.35, 1.05, 4.35, 5.35, rounded=True)
 
-    bullets(slide, spec.items, MARGIN, y, body_w, max_h=FOOTER_Y - 0.35 - y)
+    cap_room = 0.72 if spec.caption else 0
+    bullets(slide, spec.items, MARGIN, y, body_w,
+            max_h=FOOTER_Y - 0.35 - y - cap_room)
+    caption(slide, spec, FOOTER_Y - 0.78)
     footer(slide, ctx.deck_name, ctx.page)
 
 
@@ -431,10 +520,27 @@ def r_cards(slide, spec: Slide, ctx: Ctx):
 
     if wide:
         # Rubrikspalten måste rymma det längsta ordet — "Organisationsutveckling"
-        # bryts mitt itu om spalten är för smal.
+        # och "Genomförandekraft" bryts mitt itu om spalten är för smal.
+        # fit_size krymper bara till min_pt och ger upp där, så bredden måste
+        # växa i stället.
         head_w = card_w * 0.34
+        longest = max((w for h, _ in rows for w in h.split()), key=len)
+        while (head_w < card_w * 0.46
+               and chars_per_line(longest, head_w, 12, HEAD) < len(longest) + 2):
+            head_w += 0.04
         body_w = card_w - head_w - 0.98
+        # fit_size godkänner storlekar där det längsta ordet nätt och jämnt
+        # ryms och tar inte hänsyn till kortets höjd. Båda marginalerna behövs:
+        # teckenbredden är en uppskattning, och en tvåradig rubrik som växer ur
+        # sin box lägger sig över numret ovanför.
+        head_room = max(0.40, card_h - 0.90)
         head_pt = min(fit_size(h, head_w, 16, 11, 2, HEAD) for h, _ in rows)
+        while head_pt > 10 and (
+            chars_per_line(longest, head_w, head_pt, HEAD) < len(longest) + 1
+            or max(line_count(h, head_w, head_pt, HEAD) for h, _ in rows)
+            * head_pt * 1.16 / 72 > head_room
+        ):
+            head_pt -= 0.5
         # Texten är vertikalt centrerad i kortet, så för många rader spiller
         # ut både över och under kanten. Krymp till kortets faktiska höjd.
         body_room = card_h - 0.50
@@ -462,7 +568,10 @@ def r_cards(slide, spec: Slide, ctx: Ctx):
         if wide:
             text(slide, x + 0.42, top + 0.30, 0.5, 0.26,
                  [[(f"{i + 1:02d}", BODY, 9.5, FOREST, True)]], space_after=0)
-            text(slide, x + 0.42, top + 0.30, head_w, card_h - 0.5,
+            # Rubriken centreras i den yta som blir kvar under numret. Startade
+            # den vid numrets överkant växte en tvåradig rubrik uppåt och lade
+            # sig över siffran.
+            text(slide, x + 0.42, top + 0.58, head_w, card_h - 0.86,
                  [[(heading, HEAD, head_pt, INK, False)]], space_after=0,
                  anchor=MSO_ANCHOR.MIDDLE, line_spacing=1.16)
             rect(slide, x + 0.42 + head_w + 0.28, top + 0.42, 0.011,
@@ -565,7 +674,10 @@ def r_quarters(slide, spec: Slide, ctx: Ctx):
     n = max(1, len(rows))
     gap = 0.26
     card_w = (CONTENT_W - gap * (n - 1)) / n
-    card_h = min(3.55, FOOTER_Y - 0.35 - y)
+    # Korten är smala, så fokustexten behöver höjd: Q4:s fokusmening tar fyra
+    # rader. Med ett lägre tak lämnades en tom remsa under korten samtidigt som
+    # texten trängdes ihop inuti dem.
+    card_h = min(4.40, FOOTER_Y - 0.35 - y - (0.72 if spec.caption else 0))
 
     # Kvartalsbeteckningen bryts ut ur etiketten så att "Q1" kan bli en chip.
     # Master Source skriver dem som "Q1 – Commercial Proof of Concept".
@@ -579,7 +691,9 @@ def r_quarters(slide, spec: Slide, ctx: Ctx):
     # Execution & Delivery"). Gemensam storlek och höjd gör att fokustexten och
     # leveransfältet linjerar mellan korten. På ett lågt kort får rubriken bara
     # ta två rader, annars äter den upp fokustexten.
-    name_max = 3 if card_h >= 3.5 else 2
+    # Fyra kort blir så smala att en trerading rubrik ("Commercial Execution &
+    # Delivery") äter upp den höjd fokustexten behöver längre ned i kortet.
+    name_max = 3 if card_h >= 3.5 and n <= 3 else 2
     name_pt = min(fit_size(name, inner, 16, 11.5, name_max, HEAD) for _, name in split)
     name_lines = max(line_count(name, inner, name_pt, HEAD) for _, name in split)
     name_h = name_lines * name_pt * 1.2 / 72
@@ -608,9 +722,12 @@ def r_quarters(slide, spec: Slide, ctx: Ctx):
         text(slide, x + 0.34, y + 0.94, inner, name_h + 0.08,
              [[(name, HEAD, name_pt, INK, False)]], space_after=0, line_spacing=1.16)
 
+        # Radberäkningen är en uppskattning och hamnar en rad fel på de längsta
+        # fokusmeningarna. Marginalen håller texten ovanför leveransfältet.
         focus_pt = 12.5
-        while focus_pt > 9.5 and (
-            line_count(focus, inner, focus_pt) * focus_pt * 1.36 / 72 > focus_room
+        while focus_pt > 9.0 and (
+            line_count(focus, inner * 0.94, focus_pt) * focus_pt * 1.36 / 72
+            > focus_room - 0.06
         ):
             focus_pt -= 0.5
         text(slide, x + 0.34, focus_top, inner, focus_room,
@@ -625,6 +742,7 @@ def r_quarters(slide, spec: Slide, ctx: Ctx):
              line_spacing=1.30)
 
     footer(slide, ctx.deck_name, ctx.page)
+    caption(slide, spec, y + card_h + 0.24)
 
 
 def r_years(slide, spec: Slide, ctx: Ctx):
@@ -844,7 +962,7 @@ def r_kpi(slide, spec: Slide, ctx: Ctx):
     gap = 0.30
     tile_w = (CONTENT_W - gap * (per_row - 1)) / per_row
     row_count = (n + per_row - 1) // per_row
-    available = FOOTER_Y - 0.35 - y
+    available = FOOTER_Y - 0.35 - y - (0.72 if spec.caption else 0)
     tile_h = min(2.45, (available - gap * (row_count - 1)) / row_count)
 
     for i, (value, label) in enumerate(rows):
@@ -867,6 +985,7 @@ def r_kpi(slide, spec: Slide, ctx: Ctx):
              line_spacing=1.32)
 
     footer(slide, ctx.deck_name, ctx.page)
+    caption(slide, spec, y + row_count * tile_h + (row_count - 1) * gap + 0.28)
 
 
 def r_roles(slide, spec: Slide, ctx: Ctx):
@@ -1060,8 +1179,249 @@ def r_calc(slide, spec: Slide, ctx: Ctx):
     footer(slide, ctx.deck_name, ctx.page)
 
 
+def r_logo(slide, spec: Slide, ctx: Ctx):
+    """Rent märkesomslag: logotypen ensam, centrerad på mörk botten."""
+    background(slide, INK)
+    rect(slide, 0, 0, 0.10, SH, FOREST)
+
+    logo = os.path.join(PUBLIC, "brand", "roots-logo-white.png")
+    if os.path.exists(logo):
+        pic = slide.shapes.add_picture(logo, Inches(0), Inches(0),
+                                       height=Inches(1.15))
+        pic.left = Inches(SW / 2) - pic.width // 2
+        pic.top = Inches(SH / 2 - 1.05)
+
+    if spec.kicker:
+        kicker(slide, spec.kicker, x=0, y=SH / 2 - 1.72, color=OLIVE, w=SW,
+               align=PP_ALIGN.CENTER)
+
+    y = SH / 2 + 0.44
+    hairline(slide, SW / 2 - 0.75, y, 1.5, FOREST, 0.022)
+
+    if spec.title:
+        size = fit_size(spec.title, CONTENT_W, 22, 15, 2, HEAD)
+        text(slide, MARGIN, y + 0.40, CONTENT_W, 0.8,
+             [[(spec.title, HEAD, size, WHITE, False)]], align=PP_ALIGN.CENTER,
+             space_after=0, line_spacing=1.2)
+    if spec.subtitle:
+        text(slide, MARGIN, y + 1.10, CONTENT_W, 0.6,
+             [[(spec.subtitle, BODY, 13, SAND_MED, False)]],
+             align=PP_ALIGN.CENTER, space_after=0)
+
+
+def r_story(slide, spec: Slide, ctx: Ctx):
+    """Berättarslide: punkter till vänster, ett bildfält till höger.
+
+    Bilden läggs hel i sitt fält i stället för beskuren, eftersom bilderna i
+    berättelsen är föremål och porträtt som inte tål att kapas i kanterna.
+    """
+    background(slide)
+    panel_w, panel_x = 4.30, SW - MARGIN - 4.30
+    body_w = panel_x - MARGIN - 0.55
+
+    y = title_block(slide, spec, width=body_w)
+
+    img = image_path(spec.images[0]) if spec.images else None
+    if img:
+        panel_h = 3.30
+        panel_y = (SH - panel_h) / 2
+        rrect(slide, panel_x, panel_y, panel_w, panel_h, WHITE, SAND_LIGHT)
+        image_contain(slide, img, panel_x + 0.30, panel_y + 0.30,
+                      panel_w - 0.60, panel_h - 0.60)
+
+    cap_room = 0.98 if spec.caption else 0
+    bullets(slide, spec.items, MARGIN, y, body_w, base_pt=14,
+            max_h=FOOTER_Y - 0.35 - y - cap_room)
+    caption(slide, spec, FOOTER_Y - 1.02)
+    footer(slide, ctx.deck_name, ctx.page)
+
+
+def r_pitch(slide, spec: Slide, ctx: Ctx):
+    """Produktslide: bild till höger, två fält till vänster.
+
+    Fälten är säljarens två verktyg — det som är sant om produkten och det
+    kunden känner. De delar höjden efter hur många punkter de innehåller.
+    """
+    background(slide)
+    img = image_path(spec.images[0]) if spec.images else None
+    img_w, img_x = 3.85, SW - MARGIN - 3.85
+    body_w = img_x - 0.55 - MARGIN if img else CONTENT_W
+    bottom = FOOTER_Y - 0.30
+
+    y = title_block(slide, spec, width=body_w)
+    if img:
+        # Säljfrasen ligger under bilden i stället för under punkterna: den
+        # vänstra spalten behöver all höjd den kan få.
+        img_h = bottom - 1.24 - (1.28 if spec.caption else 0)
+        image_cover(slide, img, img_x, 1.24, img_w, img_h, rounded=True,
+                    focus_y=0.18)
+        if spec.caption:
+            top = 1.24 + img_h + 0.24
+            rrect(slide, img_x, top, img_w, bottom - top, FOREST_SOFT)
+            size = fit_size(spec.caption, img_w - 0.56, 12.5, 9.5, 5)
+            text(slide, img_x + 0.28, top + 0.20, img_w - 0.56,
+                 bottom - top - 0.32,
+                 [[(spec.caption, BODY, size, FOREST, False)]], space_after=0,
+                 line_spacing=1.3)
+
+    blocks = [c for c in (spec.left, spec.right) if c]
+    if not blocks:
+        footer(slide, ctx.deck_name, ctx.page)
+        return
+
+    gap = 0.20
+    # Radhöjden i bullets är en uppskattning, så nedre marginalen är tilltagen:
+    # utan den lägger sig sista punkten på kortets underkant.
+    head_room, pad = 0.52, 0.28
+    space = bottom - y - gap * (len(blocks) - 1)
+    # Rubriken kostar lika mycket i ett kort fält som i ett långt. Utan den i
+    # vikten blir det korta fältet så pressat att punkterna hamnar utanför.
+    weights = [len(b.items) + 1.5 for b in blocks]
+
+    top = y
+    for block, weight in zip(blocks, weights):
+        h = space * weight / sum(weights)
+        rrect(slide, MARGIN, top, body_w, h, WHITE, SAND_LIGHT)
+        rect(slide, MARGIN, top, body_w, 0.032, FOREST)
+        kicker(slide, block.heading, x=MARGIN + 0.34, y=top + 0.22,
+               color=FOREST, w=body_w - 0.68)
+        bullets(slide, block.items, MARGIN + 0.34, top + head_room,
+                body_w - 0.68, base_pt=12.5, gap_extra=0.12,
+                max_h=h - head_room - pad)
+        top += h + gap
+
+    if not img:
+        caption(slide, spec, bottom + 0.18, w=body_w)
+    footer(slide, ctx.deck_name, ctx.page)
+
+
+def r_skarm(slide, spec: Slide, ctx: Ctx):
+    """Skärmbild ur plattformen till höger, stödord till vänster.
+
+    Bilden får styra sin egen bredd: en portalvy är bred och låg, en telefon
+    smal och hög. Telefonvyerna lämnar därför nästan dubbelt så mycket plats
+    åt texten, vilket är rimligt — de har färre saker att peka på.
+    """
+    background(slide)
+
+    rel = spec.images[0] if spec.images else None
+    src = os.path.join(ASSETS, "skarm", rel) if rel else None
+    portrait = False
+    if src and os.path.exists(src):
+        iw, ih = Image.open(src).size
+        portrait = ih > iw
+
+    # Sidomenyn i portalen går ända ned; hoppa över den när vi letar efter
+    # var innehållet slutar.
+    img = screenshot_path(rel, 0.0 if portrait else 0.22) if rel else None
+
+    max_w = 2.62 if portrait else 7.00
+    pad = 0.10
+    top_limit, bottom_limit = 1.02, 6.58
+    max_h = bottom_limit - top_limit - 2 * pad
+
+    draw_w = draw_h = 0.0
+    if img:
+        iw, ih = Image.open(img).size
+        draw_w = min(max_w, max_h * iw / ih)
+        draw_h = draw_w * ih / iw
+
+    panel_w = draw_w + 2 * pad
+    panel_x = SW - MARGIN - panel_w
+    column_w = (panel_x - MARGIN - 0.60) if img else CONTENT_W
+    # En telefonbild lämnar över åtta tum till texten, och en punktlista som
+    # löper så brett blir en rad tunna streck. Radlängden får därför ett tak
+    # även när spalten är bred.
+    body_w = min(column_w, 5.90)
+
+    # Rubriken får däremot bruka hela spalten — den tål långa rader.
+    y = title_block(slide, spec, width=column_w, base_pt=31, gap=0.12)
+
+    if img:
+        panel_h = draw_h + 2 * pad
+        panel_y = top_limit + (bottom_limit - top_limit - panel_h) / 2
+        rrect(slide, panel_x, panel_y, panel_w, panel_h, WHITE, SAND_LIGHT,
+              radius=0.03)
+        slide.shapes.add_picture(img, Inches(panel_x + pad),
+                                 Inches(panel_y + pad), Inches(draw_w),
+                                 Inches(draw_h))
+
+    cap_room = 0.92 if spec.caption else 0
+    floor = FOOTER_Y - 0.35 - cap_room
+    _, list_h = bullets_extent(spec.items, body_w, 14, 0.20, floor - y)
+    # Lägg listan i höjd med bildens tyngdpunkt i stället för att låta den
+    # hänga kvar under rubriken med tom yta under sig.
+    top = y + max(0.0, (floor - y - list_h) * 0.42)
+    bullets(slide, spec.items, MARGIN, top, body_w, base_pt=14,
+            max_h=floor - y)
+    if spec.caption:
+        caption(slide, spec, FOOTER_Y - 0.98, w=body_w)
+    footer(slide, ctx.deck_name, ctx.page)
+
+
+def r_team(slide, spec: Slide, ctx: Ctx):
+    """Teamgrid: enhetliga porträtt med namn under.
+
+    `images` och `items` är parallella listor (filnamn / namn). Upp till tre
+    personer per rad, så att ansiktena håller samma storlek och läsbarhet.
+    """
+    background(slide)
+    # Kompakt rubrikblock — porträtten behöver höjden mer än en stor titel.
+    y = title_block(slide, spec, base_pt=28, gap=0.04)
+
+    names = list(spec.items)
+    paths = [image_path(p) for p in spec.images]
+    people = [(n, p) for n, p in zip(names, paths) if n]
+    n = max(1, len(people))
+    per_row = 3 if n > 4 else n
+    row_count = (n + per_row - 1) // per_row
+    gap_x, gap_y = 0.32, 0.16
+    name_h = 0.30
+    cap_h = 0.42 if spec.caption else 0
+    bottom = FOOTER_Y - 0.22 - cap_h
+    avail_h = bottom - y - gap_y * (row_count - 1)
+    # Porträtten är 4:5. Fyll bredden först; krymp bara om höjden inte räcker.
+    tile_w = (CONTENT_W - gap_x * (per_row - 1)) / per_row
+    photo_w = tile_w
+    photo_h = photo_w * 5 / 4
+    block_h = photo_h + name_h
+    if block_h * row_count > avail_h:
+        block_h = avail_h / row_count
+        photo_h = block_h - name_h
+        photo_w = photo_h * 4 / 5
+
+    for i, (name, path) in enumerate(people):
+        col, row = i % per_row, i // per_row
+        in_row = min(per_row, n - row * per_row)
+        row_w = in_row * photo_w + gap_x * (in_row - 1)
+        row_x0 = MARGIN + (CONTENT_W - row_w) / 2
+        x = row_x0 + col * (photo_w + gap_x)
+        top = y + row * (photo_h + name_h + gap_y)
+
+        rrect(slide, x, top, photo_w, photo_h, WHITE, SAND_LIGHT, radius=0.04)
+        if path:
+            pad = 0.045
+            image_cover(slide, path, x + pad, top + pad,
+                        photo_w - 2 * pad, photo_h - 2 * pad,
+                        rounded=True, focus_y=0.28)
+        rect(slide, x, top, photo_w, 0.028, FOREST)
+
+        name_pt = fit_size(name, photo_w - 0.12, 13, 10.5, 1, HEAD)
+        text(slide, x, top + photo_h + 0.06, photo_w, name_h,
+             [[(name, HEAD, name_pt, INK, False)]],
+             align=PP_ALIGN.CENTER, space_after=0)
+
+    if spec.caption:
+        caption(slide, spec, FOOTER_Y - 0.78)
+    footer(slide, ctx.deck_name, ctx.page)
+
+
 RENDERERS = {
     "cover": r_cover,
+    "logo": r_logo,
+    "story": r_story,
+    "pitch": r_pitch,
+    "skarm": r_skarm,
     "bignumber": r_bignumber,
     "words": r_words,
     "calc": r_calc,
@@ -1077,5 +1437,6 @@ RENDERERS = {
     "table": r_table,
     "kpi": r_kpi,
     "roles": r_roles,
+    "team": r_team,
     "close": r_close,
 }

@@ -20,6 +20,11 @@ Presentationerna:
                               (Five-Year Growth Roadmap).
     D3  Övergripande          Vision, erbjudandet, plattformen och vårt
                               arbetssätt (MS-017–020) för internt bruk.
+    D4  År 1 i detalj         MS-114 ensam, med de avsnitt som inte får plats
+                              i D2: värdepelarna, beslutsfaserna, vad BUILD och
+                              PREPARE TO SCALE innebär, budgetens och
+                              säljplanens innehåll, och ett eget uppslag per
+                              kvartal.
 """
 
 from __future__ import annotations
@@ -542,6 +547,211 @@ def build_d2() -> Deck:
     return Deck(title="Roadmap år 1–5", slides=slides)
 
 
+# ══════════════════════ D4 · År 1 i detalj ══════════════════════════════
+# Rollerna delas på två slides. I D2 ryms alla sju på ett uppslag bara genom
+# att de långa ansvarsraderna kortas; här får varje roll sin fulla lista.
+ROLES_COMMERCIAL = ["Ledning", "Area Sales Managers", "Nätverkssäljare",
+                    "Marknad"]
+ROLES_OPERATIONAL = ["Produkt & kvalitet", "Digital plattform",
+                     "Logistik & kundservice"]
+ROLE_INTROS = {"Ansvarar för:", "Ansvarar för att:"}
+
+
+def _duties(doc: ms.Doc, name: str) -> str:
+    """En rolls ansvarslista, utan inledningen och utan slutkommentaren."""
+    section = "Roller & ansvar (Operating Model)"
+    stop = set(ROLES_COMMERCIAL) | set(ROLES_OPERATIONAL)
+    paras = [p for p in doc.sub(section, name, stop) if p not in ROLE_INTROS]
+    # Flera roller avslutas med ett förklarande stycke om rollens uppdrag.
+    # Det hör i talarmanuset — kortet ska bära själva listan.
+    return ", ".join(p.rstrip(",.") for p in paras if len(p) < 60)
+
+
+def _labelled(paras: list[str], start: int) -> list[str]:
+    """Etikett/beskrivning-par från och med index start, som "namn | text"."""
+    out = []
+    for i in range(start, len(paras) - 1, 2):
+        label = paras[i].split(". ", 1)[-1]
+        out.append(f"{label} | {paras[i + 1]}")
+    return out
+
+
+def build_d4() -> Deck:
+    Y1 = DOCS["MS-114"]
+    n = iter(range(1, 99))
+    slides: list[Slide] = []
+
+    notes = "\n".join(
+        ["HUVUDBUDSKAP", *Y1.paras("Huvudbudskap"), "",
+         "SPEAKER NOTES", *Y1.paras("Speaker Notes"), "",
+         "PRESENTATÖRENS UPPGIFT", *Y1.paras("Presentatörens uppgift"), "",
+         "EDITORIAL & VERIFIERING", *Y1.paras("Editorial & verifiering"), "",
+         "Källa: MS-114 · ms-114.md"])
+
+    def add(layout: str, kicker: str, **kw) -> None:
+        slides.append(Slide(number=next(n), layout=layout, kicker=kicker,
+                            source="MS-114", notes=notes, **kw))
+
+    titel = Y1.paras("Titel")
+    under = Y1.paras("Undertitel")
+    hb = Y1.paras("Huvudbudskap")
+
+    add("cover", "ÅR 1 · EXECUTION ROADMAP", title=titel[0], subtitle=titel[1],
+        images=["images/m2.jpg"])
+
+    add("hero", "HUVUDBUDSKAP", title=hb[0], subtitle=under[1])
+
+    # De tre uppdragen, med källans egna förklaringar av vart och ett.
+    add("cards", "BUILD · PROVE · PREPARE TO SCALE",
+        title=titel[1], subtitle=titel[2],
+        items=[f"{t.split(' – ')[0]} | {t.split(' – ')[1].rstrip(',.')}"
+               for t in titel[3:6]])
+
+    # Vad roadmapen ska svara på.
+    fraga = Y1.paras("Frågan sliden besvarar")
+    add("points", "FRÅGAN VI BESVARAR", title=fraga[0], subtitle=fraga[1],
+        items=[p.rstrip(",.") for p in fraga[2:7]])
+
+    # Vad var och en ska bära med sig ur kick-offen.
+    intent = Y1.paras("Executive Intent")
+    add("points", "EFTER KICK-OFFEN", title=intent[8].rstrip(":"),
+        items=[p.rstrip(",.") for p in intent[9:14]],
+        images=["images/m4.jpg"])
+
+    # Värdepelarna — fem principer som inte får plats i D2.
+    varde = Y1.paras("Värdepelare")
+    add("cards", "VÄRDEPELARE", title=varde[0],
+        subtitle=Y1.paras("Syfte")[-1], items=_labelled(varde, 1))
+
+    # Vilka beslut roadmapen stödjer under året. Sektionens egen inledning
+    # namnger dokumentet ("MS-114 används…") och hör därför inte på duken.
+    beslut = Y1.paras("Beslutsfas")
+    roll = Y1.paras("Primär beslutsroll")
+    add("cards", "BESLUTSFAS", title=roll[0], subtitle=roll[-1],
+        items=_labelled(beslut, 1))
+
+    # ── De tre uppdragen, ett i taget ─────────────────────────────────
+    ns = Y1.paras("Executive North Star")
+    add("points", "BUILD", title=ns[3], subtitle=ns[4],
+        items=[p.rstrip(",.") for p in ns[5:11]])
+
+    add("columns", "PROVE", title=ns[12], subtitle=ns[13],
+        left=Column(heading=ns[14].split(". ", 1)[1],
+                    items=[p.rstrip(",.") for p in ns[16:21]]),
+        right=Column(heading=ns[21].split(". ", 1)[1],
+                     items=[p.rstrip(",.") for p in ns[23:30]]))
+
+    # Fyra korta punkter fyller inte en hel duk — bilden gör pausen medveten.
+    add("points", "PREPARE TO SCALE", title=ns[37], subtitle=ns[32],
+        items=[p.rstrip(",.") for p in ns[33:37]], images=["images/m7.jpg"])
+
+    # ── Målbilden ─────────────────────────────────────────────────────
+    budget = Y1.paras("Business Plan")
+    commercial = Y1.paras("Commercial Plan")
+    motto = commercial[commercial.index("Vi arbetar efter mottot:") + 1]
+    # Källans egna informationsfält under roadmapen: de två målen och årets
+    # avgränsning. Avgränsningen hör ihop med målen och läggs därför här.
+    layout_notes = Y1.paras("Layout & Design Notes")
+    add("kpi", "MÅLBILD", title="Budgetmål och säljmål", subtitle=motto,
+        items=[f"{budget[budget.index('Budget') + 1]} | {budget[0]}",
+               f"{commercial[commercial.index('Mål') + 1]} | {commercial[0]}"],
+        caption=layout_notes[23])
+
+    add("points", "BUSINESS PLAN", title=budget[1], subtitle=budget[4],
+        items=[p.rstrip(",.") for p in budget[5:11]], caption=budget[14])
+
+    add("points", "COMMERCIAL PLAN", title=commercial[1],
+        subtitle=commercial[4],
+        items=[p.rstrip(",.") for p in commercial[5:12]],
+        caption=commercial[15])
+
+    # ── Verksamhetsåret ───────────────────────────────────────────────
+    quarters = ["Q1 – Commercial Proof of Concept",
+                "Q2 – Operational Proof of Concept",
+                "Q3 – Operational Readiness",
+                "Q4 – Commercial Execution & Delivery"]
+    road = Y1.paras("Verksamhetsårets Roadmap")
+    add("quarters", "VERKSAMHETSÅRETS ROADMAP",
+        title="Fyra faser med eget syfte och tydlig leverans",
+        subtitle=road[0],
+        items=[f"{q} | {focus} | {delivery}" for q in quarters
+               for focus, _, delivery in [_quarter(Y1, q)]])
+
+    # Ett eget uppslag per kvartal, med kvartalets hela prioriteringslista.
+    q_stop = Q_STOP | {"Fokus", "Prioriteringar", "Leverans"}
+    for q in quarters[:3]:
+        block = Y1.sub("Verksamhetsårets Roadmap", q, set(quarters))
+        focus = block[block.index("Fokus") + 1]
+        prio_start = block.index("Prioriteringar") + 1
+        prio_end = block.index("Leverans")
+        add("points", q.replace(" – ", " · ").upper(),
+            title=focus, subtitle=block[0],
+            items=[p.rstrip(".") for p in block[prio_start:prio_end]],
+            caption=block[prio_end + 1])
+
+    # Q4 är årets kvitto och beskrivs i tre steg i källan.
+    q4 = Y1.sub("Verksamhetsårets Roadmap", quarters[3], set(quarters))
+    q4_kicker = quarters[3].replace(" – ", " · ").upper()
+    i_saljperiod = q4.index("Föreningarnas försäljningsperioder")
+    i_underlag = q4.index("Order- och leveransunderlag")
+    i_leverans = q4.index("Leveransfas")
+    i_primar = q4.index("Primär leverans")
+
+    add("points", q4_kicker, title=q4[i_saljperiod],
+        subtitle=q4[q4.index("Fokus") + 1],
+        items=q4[i_saljperiod + 1:i_underlag])
+
+    add("points", q4_kicker, title=q4[i_underlag],
+        subtitle=q4[i_underlag + 1],
+        items=[p.rstrip(",.") for p in q4[i_underlag + 2:i_leverans - 1]],
+        caption=q4[i_leverans - 1])
+
+    add("columns", q4_kicker, title=q4[i_leverans],
+        subtitle=q4[i_leverans + 1],
+        left=Column(heading=q4[i_leverans],
+                    items=[p.rstrip(",.") for p in
+                           q4[i_leverans + 2:i_primar]]),
+        right=Column(heading=q4[i_primar], items=[q4[i_primar + 1]]))
+
+    # ── Organisationen ────────────────────────────────────────────────
+    roles_section = "Roller & ansvar (Operating Model)"
+    add("roles", "OPERATING MODEL · KOMMERSIELLT",
+        title=roles_section.split(" (")[0],
+        subtitle=Y1.paras(roles_section)[0],
+        items=[f"{r} | {_duties(Y1, r)}" for r in ROLES_COMMERCIAL])
+
+    add("roles", "OPERATING MODEL · OPERATIVT",
+        title=roles_section.split(" (")[0],
+        subtitle=Y1.paras("Primär affärsfunktion")[-1],
+        items=[f"{r} | {_duties(Y1, r)}" for r in ROLES_OPERATIONAL])
+
+    # ── Uppföljning och beslut ────────────────────────────────────────
+    succ = Y1.paras("Success Definition")
+    groups = ["Kommersiellt", "Operativt", "Strategiskt", "Organisatoriskt"]
+    add("cards", "SUCCESS DEFINITION", title=succ[0], subtitle=succ[1],
+        items=[f"{g} | " + " ".join(
+            p for p in Y1.sub("Success Definition", g, set(groups))
+            if p != succ[-1]) for g in groups],
+        caption=succ[-1])
+
+    add("table", "RISKS & MITIGATION", title="Risker och motåtgärder",
+        subtitle=Y1.paras("Risks & Mitigation")[0],
+        columns=["Risk", "Motåtgärd"],
+        items=[f"{risk} | {fix}" for risk, fix in Y1.table("Risks & Mitigation")],
+        caption=Y1.paras("Risks & Mitigation")[-1])
+
+    dec = Y1.paras("Executive Decisions")
+    add("points", "EXECUTIVE DECISIONS", title="Beslut inför skalning",
+        subtitle=dec[0], items=[p.rstrip(",.") for p in dec[2:-1]],
+        caption=dec[-1])
+
+    take = Y1.paras("Take-away")
+    add("close", "TAKE-AWAY", title=f"{take[-2]} {take[-1]}",
+        items=[p.rstrip(",.") for p in take[2:7]])
+
+    return Deck(title="År 1 – Execution Roadmap", slides=slides)
+
+
 # ══════════════════════ D3 · Övergripande ═══════════════════════════════
 def build_d3() -> Deck:
     S = SPECS
@@ -656,6 +866,7 @@ DECKS = {
     "Roots_Saljpresentation.pptx": build_d1,
     "Roots_Roadmap_Ar_1-5.pptx": build_d2,
     "Roots_Oversiktspresentation.pptx": build_d3,
+    "Roots_Ar_1_Execution_Roadmap.pptx": build_d4,
 }
 
 

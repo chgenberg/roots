@@ -4,11 +4,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Heart, Leaf, Shield } from "lucide-react";
 import { pageMetadata } from "@/lib/seo";
+import { TeamSection } from "@/components/sections/team";
 
 export const metadata = pageMetadata({
   title: "Om oss",
   description:
-    "Tre grundare, ett mål: stärka svenskt föreningsliv med naturlig hårvård utvecklad i Norden.",
+    "Teamet bakom Roots — föreningsliv, teknik och naturlig hårvård utvecklad i Norden.",
   path: "/om-oss",
 });
 
@@ -39,17 +40,22 @@ export default function OmOssPage() {
       <section className="bg-brand-50/40 py-20 md:py-28">
         <div className="mx-auto max-w-[1280px] px-6 md:px-10">
           <div className="mx-auto max-w-2xl text-center">
-            <Badge variant="secondary" className="mb-4">Om oss</Badge>
+            <Badge variant="secondary" className="mb-4">
+              Om oss
+            </Badge>
             <h1 className="text-[length:var(--font-size-hero)] font-bold tracking-tight">
-              Tre män. Ett mål.
+              Ett team. Ett mål.
             </h1>
             <p className="mt-6 text-lg text-muted-foreground">
-              Roots grundades av tre grannar — alla över 1,95 m, med helt
-              olika bakgrunder. En ingenjör, en idrottstränare, en företagare.
+              Roots byggs av människor med bakgrund i föreningsliv, teknik och
+              produkt — med samma dröm: att mer av vardagsköpen ska stärka
+              föreningen.
             </p>
           </div>
         </div>
       </section>
+
+      <TeamSection />
 
       <section className="py-24 md:py-32">
         <div className="mx-auto grid max-w-[1280px] items-center gap-12 px-6 md:px-10 lg:grid-cols-2 lg:gap-20">
@@ -96,7 +102,14 @@ export default function OmOssPage() {
           <div className="mx-auto max-w-2xl text-center">
             <h2 className="text-3xl font-bold tracking-tight">Press</h2>
             <p className="mt-4 text-muted-foreground">
-              Kontakta oss på <a href="mailto:press@roots.se" className="underline hover:text-foreground">press@roots.se</a> för pressfrågor, intervjuer och bildmaterial.
+              Kontakta oss på{" "}
+              <a
+                href="mailto:press@roots.se"
+                className="underline hover:text-foreground"
+              >
+                press@roots.se
+              </a>{" "}
+              för pressfrågor, intervjuer och bildmaterial.
             </p>
           </div>
         </div>
@@ -109,7 +122,15 @@ export default function OmOssPage() {
           <div className="mx-auto max-w-2xl text-center">
             <h2 className="text-3xl font-bold tracking-tight">Jobba hos oss</h2>
             <p className="mt-4 text-muted-foreground">
-              Vi letar alltid efter engagerade personer som delar vår passion för föreningslivet. Skicka din ansökan till <a href="mailto:jobb@roots.se" className="underline hover:text-foreground">jobb@roots.se</a>.
+              Vi letar alltid efter engagerade personer som delar vår passion
+              för föreningslivet. Skicka din ansökan till{" "}
+              <a
+                href="mailto:jobb@roots.se"
+                className="underline hover:text-foreground"
+              >
+                jobb@roots.se
+              </a>
+              .
             </p>
           </div>
         </div>
@@ -120,7 +141,9 @@ export default function OmOssPage() {
       <section className="py-24 md:py-32">
         <div className="mx-auto max-w-[1280px] px-6 md:px-10">
           <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-3xl font-bold tracking-tight">Våra värderingar</h2>
+            <h2 className="text-3xl font-bold tracking-tight">
+              Våra värderingar
+            </h2>
           </div>
 
           <div className="mt-16 grid gap-6 md:grid-cols-3">

@@ -37,7 +37,7 @@ STRUCTURAL = {
     "PRIORITERINGAR", "OPERATING MODEL", "SUCCESS DEFINITION",
     "RISKS & MITIGATION", "EXECUTIVE DECISIONS", "TAKE-AWAY",
     "FIVE-YEAR BUSINESS ROADMAP", "UTVECKLINGSOMRÅDEN", "PRIORITERINGSMODELL",
-    "STRATEGISKA PRINCIPER", "RIKTNING",
+    "STRATEGISKA PRINCIPER", "RIKTNING", "FRÅGAN VI BESVARAR",
     # Rubriker som beskriver sliden
     "Budgetmål och säljmål", "Fyra faser med eget syfte och tydlig leverans",
     "Vad vi prioriterar i varje fas", "Risker och motåtgärder",
@@ -68,8 +68,10 @@ def fragments(value: str) -> list[str]:
     prioriteringar, rollernas ansvarslistor. Då finns inte hela raden i källan,
     men varje del gör det.
     """
+    # " · " sätter ihop två navigationsetiketter i en kicker, till exempel
+    # "Q1 · COMMERCIAL PROOF OF CONCEPT". Delarna finns var för sig i källan.
     parts = [value]
-    for separator in (". ", "; ", ", "):
+    for separator in (" · ", ". ", "; ", ", "):
         expanded: list[str] = []
         for part in parts:
             expanded.extend(part.split(separator))
