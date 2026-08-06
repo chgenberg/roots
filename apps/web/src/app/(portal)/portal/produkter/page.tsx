@@ -52,8 +52,8 @@ const FALLBACK_PRODUCTS: PortalProductCard[] = [
   {
     name: "Roots Komplett paket",
     type: "Paket — alla tre",
-    desc: "Schampo, balsam och kroppstvätt tillsammans — 128 kr billigare än var för sig",
-    price: 299,
+    desc: "Schampo, balsam och kroppstvätt tillsammans — 28 kr billigare än var för sig",
+    price: 399,
     sku: BUNDLE_SKU,
     slug: FALLBACK_SKU_SLUG[BUNDLE_SKU]!,
     image: "/images/collection-4.jpg",

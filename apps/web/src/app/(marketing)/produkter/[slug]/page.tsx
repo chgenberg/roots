@@ -102,13 +102,13 @@ const PRODUCTS: Record<
     sku: BUNDLE_SKU,
     tagline: "Hela rutinen — schampo, balsam och kroppstvätt i ett paket",
     description:
-      "De tre produkterna är formulerade för att användas tillsammans. Schampot rengör utan att rubba hårbottnens balans, balsamet ger tillbaka fukt och följsamhet, och kroppstvätten tar hand om huden på samma skonsamma sätt. SyriCalm® — den nordiska aktiven av vass och svamp — går igenom alla tre. Som paket kostar de 299 kr istället för 427 kr var för sig.",
-    price: "299 kr",
-    priceOre: 29900,
+      "De tre produkterna är formulerade för att användas tillsammans. Schampot rengör utan att rubba hårbottnens balans, balsamet ger tillbaka fukt och följsamhet, och kroppstvätten tar hand om huden på samma skonsamma sätt. SyriCalm® — den nordiska aktiven av vass och svamp — går igenom alla tre. Som paket kostar de 399 kr istället för 427 kr var för sig.",
+    price: "399 kr",
+    priceOre: 39900,
     volume: "3 × 250 ml",
     image: "/images/collection-4.jpg",
     image2: "/images/collection-1.jpg",
-    highlights: ["Alla tre produkterna", "Spara 128 kr", "SyriCalm® i hela rutinen"],
+    highlights: ["Alla tre produkterna", "Spara 28 kr", "SyriCalm® i hela rutinen"],
     contains: [
       { slug: "shampoo", label: "Roots Schampoo — 250 ml" },
       { slug: "conditioner", label: "Roots Conditioner — 250 ml" },

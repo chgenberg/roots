@@ -47,7 +47,7 @@ const CATALOG_FALLBACK_PRODUCTS: PortalOrderProduct[] = [
   { id: "1", name: "Roots Schampoo", priceOre: 14900, slug: "shampoo" },
   { id: "2", name: "Roots Conditioner", priceOre: 14900, slug: "conditioner" },
   { id: "3", name: "Roots Body Wash", priceOre: 12900, slug: "body-wash" },
-  { id: "4", name: "Roots Komplett paket", priceOre: 29900, slug: BUNDLE_SLUG },
+  { id: "4", name: "Roots Komplett paket", priceOre: 39900, slug: BUNDLE_SLUG },
 ];
 
 type OrderRow = {

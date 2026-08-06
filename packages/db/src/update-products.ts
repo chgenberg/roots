@@ -5,9 +5,8 @@
  * katalogposter som saknas. `db:seed` vägrar köra i produktion, så det här är
  * vägen in för katalogändringar där.
  *
- * Rör INTE priset på en produkt som redan finns — priset sätts bara när raden
- * skapas. Annars skulle en prisjustering gjord direkt i databasen tas bort nästa
- * gång någon kör skriptet.
+ * Pris synkas bara när `priceOre` är satt på posten i UPDATES — annars lämnas
+ * befintligt pris orört (så en manuell justering i DB inte skrivs över).
  *
  * Kör:
  *   DATABASE_URL="postgres://..." pnpm --filter @roots/db db:update:products
@@ -54,7 +53,7 @@ const UPDATES: CatalogEntry[] = [
     description:
       "Schampo, balsam och kroppstvätt tillsammans — hela rutinen i ett paket. 3 × 250 ml.",
     slug: BUNDLE_SLUG,
-    priceOre: 29900,
+    priceOre: 39900,
   },
 ];
 
@@ -69,15 +68,31 @@ async function main() {
   let missing = 0;
 
   for (const u of UPDATES) {
+    const patch: {
+      name: string;
+      description: string;
+      updatedAt: Date;
+      priceOre?: number;
+    } = {
+      name: u.name,
+      description: u.description,
+      updatedAt: new Date(),
+    };
+    if (typeof u.priceOre === "number") {
+      patch.priceOre = u.priceOre;
+    }
+
     const rows = await db
       .update(products)
-      .set({ name: u.name, description: u.description, updatedAt: new Date() })
+      .set(patch)
       .where(eq(products.sku, u.sku))
-      .returning({ sku: products.sku, name: products.name });
+      .returning({ sku: products.sku, name: products.name, priceOre: products.priceOre });
 
     if (rows.length > 0) {
       updated += rows.length;
-      console.log(`✓ ${u.sku.padEnd(14)} → ${u.name}`);
+      const priceNote =
+        typeof u.priceOre === "number" ? `, ${u.priceOre / 100} kr` : "";
+      console.log(`✓ ${u.sku.padEnd(14)} → ${u.name}${priceNote}`);
       continue;
     }
 

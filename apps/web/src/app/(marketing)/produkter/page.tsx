@@ -52,8 +52,8 @@ const PRODUCTS = [
     tagline:
       "Hela rutinen i ett paket. Samma formuleringar som var för sig, till ett lägre pris — och det som de flesta väljer när de handlar via sin förening.",
     image: "/images/collection-4.jpg",
-    price: "299 kr",
-    badge: "Spara 128 kr",
+    price: "399 kr",
+    badge: "Spara 28 kr",
     highlights: ["Alla tre produkterna", "3 × 250 ml", "Lägsta pris per flaska"],
   },
 ];

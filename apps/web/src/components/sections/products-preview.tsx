@@ -99,7 +99,7 @@ export function ProductsPreview() {
               />
             </div>
             <div className="text-left">
-              <p className="text-lg font-bold">299 kr</p>
+              <p className="text-lg font-bold">399 kr</p>
               <p className="text-sm text-muted-foreground">
                 Komplett paket — alla tre
               </p>

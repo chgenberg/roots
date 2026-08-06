@@ -171,7 +171,7 @@ async function seed() {
       slug: BUNDLE_SLUG,
       description:
         "Schampo, balsam och kroppstvätt tillsammans — hela rutinen i ett paket. 3 × 250 ml.",
-      priceOre: 29900,
+      priceOre: 39900,
       currency: "SEK",
     },
   ] as const;
@@ -179,12 +179,22 @@ async function seed() {
   const insertedProducts: { id: string; sku: string }[] = [];
   for (const p of productSeeds) {
     const [exists] = await db
-      .select({ id: products.id, sku: products.sku })
+      .select({ id: products.id, sku: products.sku, priceOre: products.priceOre })
       .from(products)
       .where(eq(products.sku, p.sku))
       .limit(1);
     if (exists) {
-      console.log(`Product ${p.sku} already exists (skip)`);
+      if (exists.priceOre !== p.priceOre) {
+        await db
+          .update(products)
+          .set({ priceOre: p.priceOre, updatedAt: new Date() })
+          .where(eq(products.id, exists.id));
+        console.log(
+          `Product ${p.sku}: price synced to ${p.priceOre} (was ${exists.priceOre})`
+        );
+      } else {
+        console.log(`Product ${p.sku} already exists (skip)`);
+      }
       insertedProducts.push(exists);
       continue;
     }
@@ -212,7 +222,7 @@ async function seed() {
         name: "Roots Komplett paket",
         slug: "complete-kit",
         description: "Schampo, balsam och kroppstvätt i ett komplett paket.",
-        priceOre: 29900,
+        priceOre: 39900,
       })
       .returning();
 
@@ -228,12 +238,12 @@ async function seed() {
       ]);
     }
     console.log("Created bundle: complete-kit");
-  } else if (bundleExists.priceOre !== 29900) {
+  } else if (bundleExists.priceOre !== 39900) {
     await db
       .update(bundles)
-      .set({ priceOre: 29900, updatedAt: new Date() })
+      .set({ priceOre: 39900, updatedAt: new Date() })
       .where(eq(bundles.id, bundleExists.id));
-    console.log("Bundle complete-kit: price synced to 29900");
+    console.log("Bundle complete-kit: price synced to 39900");
   } else {
     console.log("Bundle complete-kit already exists (skip)");
   }

@@ -32,7 +32,7 @@ export type Bundle = z.infer<typeof BundleSchema>;
  * orderrader, marginal på faktiskt betalt belopp och fakturarad utan att någon
  * av de vägarna behöver känna till begreppet paket.
  *
- * Priset (299 kr inkl. moms) är lägre än delarna var för sig, så föreningens
+ * Priset (399 kr inkl. moms) är lägre än delarna var för sig, så föreningens
  * andel räknas som vanligt på det betalda beloppet.
  */
 export const BUNDLE_SKU = "ROOTS-KIT-001";
