@@ -78,7 +78,7 @@ def build() -> Deck:
         number=next(n), layout="cover", kicker="ROOTS",
         title=S["MS-001"].text("Titel"),
         subtitle=S["MS-001"].text("Undertitel"),
-        images=["images/sport-m3.jpg"],
+        images=["images/sport-pres-cover.jpg"],
         source="MS-001",
         notes=notes_for("MS-001"),
     ))
@@ -158,8 +158,9 @@ def build() -> Deck:
         next(n), "products", "MS-008",
         items=[f"{name} | {benefits[i] if i < len(benefits) else ''}"
                for i, name in enumerate(products)],
-        images=["images/sport-schampoo.jpg", "images/sport-conditioner.jpg",
-                "images/sport-body-wash.jpg"],
+        images=["images/sport-pres-schampoo.jpg",
+                "images/sport-pres-conditioner.jpg",
+                "images/sport-pres-body-wash.jpg"],
         caption=S["MS-008"].under("Slide-innehåll", "Nederst")[0],
     ))
 
@@ -178,7 +179,7 @@ def build() -> Deck:
             "Alla har schampo. Frågan är vems.",
             "Unisex — hela familjen",
         ]),
-        images=["images/sport-schampoo.jpg"],
+        images=["images/sport-pres-schampoo.jpg"],
         caption="»Du köper ändå schampo varje månad. Nu går 35 % till "
                 "föreningen.«",
         notes="Öppna med bestsellern. Stanna inte kvar — sälj vidare till "
@@ -199,7 +200,7 @@ def build() -> Deck:
             "Schampot gör jobbet. Balsamet känns.",
             "Den som testar köper båda nästa gång",
         ]),
-        images=["images/sport-conditioner.jpg"],
+        images=["images/sport-pres-conditioner.jpg"],
         caption="Sälj den aldrig ensam — schampo och balsam hör ihop.",
         notes="Skillnaden märks i handen. Kombinationen är vägen in i paketet.",
     ))
@@ -218,7 +219,7 @@ def build() -> Deck:
             "Alla duschar. Varje dag.",
             "Hela hushållet använder samma flaska",
         ]),
-        images=["images/sport-body-wash.jpg"],
+        images=["images/sport-pres-body-wash.jpg"],
         caption="Lägst tröskel av de tre — perfekt sista knuff.",
         notes="Enklaste merförsäljningen. 129 kr — 20 kr under de andra två.",
     ))

@@ -419,7 +419,9 @@ def r_cover(slide, spec: Slide, ctx: Ctx):
 
     background(slide, OFFWHITE)
     if has_image:
-        image_cover(slide, image_path(spec.images[0]), panel_w, 0, SW - panel_w, SH)
+        # Lite mer av nedre halvan så en förgrundsprodukt inte äter hela panelens höjd.
+        image_cover(slide, image_path(spec.images[0]), panel_w, 0, SW - panel_w, SH,
+                    focus_y=0.58)
     else:
         # Utan foto håller ett sandfält med märket balansen i uppslaget.
         rect(slide, panel_w, 0, SW - panel_w, SH, SAND_100)
@@ -898,9 +900,10 @@ def r_products(slide, spec: Slide, ctx: Ctx):
 
         path = image_path(images[i]) if images[i] else None
         if path:
-            # Flaskan står i bildens övre halva — beskär nedifrån.
+            # Landskapsbilder med hela flaskan: centrera beskärningen så locket
+            # inte blir det enda som syns i det breda kortet.
             image_cover(slide, path, x + 0.02, y + 0.02, card_w - 0.04, img_h,
-                        focus_y=0.16)
+                        focus_y=0.42)
         else:
             rect(slide, x + 0.02, y + 0.02, card_w - 0.04, img_h, SAND_100)
 
@@ -1254,7 +1257,7 @@ def r_pitch(slide, spec: Slide, ctx: Ctx):
         # vänstra spalten behöver all höjd den kan få.
         img_h = bottom - 1.24 - (1.28 if spec.caption else 0)
         image_cover(slide, img, img_x, 1.24, img_w, img_h, rounded=True,
-                    focus_y=0.18)
+                    focus_y=0.40)
         if spec.caption:
             top = 1.24 + img_h + 0.24
             rrect(slide, img_x, top, img_w, bottom - top, FOREST_SOFT)
@@ -1362,12 +1365,12 @@ def r_skarm(slide, spec: Slide, ctx: Ctx):
 def r_team(slide, spec: Slide, ctx: Ctx):
     """Teamgrid: enhetliga porträtt med namn under.
 
-    `images` och `items` är parallella listor (filnamn / namn). Upp till tre
-    personer per rad, så att ansiktena håller samma storlek och läsbarhet.
+    Minimalistiskt — bilden kant i kant, tunn forest-accent, ingen vit
+    passpartout. `images` och `items` är parallella listor.
     """
     background(slide)
-    # Kompakt rubrikblock — porträtten behöver höjden mer än en stor titel.
-    y = title_block(slide, spec, base_pt=28, gap=0.04)
+    # Kompakt rubrik — varje tiondels tum går till porträtten.
+    y = title_block(slide, spec, base_pt=25, gap=0.0)
 
     names = list(spec.items)
     paths = [image_path(p) for p in spec.images]
@@ -1381,44 +1384,53 @@ def r_team(slide, spec: Slide, ctx: Ctx):
     else:
         per_row = n
     row_count = (n + per_row - 1) // per_row
-    gap_x, gap_y = 0.26, 0.14
-    name_h = 0.28
-    cap_h = 0.42 if spec.caption else 0
-    bottom = FOOTER_Y - 0.22 - cap_h
+
+    # Lite smalare sidmarginal än övriga slides så ansiktena blir större.
+    side = 0.55
+    grid_w = SW - 2 * side
+    gap_x, gap_y = 0.16, 0.08
+    name_h = 0.24
+    cap_h = 0.32 if spec.caption else 0
+    bottom = FOOTER_Y - 0.16 - cap_h
     avail_h = bottom - y - gap_y * (row_count - 1)
-    # Porträtten är 4:5. Fyll bredden först; krymp bara om höjden inte räcker.
-    tile_w = (CONTENT_W - gap_x * (per_row - 1)) / per_row
-    photo_w = tile_w
-    photo_h = photo_w * 5 / 4
-    block_h = photo_h + name_h
-    if block_h * row_count > avail_h:
-        block_h = avail_h / row_count
-        photo_h = block_h - name_h
-        photo_w = photo_h * 4 / 5
+
+    tile_w = (grid_w - gap_x * (per_row - 1)) / per_row
+    # Väx till den storlek som fyller antingen bredd eller höjd (4:5).
+    photo_h_cap = avail_h / row_count - name_h
+    photo_w_from_h = photo_h_cap * 4 / 5
+    if photo_w_from_h <= tile_w and photo_h_cap > 1.0:
+        photo_w, photo_h = photo_w_from_h, photo_h_cap
+    else:
+        photo_w = tile_w
+        photo_h = photo_w * 5 / 4
+        if photo_h + name_h > avail_h / row_count:
+            photo_h = avail_h / row_count - name_h
+            photo_w = photo_h * 4 / 5
 
     for i, (name, path) in enumerate(people):
         col, row = i % per_row, i // per_row
         in_row = min(per_row, n - row * per_row)
         row_w = in_row * photo_w + gap_x * (in_row - 1)
-        row_x0 = MARGIN + (CONTENT_W - row_w) / 2
+        row_x0 = side + (grid_w - row_w) / 2
         x = row_x0 + col * (photo_w + gap_x)
         top = y + row * (photo_h + name_h + gap_y)
 
-        rrect(slide, x, top, photo_w, photo_h, WHITE, SAND_LIGHT, radius=0.04)
+        # Bilden fyller rutan — ingen vit ram/padding.
         if path:
-            pad = 0.045
-            image_cover(slide, path, x + pad, top + pad,
-                        photo_w - 2 * pad, photo_h - 2 * pad,
+            image_cover(slide, path, x, top, photo_w, photo_h,
                         rounded=True, focus_y=0.28)
-        rect(slide, x, top, photo_w, 0.028, FOREST)
+        else:
+            rrect(slide, x, top, photo_w, photo_h, SAND_100, None, radius=0.03)
+        # Endast en tunn forest-linje som accent, inte en hel ram.
+        rect(slide, x, top, photo_w, 0.016, FOREST)
 
-        name_pt = fit_size(name, photo_w - 0.12, 13, 10.5, 1, HEAD)
-        text(slide, x, top + photo_h + 0.06, photo_w, name_h,
+        name_pt = fit_size(name, photo_w - 0.06, 12, 9.5, 1, HEAD)
+        text(slide, x, top + photo_h + 0.04, photo_w, name_h,
              [[(name, HEAD, name_pt, INK, False)]],
              align=PP_ALIGN.CENTER, space_after=0)
 
     if spec.caption:
-        caption(slide, spec, FOOTER_Y - 0.78)
+        caption(slide, spec, FOOTER_Y - 0.68)
     footer(slide, ctx.deck_name, ctx.page)
 
 

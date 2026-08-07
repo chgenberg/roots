@@ -220,7 +220,7 @@ def build() -> Deck:
             "Alla har schampo. Frågan är vems.",
             "Unisex — hela familjen",
         ]),
-        images=["images/sport-schampoo.jpg"],
+        images=["images/sport-pres-schampoo.jpg"],
         caption="»Du köper ändå schampo varje månad. Nu går 35 % till "
                 "föreningen.«",
         notes="Bestseller på sajten och den produkt folk förstår direkt. "
@@ -248,7 +248,7 @@ def build() -> Deck:
             "Schampot gör jobbet. Balsamet känns.",
             "Den som testar köper båda nästa gång",
         ]),
-        images=["images/sport-conditioner.jpg"],
+        images=["images/sport-pres-conditioner.jpg"],
         caption="Sälj den aldrig ensam — schampo och balsam hör ihop.",
         notes="Balsamet är det som gör att kunden kommer tillbaka: "
               "skillnaden märks i handen. Låt kunden ta på håret medan du "
@@ -274,7 +274,7 @@ def build() -> Deck:
             "Alla duschar. Varje dag.",
             "Hela hushållet använder samma flaska",
         ]),
-        images=["images/sport-body-wash.jpg"],
+        images=["images/sport-pres-body-wash.jpg"],
         caption="Lägst tröskel av de tre — perfekt sista knuff.",
         notes="Body wash är den enklaste merförsäljningen som finns. Om "
               "någon säger att de är nöjda med sitt schampo: gå hit i "
