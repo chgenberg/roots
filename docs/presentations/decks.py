@@ -105,7 +105,7 @@ def build_d1() -> Deck:
     slides.append(Slide(
         number=next(n), layout="cover", kicker="COMMERCIAL PLAYBOOK",
         title=S["MS-001"].text("Titel"), subtitle=S["MS-001"].text("Undertitel"),
-        images=["images/sport-m3.jpg"], source="MS-001",
+        images=["images/sport-pres-cover.jpg"], source="MS-001",
         notes=notes_for("MS-001"),
     ))
 
@@ -172,8 +172,8 @@ def build_d1() -> Deck:
         next(n), "products", "MS-008",
         items=[f"{name} | {benefits[i] if i < len(benefits) else ''}"
                for i, name in enumerate(products)],
-        images=["images/sport-schampoo.jpg", "images/sport-conditioner.jpg",
-                "images/sport-body-wash.jpg"],
+        images=["images/sport-pres-schampoo.jpg", "images/sport-pres-conditioner.jpg",
+                "images/sport-pres-body-wash.jpg"],
         caption=S["MS-008"].under("Slide-innehåll", "Nederst")[0],
     ))
 
@@ -790,8 +790,8 @@ def build_d3() -> Deck:
         next(n), "products", "MS-008",
         items=[f"{name} | {benefits[i] if i < len(benefits) else ''}"
                for i, name in enumerate(products)],
-        images=["images/sport-schampoo.jpg", "images/sport-conditioner.jpg",
-                "images/sport-body-wash.jpg"],
+        images=["images/sport-pres-schampoo.jpg", "images/sport-pres-conditioner.jpg",
+                "images/sport-pres-body-wash.jpg"],
         caption=S["MS-008"].under("Slide-innehåll", "Nederst")[0],
     ))
 
