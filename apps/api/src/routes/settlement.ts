@@ -531,9 +531,9 @@ settlement.post("/create-invoice/:payoutId", async (c) => {
     }
 
     // Billing-mail: vi har inget dedicerat org-fält idag, använd
-    // primär assoc-admins e-post. När /forening/installningar exposeas
-    // en billingEmail-input räcker det att lägga till en organizations.billing_email-
-    // kolumn + byta SELECT-listan ovan.
+    // primär assoc-admins e-post. När /installningar får en
+    // billingEmail-input räcker det att lägga till organizations.billing_email
+    // + byta SELECT-listan ovan.
     let billingEmail = "";
     const [admin] = await db
       .select({ email: users.email })

@@ -16,7 +16,7 @@ export interface Campaign {
   orgId: string;
   name: string;
   story: string | null;
-  status: "DRAFT" | "ACTIVE" | "ENDED";
+  status: "DRAFT" | "ACTIVE" | "ENDED" | "SETTLED";
   startDate: string | null;
   endDate: string | null;
   goalType: "AMOUNT" | "PACKAGES" | null;

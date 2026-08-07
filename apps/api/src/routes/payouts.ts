@@ -76,17 +76,23 @@ payoutsRoute.get("/", async (c) => {
       .select({
         id: payouts.id,
         campaignId: payouts.campaignId,
+        campaignName: campaigns.name,
         orgId: payouts.orgId,
+        orgName: organizations.name,
         teamId: payouts.teamId,
         totalSalesOre: payouts.totalSalesOre,
         rootsShareOre: payouts.rootsShareOre,
         teamShareOre: payouts.teamShareOre,
         status: payouts.status,
         fortnoxInvoiceId: payouts.fortnoxInvoiceId,
+        paidAt: payouts.paidAt,
+        paymentReference: payouts.paymentReference,
         createdAt: payouts.createdAt,
         updatedAt: payouts.updatedAt,
       })
       .from(payouts)
+      .leftJoin(campaigns, eq(payouts.campaignId, campaigns.id))
+      .leftJoin(organizations, eq(payouts.orgId, organizations.id))
       .orderBy(desc(payouts.createdAt))
       .limit(200);
 
@@ -118,15 +124,20 @@ payoutsRoute.get("/mine", async (c) => {
       .select({
         id: payouts.id,
         campaignId: payouts.campaignId,
+        campaignName: campaigns.name,
         teamId: payouts.teamId,
         totalSalesOre: payouts.totalSalesOre,
         teamShareOre: payouts.teamShareOre,
+        rootsShareOre: payouts.rootsShareOre,
         status: payouts.status,
         fortnoxInvoiceId: payouts.fortnoxInvoiceId,
+        paidAt: payouts.paidAt,
+        paymentReference: payouts.paymentReference,
         createdAt: payouts.createdAt,
         updatedAt: payouts.updatedAt,
       })
       .from(payouts)
+      .leftJoin(campaigns, eq(payouts.campaignId, campaigns.id))
       .where(eq(payouts.orgId, session.orgId))
       .orderBy(desc(payouts.createdAt));
 
@@ -225,18 +236,9 @@ payoutsRoute.patch("/:id/status", async (c) => {
         409
       );
     }
-    // Scout fix 2026-05-26 (Money HIGH-006): PAID kräver att payout
-    // har en faktiskt utfärdad Fortnox-faktura. Defense-in-depth mot
-    // race där status manipuleras separat från fortnoxInvoiceId.
-    if (targetStatus === "PAID" && !payout.fortnoxInvoiceId) {
-      return c.json(
-        {
-          error:
-            "Utbetalningen saknar Fortnox-fakturanummer och kan inte markeras PAID. Kör create-invoice först.",
-        },
-        409
-      );
-    }
+    const fortnoxOn =
+      process.env.FORTNOX_ENABLED?.trim().toLowerCase() === "true";
+
     if (targetStatus === "PAID" && payout.status === "PAID") {
       return c.json(
         {
@@ -247,20 +249,46 @@ payoutsRoute.patch("/:id/status", async (c) => {
         200
       );
     }
-    // P2.16 (audit 2026-05-26): tidigare tilläts PENDING→PAID rakt
-    // av om man hade rätt RBAC, vilket bypass:ade INVOICED-stegets
-    // syfte: 1) ingen Fortnox-faktura är skapad (= ingen MOMS
-    // rapporterad), 2) ingen extern referens. Tvinga vägen
-    // PENDING → INVOICED → PAID så ASSOCIATION_ADMIN-mailet
-    // ("din faktura är betald") alltid följer en faktiskt utfärdad
-    // faktura.
-    if (targetStatus === "PAID" && payout.status !== "INVOICED") {
-      return c.json(
-        {
-          error: `Utbetalning måste vara INVOICED innan den kan markeras PAID (är: ${payout.status}).`,
-        },
-        409
-      );
+
+    // Med Fortnox aktiv: PENDING → create-invoice → INVOICED → PAID.
+    // Utan Fortnox (nuvarande prod-läge): INTERNAL_ADMIN får markera
+    // PENDING → PAID manuellt efter banköverföring, med betalningsreferens.
+    if (fortnoxOn) {
+      if (targetStatus === "PAID" && !payout.fortnoxInvoiceId) {
+        return c.json(
+          {
+            error:
+              "Utbetalningen saknar Fortnox-fakturanummer och kan inte markeras PAID. Kör create-invoice först.",
+          },
+          409
+        );
+      }
+      if (targetStatus === "PAID" && payout.status !== "INVOICED") {
+        return c.json(
+          {
+            error: `Utbetalning måste vara INVOICED innan den kan markeras PAID (är: ${payout.status}).`,
+          },
+          409
+        );
+      }
+    } else if (targetStatus === "PAID") {
+      if (payout.status !== "PENDING" && payout.status !== "INVOICED") {
+        return c.json(
+          {
+            error: `Kan bara markera PAID från PENDING/INVOICED (är: ${payout.status}).`,
+          },
+          409
+        );
+      }
+      if (!paymentReference) {
+        return c.json(
+          {
+            error:
+              "Ange betalningsreferens (t.ex. banköverföringens OCR/meddelande) när Fortnox inte är aktiverat.",
+          },
+          400
+        );
+      }
     }
 
     const now = new Date();

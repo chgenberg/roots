@@ -190,7 +190,7 @@ association.get("/onboarding-status", async (c) => {
           ? "Föreningen är godkänd och kan ta emot beställningar."
           : "Innan er butik kan ta emot betalningar kontrollerar vi att uppgifterna stämmer. Ni kan sätta upp allt annat under tiden.",
         completed: !!org.verified,
-        ctaHref: "/forening/installningar",
+        ctaHref: "/installningar",
         ctaLabel: org.verified ? "Visa uppgifter" : "Komplettera uppgifter",
       },
       {
@@ -199,7 +199,7 @@ association.get("/onboarding-status", async (c) => {
         description:
           "Vi behöver organisationsnummer för att kunna fakturera och göra utbetalningar.",
         completed: hasOrgDetails,
-        ctaHref: "/forening/installningar",
+        ctaHref: "/installningar",
         ctaLabel: hasOrgDetails ? "Visa uppgifter" : "Fyll i nu",
       },
       {
@@ -998,5 +998,223 @@ association.post("/campaigns", async (c) => {
   } catch (err) {
     log.error({ err }, "campaign create failed");
     return c.json({ error: "Kunde inte skapa kampanj just nu." }, 500);
+  }
+});
+
+// ── GET/PATCH /org — föreningens uppgifter (org.nr m.m.) ─────────
+
+association.get("/org", async (c) => {
+  const session = await requireSession(c);
+  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  if (!session.orgId) return c.json({ error: "Ingen organisation" }, 403);
+  if (
+    session.role !== "ASSOCIATION_ADMIN" &&
+    session.role !== "INTERNAL_ADMIN"
+  ) {
+    return c.json({ error: "Behörighet saknas" }, 403);
+  }
+
+  try {
+    const [org] = await db
+      .select({
+        id: organizations.id,
+        name: organizations.name,
+        displayName: organizations.displayName,
+        orgNumber: organizations.orgNumber,
+        sportType: organizations.sportType,
+        nationalFederation: organizations.nationalFederation,
+        postalCode: organizations.postalCode,
+        municipality: organizations.municipality,
+        verified: organizations.verified,
+      })
+      .from(organizations)
+      .where(eq(organizations.id, session.orgId))
+      .limit(1);
+
+    if (!org) return c.json({ error: "Föreningen hittades inte" }, 404);
+    return c.json({ organization: org });
+  } catch (err) {
+    log.error({ err }, "association org get failed");
+    return c.json({ error: "Kunde inte hämta föreningsuppgifter." }, 500);
+  }
+});
+
+association.patch("/org", async (c) => {
+  const session = await requireSession(c);
+  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  if (!session.orgId) return c.json({ error: "Ingen organisation" }, 403);
+  if (session.role !== "ASSOCIATION_ADMIN") {
+    return c.json({ error: "Behörighet saknas" }, 403);
+  }
+  if (isDemoSession(session)) {
+    return c.json({ error: "Demo-konton kan inte ändra föreningsuppgifter." }, 403);
+  }
+
+  type Body = {
+    orgNumber?: string;
+    sportType?: string;
+    nationalFederation?: string;
+    postalCode?: string;
+    municipality?: string;
+  };
+
+  let body: Body;
+  try {
+    body = await c.req.json<Body>();
+  } catch {
+    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+  }
+
+  const patch: {
+    orgNumber?: string | null;
+    sportType?: string | null;
+    nationalFederation?: string | null;
+    postalCode?: string | null;
+    municipality?: string | null;
+    updatedAt: Date;
+  } = { updatedAt: new Date() };
+
+  if (body.orgNumber !== undefined) {
+    const orgNumber = body.orgNumber.trim().replace(/\s+/g, "");
+    if (orgNumber && !/^\d{6,12}-?\d{4}$/.test(orgNumber)) {
+      return c.json(
+        { error: "Organisationsnummer måste vara i formatet 556677-8899." },
+        400
+      );
+    }
+    patch.orgNumber = orgNumber || null;
+  }
+  if (body.sportType !== undefined) {
+    patch.sportType = body.sportType.trim().slice(0, 100) || null;
+  }
+  if (body.nationalFederation !== undefined) {
+    patch.nationalFederation =
+      body.nationalFederation.trim().slice(0, 255) || null;
+  }
+  if (body.postalCode !== undefined) {
+    const postal = body.postalCode.trim().replace(/\s+/g, "");
+    if (postal && !/^\d{5}$/.test(postal)) {
+      return c.json({ error: "Postnummer måste vara fem siffror." }, 400);
+    }
+    patch.postalCode = postal || null;
+  }
+  if (body.municipality !== undefined) {
+    patch.municipality = body.municipality.trim().slice(0, 120) || null;
+  }
+
+  try {
+    const [updated] = await db
+      .update(organizations)
+      .set(patch)
+      .where(eq(organizations.id, session.orgId))
+      .returning({
+        id: organizations.id,
+        name: organizations.name,
+        orgNumber: organizations.orgNumber,
+        sportType: organizations.sportType,
+        nationalFederation: organizations.nationalFederation,
+        postalCode: organizations.postalCode,
+        municipality: organizations.municipality,
+        verified: organizations.verified,
+      });
+
+    if (!updated) return c.json({ error: "Föreningen hittades inte" }, 404);
+
+    void auditLog({
+      userId: session.userId,
+      action: "association.org.updated",
+      entityType: "organization",
+      entityId: updated.id,
+      meta: {
+        ...requestContext((n) => c.req.header(n)),
+        fields: Object.keys(body),
+      },
+    });
+
+    return c.json({ ok: true, organization: updated });
+  } catch (err) {
+    log.error({ err }, "association org patch failed");
+    return c.json({ error: "Kunde inte spara föreningsuppgifter." }, 500);
+  }
+});
+
+// ── POST /campaigns/:id/end — avsluta kampanj inför avräkning ────
+
+association.post("/campaigns/:id/end", async (c) => {
+  const session = await requireSession(c);
+  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  if (!session.orgId) return c.json({ error: "Ingen organisation" }, 403);
+  if (
+    session.role !== "ASSOCIATION_ADMIN" &&
+    session.role !== "INTERNAL_ADMIN"
+  ) {
+    return c.json({ error: "Behörighet saknas" }, 403);
+  }
+  if (isDemoSession(session)) {
+    return c.json({ error: "Demo-konton kan inte avsluta kampanjer." }, 403);
+  }
+
+  const campaignId = c.req.param("id");
+  if (!/^[0-9a-f-]{36}$/i.test(campaignId)) {
+    return c.json({ error: "Ogiltigt kampanj-id." }, 400);
+  }
+
+  try {
+    const [campaign] = await db
+      .select()
+      .from(campaigns)
+      .where(eq(campaigns.id, campaignId))
+      .limit(1);
+
+    if (!campaign) return c.json({ error: "Kampanjen hittades inte" }, 404);
+    if (
+      session.role !== "INTERNAL_ADMIN" &&
+      campaign.orgId !== session.orgId
+    ) {
+      return c.json({ error: "Behörighet saknas" }, 403);
+    }
+    if (campaign.status === "ENDED" || campaign.status === "SETTLED") {
+      return c.json({
+        ok: true,
+        alreadyEnded: true,
+        id: campaign.id,
+        status: campaign.status,
+      });
+    }
+    if (campaign.status !== "ACTIVE") {
+      return c.json(
+        { error: `Kampanjen kan inte avslutas i status ${campaign.status}.` },
+        409
+      );
+    }
+
+    const [updated] = await db
+      .update(campaigns)
+      .set({ status: "ENDED", updatedAt: new Date() })
+      .where(eq(campaigns.id, campaignId))
+      .returning();
+
+    void auditLog({
+      userId: session.userId,
+      action: "campaign.status.changed",
+      entityType: "campaign",
+      entityId: campaignId,
+      meta: {
+        ...requestContext((n) => c.req.header(n)),
+        from: "ACTIVE",
+        to: "ENDED",
+        orgId: campaign.orgId,
+      },
+    });
+
+    return c.json({
+      ok: true,
+      id: updated.id,
+      name: updated.name,
+      status: updated.status,
+    });
+  } catch (err) {
+    log.error({ err, campaignId }, "campaign end failed");
+    return c.json({ error: "Kunde inte avsluta kampanjen." }, 500);
   }
 });

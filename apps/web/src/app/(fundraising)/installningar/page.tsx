@@ -81,6 +81,16 @@ export default function InstallningarPage() {
   const [pwSubmitting, setPwSubmitting] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  // Association org details (ASSOCIATION_ADMIN only).
+  const [orgNumber, setOrgNumber] = useState("");
+  const [sportType, setSportType] = useState("");
+  const [nationalFederation, setNationalFederation] = useState("");
+  const [postalCode, setPostalCode] = useState("");
+  const [municipality, setMunicipality] = useState("");
+  const [orgVerified, setOrgVerified] = useState(false);
+  const [orgLoaded, setOrgLoaded] = useState(false);
+  const [orgSaving, setOrgSaving] = useState(false);
+
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -96,9 +106,6 @@ export default function InstallningarPage() {
         if (cancelled) return;
         setMe(meData.user ?? null);
 
-        // Pull the shop slug only when we know the user is a SELLER.
-        // The endpoint is fast enough that we always wait for it
-        // before settling the page (no spinner flash for sellers).
         if (meData.user?.role === "SELLER") {
           const shopRes = await fetch(`${API_URL}/v1/dashboard/seller`, {
             credentials: "include",
@@ -108,9 +115,31 @@ export default function InstallningarPage() {
             if (!cancelled) setSellerShopSlug(shopData?.seller?.shopSlug ?? null);
           }
         }
+
+        if (meData.user?.role === "ASSOCIATION_ADMIN") {
+          const orgRes = await apiFetch<{
+            organization?: {
+              orgNumber?: string | null;
+              sportType?: string | null;
+              nationalFederation?: string | null;
+              postalCode?: string | null;
+              municipality?: string | null;
+              verified?: boolean;
+            };
+          }>("/v1/association/org");
+          if (orgRes.ok && orgRes.data.organization && !cancelled) {
+            const o = orgRes.data.organization;
+            setOrgNumber(o.orgNumber ?? "");
+            setSportType(o.sportType ?? "");
+            setNationalFederation(o.nationalFederation ?? "");
+            setPostalCode(o.postalCode ?? "");
+            setMunicipality(o.municipality ?? "");
+            setOrgVerified(!!o.verified);
+            setOrgLoaded(true);
+          }
+        }
       } catch {
-        // Silent — we already render an empty state on the page if
-        // `me` stays null.
+        // Silent — empty state if me stays null.
       } finally {
         if (!cancelled) setMeLoading(false);
       }
@@ -120,6 +149,36 @@ export default function InstallningarPage() {
       cancelled = true;
     };
   }, []);
+
+  async function handleSaveOrg(e: React.FormEvent) {
+    e.preventDefault();
+    if (orgSaving) return;
+    setOrgSaving(true);
+    try {
+      const res = await apiFetch<{ ok?: boolean; error?: string }>(
+        "/v1/association/org",
+        {
+          method: "PATCH",
+          body: {
+            orgNumber,
+            sportType,
+            nationalFederation,
+            postalCode,
+            municipality,
+          },
+        }
+      );
+      if (res.ok) {
+        toast("Föreningsuppgifterna är sparade.", "success");
+      } else {
+        toast(res.data?.error || "Kunde inte spara.", "error");
+      }
+    } catch {
+      toast("Ett nätverksfel uppstod. Försök igen.", "error");
+    } finally {
+      setOrgSaving(false);
+    }
+  }
 
   async function handleChangePassword(e: React.FormEvent) {
     e.preventDefault();
@@ -267,6 +326,85 @@ export default function InstallningarPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* ── Association org details ─────────────────────────────── */}
+      {me.role === "ASSOCIATION_ADMIN" && orgLoaded && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Building2 className="h-4 w-4" />
+              Föreningens uppgifter
+            </CardTitle>
+            <CardDescription>
+              Organisationsnummer behövs för fakturering och utbetalning.
+              {orgVerified
+                ? " Föreningen är godkänd för publik försäljning."
+                : " Vi granskar föreningen innan butiken kan ta emot betalningar."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSaveOrg} className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <Label htmlFor="orgNumber">Organisationsnummer *</Label>
+                  <Input
+                    id="orgNumber"
+                    value={orgNumber}
+                    onChange={(e) => setOrgNumber(e.target.value)}
+                    placeholder="556677-8899"
+                    autoComplete="organization"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="sportType">Idrott / verksamhet</Label>
+                  <Input
+                    id="sportType"
+                    value={sportType}
+                    onChange={(e) => setSportType(e.target.value)}
+                    placeholder="Fotboll"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="nationalFederation">Riksförbund</Label>
+                  <Input
+                    id="nationalFederation"
+                    value={nationalFederation}
+                    onChange={(e) => setNationalFederation(e.target.value)}
+                    placeholder="t.ex. Svenska Fotbollförbundet"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="postalCode">Postnummer</Label>
+                  <Input
+                    id="postalCode"
+                    value={postalCode}
+                    onChange={(e) => setPostalCode(e.target.value)}
+                    placeholder="11122"
+                    inputMode="numeric"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="municipality">Ort</Label>
+                  <Input
+                    id="municipality"
+                    value={municipality}
+                    onChange={(e) => setMunicipality(e.target.value)}
+                    placeholder="Stockholm"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <Button type="submit" disabled={orgSaving}>
+                  {orgSaving && (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  )}
+                  Spara uppgifter
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
 
       {/* ── Shop URL (only for sellers) ─────────────────────────── */}
       {me.role === "SELLER" && shopUrl && (
