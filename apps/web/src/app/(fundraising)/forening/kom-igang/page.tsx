@@ -135,7 +135,7 @@ function KomIgangInner() {
         <p className="text-sm text-muted-foreground sm:text-base">
           {status.completed
             ? "Allt på checklistan är klart — föreningen är igång!"
-            : "Fem snabba steg så är ni redo att sälja. Hoppa runt i vilken ordning ni vill."}
+            : "Sex snabba steg så är ni redo att sälja. Hoppa runt i vilken ordning ni vill."}
         </p>
       </header>
 

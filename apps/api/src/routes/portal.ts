@@ -120,10 +120,10 @@ portal.get("/dashboard", async (c) => {
         .from(organizations)
         .where(eq(organizations.type, "club"));
 
-      const quoteCount = await db
-        .select({ count: sql<number>`count(*)` })
-        .from(quotes)
-        .where(eq(quotes.salesRepId, session.userId));
+      // "Stängda denna månad" — only ACCEPTED quotes touched this month.
+      const monthStart = new Date();
+      monthStart.setUTCDate(1);
+      monthStart.setUTCHours(0, 0, 0, 0);
 
       const closedCount = await db
         .select({ count: sql<number>`count(*)` })
@@ -131,7 +131,10 @@ portal.get("/dashboard", async (c) => {
         .where(
           and(
             eq(quotes.salesRepId, session.userId),
-            eq(quotes.status, "ACCEPTED")
+            eq(quotes.status, "ACCEPTED"),
+            // gte() — not sql`... >= ${Date}`: the postgres driver rejects
+            // raw Date params in sql`` (see /statistics comment below).
+            gte(quotes.updatedAt, monthStart)
           )
         );
 
@@ -148,7 +151,17 @@ portal.get("/dashboard", async (c) => {
         );
 
       const clubsNum = Number(clubCount[0]?.count || 0);
-      const quotesNum = Number(quoteCount[0]?.count || 0);
+      // "Offerter ute" = skickade offerter, not every quote row.
+      const openQuotesCount = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(quotes)
+        .where(
+          and(
+            eq(quotes.salesRepId, session.userId),
+            eq(quotes.status, "SENT")
+          )
+        );
+      const quotesNum = Number(openQuotesCount[0]?.count || 0);
       const closedNum = Number(closedCount[0]?.count || 0);
       const pipelineOre = Number(pipelineValue[0]?.total || 0);
       const isDemo =
@@ -177,14 +190,19 @@ portal.get("/dashboard", async (c) => {
         .from(organizations)
         .where(eq(organizations.type, "club"));
 
-      const quoteCount = await db
-        .select({ count: sql<number>`count(*)` })
-        .from(quotes);
+      const monthStart = new Date();
+      monthStart.setUTCDate(1);
+      monthStart.setUTCHours(0, 0, 0, 0);
 
       const closedCount = await db
         .select({ count: sql<number>`count(*)` })
         .from(quotes)
-        .where(eq(quotes.status, "ACCEPTED"));
+        .where(
+          and(
+            eq(quotes.status, "ACCEPTED"),
+            gte(quotes.updatedAt, monthStart)
+          )
+        );
 
       const pipelineValue = await db
         .select({
@@ -193,8 +211,13 @@ portal.get("/dashboard", async (c) => {
         .from(quotes)
         .where(eq(quotes.status, "SENT"));
 
+      const openQuotesCount = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(quotes)
+        .where(eq(quotes.status, "SENT"));
+
       const clubsNum = Number(clubCount[0]?.count || 0);
-      const quotesNum = Number(quoteCount[0]?.count || 0);
+      const quotesNum = Number(openQuotesCount[0]?.count || 0);
       const closedNum = Number(closedCount[0]?.count || 0);
       const pipelineOre = Number(pipelineValue[0]?.total || 0);
       const isDemo =

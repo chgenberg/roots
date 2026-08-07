@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataSourceBadge } from "@/components/data-source-badge";
 import { portalFetch } from "@/lib/portal-api";
+import { apiFetch } from "@/lib/api";
 import { LoadError } from "@/components/load-error";
 import {
   Users,
@@ -23,6 +24,7 @@ import {
   Clock,
   Zap,
   Handshake,
+  ShieldAlert,
 } from "lucide-react";
 import { usePortalUser } from "@/lib/portal-context";
 
@@ -92,12 +94,20 @@ const EMPTY_SALES_STATS = [
   { label: "Pipeline-värde", value: "—", icon: TrendingUp },
 ];
 
+/** Labels aligned with `STAGE_LABELS` on the pipeline board. */
 const EMPTY_SALES_PIPELINE: Array<{ stage: string; count: number; active: boolean }> = [
   { stage: "Lead", count: 0, active: false },
-  { stage: "Kontaktad", count: 0, active: false },
-  { stage: "Offert", count: 0, active: false },
-  { stage: "Stängd", count: 0, active: false },
+  { stage: "Utkast", count: 0, active: false },
+  { stage: "Skickad", count: 0, active: false },
+  { stage: "Accepterad", count: 0, active: false },
 ];
+
+const PIPELINE_OVERVIEW_STAGES = [
+  { code: "LEAD", label: "Lead" },
+  { code: "DRAFT", label: "Utkast" },
+  { code: "SENT", label: "Skickad" },
+  { code: "ACCEPTED", label: "Accepterad" },
+] as const;
 
 const EMPTY_SALES_TOP_CLUBS: Array<{ name: string; orders: number; revenue: string }> = [];
 
@@ -264,11 +274,21 @@ function SalesDashboard({ name }: { name: string }) {
   const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
-    portalFetch<DashboardResponse>("/dashboard")
-      .then((data) => {
-        setIsDemo(data.isDemo ?? false);
-        if (data.stats) {
-          const s = data.stats;
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const [dash, pipe] = await Promise.all([
+          portalFetch<DashboardResponse>("/dashboard"),
+          portalFetch<{
+            stages?: Array<{ stage: string; count: number }>;
+          }>("/pipeline").catch(() => null),
+        ]);
+        if (cancelled) return;
+
+        setIsDemo(dash.isDemo ?? false);
+        if (dash.stats) {
+          const s = dash.stats;
           if (s.activeClubs !== undefined) {
             setStats([
               { label: "Aktiva klubbar", value: String(s.activeClubs), icon: Building2 },
@@ -277,11 +297,33 @@ function SalesDashboard({ name }: { name: string }) {
               { label: "Pipeline-värde", value: s.pipelineValue ?? "0 kr", icon: TrendingUp },
             ]);
           }
-          if (s.pipeline?.length) setPipeline(s.pipeline);
           if (s.topClubs?.length) setTopClubs(s.topClubs);
         }
-      })
-      .catch(() => setLoadError(true));
+
+        // Dashboard payload never included stage counts — the overview
+        // previously stayed at zeros while the KPI cards had real numbers.
+        if (pipe?.stages?.length) {
+          const counts = new Map(
+            pipe.stages.map((row) => [row.stage, Number(row.count) || 0])
+          );
+          setPipeline(
+            PIPELINE_OVERVIEW_STAGES.map(({ code, label }) => {
+              const count = counts.get(code) ?? 0;
+              return { stage: label, count, active: count > 0 };
+            })
+          );
+        } else if (dash.stats?.pipeline?.length) {
+          setPipeline(dash.stats.pipeline);
+        }
+      } catch {
+        if (!cancelled) setLoadError(true);
+      }
+    }
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (
@@ -458,10 +500,15 @@ function AdminDashboard({ name }: { name: string }) {
   );
   const [isDemo, setIsDemo] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [pendingCount, setPendingCount] = useState<number | null>(null);
 
   useEffect(() => {
-    portalFetch<DashboardResponse>("/dashboard")
-      .then((data) => {
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const data = await portalFetch<DashboardResponse>("/dashboard");
+        if (cancelled) return;
         setIsDemo(data.isDemo ?? false);
         if (data.stats) {
           const s = data.stats;
@@ -493,8 +540,29 @@ function AdminDashboard({ name }: { name: string }) {
           if (s.systemHealth?.length) setSystemHealth(s.systemHealth);
           if (s.recentActivity?.length) setRecentActivity(s.recentActivity);
         }
-      })
-      .catch(() => setLoadError(true));
+      } catch {
+        if (!cancelled) setLoadError(true);
+      }
+    }
+
+    async function loadPending() {
+      try {
+        const res = await apiFetch<{ organizations?: unknown[] }>(
+          "/v1/admin/organizations/pending"
+        );
+        if (!cancelled && res.ok) {
+          setPendingCount(res.data.organizations?.length ?? 0);
+        }
+      } catch {
+        // non-fatal — the dedicated page still works
+      }
+    }
+
+    void load();
+    void loadPending();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (
@@ -516,6 +584,28 @@ function AdminDashboard({ name }: { name: string }) {
           message="Kunde inte hämta översikten. Siffrorna nedan kan vara ofullständiga."
           inline
         />
+      )}
+
+      {pendingCount !== null && pendingCount > 0 && (
+        <Card className="border-warning-edge bg-warning-surface/40">
+          <CardContent className="flex flex-wrap items-center justify-between gap-3 p-5">
+            <div className="flex items-start gap-3">
+              <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-warning-strong" />
+              <div>
+                <p className="font-semibold text-warning-strong">
+                  {pendingCount} förening{pendingCount === 1 ? "" : "ar"} väntar
+                  på granskning
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Godkänn innan de kan ta emot publika betalningar.
+                </p>
+              </div>
+            </div>
+            <Button size="sm" asChild>
+              <Link href="/portal/granskning">Öppna granskning</Link>
+            </Button>
+          </CardContent>
+        </Card>
       )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

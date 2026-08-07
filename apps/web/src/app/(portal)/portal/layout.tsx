@@ -69,6 +69,7 @@ const SALES_NAV: NavItem[] = [
 
 const ADMIN_NAV: NavItem[] = [
   { href: "/portal", label: "Översikt", icon: LayoutDashboard },
+  { href: "/portal/granskning", label: "Granskning", icon: ShieldAlert },
   { href: "/portal/klubbar", label: "Alla klubbar", icon: Building2 },
   { href: "/portal/saljare", label: "Säljare", icon: Users },
   { href: "/portal/bestallningar", label: "Beställningar", icon: ShoppingCart },
