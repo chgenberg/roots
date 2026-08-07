@@ -27,3 +27,12 @@ export function formatKrShort(ore: number): string {
   if (kr >= 1000) return `${(kr / 1000).toFixed(kr >= 10000 ? 0 : 1)}k`;
   return `${Math.round(kr)}`;
 }
+
+/** Svensk pluralisering: `1 order` / `2 ordrar`. */
+export function pluralSv(
+  count: number,
+  singular: string,
+  plural: string
+): string {
+  return `${count} ${count === 1 ? singular : plural}`;
+}

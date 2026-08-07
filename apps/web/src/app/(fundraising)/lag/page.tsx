@@ -20,7 +20,7 @@ import { GradeBadge } from "@/components/seller-grade";
 import { OrderDetailDialog } from "@/components/order-detail-dialog";
 import type { TeamDashboard as TeamDashboardData, Seller, Milestone, CustomerOrder } from "@/types/fundraising";
 import { getBrowserApiBase } from "@/lib/api-base";
-import { formatKrValue } from "@/lib/format";
+import { formatKrValue, pluralSv } from "@/lib/format";
 import { orderStatusColor, orderStatusLabel } from "@/lib/order-status";
 
 const PODIUM_ICONS = ["🥇", "🥈", "🥉"];
@@ -274,7 +274,7 @@ export default function TeamDashboard() {
                       <GradeBadge grade={seller.grade} size="sm" />
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {seller.orderCount} ordrar
+                      {pluralSv(seller.orderCount, "order", "ordrar")}
                     </p>
                   </div>
                   <p className="text-sm font-semibold shrink-0">

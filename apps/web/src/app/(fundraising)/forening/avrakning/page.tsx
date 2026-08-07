@@ -7,7 +7,7 @@ import { CreditCard, TrendingUp, Loader2 } from "lucide-react";
 import type { AssociationDashboard, Campaign, Team } from "@/types/fundraising";
 
 import { getBrowserApiBase } from "@/lib/api-base";
-import { formatKrValue } from "@/lib/format";
+import { formatKrValue, pluralSv } from "@/lib/format";
 
 const API_URL = getBrowserApiBase();
 
@@ -125,7 +125,7 @@ export default function SettlementPage() {
                   <div>
                     <p className="text-sm font-medium">{team.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {team.orderCount} ordrar
+                      {pluralSv(team.orderCount, "order", "ordrar")}
                     </p>
                   </div>
                   <div className="text-right">

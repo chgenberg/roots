@@ -26,7 +26,7 @@ import { useToast } from "@/components/ui/toast";
 import { apiFetch } from "@/lib/api";
 
 import { getBrowserApiBase } from "@/lib/api-base";
-import { formatKrValue } from "@/lib/format";
+import { formatKrValue, pluralSv } from "@/lib/format";
 
 const API_URL = getBrowserApiBase();
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
@@ -228,7 +228,7 @@ export default function TeamsManagementPage() {
                           {team.memberCount} säljare
                         </Badge>
                         <Badge variant="secondary" className="text-xs">
-                          {team.orderCount} ordrar
+                          {pluralSv(team.orderCount, "order", "ordrar")}
                         </Badge>
                         <Badge variant="secondary" className="text-xs">
                           {formatKrValue(team.totalSalesOre)}{" "}

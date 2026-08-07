@@ -26,7 +26,7 @@ import { SellerImportDialog } from "@/components/seller-import-dialog";
 import type { TeamDashboard, Seller } from "@/types/fundraising";
 import { getBrowserApiBase } from "@/lib/api-base";
 import { apiFetch } from "@/lib/api";
-import { formatKrValue } from "@/lib/format";
+import { formatKrValue, pluralSv } from "@/lib/format";
 
 const API_URL = getBrowserApiBase();
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
@@ -501,7 +501,7 @@ export default function TeamSellersPage() {
                         <GradeBadge grade={seller.grade} size="sm" />
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        {seller.orderCount} ordrar
+                        {pluralSv(seller.orderCount, "order", "ordrar")}
                       </p>
                     </div>
                     <p className="text-sm font-semibold shrink-0">

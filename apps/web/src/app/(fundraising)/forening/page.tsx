@@ -30,7 +30,7 @@ import { useToast } from "@/components/ui/toast";
 import { apiFetch } from "@/lib/api";
 import type { AssociationDashboard as AssociationDashboardData, Campaign } from "@/types/fundraising";
 import { getBrowserApiBase } from "@/lib/api-base";
-import { formatKrValue } from "@/lib/format";
+import { formatKrValue, pluralSv } from "@/lib/format";
 
 const API_URL = getBrowserApiBase();
 
@@ -326,7 +326,8 @@ function AssociationDashboardInner() {
                   <div className="flex-1">
                     <p className="text-sm font-medium">{team.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {team.memberCount} säljare · {team.orderCount} ordrar
+                      {pluralSv(team.memberCount, "säljare", "säljare")} ·{" "}
+                      {pluralSv(team.orderCount, "order", "ordrar")}
                     </p>
                   </div>
                   <p className="text-sm font-semibold">
