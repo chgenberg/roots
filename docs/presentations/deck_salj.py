@@ -60,6 +60,7 @@ def _slide(number: int, layout: str, ms_id: str, **kwargs) -> Slide:
 TEAM = [
     ("Kent Gustafson", "personal/kent-gustafson.jpg"),
     ("Fredrik Lindqvist", "personal/fredrik-lindqvist.jpg"),
+    ("Johan Lindqvist", "personal/johan-lindqvist.jpg"),
     ("Christopher Genberg", "personal/christopher-genberg.jpg"),
     ("Ola Nordlund", "personal/ola-nordlund.jpg"),
     ("Johan Fogell", "personal/johan-fogell.jpg"),

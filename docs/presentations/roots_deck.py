@@ -1373,10 +1373,16 @@ def r_team(slide, spec: Slide, ctx: Ctx):
     paths = [image_path(p) for p in spec.images]
     people = [(n, p) for n, p in zip(names, paths) if n]
     n = max(1, len(people))
-    per_row = 3 if n > 4 else n
+    # Sju personer: 4 + 3. Annars max tre per rad så ansiktena håller storlek.
+    if n >= 7:
+        per_row = 4
+    elif n > 4:
+        per_row = 3
+    else:
+        per_row = n
     row_count = (n + per_row - 1) // per_row
-    gap_x, gap_y = 0.32, 0.16
-    name_h = 0.30
+    gap_x, gap_y = 0.26, 0.14
+    name_h = 0.28
     cap_h = 0.42 if spec.caption else 0
     bottom = FOOTER_Y - 0.22 - cap_h
     avail_h = bottom - y - gap_y * (row_count - 1)

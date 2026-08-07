@@ -10,6 +10,10 @@ const TEAM = [
     image: "/personal/fredrik-lindqvist.jpg",
   },
   {
+    name: "Johan Lindqvist",
+    image: "/personal/johan-lindqvist.jpg",
+  },
+  {
     name: "Christopher Genberg",
     image: "/personal/christopher-genberg.jpg",
   },
@@ -29,65 +33,83 @@ const TEAM = [
 
 export function TeamSection() {
   return (
-    <section id="teamet" className="bg-brand-50/50 py-24 md:py-32">
-      <div className="mx-auto max-w-[1280px] px-6 md:px-10">
+    <section id="teamet" className="relative overflow-hidden py-20 md:py-28">
+      {/* Soft brand atmosphere — sand wash + forest vignette, not flat fill */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_20%_0%,rgba(107,121,79,0.10),transparent_55%),radial-gradient(ellipse_at_80%_100%,rgba(193,191,153,0.18),transparent_50%),linear-gradient(180deg,#FAF6EF_0%,#FFFFFF_45%,#FAF6EF_100%)]"
+      />
+
+      <div className="relative mx-auto max-w-[1280px] px-6 md:px-10">
         <div className="mx-auto max-w-2xl text-center">
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-brand-700">
+          <p className="text-xs font-medium uppercase tracking-[0.2em] text-brand-700">
             Teamet
           </p>
           <h2 className="mt-3 text-3xl font-bold tracking-tight md:text-4xl">
-            Människorna bakom Roots
+            Sju grannar. Ett mål.
           </h2>
-          <p className="mt-4 text-lg text-muted-foreground">
-            Grannar med bakgrund i föreningsliv, teknik och produkt — samma mål:
-            mer kraft till föreningen.
+          <p className="mt-4 text-base leading-relaxed text-muted-foreground md:text-lg">
+            Föreningsliv, teknik och produkt — vi bygger det vi själva hade
+            velat ha som förening.
           </p>
         </div>
 
-        <div className="mx-auto mt-12 max-w-4xl overflow-hidden rounded-2xl border border-brand-200/80 bg-white shadow-[var(--shadow-card)]">
-          <div className="relative aspect-[3/4] w-full sm:aspect-[4/5] md:aspect-[3/2]">
+        {/* Group photo — edge-to-edge visual plane, no card chrome */}
+        <figure className="group relative mx-auto mt-12 max-w-5xl overflow-hidden rounded-2xl md:mt-16">
+          <div className="relative aspect-[4/5] w-full sm:aspect-[5/4] md:aspect-[16/10]">
             <Image
               src="/personal/gruppbild.jpg"
               alt="Roots teamet samlat utomhus"
               fill
-              className="object-cover object-[center_35%]"
-              sizes="(max-width: 896px) 100vw, 896px"
+              className="object-cover object-[center_32%] transition-transform duration-[1.1s] ease-out group-hover:scale-[1.02]"
+              sizes="(max-width: 1024px) 100vw, 1024px"
               priority
             />
-            <div className="pointer-events-none absolute inset-0 ring-1 ring-inset ring-brand-900/5" />
-            <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-brand-900/35 to-transparent" />
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-brand-900/40 via-transparent to-brand-900/10" />
+            <div className="pointer-events-none absolute inset-0 ring-1 ring-inset ring-brand-900/10" />
           </div>
-        </div>
+          <figcaption className="sr-only">
+            Roots teamet: Kent Gustafson, Fredrik Lindqvist, Johan Lindqvist,
+            Christopher Genberg, Ola Nordlund, Johan Fogell och Niclas Corse.
+          </figcaption>
+        </figure>
 
-        <ul className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {TEAM.map((person) => (
-            <li key={person.name}>
-              <article className="group relative w-full overflow-hidden rounded-2xl border border-brand-200/90 bg-white text-left shadow-[var(--shadow-card)] transition-[border-color,box-shadow,transform] duration-300 ease-out hover:-translate-y-0.5 hover:border-brand-700/70 hover:shadow-[var(--shadow-elevated)]">
-                <span
+        {/* Portrait frames — image-led, forest accent on interaction */}
+        <ul className="mt-10 flex flex-wrap justify-center gap-3 sm:mt-12 sm:gap-4 md:gap-5">
+          {TEAM.map((person, i) => (
+            <li
+              key={person.name}
+              className="w-[calc(50%-0.375rem)] max-w-[220px] sm:w-[calc(33.333%-0.75rem)] lg:w-[calc(25%-1rem)] lg:max-w-[240px]"
+              style={{ animationDelay: `${i * 60}ms` }}
+            >
+              <article className="group relative animate-slide-up overflow-hidden rounded-2xl bg-brand-100 shadow-[var(--shadow-card)] transition-[transform,box-shadow] duration-500 ease-out hover:-translate-y-1 hover:shadow-[var(--shadow-elevated)]">
+                {/* Forest frame — grows in on hover */}
+                <div
                   aria-hidden
-                  className="absolute inset-x-0 top-0 h-[3px] bg-brand-700 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                  className="pointer-events-none absolute inset-0 z-20 rounded-2xl ring-1 ring-inset ring-brand-900/10 transition-[box-shadow,ring-color] duration-500 group-hover:ring-2 group-hover:ring-brand-700/80"
                 />
-                <div className="relative aspect-[4/5] overflow-hidden bg-brand-100">
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute inset-x-0 top-0 z-20 h-1 origin-left scale-x-0 bg-brand-700 transition-transform duration-500 ease-out group-hover:scale-x-100"
+                />
+
+                <div className="relative aspect-[4/5] overflow-hidden">
                   <Image
                     src={person.image}
                     alt={person.name}
                     fill
-                    className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.03]"
-                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                    className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.045]"
+                    sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 240px"
                   />
-                  <div className="absolute inset-0 bg-brand-900/0 transition-colors duration-300 group-hover:bg-brand-900/[0.06]" />
-                </div>
-                <div className="flex items-center justify-between gap-3 px-5 py-4">
-                  <div>
-                    <h3 className="font-semibold tracking-tight text-foreground">
+                  {/* Name lives on the image — no separate card footer */}
+                  <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-brand-900/85 via-brand-900/35 to-transparent px-3.5 pb-3.5 pt-16 sm:px-4 sm:pb-4">
+                    <h3 className="text-[0.95rem] font-semibold leading-tight tracking-tight text-white sm:text-base">
                       {person.name}
                     </h3>
-                    <p className="mt-0.5 text-sm text-muted-foreground">Roots</p>
+                    <p className="mt-0.5 text-[11px] font-medium uppercase tracking-[0.14em] text-brand-400 transition-opacity duration-300 sm:text-xs">
+                      Roots
+                    </p>
                   </div>
-                  <span
-                    aria-hidden
-                    className="h-2 w-2 scale-100 rounded-full bg-brand-700 transition-transform duration-300 group-hover:scale-110"
-                  />
                 </div>
               </article>
             </li>

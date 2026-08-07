@@ -1,7 +1,4 @@
 import Image from "next/image";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { Heart, Leaf, Shield } from "lucide-react";
 import { pageMetadata } from "@/lib/seo";
 import { TeamSection } from "@/components/sections/team";
@@ -37,19 +34,23 @@ const VALUES = [
 export default function OmOssPage() {
   return (
     <>
-      <section className="bg-brand-50/40 py-20 md:py-28">
-        <div className="mx-auto max-w-[1280px] px-6 md:px-10">
+      {/* Intro — one composition, brand-led, no dashboard clutter */}
+      <section className="relative overflow-hidden">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-[linear-gradient(165deg,#FAF6EF_0%,#F1EBE2_48%,#EDF1E9_100%)]"
+        />
+        <div className="relative mx-auto max-w-[1280px] px-6 pb-6 pt-20 md:px-10 md:pb-8 md:pt-28">
           <div className="mx-auto max-w-2xl text-center">
-            <Badge variant="secondary" className="mb-4">
+            <p className="text-xs font-medium uppercase tracking-[0.2em] text-brand-700">
               Om oss
-            </Badge>
-            <h1 className="text-[length:var(--font-size-hero)] font-bold tracking-tight">
-              Ett team. Ett mål.
+            </p>
+            <h1 className="mt-4 text-[length:var(--font-size-hero)] font-bold tracking-tight">
+              Roots
             </h1>
-            <p className="mt-6 text-lg text-muted-foreground">
-              Roots byggs av människor med bakgrund i föreningsliv, teknik och
-              produkt — med samma dröm: att mer av vardagsköpen ska stärka
-              föreningen.
+            <p className="mt-5 text-lg leading-relaxed text-muted-foreground md:text-xl">
+              Naturlig hårvård som kanaliserar vardagsköp tillbaka till
+              föreningslivet.
             </p>
           </div>
         </div>
@@ -60,7 +61,7 @@ export default function OmOssPage() {
       <section className="py-24 md:py-32">
         <div className="mx-auto grid max-w-[1280px] items-center gap-12 px-6 md:px-10 lg:grid-cols-2 lg:gap-20">
           <div className="relative">
-            <div className="group relative aspect-[4/3] overflow-hidden rounded-3xl shadow-xl shadow-brand-900/5">
+            <div className="group relative aspect-[4/3] overflow-hidden rounded-2xl">
               <Image
                 src="/images/collection-3.jpg"
                 alt="Nordisk känsla — ren och naturlig"
@@ -68,17 +69,21 @@ export default function OmOssPage() {
                 className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.02]"
                 sizes="(max-width: 1024px) 100vw, 50vw"
               />
-              <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-inset ring-black/5" />
+              <div className="pointer-events-none absolute inset-0 ring-1 ring-inset ring-brand-900/10" />
             </div>
           </div>
 
           <div className="max-w-lg">
-            <h2 className="text-3xl font-bold tracking-tight">Vår historia</h2>
+            <p className="text-xs font-medium uppercase tracking-[0.18em] text-brand-700">
+              Historien
+            </p>
+            <h2 className="mt-3 text-3xl font-bold tracking-tight">
+              Från en enkel insikt
+            </h2>
             <div className="mt-6 space-y-4 text-base leading-relaxed text-muted-foreground">
               <p>
-                Det började med en enkel insikt: föreningslivet i Sverige ger så
-                mycket till samhället, men får alldeles för lite tillbaka. Vi
-                ville ändra på det.
+                Föreningslivet i Sverige ger så mycket till samhället, men får
+                alldeles för lite tillbaka. Vi ville ändra på det.
               </p>
               <p>
                 Med bakgrunder inom teknik, idrott och företagande satte vi oss
@@ -88,78 +93,79 @@ export default function OmOssPage() {
               <p>
                 Så vi skapade Roots. Tre naturliga produkter, utvecklade i
                 Norden, med en affärsmodell som kanaliserar intäkter tillbaka
-                till föreningslivet. Enkelt. Naturligt. Gemensamt.
+                till föreningslivet.
               </p>
             </div>
           </div>
         </div>
       </section>
 
-      <Separator className="mx-auto max-w-[1200px]" />
-
-      <section id="press" className="py-24 md:py-32">
+      <section className="border-y border-brand-200/60 bg-brand-50/40 py-24 md:py-32">
         <div className="mx-auto max-w-[1280px] px-6 md:px-10">
           <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-3xl font-bold tracking-tight">Press</h2>
-            <p className="mt-4 text-muted-foreground">
-              Kontakta oss på{" "}
-              <a
-                href="mailto:press@roots.se"
-                className="underline hover:text-foreground"
-              >
-                press@roots.se
-              </a>{" "}
-              för pressfrågor, intervjuer och bildmaterial.
+            <p className="text-xs font-medium uppercase tracking-[0.18em] text-brand-700">
+              Värderingar
             </p>
+            <h2 className="mt-3 text-3xl font-bold tracking-tight">
+              Det vi står för
+            </h2>
+          </div>
+
+          <div className="mt-14 grid gap-10 md:grid-cols-3 md:gap-8">
+            {VALUES.map((v) => (
+              <div key={v.title} className="text-center md:text-left">
+                <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-brand-700/10 md:mx-0">
+                  <v.icon className="h-5 w-5 text-brand-700" />
+                </div>
+                <h3 className="mt-4 text-lg font-semibold tracking-tight">
+                  {v.title}
+                </h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                  {v.description}
+                </p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
-      <Separator className="mx-auto max-w-[1200px]" />
-
-      <section id="jobb" className="py-24 md:py-32">
-        <div className="mx-auto max-w-[1280px] px-6 md:px-10">
-          <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-3xl font-bold tracking-tight">Jobba hos oss</h2>
-            <p className="mt-4 text-muted-foreground">
-              Vi letar alltid efter engagerade personer som delar vår passion
-              för föreningslivet. Skicka din ansökan till{" "}
+      <section className="py-20 md:py-24">
+        <div className="mx-auto grid max-w-[1280px] gap-12 px-6 md:grid-cols-2 md:gap-16 md:px-10">
+          <div id="press">
+            <p className="text-xs font-medium uppercase tracking-[0.18em] text-brand-700">
+              Press
+            </p>
+            <h2 className="mt-3 text-2xl font-bold tracking-tight">
+              Bildmaterial och intervjuer
+            </h2>
+            <p className="mt-3 text-muted-foreground">
+              Kontakta oss på{" "}
+              <a
+                href="mailto:press@roots.se"
+                className="font-medium text-foreground underline decoration-brand-400 underline-offset-4 transition-colors hover:decoration-brand-700"
+              >
+                press@roots.se
+              </a>
+              .
+            </p>
+          </div>
+          <div id="jobb">
+            <p className="text-xs font-medium uppercase tracking-[0.18em] text-brand-700">
+              Jobb
+            </p>
+            <h2 className="mt-3 text-2xl font-bold tracking-tight">
+              Jobba hos oss
+            </h2>
+            <p className="mt-3 text-muted-foreground">
+              Skicka din ansökan till{" "}
               <a
                 href="mailto:jobb@roots.se"
-                className="underline hover:text-foreground"
+                className="font-medium text-foreground underline decoration-brand-400 underline-offset-4 transition-colors hover:decoration-brand-700"
               >
                 jobb@roots.se
               </a>
               .
             </p>
-          </div>
-        </div>
-      </section>
-
-      <Separator className="mx-auto max-w-[1200px]" />
-
-      <section className="py-24 md:py-32">
-        <div className="mx-auto max-w-[1280px] px-6 md:px-10">
-          <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-3xl font-bold tracking-tight">
-              Våra värderingar
-            </h2>
-          </div>
-
-          <div className="mt-16 grid gap-6 md:grid-cols-3">
-            {VALUES.map((v) => (
-              <Card key={v.title} className="border-0 shadow-sm">
-                <CardContent className="p-6">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-50">
-                    <v.icon className="h-6 w-6 text-foreground" />
-                  </div>
-                  <h3 className="mt-4 text-lg font-semibold">{v.title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                    {v.description}
-                  </p>
-                </CardContent>
-              </Card>
-            ))}
           </div>
         </div>
       </section>
