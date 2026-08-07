@@ -10,7 +10,7 @@ const PRODUCTS = [
     slug: "shampoo",
     name: "Roots Schampoo",
     tagline: "Rengör på riktigt — SyriCalm® lugnar hårbotten",
-    image: "/images/schampoo.jpg",
+    image: "/images/sport-schampoo.jpg",
     price: "149 kr",
     badge: "Schampo",
   },
@@ -18,7 +18,7 @@ const PRODUCTS = [
     slug: "conditioner",
     name: "Roots Conditioner",
     tagline: "Mjukt, följsamt hår — Pro-Vitamin B5 & antioxidanter",
-    image: "/images/conditioner.jpg",
+    image: "/images/sport-conditioner.jpg",
     price: "149 kr",
     badge: "Balsam",
   },
@@ -26,7 +26,7 @@ const PRODUCTS = [
     slug: "body-wash",
     name: "Roots Body Wash",
     tagline: "Respekterar huden — SyriCalm® lugnar och stärker",
-    image: "/images/body-wash.jpg",
+    image: "/images/sport-body-wash.jpg",
     price: "129 kr",
     badge: "Body Wash",
   },
@@ -91,7 +91,7 @@ export function ProductsPreview() {
           >
             <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-brand-50">
               <Image
-                src="/images/collection-4.jpg"
+                src="/images/sport-package.jpg"
                 alt="Roots Komplett paket"
                 fill
                 className="object-cover"

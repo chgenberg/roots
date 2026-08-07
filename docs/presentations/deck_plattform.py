@@ -74,7 +74,7 @@ def build() -> Deck:
             "Ungdomen säljer från sin telefon",
             "Föreningens andel räknas av automatiskt",
         ],
-        images=["images/m2.jpg"],
+        images=["images/sport-m2.jpg"],
         caption="Konkurrenten säljer kartonger. Vi säljer överblicken.",
         notes="Poängen med hela presentationen på en slide.\n\n"
               "Traditionell föreningsförsäljning: en pärm, en lista, en "

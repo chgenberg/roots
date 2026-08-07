@@ -36,7 +36,7 @@ export const metadata: Metadata = {
     siteName: "Roots",
     images: [
       {
-        url: "/images/collection-1.jpg",
+        url: "/images/sport-hockey.jpg",
         width: 1200,
         height: 630,
         alt: "Roots — Naturlig hårvård",
@@ -45,7 +45,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    images: ["/images/collection-1.jpg"],
+    images: ["/images/sport-hockey.jpg"],
   },
 };
 

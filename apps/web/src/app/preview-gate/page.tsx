@@ -28,7 +28,7 @@ export default function PreviewGatePage() {
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-10 sm:py-12">
       <Image
-        src="/images/collection-2.jpg"
+        src="/images/sport-hero.jpg"
         alt=""
         fill
         priority

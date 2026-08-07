@@ -26,7 +26,7 @@ const FALLBACK_PRODUCTS: PortalProductCard[] = [
     price: 149,
     sku: "ROOTS-SH-001",
     slug: FALLBACK_SKU_SLUG["ROOTS-SH-001"]!,
-    image: "/images/schampoo.jpg",
+    image: "/images/sport-schampoo.jpg",
     isBundle: false,
   },
   {
@@ -36,7 +36,7 @@ const FALLBACK_PRODUCTS: PortalProductCard[] = [
     price: 149,
     sku: "ROOTS-CO-001",
     slug: FALLBACK_SKU_SLUG["ROOTS-CO-001"]!,
-    image: "/images/conditioner.jpg",
+    image: "/images/sport-conditioner.jpg",
     isBundle: false,
   },
   {
@@ -46,7 +46,7 @@ const FALLBACK_PRODUCTS: PortalProductCard[] = [
     price: 129,
     sku: "ROOTS-BW-001",
     slug: FALLBACK_SKU_SLUG["ROOTS-BW-001"]!,
-    image: "/images/body-wash.jpg",
+    image: "/images/sport-body-wash.jpg",
     isBundle: false,
   },
   {
@@ -56,7 +56,7 @@ const FALLBACK_PRODUCTS: PortalProductCard[] = [
     price: 399,
     sku: BUNDLE_SKU,
     slug: FALLBACK_SKU_SLUG[BUNDLE_SKU]!,
-    image: "/images/collection-4.jpg",
+    image: "/images/sport-package.jpg",
     isBundle: true,
   },
 ];

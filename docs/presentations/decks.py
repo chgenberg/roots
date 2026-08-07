@@ -105,7 +105,7 @@ def build_d1() -> Deck:
     slides.append(Slide(
         number=next(n), layout="cover", kicker="COMMERCIAL PLAYBOOK",
         title=S["MS-001"].text("Titel"), subtitle=S["MS-001"].text("Undertitel"),
-        images=["images/m3.jpg"], source="MS-001",
+        images=["images/sport-m3.jpg"], source="MS-001",
         notes=notes_for("MS-001"),
     ))
 
@@ -172,8 +172,8 @@ def build_d1() -> Deck:
         next(n), "products", "MS-008",
         items=[f"{name} | {benefits[i] if i < len(benefits) else ''}"
                for i, name in enumerate(products)],
-        images=["images/schampoo.jpg", "images/conditioner.jpg",
-                "images/body-wash.jpg"],
+        images=["images/sport-schampoo.jpg", "images/sport-conditioner.jpg",
+                "images/sport-body-wash.jpg"],
         caption=S["MS-008"].under("Slide-innehåll", "Nederst")[0],
     ))
 
@@ -338,7 +338,7 @@ def build_d2() -> Deck:
     titel = Y1.paras("Titel")
     slides.append(Slide(
         number=next(n), layout="cover", kicker="MS-114 · MS-115",
-        title=titel[0], subtitle=titel[1], images=["images/m2.jpg"],
+        title=titel[0], subtitle=titel[1], images=["images/sport-m2.jpg"],
         source="MS-114", notes=y1_notes,
     ))
 
@@ -486,7 +486,7 @@ def build_d2() -> Deck:
     t5 = Y5.paras("Titel")
     slides.append(Slide(
         number=next(n), layout="cover", kicker="MS-115",
-        title=t5[0], subtitle=t5[1], images=["images/m7.jpg"],
+        title=t5[0], subtitle=t5[1], images=["images/sport-m7.jpg"],
         source="MS-115", notes=y5_notes,
     ))
 
@@ -597,7 +597,7 @@ def build_d4() -> Deck:
     hb = Y1.paras("Huvudbudskap")
 
     add("cover", "ÅR 1 · EXECUTION ROADMAP", title=titel[0], subtitle=titel[1],
-        images=["images/m2.jpg"])
+        images=["images/sport-m2.jpg"])
 
     add("hero", "HUVUDBUDSKAP", title=hb[0], subtitle=under[1])
 
@@ -616,7 +616,7 @@ def build_d4() -> Deck:
     intent = Y1.paras("Executive Intent")
     add("points", "EFTER KICK-OFFEN", title=intent[8].rstrip(":"),
         items=[p.rstrip(",.") for p in intent[9:14]],
-        images=["images/m4.jpg"])
+        images=["images/sport-m4.jpg"])
 
     # Värdepelarna — fem principer som inte får plats i D2.
     varde = Y1.paras("Värdepelare")
@@ -643,7 +643,7 @@ def build_d4() -> Deck:
 
     # Fyra korta punkter fyller inte en hel duk — bilden gör pausen medveten.
     add("points", "PREPARE TO SCALE", title=ns[37], subtitle=ns[32],
-        items=[p.rstrip(",.") for p in ns[33:37]], images=["images/m7.jpg"])
+        items=[p.rstrip(",.") for p in ns[33:37]], images=["images/sport-m7.jpg"])
 
     # ── Målbilden ─────────────────────────────────────────────────────
     budget = Y1.paras("Business Plan")
@@ -762,7 +762,7 @@ def build_d3() -> Deck:
     slides.append(Slide(
         number=next(n), layout="cover", kicker="ÖVERGRIPANDE PRESENTATION",
         title=S["MS-001"].text("Titel"), subtitle=S["MS-001"].text("Undertitel"),
-        images=["images/h1desktop.jpg"], source="MS-001",
+        images=["images/sport-h1desktop.jpg"], source="MS-001",
         notes=notes_for("MS-001"),
     ))
 
@@ -790,8 +790,8 @@ def build_d3() -> Deck:
         next(n), "products", "MS-008",
         items=[f"{name} | {benefits[i] if i < len(benefits) else ''}"
                for i, name in enumerate(products)],
-        images=["images/schampoo.jpg", "images/conditioner.jpg",
-                "images/body-wash.jpg"],
+        images=["images/sport-schampoo.jpg", "images/sport-conditioner.jpg",
+                "images/sport-body-wash.jpg"],
         caption=S["MS-008"].under("Slide-innehåll", "Nederst")[0],
     ))
 

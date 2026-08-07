@@ -67,7 +67,7 @@ d.title_image(kicker="Mall 06 · Rubrik + bild + text",
                     "förklarar, bilden ger känslan.",
                     "Byt enkelt ut bilden mot vilken produkt- eller "
                     "livsstilsbild som helst."],
-              image="images/collection-1.jpg", img_side="right")
+              image="images/sport-hockey.jpg", img_side="right")
 d.tag(d.prs.slides[-1], "Mall 06 · Rubrik + bild + text")
 
 # 07 · Bild (vänster) + text
@@ -75,13 +75,13 @@ d.title_image(kicker="Mall 07 · Bild + text",
               title="Bild till vänster",
               body=["Samma mall som 06 men speglad. Bra för variation när du "
                     "har flera bild-sidor efter varandra."],
-              image="images/collection-4.jpg", img_side="left")
+              image="images/sport-package.jpg", img_side="left")
 d.tag(d.prs.slides[-1], "Mall 07 · Bild + text (spegel)")
 
 # 08 · Helbild med overlay
 d.image_full(title="Helbild med rubrik",
              subtitle="När bilden ska bära hela känslan.",
-             image="images/collection-2.jpg")
+             image="images/sport-hero.jpg")
 d.tag(d.prs.slides[-1], "Mall 08 · Helbild")
 
 # 09 · Två kolumner
@@ -134,9 +134,9 @@ d.tag(d.prs.slides[-1], "Mall 14 · Flöde")
 # 15 · Skärmar / mockups
 d.screens(kicker="Mall 15 · Skärmar",
           title="Visa upp plattformen",
-          screens=[("images/collection-3.jpg", "Dashboard", "Live-statistik"),
-                   ("images/collection-1.jpg", "Säljarsida", "Personlig shop"),
-                   ("images/collection-4.jpg", "Rapport", "Efter perioden")])
+          screens=[("images/sport-paddock.jpg", "Dashboard", "Live-statistik"),
+                   ("images/sport-hockey.jpg", "Säljarsida", "Personlig shop"),
+                   ("images/sport-package.jpg", "Rapport", "Efter perioden")])
 d.tag(d.prs.slides[-1], "Mall 15 · Skärmar")
 
 # 16 · Rubrik + stor siffra
@@ -168,9 +168,9 @@ d.tag(d.prs.slides[-1], "Mall 18 · Tabell")
 # 19 · Team
 d.team(kicker="Mall 19 · Team",
        title="Vilka vi är",
-       members=[("images/collection-1.jpg", "Namn Efternamn", "Grundare"),
-                ("images/collection-3.jpg", "Namn Efternamn", "Grundare"),
-                ("images/collection-4.jpg", "Namn Efternamn", "Grundare")])
+       members=[("images/sport-hockey.jpg", "Namn Efternamn", "Grundare"),
+                ("images/sport-paddock.jpg", "Namn Efternamn", "Grundare"),
+                ("images/sport-package.jpg", "Namn Efternamn", "Grundare")])
 d.tag(d.prs.slides[-1], "Mall 19 · Team (byt ut foton)")
 
 # 20 · Avslutning

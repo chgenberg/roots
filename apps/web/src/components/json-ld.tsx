@@ -83,7 +83,7 @@ export function ProductJsonLd({
   // MASTERPLAN_01 KC7.3: image + url måste vara absolute för att
   // Google ska godkänna rich-result. ProductJsonLd kallas från
   // (marketing)/produkter/[slug] med relativa image-paths som
-  // "/images/m3.jpg" — utan denna fix tappar vi product rich snippets.
+  // "/images/sport-m3.jpg" — utan denna fix tappar vi product rich snippets.
   const absImage = absoluteUrl(image);
   const absUrl = absoluteUrl(url) ?? url;
   const jsonLd = {

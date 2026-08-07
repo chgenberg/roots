@@ -9,8 +9,8 @@ export function HeroSection() {
         {/* Desktop */}
         <div className="absolute inset-0 hidden lg:block">
           <Image
-            src="/images/collection-2.jpg"
-            alt="Roots — Roots Schampoo, Roots Conditioner och Roots Body Wash"
+            src="/images/sport-hero.jpg"
+            alt="Roots-produkterna vid fotbollsplanen — Schampoo, Conditioner och Body Wash"
             fill
             className="object-cover"
             priority
@@ -21,7 +21,7 @@ export function HeroSection() {
         {/* Mobile */}
         <div className="absolute inset-0 lg:hidden">
           <Image
-            src="/images/hero-mobile.jpg"
+            src="/images/sport-hero-mobile.jpg"
             alt="Roots — Roots Schampoo, Roots Conditioner och Roots Body Wash"
             fill
             className="object-cover object-center"

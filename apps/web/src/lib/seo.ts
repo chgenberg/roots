@@ -27,7 +27,7 @@ export interface PageMetadataInput {
   description: string;
   /** Absolute path (måste börja med "/"). Används till canonical + openGraph.url. */
   path: string;
-  /** Default: "/images/h1desktop.jpg" (root-layoutens fallback). Relativa paths OK. */
+  /** Default: "/images/sport-h1desktop.jpg" (root-layoutens fallback). Relativa paths OK. */
   ogImage?: string;
   /**
    * Next.js OpenGraph-typningen accepterar bara "website" | "article".

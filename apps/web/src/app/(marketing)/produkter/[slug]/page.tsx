@@ -39,8 +39,8 @@ const PRODUCTS: Record<
     price: "149 kr",
     priceOre: 14900,
     volume: "250 ml",
-    image: "/images/schampoo.jpg",
-    image2: "/images/schampoo-lifestyle.jpg",
+    image: "/images/sport-schampoo.jpg",
+    image2: "/images/sport-schampoo-lifestyle.jpg",
     highlights: ["Sulfatsnålt", "SyriCalm® – lugnar hårbotten", "Reder ut & ger glans"],
     ingredients: [
       "Aqua", "Coco-Glucoside", "Cocamidopropyl Betaine",
@@ -60,8 +60,8 @@ const PRODUCTS: Record<
     price: "149 kr",
     priceOre: 14900,
     volume: "250 ml",
-    image: "/images/conditioner.jpg",
-    image2: "/images/conditioner-lifestyle.jpg",
+    image: "/images/sport-conditioner.jpg",
+    image2: "/images/sport-conditioner-lifestyle.jpg",
     highlights: ["SyriCalm® & Panthenol", "E-vitamin & antioxidanter", "Närande – utan att tynga"],
     ingredients: [
       "Aqua", "Cetearyl Alcohol", "Caprylic/Capric Triglyceride",
@@ -85,8 +85,8 @@ const PRODUCTS: Record<
     price: "129 kr",
     priceOre: 12900,
     volume: "250 ml",
-    image: "/images/body-wash.jpg",
-    image2: "/images/body-wash-lifestyle.jpg",
+    image: "/images/sport-body-wash.jpg",
+    image2: "/images/sport-body-wash-lifestyle.jpg",
     highlights: ["Sulfatsnålt", "SyriCalm® – lugnar huden", "Panthenol (B5)"],
     ingredients: [
       "Aqua", "Cocamidopropyl Betaine", "Sodium Lauroyl Sarcosinate",
@@ -106,8 +106,8 @@ const PRODUCTS: Record<
     price: "399 kr",
     priceOre: 39900,
     volume: "3 × 250 ml",
-    image: "/images/collection-4.jpg",
-    image2: "/images/collection-1.jpg",
+    image: "/images/sport-package.jpg",
+    image2: "/images/sport-hockey.jpg",
     highlights: ["Alla tre produkterna", "Spara 28 kr", "SyriCalm® i hela rutinen"],
     contains: [
       { slug: "shampoo", label: "Roots Schampoo — 250 ml" },

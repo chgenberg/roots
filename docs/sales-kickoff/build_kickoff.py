@@ -215,7 +215,7 @@ def section_head(slide, kick, title, y=Inches(0.72), tsize=32, tw=Inches(11.6)):
 # ════════════════════════ SLIDE RENDERERS ════════════════════════
 def r_cover(d):
     s = new_slide(OFFWHITE)
-    img_cover(s, web_small("images/collection-2.jpg", 2000), Inches(7.7), 0, SW - Inches(7.7), SH)
+    img_cover(s, web_small("images/sport-hero.jpg", 2000), Inches(7.7), 0, SW - Inches(7.7), SH)
     rect(s, Inches(7.7), 0, Inches(0.06), SH, FOREST)
     spine(s, FOREST)
     img_fit(s, brand("brand/roots-logo-black.png"),
@@ -323,7 +323,7 @@ def r_products(d):
     s = new_slide(OFFWHITE)
     spine(s)
     section_head(s, d["kicker"], d["title"])
-    imgs = ["images/schampoo.jpg", "images/conditioner.jpg", "images/body-wash.jpg"]
+    imgs = ["images/sport-schampoo.jpg", "images/sport-conditioner.jpg", "images/sport-body-wash.jpg"]
     cards = d["cards"]
     n = len(cards)
     xs, cw = _cards_geom(n)

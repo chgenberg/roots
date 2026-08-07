@@ -144,7 +144,7 @@ def build() -> Deck:
             "Sulfater (SLS) stör både flora och barriär",
             "Antimjällaktiver slår rakt på Malassezia",
         ],
-        images=["images/m2.jpg"],
+        images=["images/sport-m2.jpg"],
         caption="Att rengöra är lätt. Att rengöra utan att rubba är svårt.",
         notes="Det här är vårt djup — ingen annan i föreningsförsäljning "
               "pratar om hårbottnens biologi. Ta det lugnt och förklara med "
@@ -220,7 +220,7 @@ def build() -> Deck:
             "Alla har schampo. Frågan är vems.",
             "Unisex — hela familjen",
         ]),
-        images=["images/schampoo.jpg"],
+        images=["images/sport-schampoo.jpg"],
         caption="»Du köper ändå schampo varje månad. Nu går 35 % till "
                 "föreningen.«",
         notes="Bestseller på sajten och den produkt folk förstår direkt. "
@@ -248,7 +248,7 @@ def build() -> Deck:
             "Schampot gör jobbet. Balsamet känns.",
             "Den som testar köper båda nästa gång",
         ]),
-        images=["images/conditioner.jpg"],
+        images=["images/sport-conditioner.jpg"],
         caption="Sälj den aldrig ensam — schampo och balsam hör ihop.",
         notes="Balsamet är det som gör att kunden kommer tillbaka: "
               "skillnaden märks i handen. Låt kunden ta på håret medan du "
@@ -274,7 +274,7 @@ def build() -> Deck:
             "Alla duschar. Varje dag.",
             "Hela hushållet använder samma flaska",
         ]),
-        images=["images/body-wash.jpg"],
+        images=["images/sport-body-wash.jpg"],
         caption="Lägst tröskel av de tre — perfekt sista knuff.",
         notes="Body wash är den enklaste merförsäljningen som finns. Om "
               "någon säger att de är nöjda med sitt schampo: gå hit i "
@@ -297,7 +297,7 @@ def build() -> Deck:
             "»Vill du ta hela rutinen?«",
             "Tar slut samtidigt — nästa order ger sig själv",
         ]),
-        images=["images/collection-1.jpg"],
+        images=["images/sport-hockey.jpg"],
         caption="Snittordern är det enda du styr över i ett säljsamtal.",
         notes="Presentationens viktigaste slide. Om säljarna bara tar med "
               "sig en sak ska det vara: visa paketet först.\n\n"

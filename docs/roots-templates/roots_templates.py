@@ -222,7 +222,7 @@ class Deck:
                   align=PP_ALIGN.RIGHT, space_after=0)
 
     # ════════════════════ MALLAR / TEMPLATES ════════════════════
-    def cover(self, kicker, title1, title2, subtitle, image="images/collection-2.jpg"):
+    def cover(self, kicker, title1, title2, subtitle, image="images/sport-hero.jpg"):
         """MALL: Titelsida — logo, rubrik i två delar, underrubrik, bild höger."""
         s = self._new(OFFWHITE)
         img = self.web_small(image, 2000) if image else None
@@ -442,7 +442,7 @@ class Deck:
         return s
 
     def products(self, kicker, title, cards,
-                 imgs=("images/schampoo.jpg", "images/conditioner.jpg", "images/body-wash.jpg")):
+                 imgs=("images/sport-schampoo.jpg", "images/sport-conditioner.jpg", "images/sport-body-wash.jpg")):
         """MALL: Produktkort — bild + typ + namn + fördel. cards=[(namn, typ, fördel)]"""
         s = self._new(OFFWHITE)
         self._spine(s)

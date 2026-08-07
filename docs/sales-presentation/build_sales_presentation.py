@@ -237,7 +237,7 @@ def bullet_list(slide, items, x, y, w, gap=Inches(0.72), dotc=FOREST,
 def s_cover():
     s = new_slide(OFFWHITE)
     # höger: bild som fyller höjden
-    img_cover(s, web_small("images/h1desktop.jpg", 2000), Inches(7.5), 0,
+    img_cover(s, web_small("images/sport-h1desktop.jpg", 2000), Inches(7.5), 0,
               SW - Inches(7.5), SH)
     rect(s, Inches(7.5), 0, Inches(0.06), SH, FOREST)
     spine(s, FOREST)
@@ -482,7 +482,7 @@ def s_price():
 def s_science():
     s = new_slide(OFFWHITE)
     section_head(s, "Bättre för hår & hud", "Vi jobbar med hudbotten \u2013 inte emot den")
-    img_cover(s, web_small("images/m2.jpg", 1600), 0, Inches(2.0), Inches(4.7), Inches(4.7))
+    img_cover(s, web_small("images/sport-m2.jpg", 1600), 0, Inches(2.0), Inches(4.7), Inches(4.7))
     txt(s, Inches(5.1), Inches(2.1), Inches(7.5), Inches(0.9),
         [[("Håret växer ur en levande hudbotten. Roots är gjort för att stötta dess "
            "naturliga balans \u2013 mikrobiom och hudbottens eget lugnande system.",
@@ -687,7 +687,7 @@ def s_app():
 # ── 18. Vårt varför (värderingar) ───────────────────────
 def s_values():
     s = new_slide(INK)
-    img_cover(s, web_small("images/m3.jpg", 1800), Inches(8.0), 0, SW - Inches(8.0), SH)
+    img_cover(s, web_small("images/sport-m3.jpg", 1800), Inches(8.0), 0, SW - Inches(8.0), SH)
     rect(s, Inches(8.0), 0, Inches(0.06), SH, FOREST)
     spine(s, FOREST)
     kicker(s, Inches(0.7), Inches(1.1), "Vårt varför", color=OLIVE)
