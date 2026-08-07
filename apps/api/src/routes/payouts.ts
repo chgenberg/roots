@@ -164,12 +164,6 @@ payoutsRoute.patch("/:id/status", async (c) => {
   if (session.role !== "INTERNAL_ADMIN") {
     return c.json({ error: "Behörighet saknas" }, 403);
   }
-  if (isDemoSession(session)) {
-    return c.json(
-      { error: "Demoläget kan inte ändra riktiga utbetalningar." },
-      403
-    );
-  }
 
   const id = c.req.param("id");
   if (!/^[0-9a-f-]{36}$/i.test(id)) {
@@ -196,6 +190,19 @@ payoutsRoute.patch("/:id/status", async (c) => {
   const paymentReference = body.paymentReference?.trim() || null;
   if (paymentReference && paymentReference.length > 64) {
     return c.json({ error: "Referens får vara max 64 tecken." }, 400);
+  }
+
+  // Seeded admin@roots.se is flagged as demo, but is also the prod ops
+  // login until staff accounts exist. Allow PAID with a bank reference;
+  // block other demo mutations (e.g. fake INVOICED).
+  if (isDemoSession(session)) {
+    const allowOpsPaid = targetStatus === "PAID" && !!paymentReference;
+    if (!allowOpsPaid) {
+      return c.json(
+        { error: "Demoläget kan inte ändra riktiga utbetalningar." },
+        403
+      );
+    }
   }
 
   try {
