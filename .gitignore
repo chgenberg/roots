@@ -37,3 +37,4 @@ backups/
 # innehåller belopp och villkor i klartext, så att undanta bara .md och .pdf
 # lämnade förhandlingsunderlaget kvar i diffen.
 docs/ersattning/
+apps/web/public/images/_archive-*/
