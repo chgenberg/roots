@@ -43,7 +43,12 @@ import {
   teamLeaderClaimedEmail,
   withLocalePath,
 } from "../lib/email/templates";
-import { resolveUiLocale, uiError } from "../lib/ui-locale";
+import { resolveUiLocale, uiError, type UiLocale } from "../lib/ui-locale";
+import {
+  localizeDemoCampaignName,
+  localizeDemoOrgName,
+  localizeDemoTeamName,
+} from "../lib/demo-i18n";
 
 const SITE_URL = (
   process.env.NEXT_PUBLIC_SITE_URL ||
@@ -297,7 +302,10 @@ association.get("/onboarding-status", async (c) => {
 
     return c.json({
       orgId,
-      orgName: org.displayName ?? org.name,
+      orgName: localizeDemoOrgName(
+        locale,
+        org.displayName ?? org.name
+      ),
       orgApproved: !!org.verified,
       completed,
       completedCount,
@@ -464,9 +472,16 @@ association.post("/team-invites", async (c) => {
             to: invitedEmail,
             ...teamLeaderInviteEmail({
               inviterName,
-              orgName: org?.name ?? (locale === "en" ? "the club" : "föreningen"),
-              campaignName: campaign.name,
-              teamName: invite.teamName,
+              orgName: localizeDemoOrgName(
+                locale,
+                org?.name ?? (locale === "en" ? "the club" : "föreningen")
+              ),
+              campaignName: localizeDemoCampaignName(
+                locale,
+                campaign.name,
+                campaign.slug
+              ),
+              teamName: localizeDemoTeamName(locale, invite.teamName),
               inviteUrl,
               expiresAt: invite.expiresAt,
               locale,
@@ -537,10 +552,14 @@ association.get("/team-invites/:token", async (c) => {
       .limit(1);
 
     return c.json({
-      teamName: invite.teamName,
+      teamName: localizeDemoTeamName(locale, invite.teamName),
       invitedEmail: invite.invitedEmail,
-      orgName: org?.name ?? uiError(locale, "unknownOrganisation"),
-      campaignName: campaign?.name ?? uiError(locale, "unknownCampaign"),
+      orgName: org
+        ? localizeDemoOrgName(locale, org.name)
+        : uiError(locale, "unknownOrganisation"),
+      campaignName: campaign
+        ? localizeDemoCampaignName(locale, campaign.name)
+        : uiError(locale, "unknownCampaign"),
       expiresAt: invite.expiresAt.toISOString(),
     });
   } catch (err) {
@@ -727,21 +746,23 @@ association.post("/team-invites/claim", async (c) => {
             .where(eq(campaigns.id, invite.campaignId))
             .limit(1);
 
+          // Notify the club admin in Swedish by default — SE market
+          // clubs; do not inherit the claimer's UI locale.
+          const recipientLocale: UiLocale = "sv";
+
           await getEmailSender().sendEmail({
             to: admin.email,
             ...teamLeaderClaimedEmail({
               adminName:
                 admin.contactName?.split(" ")[0] ||
                 admin.email.split("@")[0] ||
-                (locale === "en" ? "there" : "där"),
+                "där",
               leaderName: contactName,
               leaderEmail: email,
               teamName: invite.teamName,
-              campaignName:
-                campaign?.name ??
-                (locale === "en" ? "the campaign" : "kampanjen"),
-              teamUrl: `${SITE_URL}${withLocalePath("/forening", locale)}`,
-              locale,
+              campaignName: campaign?.name ?? "kampanjen",
+              teamUrl: `${SITE_URL}${withLocalePath("/forening", recipientLocale)}`,
+              locale: recipientLocale,
             }),
           });
         } catch (err) {
@@ -900,10 +921,16 @@ association.post("/team-invites/:id/resend", async (c) => {
         to: targetEmail,
         ...teamLeaderInviteEmail({
           inviterName,
-          orgName: org?.name ?? (locale === "en" ? "the club" : "föreningen"),
-          campaignName:
-            campaign?.name ?? (locale === "en" ? "the campaign" : "kampanjen"),
-          teamName: invite.teamName,
+          orgName: localizeDemoOrgName(
+            locale,
+            org?.name ?? (locale === "en" ? "the club" : "föreningen")
+          ),
+          campaignName: localizeDemoCampaignName(
+            locale,
+            campaign?.name ??
+              (locale === "en" ? "the campaign" : "kampanjen")
+          ),
+          teamName: localizeDemoTeamName(locale, invite.teamName),
           inviteUrl,
           expiresAt: invite.expiresAt,
           locale,
@@ -1100,7 +1127,15 @@ association.get("/org", async (c) => {
       .limit(1);
 
     if (!org) return c.json({ error: uiError(locale, "associationNotFoundThe") }, 404);
-    return c.json({ organization: org });
+    return c.json({
+      organization: {
+        ...org,
+        name: localizeDemoOrgName(locale, org.name),
+        displayName: org.displayName
+          ? localizeDemoOrgName(locale, org.displayName)
+          : org.displayName,
+      },
+    });
   } catch (err) {
     log.error({ err }, "association org get failed");
     return c.json({ error: uiError(locale, "couldNotFetchAssociationDetails") }, 500);

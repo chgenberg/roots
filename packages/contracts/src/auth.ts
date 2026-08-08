@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const LoginSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(8, "Lösenord måste vara minst 8 tecken"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
 });
 
 export type LoginInput = z.infer<typeof LoginSchema>;
@@ -18,13 +18,13 @@ export const RegisterClubSchema = z.object({
 export type RegisterClubInput = z.infer<typeof RegisterClubSchema>;
 
 export const RegisterAssociationSchema = z.object({
-  orgName: z.string().min(2, "Föreningsnamn krävs"),
+  orgName: z.string().min(2, "Club name is required"),
   orgNumber: z.string().optional(),
   nationalFederation: z.string().optional(),
   sportType: z.string().optional(),
-  email: z.string().email("Ogiltig e-postadress"),
-  password: z.string().min(8, "Lösenord måste vara minst 8 tecken"),
-  contactName: z.string().min(2, "Kontaktperson krävs"),
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  contactName: z.string().min(2, "Contact name is required"),
   phone: z.string().optional(),
   // personalNumber togs bort medvetet: fältet samlades in i klartext utan
   // att någon funktion läste det. Behöver vi identitet i framtiden gör vi
@@ -39,13 +39,13 @@ export type RegisterAssociationInput = z.infer<
 >;
 
 export const RegisterTeamLeaderSchema = z.object({
-  teamName: z.string().min(2, "Lagnamn krävs"),
+  teamName: z.string().min(2, "Team name is required"),
   orgName: z.string().optional(),
   orgSearchQuery: z.string().optional(),
   existingOrgId: z.string().uuid().optional(),
-  email: z.string().email("Ogiltig e-postadress"),
-  password: z.string().min(8, "Lösenord måste vara minst 8 tecken"),
-  contactName: z.string().min(2, "Kontaktperson krävs"),
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  contactName: z.string().min(2, "Contact name is required"),
   phone: z.string().optional(),
   addressLine1: z.string().optional(),
   city: z.string().optional(),
@@ -56,9 +56,9 @@ export type RegisterTeamLeaderInput = z.infer<typeof RegisterTeamLeaderSchema>;
 
 export const RegisterSellerSchema = z.object({
   inviteToken: z.string(),
-  email: z.string().email("Ogiltig e-postadress"),
-  password: z.string().min(12, "Lösenord måste vara minst 12 tecken"),
-  displayName: z.string().min(2, "Namn krävs"),
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(12, "Password must be at least 12 characters"),
+  displayName: z.string().min(2, "Name is required"),
   phone: z.string().optional(),
   birthYear: z.number().int(),
   guardianName: z.string().min(2).optional(),
@@ -80,11 +80,11 @@ export const PasswordResetSchema = z.object({
 // ── POST /v1/auth/change-password (Sprint C — Byt lösenord) ─────────
 
 export const ChangePasswordSchema = z.object({
-  currentPassword: z.string().min(1, "Nuvarande lösenord krävs"),
+  currentPassword: z.string().min(1, "Current password is required"),
   newPassword: z
     .string()
-    .min(8, "Nytt lösenord måste vara minst 8 tecken")
-    .max(128, "Nytt lösenord är för långt"),
+    .min(8, "New password must be at least 8 characters")
+    .max(128, "New password is too long"),
 });
 export type ChangePasswordInput = z.infer<typeof ChangePasswordSchema>;
 

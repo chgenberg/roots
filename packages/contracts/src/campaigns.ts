@@ -16,11 +16,11 @@ export const DeliveryTypeEnum = z.enum(["BULK", "DIRECT", "BOTH"]);
 export type DeliveryType = z.infer<typeof DeliveryTypeEnum>;
 
 export const CreateCampaignSchema = z.object({
-  name: z.string().min(2, "Kampanjnamn krävs"),
+  name: z.string().min(2, "Campaign name is required"),
   description: z.string().optional(),
   story: z.string().optional(),
   goalType: CampaignGoalTypeEnum.default("AMOUNT"),
-  goalValue: z.number().int().positive("Mål måste vara positivt"),
+  goalValue: z.number().int().positive("Goal must be a positive number"),
   startDate: z.string(),
   endDate: z.string(),
   // Datum då samlade produkter skickas till klubben (BULK). Valfritt.
@@ -40,7 +40,7 @@ export const UpdateCampaignSchema = CreateCampaignSchema.partial();
 export type UpdateCampaign = z.infer<typeof UpdateCampaignSchema>;
 
 export const CreateTeamSchema = z.object({
-  name: z.string().min(2, "Lagnamn krävs"),
+  name: z.string().min(2, "Team name is required"),
   campaignId: z.string().uuid(),
 });
 
@@ -57,7 +57,7 @@ export type SetTeamGoal = z.infer<typeof SetTeamGoalSchema>;
 
 export const JoinAsSellerSchema = z.object({
   inviteToken: z.string(),
-  displayName: z.string().min(2, "Namn krävs"),
+  displayName: z.string().min(2, "Name is required"),
 });
 
 export type JoinAsSeller = z.infer<typeof JoinAsSellerSchema>;

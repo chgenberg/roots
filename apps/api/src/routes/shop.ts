@@ -19,6 +19,11 @@ import {
   localizedProductDescription,
   localizedProductName,
 } from "../lib/product-i18n";
+import {
+  localizeDemoCampaignFields,
+  localizeDemoOrgName,
+  localizeDemoTeamName,
+} from "../lib/demo-i18n";
 
 const log = childLogger("shop");
 
@@ -158,6 +163,10 @@ shop.get("/by-slug/:slug", async (c) => {
 
     const orderCount = Number(orderCountResult[0]?.count || 0);
 
+    const demoCampaign = campaign
+      ? localizeDemoCampaignFields(locale, campaign)
+      : null;
+
     return c.json({
       seller: {
         id: seller.id,
@@ -165,13 +174,15 @@ shop.get("/by-slug/:slug", async (c) => {
         shopSlug: seller.shopSlug,
         individualGoal: seller.individualGoal,
       },
-      team: team ? { id: team.id, name: team.name } : null,
+      team: team
+        ? { id: team.id, name: localizeDemoTeamName(locale, team.name) }
+        : null,
       campaign: campaign
         ? {
             id: campaign.id,
-            name: campaign.name,
-            story: campaign.story,
-            description: campaign.description,
+            name: demoCampaign!.name,
+            story: demoCampaign!.story,
+            description: demoCampaign!.description,
             startDate: campaign.startDate,
             endDate: campaign.endDate,
             goalType: campaign.goalType,
@@ -182,7 +193,9 @@ shop.get("/by-slug/:slug", async (c) => {
             status: campaign.status,
           }
         : null,
-      organization: org ? { name: org.name } : null,
+      organization: org
+        ? { name: localizeDemoOrgName(locale, org.name) }
+        : null,
       products: productList,
       bundles: bundleList.map((b) => ({
         ...b,

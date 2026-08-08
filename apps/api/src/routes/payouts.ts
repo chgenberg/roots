@@ -44,7 +44,11 @@ import {
   payoutPaidEmail,
   withLocalePath,
 } from "../lib/email/templates";
-import { resolveUiLocale, uiError } from "../lib/ui-locale";
+import { resolveUiLocale, uiError, type UiLocale } from "../lib/ui-locale";
+import {
+  localizeDemoCampaignName,
+  localizeDemoOrgName,
+} from "../lib/demo-i18n";
 
 const log = childLogger("payouts");
 
@@ -82,6 +86,7 @@ payoutsRoute.get("/", async (c) => {
         id: payouts.id,
         campaignId: payouts.campaignId,
         campaignName: campaigns.name,
+        campaignSlug: campaigns.slug,
         orgId: payouts.orgId,
         orgName: organizations.name,
         teamId: payouts.teamId,
@@ -101,7 +106,17 @@ payoutsRoute.get("/", async (c) => {
       .orderBy(desc(payouts.createdAt))
       .limit(200);
 
-    return c.json({ payouts: rows });
+    return c.json({
+      payouts: rows.map(({ campaignSlug, campaignName, orgName, ...rest }) => ({
+        ...rest,
+        campaignName: localizeDemoCampaignName(
+          locale,
+          campaignName,
+          campaignSlug
+        ),
+        orgName: localizeDemoOrgName(locale, orgName),
+      })),
+    });
   } catch (err) {
     log.error({ err }, "list payouts failed");
     return c.json({ error: uiError(locale, "couldNotFetchPayouts") }, 500);
@@ -131,6 +146,7 @@ payoutsRoute.get("/mine", async (c) => {
         id: payouts.id,
         campaignId: payouts.campaignId,
         campaignName: campaigns.name,
+        campaignSlug: campaigns.slug,
         teamId: payouts.teamId,
         totalSalesOre: payouts.totalSalesOre,
         teamShareOre: payouts.teamShareOre,
@@ -147,7 +163,16 @@ payoutsRoute.get("/mine", async (c) => {
       .where(eq(payouts.orgId, session.orgId))
       .orderBy(desc(payouts.createdAt));
 
-    return c.json({ payouts: rows });
+    return c.json({
+      payouts: rows.map(({ campaignSlug, campaignName, ...rest }) => ({
+        ...rest,
+        campaignName: localizeDemoCampaignName(
+          locale,
+          campaignName,
+          campaignSlug
+        ),
+      })),
+    });
   } catch (err) {
     log.error({ err }, "list mine payouts failed");
     return c.json({ error: uiError(locale, "couldNotFetchPayouts") }, 500);
@@ -387,10 +412,14 @@ payoutsRoute.patch("/:id/status", async (c) => {
             .limit(1);
 
           const [campaign] = await db
-            .select({ name: campaigns.name })
+            .select({ name: campaigns.name, slug: campaigns.slug })
             .from(campaigns)
             .where(eq(campaigns.id, payout.campaignId))
             .limit(1);
+
+          // Club admins get Swedish mail by default (SE market), not
+          // the INTERNAL_ADMIN actor's UI locale.
+          const recipientLocale: UiLocale = "sv";
 
           await getEmailSender().sendEmail({
             to: admin.email,
@@ -398,19 +427,17 @@ payoutsRoute.patch("/:id/status", async (c) => {
               adminName:
                 admin.contactName?.split(" ")[0] ||
                 admin.email.split("@")[0] ||
-                (locale === "en" ? "there" : "där"),
+                "där",
               orgName:
                 org?.displayName ??
                 org?.name ??
-                (locale === "en" ? "your club" : "er förening"),
-              campaignName:
-                campaign?.name ??
-                (locale === "en" ? "the campaign" : "kampanjen"),
+                "er förening",
+              campaignName: campaign?.name ?? "kampanjen",
               amountOre: payout.teamShareOre,
               paidAt: now,
               paymentReference,
-              payoutsUrl: `${SITE_URL}${withLocalePath("/forening/avrakning", locale)}`,
-              locale,
+              payoutsUrl: `${SITE_URL}${withLocalePath("/forening/avrakning", recipientLocale)}`,
+              locale: recipientLocale,
             }),
           });
         } catch (err) {

@@ -6,6 +6,10 @@ import { getInviteTemplate, getShopShareTemplate } from "../lib/communication-te
 import { requireSession } from "../lib/http-session";
 import { childLogger } from "../lib/logger";
 import { resolveUiLocale, uiError } from "../lib/ui-locale";
+import {
+  localizeDemoCampaignFields,
+  localizeDemoTeamName,
+} from "../lib/demo-i18n";
 
 const log = childLogger("sharing");
 
@@ -33,10 +37,14 @@ sharing.get("/invite-template/:teamId", async (c) => {
 
     const [campaign] = await db.select().from(campaigns).where(eq(campaigns.id, team.campaignId)).limit(1);
 
+    const demoCampaign = campaign
+      ? localizeDemoCampaignFields(locale, campaign)
+      : null;
+
     const template = getInviteTemplate({
-      teamName: team.name,
-      campaignName: campaign?.name || "",
-      story: campaign?.story || "",
+      teamName: localizeDemoTeamName(locale, team.name),
+      campaignName: demoCampaign?.name || "",
+      story: demoCampaign?.story || "",
       inviteToken: team.inviteToken,
       leaderName: locale === "en" ? "Team leader" : "Lagansvarig",
       locale,
@@ -66,11 +74,15 @@ sharing.get("/shop-share-template", async (c) => {
     const [team] = await db.select().from(teams).where(eq(teams.id, seller.teamId)).limit(1);
     const [campaign] = await db.select().from(campaigns).where(eq(campaigns.id, seller.campaignId)).limit(1);
 
+    const demoCampaign = campaign
+      ? localizeDemoCampaignFields(locale, campaign)
+      : null;
+
     const template = getShopShareTemplate({
       sellerName: seller.displayName,
       shopSlug: seller.shopSlug,
-      teamName: team?.name || "",
-      story: campaign?.story || "",
+      teamName: localizeDemoTeamName(locale, team?.name || ""),
+      story: demoCampaign?.story || "",
       locale,
     });
 

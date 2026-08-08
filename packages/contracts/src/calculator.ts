@@ -45,7 +45,7 @@ export type CalculatorPreset = z.infer<typeof CalculatorPresetSchema>;
 
 /** Skapa en delbar kalkyl-länk (säljare i portalen). */
 export const CreateCalculatorSchema = z.object({
-  associationName: z.string().trim().min(2, "Föreningens namn krävs").max(160),
+  associationName: z.string().trim().min(2, "Club name is required").max(160),
   presets: CalculatorPresetSchema,
 });
 export type CreateCalculator = z.infer<typeof CreateCalculatorSchema>;

@@ -27,6 +27,10 @@ import { resolveCampaignCatalog } from "../lib/campaign-catalog";
 import { validatePassword } from "./auth";
 import { resolveUiLocale, uiError } from "../lib/ui-locale";
 import { localizedProductName } from "../lib/product-i18n";
+import {
+  localizeDemoCampaignFields,
+  localizeDemoTeamName,
+} from "../lib/demo-i18n";
 
 const ARGON2_OPTIONS = {
   memoryCost: 19456,
@@ -220,13 +224,21 @@ dashboard.get("/association", async (c) => {
       .where(eq(teams.orgId, orgId));
 
     return c.json({
-      campaigns: campaignList,
+      campaigns: campaignList.map((camp) => {
+        const demo = localizeDemoCampaignFields(locale, camp);
+        return {
+          ...camp,
+          name: demo.name,
+          description: demo.description,
+          story: demo.story,
+        };
+      }),
       teams: teamList.map((t) => {
         const sales = salesByTeam.find((s) => s.teamId === t.id);
         const goal = goals.find((g) => g.team_goals.teamId === t.id);
         return {
           id: t.id,
-          name: t.name,
+          name: localizeDemoTeamName(locale, t.name),
           // Räkna säljarna vi faktiskt hämtat i stället för att lita på
           // `teams.memberCount`. Den kolumnen ökas vid registrering men
           // minskas aldrig, så den drev iväg: dashboarden visade "Säljare 3"
@@ -476,10 +488,23 @@ dashboard.get("/team/:teamId", async (c) => {
       locale
     );
 
+    const demoCampaign = campaign
+      ? localizeDemoCampaignFields(locale, campaign)
+      : null;
+
     return c.json({
-      team,
+      team: {
+        ...team,
+        name: localizeDemoTeamName(locale, team.name),
+      },
       campaign: campaign
-        ? { ...campaign, marginPercent: campaign.marginPercent }
+        ? {
+            ...campaign,
+            name: demoCampaign!.name,
+            description: demoCampaign!.description,
+            story: demoCampaign!.story,
+            marginPercent: campaign.marginPercent,
+          }
         : null,
       sellers: sellerList.map((s) => {
         const sales = salesBySeller.find((ss) => ss.sellerId === s.id);
@@ -1211,14 +1236,20 @@ dashboard.get("/seller", async (c) => {
     const marginPercent = campaign?.marginPercent ?? 25;
     const estimatedEarningsOre = Math.round(totalSalesOre * (marginPercent / 100));
 
+    const demoCampaign = campaign
+      ? localizeDemoCampaignFields(locale, campaign)
+      : null;
+
     return c.json({
       seller,
-      team: team ? { id: team.id, name: team.name } : null,
+      team: team
+        ? { id: team.id, name: localizeDemoTeamName(locale, team.name) }
+        : null,
       campaign: campaign
         ? {
             id: campaign.id,
-            name: campaign.name,
-            story: campaign.story,
+            name: demoCampaign!.name,
+            story: demoCampaign!.story,
             marginPercent: campaign.marginPercent,
           }
         : null,
