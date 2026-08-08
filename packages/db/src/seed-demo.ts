@@ -472,8 +472,23 @@ async function seedDemo() {
     .where(eq(campaigns.slug, "demo-varkampanj-2026"))
     .limit(1);
 
+  const clubCampaignStory =
+    "Demo Fotbollsklubb samlar in pengar för att kunna åka på " +
+    "den årliga försäsongsturneringen i Malmö. Varje paket ger " +
+    "föreningen 35 % i bidrag.";
+
   const campaign = existingCampaign
-    ? existingCampaign
+    ? (
+        await db
+          .update(campaigns)
+          .set({
+            marginPercent: 35,
+            story: clubCampaignStory,
+            description: "Insamling till nya tröjor och bortamatcher.",
+          })
+          .where(eq(campaigns.id, existingCampaign.id))
+          .returning()
+      )[0]
     : (
         await db
           .insert(campaigns)
@@ -482,17 +497,14 @@ async function seedDemo() {
             name: "Vårkampanj 2026 (Demo)",
             slug: "demo-varkampanj-2026",
             description: "Insamling till nya tröjor och bortamatcher.",
-            story:
-              "Demo Fotbollsklubb samlar in pengar för att kunna åka på " +
-              "den årliga försäsongsturneringen i Malmö. Varje paket ger " +
-              "föreningen 30 % i bidrag.",
+            story: clubCampaignStory,
             status: "ACTIVE",
             goalType: "AMOUNT",
             goalValue: goalSek,
             startDate: daysAgo(60).toISOString().slice(0, 10),
             endDate: daysAgo(-30).toISOString().slice(0, 10),
             deliveryType: "BULK",
-            marginPercent: 30,
+            marginPercent: 35,
           })
           .returning()
       )[0];
@@ -596,8 +608,24 @@ async function seedDemo() {
     .where(eq(campaigns.slug, "demo-hostkampanj-2026"))
     .limit(1);
 
+  const assocCampaignStory =
+    "Demo IF Sundsvall samlar in pengar till en gemensam ungdoms-" +
+    "cup. Varje paket ger föreningen 35 % i bidrag — pengarna går " +
+    "till resa, boende och matchanmälningar.";
+
   const assocCampaign = existingAssocCampaign
-    ? existingAssocCampaign
+    ? (
+        await db
+          .update(campaigns)
+          .set({
+            marginPercent: 35,
+            story: assocCampaignStory,
+            description:
+              "Föreningen säljer Roots-paket för att finansiera ungdoms-cup i Helsingborg.",
+          })
+          .where(eq(campaigns.id, existingAssocCampaign.id))
+          .returning()
+      )[0]
     : (
         await db
           .insert(campaigns)
@@ -607,17 +635,14 @@ async function seedDemo() {
             slug: "demo-hostkampanj-2026",
             description:
               "Föreningen säljer Roots-paket för att finansiera ungdoms-cup i Helsingborg.",
-            story:
-              "Demo IF Sundsvall samlar in pengar till en gemensam ungdoms-" +
-              "cup. Varje paket ger föreningen 30 % i bidrag — pengarna går " +
-              "till resa, boende och matchanmälningar.",
+            story: assocCampaignStory,
             status: "ACTIVE",
             goalType: "AMOUNT",
             goalValue: associationGoalSek,
             startDate: daysAgo(45).toISOString().slice(0, 10),
             endDate: daysAgo(-45).toISOString().slice(0, 10),
             deliveryType: "BULK",
-            marginPercent: 30,
+            marginPercent: 35,
           })
           .returning()
       )[0];
@@ -876,6 +901,17 @@ async function seedDemo() {
       `Customer orders: ${coCountRow?.count ?? 0} already present for ${ASSOC_TEAM_NAME}, skipping`
     );
   }
+
+  // Keep frozen sale-margin in sync with the locked 35 % offer when
+  // reseeding — otherwise avräkning/statistik can still show 30 %.
+  await db
+    .update(customerOrders)
+    .set({ marginPercentAtSale: 35 })
+    .where(eq(customerOrders.campaignId, assocCampaign.id));
+  await db
+    .update(customerOrders)
+    .set({ marginPercentAtSale: 35 })
+    .where(eq(customerOrders.campaignId, campaign.id));
 
   console.log(
     `Association: forening=${foreningAdmin.id}, leader=${teamLeader.id}, ` +

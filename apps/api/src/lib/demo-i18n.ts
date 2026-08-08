@@ -18,7 +18,7 @@ const CAMPAIGN_BY_SLUG: Record<string, CampaignOverlay> = {
     description: "Fundraising for new jerseys and away matches.",
     story:
       "Demo Football Club is raising money for the annual pre-season " +
-      "tournament in Malmö. Every pack gives the club a 30% contribution.",
+      "tournament in Malmö. Every pack gives the club a 35% contribution.",
   },
   "demo-hostkampanj-2026": {
     name: "Autumn Campaign 2026 (Demo)",
@@ -26,7 +26,7 @@ const CAMPAIGN_BY_SLUG: Record<string, CampaignOverlay> = {
       "The club sells Roots packs to fund a youth cup in Helsingborg.",
     story:
       "Demo IF Sundsvall is raising money for a shared youth cup. " +
-      "Every pack gives the club a 30% contribution — funds go to travel, " +
+      "Every pack gives the club a 35% contribution — funds go to travel, " +
       "accommodation and match fees.",
   },
 };
@@ -44,10 +44,10 @@ const STRING_OVERLAY: Record<string, string> = {
     "Fundraising for new jerseys and away matches.",
   "Föreningen säljer Roots-paket för att finansiera ungdoms-cup i Helsingborg.":
     "The club sells Roots packs to fund a youth cup in Helsingborg.",
-  "Demo Fotbollsklubb samlar in pengar för att kunna åka på den årliga försäsongsturneringen i Malmö. Varje paket ger föreningen 30 % i bidrag.":
-    "Demo Football Club is raising money for the annual pre-season tournament in Malmö. Every pack gives the club a 30% contribution.",
-  "Demo IF Sundsvall samlar in pengar till en gemensam ungdoms-cup. Varje paket ger föreningen 30 % i bidrag — pengarna går till resa, boende och matchanmälningar.":
-    "Demo IF Sundsvall is raising money for a shared youth cup. Every pack gives the club a 30% contribution — funds go to travel, accommodation and match fees.",
+  "Demo Fotbollsklubb samlar in pengar för att kunna åka på den årliga försäsongsturneringen i Malmö. Varje paket ger föreningen 35 % i bidrag.":
+    "Demo Football Club is raising money for the annual pre-season tournament in Malmö. Every pack gives the club a 35% contribution.",
+  "Demo IF Sundsvall samlar in pengar till en gemensam ungdoms-cup. Varje paket ger föreningen 35 % i bidrag — pengarna går till resa, boende och matchanmälningar.":
+    "Demo IF Sundsvall is raising money for a shared youth cup. Every pack gives the club a 35% contribution — funds go to travel, accommodation and match fees.",
 };
 
 function overlayString(locale: UiLocale, value: string | null | undefined): string {

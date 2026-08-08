@@ -19,7 +19,7 @@ Tre regler styr innehållet:
     påståenden      35 % är LOCKED_MARGIN_PERCENT i packages/contracts, priserna
                     står i produktkatalogen, och löftesbandet högst upp på sajten
                     kommer ur announcement-bar.tsx. Demokampanjerna i bilderna är
-                    seedade med 30 % marginal — säg 35 %, som är det vi erbjuder,
+                    seedade med 35 % marginal — samma siffra som i erbjudandet,
                     och peka inte på procenttalet i demobilderna.
 
 Bygg med:
@@ -190,9 +190,7 @@ def build() -> Deck:
               "de fyller i sina uppgifter blir det ett lead hos dig. Det är "
               "din bästa uppföljningsanledning: »jag såg att ni räknade på "
               "trettio säljare«.\n\n"
-              "MARGINALEN är låst till 35 %. Demobilden visar 35 %, men "
-              "kampanjerna i demodatan ligger på 30 % — peka inte på "
-              "procenttalet i de senare bilderna.",
+              "MARGINALEN är låst till 35 %. Demobilderna visar samma siffra.",
     ))
 
     # ── 08 · Pipeline ─────────────────────────────────────────────────
@@ -310,10 +308,7 @@ def build() -> Deck:
               "Poängen är inte procentsatsen utan att de ser båda sidor av "
               "delningen, hela tiden, utan att be om det. Det är ovanligt i "
               "branschen och det är värt att säga högt.\n\n"
-              "Se upp: demokampanjen i bilden är seedad med 30 %. Vårt "
-              "erbjudande är 35 %. Prata om principen, inte om talet i "
-              "bilden — eller nämn att det är demodata om någon läser "
-              "noga.",
+              "Demokampanjen visar 35 % — samma siffra som i erbjudandet.",
     ))
 
     # ── 14 · Lagledaren ───────────────────────────────────────────────

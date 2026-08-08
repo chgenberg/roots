@@ -172,7 +172,7 @@ def build() -> Deck:
 
     # ── 10–12 · Produktpitchar ─────────────────────────────────────────
     slides.append(Slide(
-        number=next(n), layout="pitch", kicker="PRODUKT 01 · 199 KR · 250 ML",
+        number=next(n), layout="pitch", kicker="PRODUKT 01 · 149 KR · 250 ML",
         title="Roots Schampoo",
         left=Column(heading="Fakta", items=[
             "SyriCalm® lugnar hårbotten",
@@ -193,7 +193,7 @@ def build() -> Deck:
     ))
 
     slides.append(Slide(
-        number=next(n), layout="pitch", kicker="PRODUKT 02 · 199 KR · 250 ML",
+        number=next(n), layout="pitch", kicker="PRODUKT 02 · 149 KR · 250 ML",
         title="Roots Conditioner",
         left=Column(heading="Fakta", items=[
             "Pro-Vitamin B5 — närande utan att tynga",
@@ -212,7 +212,7 @@ def build() -> Deck:
     ))
 
     slides.append(Slide(
-        number=next(n), layout="pitch", kicker="PRODUKT 03 · 179 KR · 250 ML",
+        number=next(n), layout="pitch", kicker="PRODUKT 03 · 129 KR · 250 ML",
         title="Roots Body Wash",
         left=Column(heading="Fakta", items=[
             "Mild tvättduo, sulfatsnål",
@@ -227,7 +227,7 @@ def build() -> Deck:
         ]),
         images=["images/sport-pres-body-wash.jpg"],
         caption="Lägst tröskel av de tre — perfekt sista knuff.",
-        notes="Enklaste merförsäljningen. 179 kr — 20 kr under de andra två.",
+        notes="Enklaste merförsäljningen. 129 kr — 20 kr under de andra två.",
     ))
 
     # ── 13 · Premium – inte premiumpris (MS-009) ───────────────────────
@@ -242,16 +242,16 @@ def build() -> Deck:
         title="Pris som fungerar i föreningen",
         subtitle="Styckpriser mot Premiumpaketet — och marknadens nivå.",
         items=[
-            "Schampoo · 199 kr | 250 ml · 80 kr/100 ml",
-            "Conditioner · 199 kr | 250 ml · 80 kr/100 ml",
-            "Body Wash · 179 kr | 250 ml · 72 kr/100 ml",
-            "Premiumpaket* · 399 kr | 3 × 250 ml · spara 178 kr mot 577 kr",
+            "Schampoo · 149 kr | 250 ml · 60 kr/100 ml",
+            "Conditioner · 149 kr | 250 ml · 60 kr/100 ml",
+            "Body Wash · 129 kr | 250 ml · 52 kr/100 ml",
+            "Premiumpaket* · 399 kr | 3 × 250 ml · spara 28 kr mot 427 kr",
         ],
         caption="Premiumkvalitet – cirka 40 % lägre än ledande premiumvarumärken "
                 "(typiskt 90–140 kr/100 ml). *Premiumpaketet = hela rutinen.",
         notes="Visa Premiumpaketet först. Styckpriserna finns för den som frågar.\n\n"
-              "Samma siffror som i Roots_Prisjamforelse_Marknaden.pdf "
-              "(199 / 199 / 179 → 577; Premium 399 sparar 178).",
+              "Samma priser som i shoppen och Roots_Produkter "
+              "(149 / 149 / 129 → 427; Premium 399 sparar 28).",
     ))
 
     # ── 15 · 35 % tillbaka (säljpunch) ─────────────────────────────────
@@ -268,7 +268,7 @@ def build() -> Deck:
         notes="Stanna på den här sliden. Låt siffran landa innan du går vidare.\n\n"
               "Marginalen är LOCKED_MARGIN_PERCENT = 35 % — säg det som ett "
               "löfte, inte som ett erbjudande man kan pruta på.\n\n"
-              "Peka inte på demoskärmar som fortfarande visar 30 %.",
+              "Demoskärmarna ska visa 35 % — samma siffra som här.",
     ))
 
     # ── 16 · Varför priset håller ──────────────────────────────────────
@@ -349,7 +349,7 @@ def build() -> Deck:
         images=["shop-start.png", "shop-kassa.png"],
         caption="Man köper inte schampo — man köper lagets cup.",
         notes="Ingen inloggning, inget konto. Länken i ett sms räcker.\n\n"
-              "Demoskärmar kan visa äldre pris/marginal — peka på flödet.",
+              "Skärmarna visar aktuella priser (149 / 149 / 129) och 35 % bidrag.",
     ))
     slides.append(Slide(
         number=next(n), layout="phones", kicker="SÄLJAREN",
