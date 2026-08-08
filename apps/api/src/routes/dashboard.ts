@@ -1326,7 +1326,9 @@ dashboard.post("/seller/orders", async (c) => {
   const customerName =
     typeof body?.customerName === "string" && body.customerName.trim().length > 0
       ? body.customerName.trim().slice(0, 255)
-      : "Kontantkund";
+      : locale === "en"
+        ? "Cash customer"
+        : "Kontantkund";
   const note =
     typeof body?.note === "string" && body.note.trim().length > 0
       ? body.note.trim().slice(0, 2000)

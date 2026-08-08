@@ -139,26 +139,39 @@ export function validatePassword(
 
 const DEMO_ACCOUNTS: Record<
   string,
-  { password: string; role: string; name: string; orgName: string }
+  {
+    password: string;
+    role: string;
+    name: string;
+    nameEn: string;
+    orgName: string;
+    orgNameEn: string;
+  }
 > = DEMO_ACCOUNTS_ENABLED
   ? {
       "klubb@demo.se": {
         password: DEMO_PASSWORD,
         role: "CLUB_ADMIN",
         name: "Anna Klubbsson",
+        nameEn: "Anna Clubson",
         orgName: "Demo Fotbollsklubb",
+        orgNameEn: "Demo Football Club",
       },
       "salj@roots.se": {
         password: DEMO_PASSWORD,
         role: "SALES_REP",
         name: "Erik Säljare",
+        nameEn: "Erik Seller",
         orgName: "Roots AB",
+        orgNameEn: "Roots AB",
       },
       "admin@roots.se": {
         password: DEMO_PASSWORD,
         role: "INTERNAL_ADMIN",
         name: "Roots Admin",
+        nameEn: "Roots Admin",
         orgName: "Roots AB",
+        orgNameEn: "Roots AB",
       },
       // Sprint E1: fundraising-portal roles. The in-memory fallback
       // gives a successful login experience, but the actual
@@ -170,16 +183,27 @@ const DEMO_ACCOUNTS: Record<
         password: DEMO_PASSWORD,
         role: "ASSOCIATION_ADMIN",
         name: "Karin Lindgren",
+        nameEn: "Karin Lindgren",
         orgName: "Demo IF Sundsvall",
+        orgNameEn: "Demo IF Sundsvall",
       },
       "lag@demo-if.se": {
         password: DEMO_PASSWORD,
         role: "TEAM_LEADER",
         name: "Mikael Berg",
+        nameEn: "Mikael Berg",
         orgName: "Demo IF Sundsvall",
+        orgNameEn: "Demo IF Sundsvall",
       },
     }
   : {};
+
+function demoDisplay(demo: (typeof DEMO_ACCOUNTS)[string], locale: "sv" | "en") {
+  return {
+    name: locale === "en" ? demo.nameEn : demo.name,
+    orgName: locale === "en" ? demo.orgNameEn : demo.orgName,
+  };
+}
 
 /**
  * Slutför inloggningen när alla faktorer är avklarade.
@@ -361,12 +385,13 @@ auth.post("/login", async (c) => {
   // Fallback: in-memory demo (local dev, or ROOTS_ENABLE_DEMO_ACCOUNTS on Railway)
   const demo = DEMO_ACCOUNTS[email];
   if (demo && demo.password === password) {
+    const display = demoDisplay(demo, locale);
     const sessionData: SessionData = {
       userId: crypto.randomUUID(),
       role: demo.role as SessionData["role"],
       orgId: null,
       createdAt: Date.now(),
-      demoProfile: { email, name: demo.name, orgName: demo.orgName },
+      demoProfile: { email, name: display.name, orgName: display.orgName },
     };
 
     try {
@@ -378,7 +403,12 @@ auth.post("/login", async (c) => {
 
     return c.json({
       ok: true,
-      user: { email, role: demo.role, name: demo.name, orgName: demo.orgName },
+      user: {
+        email,
+        role: demo.role,
+        name: display.name,
+        orgName: display.orgName,
+      },
     });
   }
 

@@ -25,15 +25,63 @@ const STEP_MEDIA: Record<string, { video: string; poster: string }> = {
   seller: { video: "/demo/seller.mp4", poster: "/demo/seller-poster.jpg" },
 };
 
+/** Static phone frame used on EN — demo MP4s still show Swedish UI chrome. */
+function PhonePlaceholder({
+  title,
+  eyebrow,
+  className,
+}: {
+  title: string;
+  eyebrow?: string;
+  className?: string;
+}) {
+  return (
+    <div className={cn("relative mx-auto w-full max-w-[300px]", className)}>
+      <div
+        className="pointer-events-none absolute -inset-6 -z-10 rounded-[3rem] bg-brand-100/50 blur-2xl"
+        aria-hidden="true"
+      />
+      <div className="overflow-hidden rounded-[2rem] border border-border/60 shadow-[var(--shadow-card)]">
+        <div className="flex aspect-[9/16] w-full flex-col items-center justify-center bg-gradient-to-b from-brand-50 via-background to-brand-100/60 px-8 text-center">
+          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-700">
+            Roots
+          </span>
+          {eyebrow ? (
+            <p className="mt-6 text-sm font-medium text-brand-700">{eyebrow}</p>
+          ) : null}
+          <p className="mt-2 text-xl font-bold tracking-tight text-foreground">
+            {title}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PhoneFilm({
   src,
   poster,
   className,
+  locale,
+  placeholderTitle,
+  placeholderEyebrow,
 }: {
   src: string;
   poster: string;
   className?: string;
+  locale: Locale;
+  placeholderTitle: string;
+  placeholderEyebrow?: string;
 }) {
+  if (locale === "en") {
+    return (
+      <PhonePlaceholder
+        title={placeholderTitle}
+        eyebrow={placeholderEyebrow}
+        className={className}
+      />
+    );
+  }
   return (
     <div className={cn("relative mx-auto w-full max-w-[300px]", className)}>
       <div
@@ -59,9 +107,11 @@ function PhoneFilm({
 function DemoFilms({
   steps,
   roleTablistLabel,
+  locale,
 }: {
   steps: readonly DemoStep[];
   roleTablistLabel: string;
+  locale: Locale;
 }) {
   const [active, setActive] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -69,37 +119,42 @@ function DemoFilms({
   const media = STEP_MEDIA[step.id] ?? STEP_MEDIA.forening;
 
   useEffect(() => {
+    if (locale === "en") return;
     const v = videoRef.current;
     if (!v) return;
     v.currentTime = 0;
     void v.play().catch(() => {
       /* autoplay kan blockeras — posters visas då */
     });
-  }, [active]);
+  }, [active, locale]);
 
   return (
     <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
       <div className="order-2 lg:order-1">
-        <div className="relative mx-auto w-full max-w-[320px]">
-          <div
-            className="pointer-events-none absolute -inset-6 -z-10 rounded-[3rem] bg-brand-100/50 blur-2xl"
-            aria-hidden="true"
-          />
-          <div className="overflow-hidden rounded-[2rem] border border-border/60 shadow-[var(--shadow-card)]">
-            <video
-              ref={videoRef}
-              key={step.id}
-              className="aspect-[9/16] w-full bg-brand-50 object-cover"
-              poster={media.poster}
-              src={media.video}
-              muted
-              playsInline
-              autoPlay
-              loop
-              preload="metadata"
+        {locale === "en" ? (
+          <PhonePlaceholder title={step.title} eyebrow={step.eyebrow} />
+        ) : (
+          <div className="relative mx-auto w-full max-w-[320px]">
+            <div
+              className="pointer-events-none absolute -inset-6 -z-10 rounded-[3rem] bg-brand-100/50 blur-2xl"
+              aria-hidden="true"
             />
+            <div className="overflow-hidden rounded-[2rem] border border-border/60 shadow-[var(--shadow-card)]">
+              <video
+                ref={videoRef}
+                key={step.id}
+                className="aspect-[9/16] w-full bg-brand-50 object-cover"
+                poster={media.poster}
+                src={media.video}
+                muted
+                playsInline
+                autoPlay
+                loop
+                preload="metadata"
+              />
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       <div className="order-1 lg:order-2">
@@ -151,7 +206,13 @@ function DemoFilms({
   );
 }
 
-function CalculatorBlock({ copy }: { copy: SaCopy }) {
+function CalculatorBlock({
+  copy,
+  locale,
+}: {
+  copy: SaCopy;
+  locale: Locale;
+}) {
   const [inputs, setInputs] = useState<CalculatorInputs | null>(null);
   const [products, setProducts] = useState<
     { name: string; priceOre: number }[]
@@ -211,6 +272,7 @@ function CalculatorBlock({ copy }: { copy: SaCopy }) {
             message: message.trim() || undefined,
             newsletterConsent: consent,
             inputs,
+            locale,
           },
         }
       );
@@ -377,7 +439,11 @@ export function SaFungerarDetClient() {
             </h2>
             <p className="mt-3 text-muted-foreground">{t.demoSubtitle}</p>
           </div>
-          <DemoFilms steps={t.steps} roleTablistLabel={t.roleTablistLabel} />
+          <DemoFilms
+            steps={t.steps}
+            roleTablistLabel={t.roleTablistLabel}
+            locale={locale}
+          />
         </div>
       </section>
 
@@ -388,6 +454,9 @@ export function SaFungerarDetClient() {
               <PhoneFilm
                 src="/demo/kalkylator.mp4"
                 poster="/demo/kalkylator-poster.jpg"
+                locale={locale}
+                placeholderTitle={t.calcTitle}
+                placeholderEyebrow={t.calcEyebrow}
               />
             </div>
             <div className="order-1 lg:order-2">
@@ -413,7 +482,7 @@ export function SaFungerarDetClient() {
               </p>
             </div>
           </div>
-          <CalculatorBlock copy={t} />
+          <CalculatorBlock copy={t} locale={locale} />
         </div>
       </section>
     </>
