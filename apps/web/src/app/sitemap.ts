@@ -2,7 +2,9 @@ import type { MetadataRoute } from "next";
 import { HAIR_ANALYSIS_ENABLED } from "@/lib/feature-flags";
 import { GUIDE_SLUGS, guides } from "@/lib/guides";
 
-const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://roots.se";
+const BASE_URL = (
+  process.env.NEXT_PUBLIC_SITE_URL || "https://roots.se"
+).replace(/\/$/, "");
 // Server-side fetch, so it needs the backend's absolute URL. `NEXT_PUBLIC_API_URL`
 // is the *browser* base and is `/api` in production — relative URLs throw in Node,
 // and the catch below would swallow it, silently dropping every shop page.

@@ -151,8 +151,10 @@ export async function middleware(request: NextRequest) {
   }
 
   // 1. Gate check ────────────────────────────────────────────────
+  // Exact match OR path-segment prefix (`/api` → `/api/...`, not `/apiv2`).
+  // A bare startsWith(p) previously bypassed unintended neighbors.
   const isBypassed = GATE_BYPASS_PREFIXES.some(
-    (p) => pathname === p || pathname.startsWith(p + "/") || pathname.startsWith(p)
+    (p) => pathname === p || pathname.startsWith(p + "/")
   );
 
   if (!isBypassed && !isPreviewGateDisabled()) {

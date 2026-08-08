@@ -3,12 +3,35 @@ import type { ReactNode } from "react";
 
 /**
  * Lightweight inline markup for guide paragraphs:
- * - [label](/path) → internal Link (http(s) → <a>)
+ * - [label](/path) → internal Link (same-origin path only)
+ * - [label](https://…) → external <a> (http/https only)
  * - **bold**
  * - *italic*
+ *
+ * Protocol-relative (`//evil.com`) must NOT be treated as internal: it
+ * starts with "/" but leaves the origin. javascript:/data: are dropped.
  */
 export function GuideRichText({ text }: { text: string }) {
   return <>{parseInline(text)}</>;
+}
+
+function isSafeInternalHref(href: string): boolean {
+  // Same-origin path only — reject "//host", "/\", and scheme-smuggling.
+  return (
+    href.startsWith("/") &&
+    !href.startsWith("//") &&
+    !href.startsWith("/\\") &&
+    !/^[a-z][a-z0-9+.-]*:/i.test(href)
+  );
+}
+
+function isSafeExternalHref(href: string): boolean {
+  try {
+    const url = new URL(href);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 function parseInline(input: string): ReactNode[] {
@@ -25,17 +48,17 @@ function parseInline(input: string): ReactNode[] {
     }
 
     if (match[1] && match[2] && match[3]) {
-      const href = match[3];
+      const href = match[3].trim();
       const label = match[2];
       const className =
         "font-medium text-foreground underline decoration-brand-300 underline-offset-2 transition-colors hover:decoration-brand-500";
-      if (href.startsWith("/")) {
+      if (isSafeInternalHref(href)) {
         nodes.push(
           <Link key={key++} href={href} className={className}>
             {label}
           </Link>
         );
-      } else {
+      } else if (isSafeExternalHref(href)) {
         nodes.push(
           <a
             key={key++}
@@ -47,6 +70,9 @@ function parseInline(input: string): ReactNode[] {
             {label}
           </a>
         );
+      } else {
+        // Unsafe / unrecognized scheme — render label as plain text.
+        nodes.push(label);
       }
     } else if (match[4] && match[5]) {
       nodes.push(

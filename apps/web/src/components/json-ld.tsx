@@ -35,12 +35,20 @@ function defaultPriceValidUntil(): string {
   return `${new Date().getFullYear() + 1}-12-31`;
 }
 
-/** Gemensam script-wrapper för alla JSON-LD-block. */
+/**
+ * Gemensam script-wrapper för alla JSON-LD-block.
+ *
+ * JSON.stringify escapar inte `<`, så ett fält med `</script>` (t.ex. produkt-
+ * beskrivning från API) kan bryta ut ur script-taggen → XSS. Escapa `<` till
+ * `\u003c` (giltig JSON, säkert i HTML).
+ */
 export function JsonLd({ data }: { data: object }) {
   return (
     <script
       type="application/ld+json"
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }}
+      dangerouslySetInnerHTML={{
+        __html: JSON.stringify(data).replace(/</g, "\\u003c"),
+      }}
     />
   );
 }
