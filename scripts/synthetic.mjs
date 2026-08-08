@@ -88,7 +88,12 @@ async function run() {
       if (r.status !== 200) return false;
       const text = await r.text();
       // Verifiera att /shop/ inte är blockerat — KC7.2 success-kriterie.
-      return /User-agent/i.test(text) && !/Disallow:\s*\/shop\b/i.test(text);
+      // Matcha bara Disallow för själva /shop (ev. trailing slash), inte
+      // snävare paths som /shop/*/order/ som ska vara blockerade.
+      return (
+        /User-agent/i.test(text) &&
+        !/Disallow:\s*\/shop\/?\s*$/im.test(text)
+      );
     }
   );
 
