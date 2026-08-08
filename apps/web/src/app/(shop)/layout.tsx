@@ -18,7 +18,7 @@ export default async function ShopLayout({
   const t = getShop("footer", locale);
 
   return (
-    <LocaleProvider locale={locale}>
+    <LocaleProvider key={locale} locale={locale}>
       <div className="flex min-h-screen flex-col">
         {/* Målet för skip-länken i root layout. Den pekade tidigare på ett id
           som inte fanns i den här route-gruppen, så "Hoppa till innehåll"

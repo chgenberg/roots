@@ -154,19 +154,31 @@ function withLocaleHeaders(
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set(LOCALE_HEADER, locale);
 
+  const attachLocale = (res: NextResponse) => {
+    res.headers.set(LOCALE_HEADER, locale);
+    // Cookie mirrors the URL locale so client chrome can recover if a soft
+    // navigation reuses a layout segment after the `/en` → `/` rewrite.
+    res.cookies.set("roots_locale", locale, {
+      path: "/",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 365,
+    });
+    return res;
+  };
+
   if (locale === "en") {
     const url = request.nextUrl.clone();
     url.pathname = stripLocalePrefix(pathname);
-    const res = NextResponse.rewrite(url, {
-      request: { headers: requestHeaders },
-    });
-    res.headers.set(LOCALE_HEADER, locale);
-    return res;
+    return attachLocale(
+      NextResponse.rewrite(url, {
+        request: { headers: requestHeaders },
+      })
+    );
   }
 
-  const res = NextResponse.next({ request: { headers: requestHeaders } });
-  res.headers.set(LOCALE_HEADER, locale);
-  return res;
+  return attachLocale(
+    NextResponse.next({ request: { headers: requestHeaders } })
+  );
 }
 
 export async function middleware(request: NextRequest) {

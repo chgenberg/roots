@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { getLocaleFromPathname, switchLocalePath } from "@/i18n/paths";
+import { switchLocalePath } from "@/i18n/paths";
+import { useLocale } from "@/i18n/locale-context";
 
 /** Minimalist flag marks — not photo-real flags, just a calm locale cue. */
 function FlagSv({ className }: { className?: string }) {
@@ -43,11 +44,15 @@ function FlagEn({ className }: { className?: string }) {
 /**
  * Discrete language toggle — sits to the right of the contact/demo icon.
  * Shows the *target* locale flag (EN when on Swedish, SV when on English).
+ * Uses the shared locale context so it stays in sync with nav/footer copy.
  */
 export function LanguageSwitcher({ className }: { className?: string }) {
-  const pathname = usePathname() || "/";
-  const locale = getLocaleFromPathname(pathname);
-  const target = switchLocalePath(pathname);
+  const routerPathname = usePathname() || "/";
+  const { locale } = useLocale();
+  // Middleware rewrites strip `/en` from usePathname; prefer the browser URL.
+  const asPath =
+    typeof window !== "undefined" ? window.location.pathname : routerPathname;
+  const target = switchLocalePath(asPath);
   const toEn = locale === "sv";
 
   return (

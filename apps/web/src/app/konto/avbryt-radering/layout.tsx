@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { Metadata } from "next";
 import { cancelDeletion } from "@/i18n/dictionaries/errors";
 import { LocaleProvider } from "@/i18n/locale-context";
@@ -16,8 +17,12 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function CancelDeletionLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   const locale = await getRequestLocale();
-  return <LocaleProvider locale={locale}>{children}</LocaleProvider>;
+  return (
+    <LocaleProvider key={locale} locale={locale}>
+      {children}
+    </LocaleProvider>
+  );
 }

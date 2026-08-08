@@ -29,7 +29,7 @@ export default async function PreviewGatePage() {
   const t = getPreview(locale);
 
   return (
-    <LocaleProvider locale={locale}>
+    <LocaleProvider key={locale} locale={locale}>
       <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-10 sm:py-12">
         <Image
           src="/images/sport-hero.jpg"

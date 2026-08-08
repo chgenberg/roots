@@ -32,7 +32,7 @@ export default async function CalculatorLayout({
   const t = getPage("kalkylatorShare", locale);
 
   return (
-    <LocaleProvider locale={locale}>
+    <LocaleProvider key={locale} locale={locale}>
       <div className="flex min-h-screen flex-col bg-brand-50/30">
         <main id="main-content" className="flex-1">
           {children}

@@ -10,7 +10,7 @@ export default async function AuthLayout({ children }: { children: ReactNode }) 
   const t = getAuth("layout", locale);
 
   return (
-    <LocaleProvider locale={locale}>
+    <LocaleProvider key={locale} locale={locale}>
       <div className="flex min-h-screen flex-col bg-brand-50/30">
         <header className="flex h-16 items-center px-6">
           <LocaleLink

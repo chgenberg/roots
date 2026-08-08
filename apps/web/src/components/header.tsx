@@ -105,7 +105,12 @@ export function Header() {
   const closeMenu = useCallback(() => setMenuOpen(false), []);
   const menuRef = useFocusTrap(menuOpen, closeMenu);
 
-  const barePath = pathname?.replace(/^\/en(?=\/|$)/, "") || "/";
+  // Prefer browser URL: middleware rewrite can strip `/en` from usePathname.
+  const asPath =
+    typeof window !== "undefined"
+      ? window.location.pathname
+      : pathname || "/";
+  const barePath = asPath.replace(/^\/en(?=\/|$)/, "") || "/";
   const isActive = (href: string) =>
     barePath === href || barePath.startsWith(href + "/");
 
