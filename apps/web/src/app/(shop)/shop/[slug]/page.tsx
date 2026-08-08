@@ -23,15 +23,31 @@ import {
 
 import { getBrowserApiBase } from "@/lib/api-base";
 import { useCart } from "@/lib/use-cart";
-import { ProductJsonLd } from "@/components/json-ld";
+import { BreadcrumbJsonLd, ProductJsonLd } from "@/components/json-ld";
 import { formatKrValue } from "@/lib/format";
 import {
   productImage,
   byCatalogOrder,
   isBundleSlug,
+  BUNDLE_SLUG,
 } from "@/lib/product-catalog";
 
 const API_URL = getBrowserApiBase();
+
+/** Marketing product pages that exist under /produkter/[slug]. */
+const MARKETING_PRODUCT_SLUGS = new Set([
+  "shampoo",
+  "conditioner",
+  "body-wash",
+  BUNDLE_SLUG,
+]);
+
+function productSeoUrl(productSlug: string, shopSlug: string): string {
+  if (MARKETING_PRODUCT_SLUGS.has(productSlug)) {
+    return `/produkter/${productSlug}`;
+  }
+  return `/shop/${shopSlug}`;
+}
 
 interface Product {
   id: string;
@@ -164,9 +180,19 @@ export default function SellerShopPage() {
 
   return (
     <div className="min-h-screen bg-brand-50/30">
+      <BreadcrumbJsonLd
+        items={[
+          { name: "Hem", url: "/" },
+          { name: "Shop", url: `/shop/${slug}` },
+          {
+            name: shop.seller.displayName || slug,
+            url: `/shop/${slug}`,
+          },
+        ]}
+      />
       {/* P3.54 (audit 2026-05-26): emit Product JSON-LD per produkt så
           shop-sidor får samma rich-result-stöd som marketing/produkter.
-          Vi använder seller-slug:en som canonical URL. */}
+          URL pekar på marknadsproduktsidan när den finns, annars shoppen. */}
       {shop.products.map((p) => (
         <ProductJsonLd
           key={p.id}
@@ -176,7 +202,7 @@ export default function SellerShopPage() {
           price={p.priceOre}
           currency={p.currency || "SEK"}
           image={productImage(p.slug)}
-          url={`/shop/${slug}#${p.slug}`}
+          url={productSeoUrl(p.slug, slug)}
         />
       ))}
       {/* Header */}

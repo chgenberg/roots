@@ -7,7 +7,7 @@ import { useEffect } from "react";
  *
  * Portalen och fundraising-vyerna består av 34 sidor som alla är
  * "use client". En sådan sida kan inte exportera `metadata`, så samtliga
- * ärvde root-titeln "Roots — Föreningsnära hudvård". Med tre flikar öppna
+ * ärvde root-titeln "Roots — Föreningsnära hårvård". Med tre flikar öppna
  * — beställningar, avräkning, statistik — såg de identiska ut, och den som
  * använder skärmläsare fick samma sidtitel uppläst vid varje navigering.
  *

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { ProductJsonLd } from "@/components/json-ld";
+import { BreadcrumbJsonLd, ProductJsonLd } from "@/components/json-ld";
 import { ArrowLeft } from "lucide-react";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { BUNDLE_SKU, BUNDLE_SLUG } from "@/lib/product-catalog";
@@ -160,15 +160,46 @@ export default async function ProductDetailPage({ params }: PageProps) {
   const product = PRODUCTS[slug];
   if (!product) notFound();
 
+  const siteUrl = (
+    process.env.NEXT_PUBLIC_SITE_URL || "https://roots.se"
+  ).replace(/\/$/, "");
+  const productUrl = `${siteUrl}/produkter/${slug}`;
+
+  const includes =
+    product.contains?.map((item) => {
+      const contained = PRODUCTS[item.slug];
+      return {
+        name: contained?.name ?? item.label,
+        url: `${siteUrl}/produkter/${item.slug}`,
+        sku: contained?.sku ?? item.slug,
+      };
+    }) ?? undefined;
+
+  const category =
+    slug === "body-wash"
+      ? "Kroppsvård"
+      : slug === BUNDLE_SLUG
+        ? "Paket"
+        : "Hårvård";
+
   return (
     <>
+      <BreadcrumbJsonLd
+        items={[
+          { name: "Hem", url: "/" },
+          { name: "Produkter", url: "/produkter" },
+          { name: product.name, url: `/produkter/${slug}` },
+        ]}
+      />
       <ProductJsonLd
         name={product.name}
-        description={product.tagline}
+        description={product.description}
         sku={product.sku}
         price={product.priceOre}
         image={product.image}
-        url={`${process.env.NEXT_PUBLIC_SITE_URL || "https://roots.se"}/produkter/${slug}`}
+        url={productUrl}
+        category={category}
+        includes={includes}
       />
 
       <section className="py-16 md:py-24">

@@ -86,6 +86,11 @@ const GATE_BYPASS_PREFIXES = [
   "/favicon",
   "/robots.txt",
   "/sitemap.xml",
+  "/feed.xml",
+  "/llms.txt",
+  "/opengraph-image",
+  "/twitter-image",
+  "/.well-known",
   "/healthz",
   "/readyz",
 ];

@@ -38,7 +38,7 @@ export function ForForeningar() {
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
             Vi vet hur föreningar fungerar. Därför byggde vi en plattform som gör
-            det enkelt att beställa och sälja naturlig hudvård.
+            det enkelt att beställa och sälja naturlig hårvård.
           </p>
         </div>
 

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { LegalIdentityBlock } from "@/components/legal-identity-block";
 
@@ -6,7 +7,16 @@ import { LegalIdentityBlock } from "@/components/legal-identity-block";
  * Avsiktligt minimal — ingen portal- eller marknadsföringschrome — så
  * föreningen kan fokusera på sin egen uträkning. Tunn juridisk footer
  * speglar shop-layouten.
+ *
+ * Token-URL:er ska inte indexeras (defense-in-depth utöver robots.txt).
  */
+export const metadata: Metadata = {
+  title: "Intäktskalkylator",
+  description:
+    "Räkna på vad föreningsförsäljning med Roots kan ge er förening.",
+  robots: { index: false, follow: false },
+};
+
 export default function CalculatorLayout({
   children,
 }: {

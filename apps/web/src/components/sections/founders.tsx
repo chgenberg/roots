@@ -34,7 +34,7 @@ export function FoundersSection() {
               blomstra.
             </p>
             <p>
-              Naturlig hudvård kan bli en kraft som binder samman människor —
+              Naturlig hårvård kan bli en kraft som binder samman människor —
               från duschen till planen. Enkelt. Naturligt. Gemensamt.
             </p>
           </div>

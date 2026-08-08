@@ -4,13 +4,17 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArrowUpRight, Leaf, Droplets, Sparkles } from "lucide-react";
+import { BreadcrumbJsonLd, ItemListJsonLd, WebPageJsonLd } from "@/components/json-ld";
 import { pageMetadata } from "@/lib/seo";
 import { BUNDLE_SLUG } from "@/lib/product-catalog";
 
+const PAGE_TITLE = "Produkter";
+const PAGE_DESCRIPTION =
+  "Tre noggrant formulerade nordiska produkter med SyriCalm® och Pro-Vitamin B5 — var för sig eller som komplett paket. Sulfatsnålt, silikon- och parabenfritt.";
+
 export const metadata = pageMetadata({
-  title: "Produkter",
-  description:
-    "Tre noggrant formulerade nordiska produkter med SyriCalm® och Pro-Vitamin B5 — var för sig eller som komplett paket. Sulfatsnålt, silikon- och parabenfritt.",
+  title: PAGE_TITLE,
+  description: PAGE_DESCRIPTION,
   path: "/produkter",
 });
 
@@ -67,6 +71,25 @@ const VALUES = [
 export default function ProdukterPage() {
   return (
     <>
+      <BreadcrumbJsonLd
+        items={[
+          { name: "Hem", url: "/" },
+          { name: "Produkter", url: "/produkter" },
+        ]}
+      />
+      <WebPageJsonLd
+        type="CollectionPage"
+        name={PAGE_TITLE}
+        description={PAGE_DESCRIPTION}
+        url="/produkter"
+      />
+      <ItemListJsonLd
+        name="Roots produkter"
+        items={PRODUCTS.map((p) => ({
+          name: p.name,
+          url: `/produkter/${p.slug}`,
+        }))}
+      />
       <section className="bg-brand-50/40 py-20 md:py-28">
         <div className="mx-auto max-w-[1280px] px-6 md:px-10">
           <div className="mx-auto max-w-2xl text-center">

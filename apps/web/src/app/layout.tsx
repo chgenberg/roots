@@ -5,16 +5,18 @@ import { Providers } from "./providers";
 import { inter, alanSans } from "@/lib/fonts";
 import "./globals.css";
 
+const siteUrl = (
+  process.env.NEXT_PUBLIC_SITE_URL || "https://roots.se"
+).replace(/\/$/, "");
+
 export const metadata: Metadata = {
   title: {
-    template: "%s | Roots — Föreningsnära hudvård",
-    default: "Roots — Föreningsnära hudvård",
+    template: "%s | Roots — Föreningsnära hårvård",
+    default: "Roots — Föreningsnära hårvård",
   },
   description:
-    "Naturlig hudvård för föreningslivet. Schampo, balsam och kroppstvätt — utvecklat i Norden.",
-  metadataBase: new URL(
-    process.env.NEXT_PUBLIC_SITE_URL || "https://roots.se"
-  ),
+    "Naturlig hårvård för föreningslivet. Schampo, balsam och body wash — utvecklat i Norden.",
+  metadataBase: new URL(siteUrl),
   // Brandbook symbol as favicon + app icon, pre-rendered per size by
   // scripts/build-favicons.py. Earlier revisions pointed every slot at the
   // 4000×4000 brand source on the assumption Next would resize it — it
@@ -30,22 +32,19 @@ export const metadata: Metadata = {
     apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180" }],
     shortcut: ["/favicon.ico"],
   },
+  // discovery: RSS for guider — pairs with app/feed.xml/route.ts
+  alternates: {
+    types: {
+      "application/rss+xml": `${siteUrl}/feed.xml`,
+    },
+  },
   openGraph: {
     type: "website",
     locale: "sv_SE",
     siteName: "Roots",
-    images: [
-      {
-        url: "/images/sport-hockey.jpg",
-        width: 1200,
-        height: 630,
-        alt: "Roots — Naturlig hårvård",
-      },
-    ],
   },
   twitter: {
     card: "summary_large_image",
-    images: ["/images/sport-hockey.jpg"],
   },
 };
 

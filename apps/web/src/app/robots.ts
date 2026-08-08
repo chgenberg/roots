@@ -11,6 +11,10 @@ export default function robots(): MetadataRoute.Robots {
         // Personal shops should be indexable to help viral discovery, but
         // authenticated portal surfaces, internal tooling and auth pages stay
         // blocked from crawlers.
+        //
+        // AI-crawlers (GPTBot, ClaudeBot, Google-Extended m.fl.) tillåts
+        // medvetet på publik marknadsföring — intentional LLM SEO. De
+        // träffas av samma disallow-lista nedan för auth/kassa/portal.
         disallow: [
           "/api/",
           "/trpc/",
@@ -24,6 +28,15 @@ export default function robots(): MetadataRoute.Robots {
           "/konto/",
           "/login",
           "/registrera",
+          "/glomt-losenord",
+          "/aterstall-losenord",
+          "/preview-gate",
+          "/kalkylator/",
+          // Shop-checkout & orderflöde (Google stödjer * i robots.txt).
+          // Mönster matchar /shop/[slug]/kassa|bekraftelse|order/...
+          "/*/kassa",
+          "/*/bekraftelse",
+          "/shop/*/order/",
         ],
       },
     ],

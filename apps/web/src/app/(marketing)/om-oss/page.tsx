@@ -1,12 +1,16 @@
 import Image from "next/image";
 import { Heart, Leaf, Shield } from "lucide-react";
+import { BreadcrumbJsonLd, WebPageJsonLd } from "@/components/json-ld";
 import { pageMetadata } from "@/lib/seo";
 import { TeamSection } from "@/components/sections/team";
 
+const PAGE_TITLE = "Om oss";
+const PAGE_DESCRIPTION =
+  "Teamet bakom Roots — föreningsliv, teknik och naturlig hårvård utvecklad i Norden.";
+
 export const metadata = pageMetadata({
-  title: "Om oss",
-  description:
-    "Teamet bakom Roots — föreningsliv, teknik och naturlig hårvård utvecklad i Norden.",
+  title: PAGE_TITLE,
+  description: PAGE_DESCRIPTION,
   path: "/om-oss",
 });
 
@@ -34,6 +38,18 @@ const VALUES = [
 export default function OmOssPage() {
   return (
     <>
+      <BreadcrumbJsonLd
+        items={[
+          { name: "Hem", url: "/" },
+          { name: "Om oss", url: "/om-oss" },
+        ]}
+      />
+      <WebPageJsonLd
+        type="AboutPage"
+        name={PAGE_TITLE}
+        description={PAGE_DESCRIPTION}
+        url="/om-oss"
+      />
       {/* Intro — one composition, brand-led, no dashboard clutter */}
       <section className="relative overflow-hidden">
         <div
@@ -88,7 +104,7 @@ export default function OmOssPage() {
               <p>
                 Med bakgrunder inom teknik, idrott och företagande satte vi oss
                 ner och funderade: vad kan alla föreningar ha gemensamt? Svaret
-                var enkelt. Alla duschar. Alla behöver hudvård.
+                var enkelt. Alla duschar. Alla behöver hår- och hudvård.
               </p>
               <p>
                 Så vi skapade Roots. Tre naturliga produkter, utvecklade i

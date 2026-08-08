@@ -37,6 +37,12 @@ export interface PageMetadataInput {
   ogType?: "website" | "article";
   /** Lägg `noindex: true` på sidor som inte ska indexeras (t.ex. /preview-gate). */
   noindex?: boolean;
+  /** ISO-8601. Endast relevant när ogType === "article". */
+  publishedTime?: string;
+  /** ISO-8601. Endast relevant när ogType === "article". */
+  modifiedTime?: string;
+  /** Författare (URL eller namn). Endast relevant när ogType === "article". */
+  authors?: string[];
 }
 
 export function pageMetadata({
@@ -46,22 +52,39 @@ export function pageMetadata({
   ogImage,
   ogType = "website",
   noindex,
+  publishedTime,
+  modifiedTime,
+  authors,
 }: PageMetadataInput): Metadata {
   const canonical = path;
   // metadataBase i root-layout gör absolute-resolution åt oss; vi
   // skickar bara relativ path så samma kod fungerar i preview-deploys
   // utan att läcka prod-URL.
+  const openGraph =
+    ogType === "article"
+      ? {
+          type: "article" as const,
+          url: canonical,
+          title,
+          description,
+          ...(ogImage ? { images: [{ url: ogImage }] } : {}),
+          ...(publishedTime ? { publishedTime } : {}),
+          ...(modifiedTime ? { modifiedTime } : {}),
+          ...(authors ? { authors } : {}),
+        }
+      : {
+          type: "website" as const,
+          url: canonical,
+          title,
+          description,
+          ...(ogImage ? { images: [{ url: ogImage }] } : {}),
+        };
+
   return {
     title,
     description,
     alternates: { canonical },
-    openGraph: {
-      type: ogType,
-      url: canonical,
-      title,
-      description,
-      ...(ogImage ? { images: [{ url: ogImage }] } : {}),
-    },
+    openGraph,
     twitter: {
       card: "summary_large_image",
       title,

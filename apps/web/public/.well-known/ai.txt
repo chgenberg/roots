@@ -1,0 +1,8 @@
+# Roots — AI crawler summary
+
+Roots (Roots Nordic AB) säljer föreningsnära premium hårvård från Norden.
+Modell: digital föreningsförsäljning via personliga shoppar; ~35 % till föreningen.
+Kontakt: hej@roots.se · Språk: svenska
+
+Full sammanfattning: https://roots.se/llms.txt
+Sitemap: https://roots.se/sitemap.xml

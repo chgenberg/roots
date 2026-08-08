@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { Instagram, Linkedin } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { LegalIdentityBlock } from "@/components/legal-identity-block";
 import { RootsLogo } from "@/components/brand";
 import { HAIR_ANALYSIS_ENABLED } from "@/lib/feature-flags";
+import { LEGAL_IDENTITY } from "@/lib/legal-identity";
 
 const FOOTER_LINKS = [
   {
@@ -29,6 +31,13 @@ const FOOTER_LINKS = [
     ],
   },
   {
+    title: "Kunskap",
+    links: [
+      { href: "/guider", label: "Guider" },
+      { href: "/hjalp", label: "Hjälp" },
+    ],
+  },
+  {
     title: "Juridiskt",
     links: [
       { href: "/integritet", label: "Integritetspolicy" },
@@ -50,12 +59,32 @@ export function Footer() {
     // sand bg + brand logotype, which carries the brand on its own.
     <footer className="relative border-t border-border bg-brand-50/30">
       <div className="mx-auto max-w-[1280px] px-6 py-16 md:px-10">
-        <div className="grid gap-10 md:grid-cols-4">
-          <div>
+        <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="sm:col-span-2 lg:col-span-1">
             <RootsLogo variant="auto" className="h-8 w-[80px]" />
             <p className="mt-4 max-w-[25ch] text-sm leading-relaxed text-muted-foreground">
-              Naturlig hudvård som stärker föreningslivet i Sverige.
+              Naturlig hårvård som stärker föreningslivet i Sverige.
             </p>
+            <div className="mt-4 flex items-center gap-3">
+              <a
+                href={LEGAL_IDENTITY.social.instagram}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-muted-foreground transition-colors hover:text-foreground"
+                aria-label="Roots på Instagram"
+              >
+                <Instagram className="h-4 w-4" />
+              </a>
+              <a
+                href={LEGAL_IDENTITY.social.linkedin}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-muted-foreground transition-colors hover:text-foreground"
+                aria-label="Roots på LinkedIn"
+              >
+                <Linkedin className="h-4 w-4" />
+              </a>
+            </div>
           </div>
 
           {FOOTER_LINKS.map((group) => (

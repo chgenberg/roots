@@ -8,7 +8,7 @@ import type { Metadata } from "next";
  * som page.tsx, och bygger en delningskort-vänlig OG + canonical.
  *
  * Tidigare: shop-länkar i Slack/WhatsApp visade root-OG ("Roots —
- * Föreningsnära hudvård") för ALLA säljares shops → omöjligt att se
+ * Föreningsnära hårvård") för ALLA säljares shops → omöjligt att se
  * skillnad på Anna-och Bertas länk när vänner får dem.
  *
  * Nu: title = "<displayName> säljer Roots", description = kort
@@ -50,19 +50,27 @@ export async function generateMetadata({
   const { slug } = await params;
   const data = await fetchShop(slug);
 
-  const displayName = data?.seller?.displayName ?? null;
-  const orgName = data?.organization?.name ?? null;
-  const campaignName = data?.campaign?.name ?? null;
+  const canonical = `/shop/${slug}`;
 
-  const title = displayName
-    ? `${displayName} säljer Roots${orgName ? ` för ${orgName}` : ""}`
-    : "Personlig Roots-shop";
+  if (!data?.seller?.displayName) {
+    return {
+      title: "Personlig Roots-shop",
+      description:
+        "Köp Roots naturliga hårvård direkt från säljarens personliga shop. Del av vinsten går till föreningslivet.",
+      alternates: { canonical },
+      robots: { index: false, follow: false },
+    };
+  }
+
+  const displayName = data.seller.displayName;
+  const orgName = data.organization?.name ?? null;
+  const campaignName = data.campaign?.name ?? null;
+
+  const title = `${displayName} säljer Roots${orgName ? ` för ${orgName}` : ""}`;
 
   const description = campaignName
-    ? `Stötta ${displayName ?? "säljaren"} och ${orgName ?? "föreningen"} — köp naturlig hårvård och bidra till "${campaignName}".`
-    : "Köp Roots naturliga hudvård direkt från säljarens personliga shop. Del av vinsten går till föreningslivet.";
-
-  const canonical = `/shop/${slug}`;
+    ? `Stötta ${displayName} och ${orgName ?? "föreningen"} — köp naturlig hårvård och bidra till "${campaignName}".`
+    : "Köp Roots naturliga hårvård direkt från säljarens personliga shop. Del av vinsten går till föreningslivet.";
 
   return {
     title,

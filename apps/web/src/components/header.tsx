@@ -14,12 +14,13 @@ import { RootsLogo } from "@/components/brand";
 const NAV_ITEMS = [
   { href: "/produkter", label: "Produkter" },
   { href: "/foreningsliv", label: "Föreningsliv" },
+  { href: "/guider", label: "Guider" },
   { href: "/om-oss", label: "Om oss" },
-  { href: "/sa-fungerar-det", label: "Så fungerar det" },
 ];
 
 // Logotypen sitter mitt i navigeringen, så länkarna delas jämnt på var
 // sin sida om den. Läsordningen i DOM:en är oförändrad.
+// "Så fungerar det" ligger i footer + /guider — behåller 2/2-balans här.
 const NAV_LEFT = NAV_ITEMS.slice(0, 2);
 const NAV_RIGHT = NAV_ITEMS.slice(2);
 

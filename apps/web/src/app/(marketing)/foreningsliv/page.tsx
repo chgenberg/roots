@@ -3,14 +3,18 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { BreadcrumbJsonLd, WebPageJsonLd } from "@/components/json-ld";
 import { pageMetadata } from "@/lib/seo";
 
 import { ArrowRight, Users, ShieldCheck, Truck, BarChart3 } from "lucide-react";
 
+const PAGE_TITLE = "Föreningsliv";
+const PAGE_DESCRIPTION =
+  "Stärk er förening med Roots. Sälj naturlig hårvård och generera intäkter till laget — enkelt, snabbt och utan startavgift.";
+
 export const metadata = pageMetadata({
-  title: "Föreningsliv",
-  description:
-    "Stärk er förening med Roots. Sälj naturlig hårvård och generera intäkter till laget — enkelt, snabbt och utan startavgift.",
+  title: PAGE_TITLE,
+  description: PAGE_DESCRIPTION,
   path: "/foreningsliv",
 });
 
@@ -31,6 +35,17 @@ const FEATURES = [
 export default function ForeningslivPage() {
   return (
     <>
+      <BreadcrumbJsonLd
+        items={[
+          { name: "Hem", url: "/" },
+          { name: "Föreningsliv", url: "/foreningsliv" },
+        ]}
+      />
+      <WebPageJsonLd
+        name={PAGE_TITLE}
+        description={PAGE_DESCRIPTION}
+        url="/foreningsliv"
+      />
       <section className="relative overflow-hidden bg-brand-50/40 py-20 md:py-28">
         <div className="pointer-events-none absolute -bottom-20 left-[10%] h-40 w-40 rounded-full border border-brand-200/30 animate-float motion-reduce:animate-none" aria-hidden="true" />
         <div className="mx-auto grid max-w-[1280px] items-center gap-12 px-6 md:px-10 lg:grid-cols-2 lg:gap-20">
@@ -41,7 +56,7 @@ export default function ForeningslivPage() {
               <span className="block text-brand-500">starkare</span>
             </h1>
             <p className="mt-6 text-lg leading-relaxed text-muted-foreground">
-              Roots är byggt för föreningar. Beställ naturlig hudvård direkt i vår
+              Roots är byggt för föreningar. Beställ naturlig hårvård direkt i vår
               portal, säkerställ att en del av vinsten går tillbaka till er klubb,
               och ge era medlemmar produkter de älskar.
             </p>
@@ -136,7 +151,7 @@ export default function ForeningslivPage() {
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-inverse-on-surface/80">
             Anslut din förening idag och ge era medlemmar tillgång till naturlig,
-            nordisk hudvård.
+            nordisk hårvård.
           </p>
           <Button
             size="lg"

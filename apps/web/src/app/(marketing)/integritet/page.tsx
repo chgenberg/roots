@@ -1,15 +1,31 @@
+import { BreadcrumbJsonLd, WebPageJsonLd } from "@/components/json-ld";
 import { LegalIdentityBlock } from "@/components/legal-identity-block";
 import { pageMetadata } from "@/lib/seo";
 
+const PAGE_TITLE = "Integritetspolicy";
+const PAGE_DESCRIPTION =
+  "Så hanterar Roots dina personuppgifter enligt GDPR.";
+
 export const metadata = pageMetadata({
-  title: "Integritetspolicy",
-  description: "Så hanterar Roots dina personuppgifter enligt GDPR.",
+  title: PAGE_TITLE,
+  description: PAGE_DESCRIPTION,
   path: "/integritet",
 });
 
 export default function IntegritetPage() {
   return (
     <article className="mx-auto max-w-3xl px-6 py-16 md:px-10 md:py-24">
+      <BreadcrumbJsonLd
+        items={[
+          { name: "Hem", url: "/" },
+          { name: "Integritetspolicy", url: "/integritet" },
+        ]}
+      />
+      <WebPageJsonLd
+        name={PAGE_TITLE}
+        description={PAGE_DESCRIPTION}
+        url="/integritet"
+      />
       <h1 className="text-3xl font-bold tracking-tight md:text-4xl">
         Integritetspolicy
       </h1>

@@ -1,15 +1,31 @@
+import { BreadcrumbJsonLd, WebPageJsonLd } from "@/components/json-ld";
 import { LegalIdentityBlock } from "@/components/legal-identity-block";
 import { pageMetadata } from "@/lib/seo";
 
+const PAGE_TITLE = "Köpvillkor";
+const PAGE_DESCRIPTION =
+  "Köpvillkor för Roots — ångerrätt, leverans, reklamation och mer.";
+
 export const metadata = pageMetadata({
-  title: "Köpvillkor",
-  description: "Köpvillkor för Roots — ångerrätt, leverans, reklamation och mer.",
+  title: PAGE_TITLE,
+  description: PAGE_DESCRIPTION,
   path: "/villkor",
 });
 
 export default function VillkorPage() {
   return (
     <article className="mx-auto max-w-3xl px-6 py-16 md:px-10 md:py-24">
+      <BreadcrumbJsonLd
+        items={[
+          { name: "Hem", url: "/" },
+          { name: "Köpvillkor", url: "/villkor" },
+        ]}
+      />
+      <WebPageJsonLd
+        name={PAGE_TITLE}
+        description={PAGE_DESCRIPTION}
+        url="/villkor"
+      />
       <h1 className="text-3xl font-bold tracking-tight md:text-4xl">
         Köpvillkor
       </h1>

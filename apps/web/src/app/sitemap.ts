@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { HAIR_ANALYSIS_ENABLED } from "@/lib/feature-flags";
+import { GUIDE_SLUGS, guides } from "@/lib/guides";
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://roots.se";
 // Server-side fetch, so it needs the backend's absolute URL. `NEXT_PUBLIC_API_URL`
@@ -39,6 +40,19 @@ async function fetchShopUrls(): Promise<MetadataRoute.Sitemap> {
   }
 }
 
+function guideEntries(): MetadataRoute.Sitemap {
+  const bySlug = new Map(guides.map((g) => [g.slug, g]));
+  return GUIDE_SLUGS.map((slug) => {
+    const meta = bySlug.get(slug);
+    return {
+      url: `${BASE_URL}/guider/${slug}`,
+      lastModified: meta?.updatedAt ? new Date(meta.updatedAt) : new Date(),
+      changeFrequency: "monthly" as const,
+      priority: 0.7,
+    };
+  });
+}
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticEntries: MetadataRoute.Sitemap = [
     { url: BASE_URL, lastModified: new Date(), changeFrequency: "weekly", priority: 1 },
@@ -48,6 +62,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE_URL}/produkter/body-wash`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.8 },
     { url: `${BASE_URL}/produkter/paket`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.8 },
     { url: `${BASE_URL}/foreningsliv`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.9 },
+    { url: `${BASE_URL}/sa-fungerar-det`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.9 },
+    { url: `${BASE_URL}/hjalp`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.8 },
+    { url: `${BASE_URL}/guider`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.9 },
+    // RSS för guider — discovery för crawlers/LLM:er (även i llms.txt + layout alternates).
+    { url: `${BASE_URL}/feed.xml`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.5 },
     { url: `${BASE_URL}/om-oss`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.7 },
     { url: `${BASE_URL}/kontakt`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.7 },
     // Sidan svarar 404 medan håranalysen är dold — den får inte ligga kvar
@@ -67,5 +86,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   const shopEntries = await fetchShopUrls();
-  return [...staticEntries, ...shopEntries];
+  return [...staticEntries, ...guideEntries(), ...shopEntries];
 }

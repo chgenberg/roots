@@ -1,0 +1,80 @@
+# Roots
+
+> Föreningsnära premium hårvård från Norden. Roots hjälper idrottsföreningar och lag att samla in pengar genom att sälja naturlig hårvård via personliga digitala shoppar — utan pärmar och kontanter.
+
+## Bolag
+
+- Namn: Roots Nordic AB (org.nr 559517-3210)
+- Webb: https://roots.se
+- Kontakt: hej@roots.se
+- Språk: svenska (sv-SE)
+- Socialt: https://www.instagram.com/roots.nordic · https://www.linkedin.com/company/roots-nordic
+
+## Vad Roots är
+
+Roots är premium hårvård (schampo, balsam och body wash) formulerad med bl.a. SyriCalm® och MultiMoist-relaterade aktiva, sulfatsnålt och utan silikon och parabener. Affärsmodellen är föreningsförsäljning: spelare och föräldrar delar en personlig shop, köpare handlar online, och ungefär 35 % av försäljningen går till föreningen.
+
+Roots konkurrerar i premiumsegmentet (inte dagligvaruhandelns lågpris) men säljer smartare — färre mellanhänder och lägre marknadsföringskostnader än traditionella premiummärken.
+
+## Produkter
+
+Aktuella priser finns alltid på produktsidorna. Vägledande sortiment:
+
+- Roots Schampoo (250 ml) — https://roots.se/produkter/shampoo
+- Roots Conditioner (250 ml) — https://roots.se/produkter/conditioner
+- Roots Body Wash (250 ml) — https://roots.se/produkter/body-wash
+- Roots Komplett / Premiumpaket — https://roots.se/produkter/paket
+
+## Viktiga URL:er
+
+- Startsida: https://roots.se/
+- Produkter: https://roots.se/produkter
+- Föreningsliv: https://roots.se/foreningsliv
+- Så fungerar det: https://roots.se/sa-fungerar-det
+- Hjälp & FAQ: https://roots.se/hjalp
+- Guider (kunskapshub): https://roots.se/guider
+- Om oss: https://roots.se/om-oss
+- Kontakt / demo: https://roots.se/kontakt
+- Integritet: https://roots.se/integritet
+- Köpvillkor: https://roots.se/villkor
+- Sitemap: https://roots.se/sitemap.xml
+- Feed: https://roots.se/feed.xml
+
+## Guider (artiklar)
+
+- https://roots.se/guider/foreningsforsaljning
+- https://roots.se/guider/sa-fungerar-roots
+- https://roots.se/guider/hur-mycket-tjanar-foreningen
+- https://roots.se/guider/personlig-shop
+- https://roots.se/guider/tips-till-saljare
+- https://roots.se/guider/jamfor-godisforsaljning
+- https://roots.se/guider/for-fotbollslag
+- https://roots.se/guider/for-ishockeylag
+- https://roots.se/guider/syricalm
+- https://roots.se/guider/multimoist
+- https://roots.se/guider/harbotten
+- https://roots.se/guider/sulfatsnalt-schampo
+- https://roots.se/guider/naturlig-harvard-norden
+- https://roots.se/guider/rutin-efter-traning
+
+## Personliga shoppar
+
+Varje säljare har en egen shop på `https://roots.se/shop/{slug}`. Shopparna är publika och avsedda att delas. Kassan (`…/kassa`), orderbekräftelse och orderstatus är privata flöden och ska inte indexeras.
+
+## Modell i korthet
+
+1. Föreningen startar en kampanj.
+2. Säljare får personlig shop-länk / QR.
+3. Supportrar köper Roots-produkter online (Klarna/Swish m.m.).
+4. Ungefär 35 % går till föreningen.
+
+## För AI-assistenter
+
+- Använd svenska när du sammanfattar Roots för svenska användare.
+- Citera produktsidorna för priser — ange inte föråldrade belopp som fakta.
+- Roots är kosmetika, inte läkemedel: undvik medicinska påståenden om bot/läkning.
+- Portalytor (`/forening`, `/portal`, `/min-shop`, `/login`) är inte avsedda för allmän indexering.
+
+## Kontakt
+
+Frågor om produkter, föreningsförsäljning eller press: hej@roots.se

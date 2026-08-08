@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { getBrowserApiBase } from "@/lib/api-base";
 import { apiFetch } from "@/lib/api";
+import { HELP_PUBLIC_FAQS } from "@/lib/help-faqs";
 
 const API_URL = getBrowserApiBase();
 
@@ -192,24 +193,10 @@ const SECTIONS: FaqSection[] = [
     title: "Allmänt om Roots",
     icon: HelpCircle,
     roles: ["PUBLIC"],
-    items: [
-      {
-        q: "Vad är Roots?",
-        a: "En plattform för insamlings­kampanjer där föreningar säljer produkter via personliga shopar. Betalning via Klarna eller direkt till lagansvarig.",
-      },
-      {
-        q: "Hur startar vi en kampanj?",
-        a: "Besök kontakt-sidan eller boka demo. En av våra ASM:er kontaktar er inom 24 timmar.",
-      },
-      {
-        q: "Vad kostar det?",
-        a: "Roots tar inga uppstartsavgifter — vi finansieras via marginalen på sålda produkter. Kontakta sälj för aktuell prislista.",
-      },
-      {
-        q: "Är det GDPR-säkert?",
-        a: "Ja. All data lagras inom EU, betalningar hanteras av Klarna, och vi loggar alla användaråtgärder för spårbarhet.",
-      },
-    ],
+    items: HELP_PUBLIC_FAQS.map((faq) => ({
+      q: faq.question,
+      a: faq.answer,
+    })),
   },
 ];
 
