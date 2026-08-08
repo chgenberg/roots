@@ -111,8 +111,7 @@ async function dailySeries(scope: ReturnType<typeof and> | undefined) {
 
 /** Försäljning per betalmetod (Swish/Klarna/Kort/Kontant) för ett scope. */
 async function paymentSeries(scope: ReturnType<typeof and> | undefined) {
-  const methodExpr = sql<string>`LOWER(COALESCE(NULLIF(${customerOrders.selectedPaymentMethod}, ''), ${customerOrders.paymentMethod}::text, 'okänd'))`;
-  const rows = await db
+  const methodExpr = sql<string>`LOWER(COALESCE(NULLIF(${customerOrders.selectedPaymentMethod}, ''), ${customerOrders.paymentMethod}::text, 'unknown'))`;  const rows = await db
     .select({
       method: methodExpr,
       salesOre: sql<number>`COALESCE(SUM(${customerOrders.totalOre}), 0)`,
