@@ -38,6 +38,7 @@ import { getBrowserApiBase } from "@/lib/api-base";
 import { apiFetch, rootsFetch } from "@/lib/api";
 import { useLocale } from "@/i18n/locale-context";
 import { pages } from "@/i18n/dictionaries/pages";
+import { portalShared } from "@/i18n/dictionaries/portal-pages";
 
 const API_URL = getBrowserApiBase();
 
@@ -195,7 +196,12 @@ export default function HelpPage() {
         {meName && (
           <p className="mt-2 text-sm text-muted-foreground">
             {t.loggedInAs} <span className="font-medium">{meName}</span> ·{" "}
-            {t.roleLabel}: <span className="font-mono">{role}</span>
+            {t.roleLabel}:{" "}
+            <span className="font-medium">
+              {portalShared[locale].roles[
+                role as keyof typeof portalShared.sv.roles
+              ] ?? role}
+            </span>
             {" · "}
             <a
               href={

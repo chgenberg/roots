@@ -67,17 +67,50 @@ interface NotificationItem {
 const LOOKBACK_DAYS = 30;
 const FEED_LIMIT = 20;
 
+const ORDER_STATUS_LABEL: Record<
+  UiLocale,
+  Record<string, string>
+> = {
+  sv: {
+    draft: "Utkast",
+    pending: "Väntar på betalning",
+    paid: "Betald",
+    confirmed: "Bekräftad",
+    shipped: "Skickad",
+    delivered: "Levererad",
+    cancelled: "Avbruten",
+    refunded: "Återbetald",
+    failed: "Misslyckad",
+  },
+  en: {
+    draft: "Draft",
+    pending: "Awaiting payment",
+    paid: "Paid",
+    confirmed: "Confirmed",
+    shipped: "Shipped",
+    delivered: "Delivered",
+    cancelled: "Cancelled",
+    refunded: "Refunded",
+    failed: "Failed",
+  },
+};
+
+function orderStatusLabel(status: string, locale: UiLocale): string {
+  const key = status.toLowerCase();
+  return ORDER_STATUS_LABEL[locale][key] ?? status;
+}
+
 const NOTIF_COPY = {
   sv: {
     fetchFailed: "Kunde inte hämta aviseringar",
     sellerPaid: (name: string, amount: string) =>
       `${name} betalade ${amount}`,
     sellerNew: (name: string) => `Ny beställning från ${name}`,
-    status: (status: string) => `Status: ${status}`,
+    status: (status: string) => `Status: ${orderStatusLabel(status, "sv")}`,
     teamPaid: (amount: string) => `Beställning betald: ${amount}`,
     teamNew: "Ny beställning till laget",
     customerStatus: (name: string, status: string) =>
-      `${name} (${status})`,
+      `${name} (${orderStatusLabel(status, "sv")})`,
     orgPaid: (amount: string) => `Beställning betald: ${amount}`,
     orgNew: "Ny beställning i föreningen",
     teamClaimed: (teamName: string) =>
@@ -99,11 +132,11 @@ const NOTIF_COPY = {
     sellerPaid: (name: string, amount: string) =>
       `${name} paid ${amount}`,
     sellerNew: (name: string) => `New order from ${name}`,
-    status: (status: string) => `Status: ${status}`,
+    status: (status: string) => `Status: ${orderStatusLabel(status, "en")}`,
     teamPaid: (amount: string) => `Order paid: ${amount}`,
     teamNew: "New order for the team",
     customerStatus: (name: string, status: string) =>
-      `${name} (${status})`,
+      `${name} (${orderStatusLabel(status, "en")})`,
     orgPaid: (amount: string) => `Order paid: ${amount}`,
     orgNew: "New order in the club",
     teamClaimed: (teamName: string) =>

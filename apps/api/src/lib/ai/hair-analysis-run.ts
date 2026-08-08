@@ -201,6 +201,63 @@ function buildBranchingContext(answers: HairAnswers, locale: "sv" | "en"): strin
     : "\n\nBRANCHING-KONTEXT (prioritera dessa i svaret):\n" + hints.join("\n");
 }
 
+/** Stable answer keys → English labels for the model prompt (UI keeps SV keys). */
+const ANSWER_LABELS_EN: Record<string, Record<string, string>> = {
+  washFrequency: {
+    dagligen: "Daily",
+    "varannan-dag": "Every other day",
+    "2-3": "2–3 times a week",
+    sallan: "Rarely",
+  },
+  hairType: {
+    torrt: "Dry",
+    normalt: "Normal",
+    fett: "Oily",
+    blandat: "Combination (oily roots, dry ends)",
+  },
+  scalpCondition: {
+    normal: "No concerns",
+    torr: "Dry / tight",
+    fett: "Oily",
+    kliar: "Itches occasionally",
+    flagnar: "Flakes / dandruff",
+  },
+  heatTools: {
+    aldrig: "Never",
+    ibland: "Sometimes",
+    ofta: "Often",
+  },
+  chemicalTreatment: {
+    ingen: "None",
+    farg: "Colour",
+    blek: "Bleach",
+    permanent: "Perm",
+    annat: "Other / several",
+  },
+  swimFrequency: {
+    nej: "No / rarely",
+    ibland: "Sometimes (about once a month)",
+    regelbundet: "Regularly (every week)",
+    dagligen: "Almost daily",
+  },
+};
+
+function answersForPrompt(answers: HairAnswers, locale: "sv" | "en"): unknown {
+  if (locale !== "en") return answers;
+  const map = (group: string, value: string | undefined) =>
+    (value && ANSWER_LABELS_EN[group]?.[value]) || value;
+  return {
+    washFrequency: map("washFrequency", answers.washFrequency),
+    hairType: map("hairType", answers.hairType),
+    scalpCondition: map("scalpCondition", answers.scalpCondition),
+    heatTools: map("heatTools", answers.heatTools),
+    chemicalTreatment: map("chemicalTreatment", answers.chemicalTreatment),
+    swimFrequency: map("swimFrequency", answers.swimFrequency),
+    stressSleep: answers.stressSleep,
+    notes: answers.notes,
+  };
+}
+
 function buildUserPrompt(answers: HairAnswers, locale: "sv" | "en"): string {
   if (locale === "en") {
     return [
@@ -235,7 +292,7 @@ function buildUserPrompt(answers: HairAnswers, locale: "sv" | "en"): string {
 }`,
       "",
       "Questionnaire answers (context):",
-      JSON.stringify(answers, null, 0),
+      JSON.stringify(answersForPrompt(answers, "en"), null, 0),
       buildBranchingContext(answers, "en"),
     ].join("\n");
   }

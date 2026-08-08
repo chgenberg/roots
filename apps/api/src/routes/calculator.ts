@@ -18,6 +18,8 @@ import {
 import { calculatorLeadRateLimit } from "../lib/rate-limit";
 import { childLogger } from "../lib/logger";
 import { resolveUiLocale, uiError } from "../lib/ui-locale";
+import { localizeZodFlatten } from "../lib/zod-i18n";
+import { localizedProductName } from "../lib/product-i18n";
 
 const log = childLogger("calculator");
 
@@ -30,7 +32,12 @@ const log = childLogger("calculator");
  */
 function singleProductPrices() {
   return db
-    .select({ name: products.name, priceOre: products.priceOre })
+    .select({
+      name: products.name,
+      slug: products.slug,
+      sku: products.sku,
+      priceOre: products.priceOre,
+    })
     .from(products)
     .where(and(eq(products.active, true), ne(products.slug, BUNDLE_SLUG)));
 }
@@ -45,7 +52,22 @@ export const calculator = new Hono();
  * notisfeed och admin-lista som vanliga kalkyl-leads, utan migration.
  */
 const PUBLIC_LINK_TOKEN = "webbplats-publik";
-const PUBLIC_LINK_NAME = "Öppen kalkylator (webbplatsen)";
+/** Canonical DB label for the public website calculator sentinel link. */
+const PUBLIC_LINK_NAME_SV = "Öppen kalkylator (webbplatsen)";
+const PUBLIC_LINK_NAME_EN = "Open calculator (website)";
+
+function displayPublicLinkName(
+  stored: string,
+  locale: "sv" | "en"
+): string {
+  if (
+    locale === "en" &&
+    (stored === PUBLIC_LINK_NAME_SV || stored === PUBLIC_LINK_NAME_EN)
+  ) {
+    return PUBLIC_LINK_NAME_EN;
+  }
+  return stored;
+}
 
 let cachedPublicLinkId: string | null = null;
 
@@ -77,7 +99,7 @@ async function getOrCreatePublicLink(): Promise<{ id: string } | null> {
       .values({
         token: PUBLIC_LINK_TOKEN,
         createdByUserId: owner.id,
-        associationName: PUBLIC_LINK_NAME,
+        associationName: PUBLIC_LINK_NAME_SV,
         presets: CALCULATOR_DEFAULTS,
       })
       .onConflictDoNothing({ target: calculatorLinks.token })
@@ -162,7 +184,10 @@ calculator.post("/public/lead", async (c) => {
   const parsed = CalculatorLeadSchema.safeParse(raw);
   if (!parsed.success) {
     return c.json(
-      { error: uiError(resolved, "invalidFields"), issues: parsed.error.flatten() },
+      {
+        error: uiError(resolved, "invalidFields"),
+        issues: localizeZodFlatten(parsed.error.flatten(), resolved),
+      },
       400
     );
   }
@@ -240,9 +265,16 @@ calculator.get("/by-token/:token", async (c) => {
     const priceRows = await singleProductPrices();
 
     return c.json({
-      associationName: link.associationName,
+      associationName: displayPublicLinkName(link.associationName, locale),
       presets: presets.success ? presets.data : null,
-      products: priceRows.map((p) => ({ name: p.name, priceOre: p.priceOre })),
+      products: priceRows.map((p) => ({
+        name: localizedProductName(locale, {
+          slug: p.slug,
+          sku: p.sku,
+          fallback: p.name,
+        }),
+        priceOre: p.priceOre,
+      })),
     });
   } catch (err) {
     log.error({ err }, "calculator by-token failed");
@@ -286,7 +318,10 @@ calculator.post("/by-token/:token/lead", async (c) => {
   const parsed = CalculatorLeadSchema.safeParse(raw);
   if (!parsed.success) {
     return c.json(
-      { error: uiError(resolved, "invalidFields"), issues: parsed.error.flatten() },
+      {
+        error: uiError(resolved, "invalidFields"),
+        issues: localizeZodFlatten(parsed.error.flatten(), resolved),
+      },
       400
     );
   }

@@ -14,6 +14,7 @@ import type { SessionData } from "../lib/session";
 import { requireSession } from "../lib/http-session";
 import { childLogger } from "../lib/logger";
 import { resolveUiLocale, uiError } from "../lib/ui-locale";
+import { localizeZodFlatten } from "../lib/zod-i18n";
 
 const log = childLogger("calculator-admin");
 
@@ -66,7 +67,10 @@ calculatorAdmin.post("/", async (c) => {
   const parsed = CreateCalculatorSchema.safeParse(raw);
   if (!parsed.success) {
     return c.json(
-      { error: uiError(locale, "invalidFields"), issues: parsed.error.flatten() },
+      {
+        error: uiError(locale, "invalidFields"),
+        issues: localizeZodFlatten(parsed.error.flatten(), locale),
+      },
       400
     );
   }
@@ -193,7 +197,10 @@ calculatorAdmin.patch("/:id", async (c) => {
   const parsed = UpdateCalculatorSchema.safeParse(raw);
   if (!parsed.success) {
     return c.json(
-      { error: uiError(locale, "invalidFields"), issues: parsed.error.flatten() },
+      {
+        error: uiError(locale, "invalidFields"),
+        issues: localizeZodFlatten(parsed.error.flatten(), locale),
+      },
       400
     );
   }

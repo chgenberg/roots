@@ -9,6 +9,8 @@
  */
 
 import type { Locale } from "@/i18n/config";
+import { fundraisingPages } from "@/i18n/dictionaries/fundraising-pages";
+import { paymentLabel } from "@/components/charts/theme";
 
 function escapeCell(value: unknown): string {
   if (value == null) return "";
@@ -46,6 +48,28 @@ function formatDateForFilename(d: Date): string {
 
 function dateLocale(locale: Locale): string {
   return locale === "en" ? "en-GB" : "sv-SE";
+}
+
+function orderStatusCsvLabel(status: string, locale: Locale): string {
+  const key = status.toUpperCase() as keyof typeof fundraisingPages.orderStatus.sv;
+  return (
+    fundraisingPages.orderStatus[locale][key] ??
+    fundraisingPages.orderStatus.sv[key] ??
+    status
+  );
+}
+
+function deliveryTypeCsvLabel(
+  deliveryType: string | null | undefined,
+  locale: Locale
+): string {
+  if (!deliveryType) return "";
+  const t = fundraisingPages.common[locale];
+  const key = deliveryType.toUpperCase();
+  if (key === "BULK") return t.deliveryBulk;
+  if (key === "DIRECT") return t.deliveryDirect;
+  if (key === "BOTH") return t.deliveryBoth;
+  return deliveryType;
 }
 
 export interface CustomerOrderCsvRow {
@@ -96,9 +120,9 @@ export function downloadCustomerOrdersCsv(
     o.customerName,
     o.customerEmail ?? "",
     o.sellerName ?? "",
-    o.status,
-    o.paymentMethod ?? "",
-    o.deliveryType ?? "",
+    orderStatusCsvLabel(o.status, locale),
+    o.paymentMethod ? paymentLabel(o.paymentMethod, locale) : "",
+    deliveryTypeCsvLabel(o.deliveryType, locale),
     String(Math.round(o.totalOre / 100)),
   ]);
   const csv = buildCsv(CUSTOMER_HEADERS[locale], body);
@@ -148,7 +172,7 @@ export function downloadPortalOrdersCsv(
     o.id,
     new Date(o.createdAt).toLocaleDateString(dateLocale(locale)),
     o.orgName ?? "",
-    o.status,
+    orderStatusCsvLabel(o.status, locale),
     o.invoiceStatus ?? "",
     o.fortnoxInvoiceId ?? "",
     String(Math.round(o.totalOre / 100)),

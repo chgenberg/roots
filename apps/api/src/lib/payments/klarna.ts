@@ -103,13 +103,27 @@ export async function createCheckoutSession(
       );
       throw new Error("Klarna is not configured");
     }
+    const en =
+      input.locale.startsWith("en") ||
+      input.locale.toLowerCase().includes("en-");
+    const amount = (input.orderAmount / 100).toLocaleString(
+      en ? "en-GB" : "sv-SE"
+    );
+    const title = en
+      ? "Klarna Checkout (test mode)"
+      : "Klarna Checkout (testläge)";
+    const body = en
+      ? "Klarna integration requires merchant credentials."
+      : "Klarna-integration kräver merchant-credentials.";
+    const amountLine = en ? `Amount: SEK ${amount}` : `Belopp: ${amount} kr`;
+    const cta = en ? "Simulate payment" : "Simulera betalning";
     return {
       orderId: `mock-${crypto.randomUUID().slice(0, 8)}`,
       htmlSnippet: `<div id="klarna-checkout-container" style="padding:40px;text-align:center;border:2px dashed #ccc;border-radius:12px;">
-        <p style="font-size:18px;font-weight:600;">Klarna Checkout (testläge)</p>
-        <p style="color:#666;">Klarna-integration kräver merchant-credentials.</p>
-        <p style="color:#666;">Belopp: ${(input.orderAmount / 100).toLocaleString("sv-SE")} kr</p>
-        <button onclick="window.location.href='${input.merchantUrls.confirmation}'" style="margin-top:16px;padding:12px 24px;background:#1C1410;color:white;border:none;border-radius:8px;cursor:pointer;font-size:14px;">Simulera betalning</button>
+        <p style="font-size:18px;font-weight:600;">${title}</p>
+        <p style="color:#666;">${body}</p>
+        <p style="color:#666;">${amountLine}</p>
+        <button onclick="window.location.href='${input.merchantUrls.confirmation}'" style="margin-top:16px;padding:12px 24px;background:#1C1410;color:white;border:none;border-radius:8px;cursor:pointer;font-size:14px;">${cta}</button>
       </div>`,
       status: "checkout_incomplete",
     };
