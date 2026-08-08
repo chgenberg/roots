@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,8 +15,14 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Loader2, MailCheck } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { LocaleLink } from "@/components/locale-link";
+import { auth } from "@/i18n/dictionaries/auth";
+import { tFill } from "@/i18n/format";
+import { useLocale } from "@/i18n/locale-context";
 
 export default function ForgotPasswordPage() {
+  const { locale } = useLocale();
+  const t = auth.forgot[locale];
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
@@ -33,12 +38,12 @@ export default function ForgotPasswordPage() {
         { method: "POST", body: { email } }
       );
       if (!ok) {
-        setError(data.error || "Något gick fel. Försök igen.");
+        setError(data.error || t.errorGeneric);
         return;
       }
       setSent(true);
     } catch {
-      setError("Kunde inte nå servern. Försök igen.");
+      setError(t.errorServer);
     } finally {
       setLoading(false);
     }
@@ -52,15 +57,14 @@ export default function ForgotPasswordPage() {
             className="mx-auto mb-2 h-8 w-8 text-muted-foreground"
             aria-hidden="true"
           />
-          <CardTitle className="text-2xl">Kolla din e-post</CardTitle>
+          <CardTitle className="text-2xl">{t.sentTitle}</CardTitle>
           <CardDescription>
-            Finns det ett konto på {email} har vi skickat en länk dit. Den
-            fungerar i en timme.
+            {tFill(t.sentDescription, { email })}
           </CardDescription>
         </CardHeader>
         <CardContent className="text-center text-sm text-muted-foreground">
           <p>
-            Hittar du inget mail: titta i skräpposten, eller kontakta oss på{" "}
+            {t.noMailHint}{" "}
             <a
               href="mailto:hej@roots.se"
               className="font-medium text-foreground underline-offset-4 hover:underline"
@@ -72,12 +76,12 @@ export default function ForgotPasswordPage() {
         </CardContent>
         <Separator />
         <CardFooter className="justify-center pt-6 text-sm">
-          <Link
+          <LocaleLink
             href="/login"
             className="font-medium text-foreground underline-offset-4 hover:underline"
           >
-            Tillbaka till inloggningen
-          </Link>
+            {t.backToLogin}
+          </LocaleLink>
         </CardFooter>
       </Card>
     );
@@ -86,19 +90,17 @@ export default function ForgotPasswordPage() {
   return (
     <Card className="w-full max-w-md shadow-lg">
       <CardHeader className="text-center">
-        <CardTitle className="text-2xl">Glömt lösenordet?</CardTitle>
-        <CardDescription>
-          Skriv in din e-postadress så skickar vi en återställningslänk.
-        </CardDescription>
+        <CardTitle className="text-2xl">{t.title}</CardTitle>
+        <CardDescription>{t.description}</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email">E-post</Label>
+            <Label htmlFor="email">{t.emailLabel}</Label>
             <Input
               id="email"
               type="email"
-              placeholder="din@epost.se"
+              placeholder={t.emailPlaceholder}
               autoComplete="email"
               required
               value={email}
@@ -116,22 +118,22 @@ export default function ForgotPasswordPage() {
             {loading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Skickar...
+                {t.submitting}
               </>
             ) : (
-              "Skicka länk"
+              t.submit
             )}
           </Button>
         </form>
       </CardContent>
       <Separator />
       <CardFooter className="justify-center pt-6 text-sm">
-        <Link
+        <LocaleLink
           href="/login"
           className="font-medium text-foreground underline-offset-4 hover:underline"
         >
-          Tillbaka till inloggningen
-        </Link>
+          {t.backToLogin}
+        </LocaleLink>
       </CardFooter>
     </Card>
   );

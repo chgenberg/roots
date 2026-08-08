@@ -2,13 +2,17 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CheckCircle2, Loader2, Share2, AlertCircle } from "lucide-react";
+import { LocaleLink } from "@/components/locale-link";
 import { getBrowserApiBase } from "@/lib/api-base";
+import { rootsFetch } from "@/lib/api";
 import { useCart } from "@/lib/use-cart";
-import { formatKrValue } from "@/lib/format";
+import { formatKr } from "@/lib/format";
+import { shop } from "@/i18n/dictionaries/shop";
+import { tFill } from "@/i18n/format";
+import { useLocale } from "@/i18n/locale-context";
 
 const API_URL = getBrowserApiBase();
 
@@ -35,25 +39,6 @@ interface OrderConfirmation {
  */
 type ErrorKind = null | "missing" | "not-found" | "server" | "failed-payment";
 
-const ERROR_COPY: Record<Exclude<ErrorKind, null>, { title: string; body: string }> = {
-  missing: {
-    title: "Ogiltig länk",
-    body: "Bekräftelse-länken saknar order-id. Kontrollera länken eller gå tillbaka till shoppen.",
-  },
-  "not-found": {
-    title: "Vi hittade ingen order",
-    body: "Ordern finns inte eller har tagits bort. Maila hej@roots.se om du tror att detta är fel.",
-  },
-  server: {
-    title: "Tekniskt fel",
-    body: "Vi kunde inte hämta din beställning just nu. Försök igen om en stund, eller maila hej@roots.se.",
-  },
-  "failed-payment": {
-    title: "Din betalning gick inte igenom",
-    body: "Klarna avbröt eller nekade betalningen. Du kan försöka igen från shoppen.",
-  },
-};
-
 // P2.28 (audit 2026-05-26): Next 15 kräver att useSearchParams ligger
 // bakom <Suspense>. Default-exporten gör wrap:en, inner gör jobbet.
 export default function ConfirmationPage() {
@@ -75,6 +60,8 @@ function ConfirmationPageInner() {
   const searchParams = useSearchParams();
   const slug = params.slug as string;
   const orderId = searchParams.get("order_id");
+  const { locale, href } = useLocale();
+  const t = shop.confirmation[locale];
   // MASTERPLAN_01 KC1.6: rensa cart efter lyckad bekräftelse så
   // användaren inte ser kvarvarande items vid retur till shoppen.
   const { clear: clearCart, hydrated: cartHydrated } = useCart(slug);
@@ -82,6 +69,16 @@ function ConfirmationPageInner() {
   const [order, setOrder] = useState<OrderConfirmation | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorKind, setErrorKind] = useState<ErrorKind>(null);
+
+  const errorCopy: Record<
+    Exclude<ErrorKind, null>,
+    { title: string; body: string }
+  > = {
+    missing: { title: t.missingTitle, body: t.missingBody },
+    "not-found": { title: t.notFoundTitle, body: t.notFoundBody },
+    server: { title: t.serverTitle, body: t.serverBody },
+    "failed-payment": { title: t.failedTitle, body: t.failedBody },
+  };
 
   useEffect(() => {
     // P2.29 (audit 2026-05-26): explicit cancel-flag så att en
@@ -106,9 +103,10 @@ function ConfirmationPageInner() {
         return;
       }
       try {
-        const res = await fetch(`${API_URL}/v1/checkout/confirm/${orderId}`, {
-          signal: controller.signal,
-        });
+        const res = await rootsFetch(
+          `${API_URL}/v1/checkout/confirm/${orderId}`,
+          { signal: controller.signal }
+        );
         if (cancelled) return;
         if (res.status === 404) {
           setErrorKind("not-found");
@@ -177,7 +175,7 @@ function ConfirmationPageInner() {
   }
 
   if (errorKind || !order) {
-    const copy = errorKind ? ERROR_COPY[errorKind] : ERROR_COPY.server;
+    const copy = errorKind ? errorCopy[errorKind] : errorCopy.server;
     return (
       <div className="min-h-screen bg-brand-50/30">
         <main className="mx-auto flex max-w-lg flex-col items-center px-4 py-16">
@@ -190,21 +188,21 @@ function ConfirmationPageInner() {
               </p>
               <div className="flex w-full flex-col gap-2">
                 {errorKind === "failed-payment" && (
-                  <Link href={`/shop/${slug}`} className="w-full">
-                    <Button className="w-full">Försök igen</Button>
-                  </Link>
+                  <LocaleLink href={`/shop/${slug}`} className="w-full">
+                    <Button className="w-full">{t.tryAgain}</Button>
+                  </LocaleLink>
                 )}
-                <Link href={`/shop/${slug}`} className="w-full">
+                <LocaleLink href={`/shop/${slug}`} className="w-full">
                   <Button variant="outline" className="w-full">
-                    Tillbaka till shoppen
+                    {t.backToShop}
                   </Button>
-                </Link>
+                </LocaleLink>
                 <a
-                  href="mailto:hej@roots.se?subject=Hjälp med beställning"
+                  href={`mailto:hej@roots.se?subject=${encodeURIComponent(t.contactSubject)}`}
                   className="w-full"
                 >
                   <Button variant="ghost" className="w-full">
-                    Kontakta oss
+                    {t.contactUs}
                   </Button>
                 </a>
               </div>
@@ -228,29 +226,29 @@ function ConfirmationPageInner() {
               <CheckCircle2 className="h-14 w-14 text-success" />
             )}
             <h1 className="text-2xl font-semibold">
-              {isPending ? "Din betalning behandlas..." : "Tack för din beställning!"}
+              {isPending ? t.paymentProcessing : t.thankYou}
             </h1>
 
             <div className="w-full space-y-3 text-center">
               <p className="text-muted-foreground">
-                En bekräftelse skickas till{" "}
+                {t.confirmationSentTo}
                 <span className="font-medium text-foreground">
                   {order.customerEmail}
                 </span>
               </p>
               <div className="rounded-lg bg-brand-50 p-4">
-                <p className="text-sm text-muted-foreground">Belopp</p>
+                <p className="text-sm text-muted-foreground">{t.amountLabel}</p>
                 <p className="text-xl font-semibold">
-                  {formatKrValue(order.totalOre)} kr
+                  {formatKr(order.totalOre, locale)}
                 </p>
               </div>
               <p className="text-xs text-muted-foreground">
-                Ordernr: {order.orderId.slice(0, 8)}
+                {tFill(t.orderNumber, { id: order.orderId.slice(0, 8) })}
               </p>
             </div>
 
             <div className="mt-2 flex flex-col gap-2 w-full">
-              <Link
+              <LocaleLink
                 href={
                   order.viewToken
                     ? `/shop/${slug}/order/${order.orderId}?t=${encodeURIComponent(order.viewToken)}`
@@ -259,17 +257,17 @@ function ConfirmationPageInner() {
                 className="w-full"
               >
                 <Button variant="outline" className="w-full">
-                  Se orderstatus
+                  {t.seeOrderStatus}
                 </Button>
-              </Link>
+              </LocaleLink>
               <Button
                 variant="outline"
                 className="w-full"
                 onClick={() => {
-                  const url = `${window.location.origin}/shop/${slug}`;
+                  const url = `${window.location.origin}${href(`/shop/${slug}`)}`;
                   try {
                     if (navigator.share) {
-                      navigator.share({ title: "Köp via Roots", url });
+                      navigator.share({ title: t.shareTitle, url });
                     } else {
                       navigator.clipboard.writeText(url);
                     }
@@ -279,13 +277,13 @@ function ConfirmationPageInner() {
                 }}
               >
                 <Share2 className="mr-2 h-4 w-4" />
-                Dela shoppen med en vän
+                {t.shareShop}
               </Button>
-              <Link href={`/shop/${slug}`} className="w-full">
+              <LocaleLink href={`/shop/${slug}`} className="w-full">
                 <Button variant="ghost" className="w-full">
-                  Tillbaka till shoppen
+                  {t.backToShop}
                 </Button>
-              </Link>
+              </LocaleLink>
             </div>
           </CardContent>
         </Card>

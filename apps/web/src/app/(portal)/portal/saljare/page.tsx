@@ -16,6 +16,10 @@ import { cn } from "@/lib/utils";
 import { useApiData } from "@/lib/use-api-data";
 import { Button } from "@/components/ui/button";
 import { formatKr } from "@/lib/format";
+import { useLocale } from "@/i18n/locale-context";
+import { portalPages, portalShared } from "@/i18n/dictionaries/portal-pages";
+import { tFill } from "@/i18n/format";
+import { appCommon } from "@/i18n/dictionaries/app-common";
 
 interface SalesRep {
   id: string;
@@ -37,14 +41,12 @@ interface SellersResponse {
   };
 }
 
-function formatSek(ore: number): string {
-  if (!ore || ore <= 0) return "0 kr";
-  return formatKr(ore);
-}
-
 export default function SaljarePage() {
-  // P3.2 + P3.11 + P3.79 (audit 2026-05-26): useApiData ger cancel-guard,
-  // error-state och loading-state utan att vi behöver göra det manuellt.
+  const { locale } = useLocale();
+  const t = portalPages.saljare[locale];
+  const shared = portalShared[locale];
+  const common = appCommon[locale];
+
   const { data, error, loading, refetch } =
     useApiData<SellersResponse>("/sellers");
 
@@ -58,13 +60,16 @@ export default function SaljarePage() {
     avgConversion: null,
   };
 
+  function formatSellerSek(ore: number): string {
+    if (!ore || ore <= 0) return `0 ${shared.kr}`;
+    return formatKr(ore, locale);
+  }
+
   return (
     <div className="page-enter space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Säljare</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Säljteamets prestation och resultat.
-        </p>
+        <h1 className="text-2xl font-bold tracking-tight">{t.title}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t.subtitle}</p>
       </div>
 
       {error && (
@@ -72,9 +77,7 @@ export default function SaljarePage() {
           role="alert"
           className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm"
         >
-          <p className="font-semibold text-destructive">
-            Kunde inte hämta säljardata
-          </p>
+          <p className="font-semibold text-destructive">{t.loadError}</p>
           <p className="mt-1 text-muted-foreground">{error}</p>
           <Button
             type="button"
@@ -83,7 +86,7 @@ export default function SaljarePage() {
             onClick={refetch}
             className="mt-3"
           >
-            Försök igen
+            {common.retry}
           </Button>
         </div>
       )}
@@ -91,7 +94,7 @@ export default function SaljarePage() {
       {loading && !data && (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" />
-          <span>Hämtar säljare…</span>
+          <span>{t.loading}</span>
         </div>
       )}
 
@@ -102,7 +105,7 @@ export default function SaljarePage() {
               <Users className="h-5 w-5 text-brand-400" />
               <div>
                 <p className="text-2xl font-bold">{sellers.length}</p>
-                <p className="text-xs text-muted-foreground">Aktiva säljare</p>
+                <p className="text-xs text-muted-foreground">{t.activeSellers}</p>
               </div>
             </div>
           </CardContent>
@@ -112,8 +115,8 @@ export default function SaljarePage() {
             <div className="flex items-center gap-3">
               <Target className="h-5 w-5 text-brand-400" />
               <div>
-                <p className="text-2xl font-bold">{formatSek(totals.pipelineOre)}</p>
-                <p className="text-xs text-muted-foreground">Total pipeline</p>
+                <p className="text-2xl font-bold">{formatSellerSek(totals.pipelineOre)}</p>
+                <p className="text-xs text-muted-foreground">{t.totalPipeline}</p>
               </div>
             </div>
           </CardContent>
@@ -123,8 +126,8 @@ export default function SaljarePage() {
             <div className="flex items-center gap-3">
               <TrendingUp className="h-5 w-5 text-brand-400" />
               <div>
-                <p className="text-2xl font-bold">{formatSek(totals.closedOre)}</p>
-                <p className="text-xs text-muted-foreground">Totalt stängt</p>
+                <p className="text-2xl font-bold">{formatSellerSek(totals.closedOre)}</p>
+                <p className="text-xs text-muted-foreground">{t.totalClosed}</p>
               </div>
             </div>
           </CardContent>
@@ -139,7 +142,7 @@ export default function SaljarePage() {
                     ? `${totals.avgConversion}%`
                     : "—"}
                 </p>
-                <p className="text-xs text-muted-foreground">Snittkonvertering</p>
+                <p className="text-xs text-muted-foreground">{t.avgConversion}</p>
               </div>
             </div>
           </CardContent>
@@ -148,20 +151,14 @@ export default function SaljarePage() {
 
       <Card>
         <CardContent className="p-5">
-          <h2 className="mb-4 font-semibold">Prestationsöversikt</h2>
+          <h2 className="mb-4 font-semibold">{t.performance}</h2>
           {sellers.length === 0 && (
             <p className="mb-4 rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
-              Ingen säljdata att visa ännu. Tabellen fylls på när säljare
-              registreras och börjar bygga pipeline.
+              {t.empty}
             </p>
           )}
 
-          {/* MASTERPLAN_01 KC6.5: 7-kolums-tabellen kraschar i layout
-              under ~900 px (horizontal scroll, oläsbart). Vi visar den
-              bara på lg+ och renderar en cards-stack på mobil där varje
-              säljare blir en tappable rad med samma data men i två
-              rader istället för sju kolumner. */}
-          <ul className="space-y-3 lg:hidden" aria-label="Säljare (lista)">
+          <ul className="space-y-3 lg:hidden" aria-label={t.listAria}>
             {sellers.map((s, i) => (
               <li
                 key={s.id}
@@ -174,7 +171,7 @@ export default function SaljarePage() {
                         "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold",
                         i < 3 ? "bg-brand-50" : "text-muted-foreground"
                       )}
-                      aria-label={`Plats ${i + 1}`}
+                      aria-label={tFill(t.placeAria, { n: i + 1 })}
                     >
                       {i + 1}
                     </span>
@@ -201,16 +198,16 @@ export default function SaljarePage() {
                 </div>
                 <dl className="mt-3 grid grid-cols-3 gap-2 text-xs">
                   <div>
-                    <dt className="text-muted-foreground">Klubbar</dt>
+                    <dt className="text-muted-foreground">{shared.clubs}</dt>
                     <dd className="font-medium">{s.clubs}</dd>
                   </div>
                   <div>
-                    <dt className="text-muted-foreground">Pipeline</dt>
-                    <dd className="font-medium">{formatSek(s.pipelineOre)}</dd>
+                    <dt className="text-muted-foreground">{shared.pipeline}</dt>
+                    <dd className="font-medium">{formatSellerSek(s.pipelineOre)}</dd>
                   </div>
                   <div>
-                    <dt className="text-muted-foreground">Stängt</dt>
-                    <dd className="font-medium">{formatSek(s.closedOre)}</dd>
+                    <dt className="text-muted-foreground">{t.colClosed}</dt>
+                    <dd className="font-medium">{formatSellerSek(s.closedOre)}</dd>
                   </div>
                 </dl>
               </li>
@@ -222,12 +219,12 @@ export default function SaljarePage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>#</TableHead>
-                  <TableHead>Säljare</TableHead>
-                  <TableHead>E-post</TableHead>
-                  <TableHead>Klubbar</TableHead>
-                  <TableHead>Pipeline</TableHead>
-                  <TableHead>Stängt</TableHead>
-                  <TableHead className="text-right">Konvertering</TableHead>
+                  <TableHead>{t.colSeller}</TableHead>
+                  <TableHead>{t.colEmail}</TableHead>
+                  <TableHead>{t.colClubs}</TableHead>
+                  <TableHead>{t.colPipeline}</TableHead>
+                  <TableHead>{t.colClosed}</TableHead>
+                  <TableHead className="text-right">{t.colConversion}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -249,8 +246,8 @@ export default function SaljarePage() {
                     </TableCell>
                     <TableCell className="text-muted-foreground">{s.email}</TableCell>
                     <TableCell>{s.clubs}</TableCell>
-                    <TableCell className="font-medium">{formatSek(s.pipelineOre)}</TableCell>
-                    <TableCell className="font-medium">{formatSek(s.closedOre)}</TableCell>
+                    <TableCell className="font-medium">{formatSellerSek(s.pipelineOre)}</TableCell>
+                    <TableCell className="font-medium">{formatSellerSek(s.closedOre)}</TableCell>
                     <TableCell className="text-right">
                       {s.conversion !== null ? (
                         <Badge

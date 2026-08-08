@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { portalFetch } from "@/lib/portal-api";
+import { appCommon } from "@/i18n/dictionaries/app-common";
+import { useLocale } from "@/i18n/locale-context";
 
 /**
  * P3.1, P3.2, P3.11 (audit 2026-05-26): tidigare gjorde varje portal-
@@ -35,6 +37,7 @@ export function useApiData<T>(
   path: string | null,
   options?: FetchOptions
 ): UseApiDataResult<T> {
+  const { locale } = useLocale();
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(Boolean(path));
@@ -75,7 +78,7 @@ export function useApiData<T>(
         setError(
           err instanceof Error
             ? err.message
-            : "Kunde inte hämta data. Försök igen."
+            : appCommon[locale].fetchFailed
         );
       } finally {
         if (!cancelled) setLoading(false);
@@ -86,7 +89,7 @@ export function useApiData<T>(
       cancelled = true;
       controller.abort();
     };
-  }, [path, reloadKey]);
+  }, [path, reloadKey, locale]);
 
   return { data, error, loading, refetch };
 }

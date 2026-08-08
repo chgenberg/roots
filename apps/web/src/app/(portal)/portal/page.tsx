@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,6 +26,10 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { usePortalUser } from "@/lib/portal-context";
+import { LocaleLink } from "@/components/locale-link";
+import { useLocale } from "@/i18n/locale-context";
+import { portalPages, portalShared } from "@/i18n/dictionaries/portal-pages";
+import { tFill } from "@/i18n/format";
 
 /**
  * Formen på `/portal/dashboard`. Backend returnerar olika fält beroende på
@@ -68,83 +71,31 @@ type DashboardResponse = {
   stats?: DashboardStats;
 };
 
-/* ─── Club Empty State ────────────────────────────────────── */
-
-const EMPTY_CLUB_STATS = [
-  { label: "Aktiva medlemmar", value: "—", icon: Users },
-  { label: "Beställningar denna månad", value: "—", icon: ShoppingCart },
-  { label: "Intäkter till klubben", value: "—", icon: TrendingUp },
-  { label: "Nästa leverans", value: "—", icon: CalendarDays },
-];
-
-const CLUB_QUICK_ACTIONS = [
-  { label: "Beställ igen", href: "/portal/bestallningar", icon: ShoppingCart },
-  { label: "Bjud in medlem", href: "/portal/medlemmar", icon: Users },
-  { label: "Se intäktsrapport", href: "/portal/intakter", icon: TrendingUp },
-];
-
-const EMPTY_CLUB_ACTIVITY: Array<{ text: string; time: string }> = [];
-
-/* ─── Sales Empty State ───────────────────────────────────── */
-
-const EMPTY_SALES_STATS = [
-  { label: "Aktiva klubbar", value: "—", icon: Building2 },
-  { label: "Offerter ute", value: "—", icon: FileText },
-  { label: "Stängda denna månad", value: "—", icon: CheckCircle2 },
-  { label: "Pipeline-värde", value: "—", icon: TrendingUp },
-];
-
-/** Labels aligned with `STAGE_LABELS` on the pipeline board. */
-const EMPTY_SALES_PIPELINE: Array<{ stage: string; count: number; active: boolean }> = [
-  { stage: "Lead", count: 0, active: false },
-  { stage: "Utkast", count: 0, active: false },
-  { stage: "Skickad", count: 0, active: false },
-  { stage: "Accepterad", count: 0, active: false },
-];
-
-const PIPELINE_OVERVIEW_STAGES = [
-  { code: "LEAD", label: "Lead" },
-  { code: "DRAFT", label: "Utkast" },
-  { code: "SENT", label: "Skickad" },
-  { code: "ACCEPTED", label: "Accepterad" },
-] as const;
-
-const EMPTY_SALES_TOP_CLUBS: Array<{ name: string; orders: number; revenue: string }> = [];
-
-/* ─── Admin Fallback Data ─────────────────────────────────── */
-
-const FALLBACK_ADMIN_STATS = [
-  { label: "Totala ordrar", value: "—", icon: ShoppingCart },
-  { label: "MRR (betalda ordrar)", value: "—", icon: TrendingUp },
-  { label: "Aktiva klubbar", value: "—", icon: Building2 },
-  { label: "Konvertering håranalys", value: "—", icon: Zap },
-];
-
-const FALLBACK_ADMIN_LEADERBOARD: Array<{
-  name: string;
-  clubs: number;
-  revenue: string;
-  trend: string;
-}> = [];
-
-const FALLBACK_ADMIN_SYSTEM_HEALTH = [
-  { name: "API", status: "—", ok: true },
-  { name: "Redis", status: "—", ok: true },
-  { name: "AI / Open Claw", status: "—", ok: true },
-];
-
-const FALLBACK_ADMIN_RECENT_ACTIVITY: Array<{
-  text: string;
-  time: string;
-  type: string;
-}> = [];
+type StatCard = {
+  label: string;
+  value: string;
+  icon: typeof Users;
+};
 
 /* ─── Club Dashboard ───────────────────────────────────────── */
 
 function ClubDashboard({ name }: { name: string }) {
-  const [stats, setStats] = useState(EMPTY_CLUB_STATS);
-  const [activity, setActivity] = useState(EMPTY_CLUB_ACTIVITY);
+  const { locale } = useLocale();
+  const t = portalPages.overview[locale];
+  const [stats, setStats] = useState<StatCard[]>([]);
+  const [activity, setActivity] = useState<
+    Array<{ text: string; time: string }>
+  >([]);
   const [loadError, setLoadError] = useState(false);
+
+  useEffect(() => {
+    setStats([
+      { label: t.activeMembers, value: "—", icon: Users },
+      { label: t.ordersThisMonth, value: "—", icon: ShoppingCart },
+      { label: t.revenueToClub, value: "—", icon: TrendingUp },
+      { label: t.nextDelivery, value: "—", icon: CalendarDays },
+    ]);
+  }, [t]);
 
   useEffect(() => {
     portalFetch<DashboardResponse>("/dashboard")
@@ -153,35 +104,60 @@ function ClubDashboard({ name }: { name: string }) {
           const s = data.stats;
           if (s.members !== undefined) {
             setStats([
-              { label: "Aktiva medlemmar", value: String(s.members), icon: Users },
-              { label: "Beställningar denna månad", value: String(s.orders ?? "0"), icon: ShoppingCart },
-              { label: "Intäkter till klubben", value: s.revenue ?? "0 kr", icon: TrendingUp },
-              { label: "Nästa leverans", value: s.nextDelivery ?? "—", icon: CalendarDays },
+              {
+                label: t.activeMembers,
+                value: String(s.members),
+                icon: Users,
+              },
+              {
+                label: t.ordersThisMonth,
+                value: String(s.orders ?? "0"),
+                icon: ShoppingCart,
+              },
+              {
+                label: t.revenueToClub,
+                value:
+                  s.revenue ??
+                  (locale === "en" ? "SEK 0" : "0 kr"),
+                icon: TrendingUp,
+              },
+              {
+                label: t.nextDelivery,
+                value: s.nextDelivery ?? "—",
+                icon: CalendarDays,
+              },
             ]);
           }
           if (s.activity?.length) setActivity(s.activity);
         }
       })
       .catch(() => setLoadError(true));
-  }, []);
+  }, [t]);
+
+  const quickActions = [
+    {
+      label: t.orderAgain,
+      href: "/portal/bestallningar",
+      icon: ShoppingCart,
+    },
+    { label: t.inviteMember, href: "/portal/medlemmar", icon: Users },
+    {
+      label: t.seeRevenueReport,
+      href: "/portal/intakter",
+      icon: TrendingUp,
+    },
+  ];
 
   return (
     <div className="page-enter space-y-8">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">
-          Välkommen, {name}
+          {tFill(t.clubWelcome, { name })}
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Här är en översikt av er förening.
-        </p>
+        <p className="mt-1 text-sm text-muted-foreground">{t.clubSubtitle}</p>
       </div>
 
-      {loadError && (
-        <LoadError
-          message="Kunde inte hämta översikten. Siffrorna nedan kan vara ofullständiga."
-          inline
-        />
-      )}
+      {loadError && <LoadError message={t.loadError} inline />}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((s) => (
@@ -200,10 +176,10 @@ function ClubDashboard({ name }: { name: string }) {
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardContent className="p-5">
-            <h2 className="font-semibold">Senaste aktivitet</h2>
+            <h2 className="font-semibold">{t.recentActivity}</h2>
             <div className="mt-4 divide-y divide-border">
               {activity.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Ingen aktivitet ännu.</p>
+                <p className="text-sm text-muted-foreground">{t.noActivity}</p>
               ) : (
                 activity.map((item) => (
                   <div
@@ -224,20 +200,23 @@ function ClubDashboard({ name }: { name: string }) {
         <div className="space-y-6">
           <Card>
             <CardContent className="p-5">
-              <h2 className="font-semibold">Snabbåtgärder</h2>
+              <h2 className="font-semibold">{t.quickActions}</h2>
               <div className="mt-4 space-y-2">
-                {CLUB_QUICK_ACTIONS.map((action) => (
+                {quickActions.map((action) => (
                   <Button
                     key={action.href}
                     variant="ghost"
                     className="h-auto w-full justify-start rounded-xl px-4 py-3 text-sm font-normal hover:bg-brand-50"
                     asChild
                   >
-                    <Link href={action.href} className="flex items-center gap-3">
+                    <LocaleLink
+                      href={action.href}
+                      className="flex items-center gap-3"
+                    >
                       <action.icon className="h-4 w-4 shrink-0 text-muted-foreground" />
                       <span className="flex-1 text-left">{action.label}</span>
                       <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                    </Link>
+                    </LocaleLink>
                   </Button>
                 ))}
               </div>
@@ -249,10 +228,9 @@ function ClubDashboard({ name }: { name: string }) {
               <div className="flex items-start gap-3">
                 <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-brand-400" />
                 <div>
-                  <h3 className="text-sm font-semibold">AI-tips</h3>
+                  <h3 className="text-sm font-semibold">{t.aiTipTitle}</h3>
                   <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                    Baserat på ert ordermönster kan ni spara tid genom att samla
-                    beställningar till en kvartalsleverans.
+                    {t.aiTipBody}
                   </p>
                 </div>
               </div>
@@ -267,11 +245,42 @@ function ClubDashboard({ name }: { name: string }) {
 /* ─── Sales Dashboard ──────────────────────────────────────── */
 
 function SalesDashboard({ name }: { name: string }) {
-  const [stats, setStats] = useState(EMPTY_SALES_STATS);
-  const [pipeline, setPipeline] = useState(EMPTY_SALES_PIPELINE);
-  const [topClubs, setTopClubs] = useState(EMPTY_SALES_TOP_CLUBS);
+  const { locale } = useLocale();
+  const t = portalPages.overview[locale];
+  const stages = portalShared[locale].stages;
+  const [stats, setStats] = useState<StatCard[]>([]);
+  const [pipeline, setPipeline] = useState<
+    Array<{ stage: string; count: number; active: boolean }>
+  >([]);
+  const [topClubs, setTopClubs] = useState<
+    Array<{ name: string; orders: number; revenue: string }>
+  >([]);
   const [isDemo, setIsDemo] = useState(true);
   const [loadError, setLoadError] = useState(false);
+
+  const pipelineStages = [
+    { code: "LEAD", label: stages.LEAD },
+    { code: "DRAFT", label: stages.DRAFT },
+    { code: "SENT", label: stages.SENT },
+    { code: "ACCEPTED", label: stages.ACCEPTED },
+  ] as const;
+
+  useEffect(() => {
+    setStats([
+      { label: t.activeClubs, value: "—", icon: Building2 },
+      { label: t.openQuotes, value: "—", icon: FileText },
+      { label: t.closedThisMonth, value: "—", icon: CheckCircle2 },
+      { label: t.pipelineValue, value: "—", icon: TrendingUp },
+    ]);
+    setPipeline(
+      pipelineStages.map(({ label }) => ({
+        stage: label,
+        count: 0,
+        active: false,
+      }))
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- rebuild labels when locale copy changes
+  }, [t, stages.LEAD, stages.DRAFT, stages.SENT, stages.ACCEPTED]);
 
   useEffect(() => {
     let cancelled = false;
@@ -291,23 +300,39 @@ function SalesDashboard({ name }: { name: string }) {
           const s = dash.stats;
           if (s.activeClubs !== undefined) {
             setStats([
-              { label: "Aktiva klubbar", value: String(s.activeClubs), icon: Building2 },
-              { label: "Offerter ute", value: String(s.openQuotes ?? "0"), icon: FileText },
-              { label: "Stängda denna månad", value: String(s.closedThisMonth ?? "0"), icon: CheckCircle2 },
-              { label: "Pipeline-värde", value: s.pipelineValue ?? "0 kr", icon: TrendingUp },
+              {
+                label: t.activeClubs,
+                value: String(s.activeClubs),
+                icon: Building2,
+              },
+              {
+                label: t.openQuotes,
+                value: String(s.openQuotes ?? "0"),
+                icon: FileText,
+              },
+              {
+                label: t.closedThisMonth,
+                value: String(s.closedThisMonth ?? "0"),
+                icon: CheckCircle2,
+              },
+              {
+                label: t.pipelineValue,
+                value:
+                  s.pipelineValue ??
+                  (locale === "en" ? "SEK 0" : "0 kr"),
+                icon: TrendingUp,
+              },
             ]);
           }
           if (s.topClubs?.length) setTopClubs(s.topClubs);
         }
 
-        // Dashboard payload never included stage counts — the overview
-        // previously stayed at zeros while the KPI cards had real numbers.
         if (pipe?.stages?.length) {
           const counts = new Map(
             pipe.stages.map((row) => [row.stage, Number(row.count) || 0])
           );
           setPipeline(
-            PIPELINE_OVERVIEW_STAGES.map(({ code, label }) => {
+            pipelineStages.map(({ code, label }) => {
               const count = counts.get(code) ?? 0;
               return { stage: label, count, active: count > 0 };
             })
@@ -324,28 +349,22 @@ function SalesDashboard({ name }: { name: string }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [t]);
 
   return (
     <div className="page-enter space-y-8">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">
-            Hej, {name}
+            {tFill(t.salesHello, { name })}
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Din försäljningsöversikt.
-          </p>
+          <p className="mt-1 text-sm text-muted-foreground">{t.salesSubtitle}</p>
         </div>
         <DataSourceBadge demo={isDemo} />
       </div>
 
-      {loadError && (
-        <LoadError
-          message="Kunde inte hämta översikten. Siffrorna nedan kan vara ofullständiga."
-          inline
-        />
-      )}
+      {loadError && <LoadError message={t.loadError} inline />}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((s) => (
@@ -364,7 +383,7 @@ function SalesDashboard({ name }: { name: string }) {
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardContent className="p-5">
-            <h2 className="font-semibold">Pipeline-översikt</h2>
+            <h2 className="font-semibold">{t.pipelineOverview}</h2>
             <div className="mt-6 flex items-center justify-between">
               {pipeline.map((p, i) => (
                 <div key={p.stage} className="flex flex-1 items-center">
@@ -391,11 +410,11 @@ function SalesDashboard({ name }: { name: string }) {
 
             <div className="mt-8">
               <h3 className="text-sm font-medium text-muted-foreground">
-                Toppklubbar
+                {t.topClubs}
               </h3>
               {topClubs.length === 0 ? (
                 <p className="mt-3 rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
-                  Listan fylls på när dina klubbar börjar lägga ordrar.
+                  {t.topClubsEmpty}
                 </p>
               ) : (
                 <div className="mt-3 divide-y divide-border">
@@ -411,7 +430,7 @@ function SalesDashboard({ name }: { name: string }) {
                         <div>
                           <p className="text-sm font-medium">{c.name}</p>
                           <p className="text-xs text-muted-foreground">
-                            {c.orders} ordrar
+                            {tFill(t.ordersCount, { count: c.orders })}
                           </p>
                         </div>
                       </div>
@@ -427,19 +446,27 @@ function SalesDashboard({ name }: { name: string }) {
         <div className="space-y-6">
           <Card>
             <CardContent className="p-5">
-              <h2 className="font-semibold">Snabbåtgärder</h2>
+              <h2 className="font-semibold">{t.quickActions}</h2>
               <div className="mt-4 space-y-2">
-                <Button variant="secondary" className="w-full justify-start" asChild>
-                  <Link href="/portal/pipeline">
+                <Button
+                  variant="secondary"
+                  className="w-full justify-start"
+                  asChild
+                >
+                  <LocaleLink href="/portal/pipeline">
                     <Target className="h-4 w-4" />
-                    Visa pipeline
-                  </Link>
+                    {t.viewPipeline}
+                  </LocaleLink>
                 </Button>
-                <Button variant="secondary" className="w-full justify-start" asChild>
-                  <Link href="/portal/offerter">
+                <Button
+                  variant="secondary"
+                  className="w-full justify-start"
+                  asChild
+                >
+                  <LocaleLink href="/portal/offerter">
                     <FileText className="h-4 w-4" />
-                    Skapa offert
-                  </Link>
+                    {t.createQuote}
+                  </LocaleLink>
                 </Button>
               </div>
             </CardContent>
@@ -451,17 +478,14 @@ function SalesDashboard({ name }: { name: string }) {
                 <div className="flex items-start gap-3">
                   <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-brand-400" />
                   <div>
-                    <h3 className="text-sm font-semibold">AI-insikt</h3>
+                    <h3 className="text-sm font-semibold">{t.aiInsightTitle}</h3>
                     <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                      {name} — öppna pipeline-sidan för att se uppföljningar
-                      som väntar på dig.
+                      {tFill(t.aiInsightBody, { name })}
                     </p>
-                    <Button
-                      size="sm"
-                      className="mt-3 h-8"
-                      asChild
-                    >
-                      <Link href="/portal/pipeline">Gå till pipeline</Link>
+                    <Button size="sm" className="mt-3 h-8" asChild>
+                      <LocaleLink href="/portal/pipeline">
+                        {t.goToPipeline}
+                      </LocaleLink>
                     </Button>
                   </div>
                 </div>
@@ -492,15 +516,34 @@ function adminActivityIcon(type: string) {
 /* ─── Admin Dashboard ──────────────────────────────────────── */
 
 function AdminDashboard({ name }: { name: string }) {
-  const [stats, setStats] = useState(FALLBACK_ADMIN_STATS);
-  const [leaderboard, setLeaderboard] = useState(FALLBACK_ADMIN_LEADERBOARD);
-  const [systemHealth, setSystemHealth] = useState(FALLBACK_ADMIN_SYSTEM_HEALTH);
-  const [recentActivity, setRecentActivity] = useState(
-    FALLBACK_ADMIN_RECENT_ACTIVITY
-  );
+  const { locale } = useLocale();
+  const t = portalPages.overview[locale];
+  const [stats, setStats] = useState<StatCard[]>([]);
+  const [leaderboard, setLeaderboard] = useState<
+    Array<{ name: string; clubs: number; revenue: string; trend: string }>
+  >([]);
+  const [systemHealth, setSystemHealth] = useState<
+    Array<{ name: string; status: string; ok: boolean }>
+  >([
+    { name: "API", status: "—", ok: true },
+    { name: "Redis", status: "—", ok: true },
+    { name: "AI / Open Claw", status: "—", ok: true },
+  ]);
+  const [recentActivity, setRecentActivity] = useState<
+    Array<{ text: string; time: string; type: string }>
+  >([]);
   const [isDemo, setIsDemo] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [pendingCount, setPendingCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    setStats([
+      { label: t.totalOrders, value: "—", icon: ShoppingCart },
+      { label: t.mrrPaid, value: "—", icon: TrendingUp },
+      { label: t.activeClubs, value: "—", icon: Building2 },
+      { label: t.hairConversion, value: "—", icon: Zap },
+    ]);
+  }, [t]);
 
   useEffect(() => {
     let cancelled = false;
@@ -515,22 +558,22 @@ function AdminDashboard({ name }: { name: string }) {
           if (s.totalOrders !== undefined) {
             setStats([
               {
-                label: "Totala ordrar",
+                label: t.totalOrders,
                 value: String(s.totalOrders ?? 0),
                 icon: ShoppingCart,
               },
               {
-                label: "MRR (betalda ordrar)",
+                label: t.mrrPaid,
                 value: s.mrr ?? "—",
                 icon: TrendingUp,
               },
               {
-                label: "Aktiva klubbar",
+                label: t.activeClubs,
                 value: String(s.activeClubs ?? s.totalClubs ?? 0),
                 icon: Building2,
               },
               {
-                label: "Konvertering håranalys",
+                label: t.hairConversion,
                 value: s.hairConversion ?? "—",
                 icon: Zap,
               },
@@ -563,28 +606,21 @@ function AdminDashboard({ name }: { name: string }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [t]);
 
   return (
     <div className="page-enter space-y-8">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">
-            Hej, {name}
+            {tFill(t.adminHello, { name })}
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Intern adminöversikt — allt på en blick.
-          </p>
+          <p className="mt-1 text-sm text-muted-foreground">{t.adminSubtitle}</p>
         </div>
         <DataSourceBadge demo={isDemo} />
       </div>
 
-      {loadError && (
-        <LoadError
-          message="Kunde inte hämta översikten. Siffrorna nedan kan vara ofullständiga."
-          inline
-        />
-      )}
+      {loadError && <LoadError message={t.loadError} inline />}
 
       {pendingCount !== null && pendingCount > 0 && (
         <Card className="border-warning-edge bg-warning-surface/40">
@@ -593,16 +629,20 @@ function AdminDashboard({ name }: { name: string }) {
               <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-warning-strong" />
               <div>
                 <p className="font-semibold text-warning-strong">
-                  {pendingCount} förening{pendingCount === 1 ? "" : "ar"} väntar
-                  på granskning
+                  {tFill(
+                    pendingCount === 1
+                      ? t.pendingReviewOne
+                      : t.pendingReviewMany,
+                    { count: pendingCount }
+                  )}
                 </p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Godkänn innan de kan ta emot publika betalningar.
+                  {t.pendingReviewBody}
                 </p>
               </div>
             </div>
             <Button size="sm" asChild>
-              <Link href="/portal/granskning">Öppna granskning</Link>
+              <LocaleLink href="/portal/granskning">{t.openReview}</LocaleLink>
             </Button>
           </CardContent>
         </Card>
@@ -626,10 +666,10 @@ function AdminDashboard({ name }: { name: string }) {
         <div className="space-y-6 lg:col-span-2">
           <Card>
             <CardContent className="p-5">
-              <h2 className="font-semibold">Säljare — topplista</h2>
+              <h2 className="font-semibold">{t.sellersLeaderboard}</h2>
               {leaderboard.length === 0 && (
                 <p className="mt-3 rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
-                  Listan fylls på när säljare börjar registrera ordrar.
+                  {t.sellersEmpty}
                 </p>
               )}
               <div className="mt-4 divide-y divide-border">
@@ -645,7 +685,7 @@ function AdminDashboard({ name }: { name: string }) {
                       <div>
                         <p className="text-sm font-medium">{s.name}</p>
                         <p className="text-xs text-muted-foreground">
-                          {s.clubs} klubbar
+                          {tFill(t.clubsCount, { count: s.clubs })}
                         </p>
                       </div>
                     </div>
@@ -663,11 +703,10 @@ function AdminDashboard({ name }: { name: string }) {
 
           <Card>
             <CardContent className="p-5">
-              <h2 className="font-semibold">Senaste händelser</h2>
+              <h2 className="font-semibold">{t.recentEvents}</h2>
               {recentActivity.length === 0 && (
                 <p className="mt-3 rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
-                  Inga registrerade händelser ännu. Aktivitet loggas från
-                  audit-spåret så snart vi aktiverar audit-skrivning.
+                  {t.recentEventsEmpty}
                 </p>
               )}
               <div className="mt-3 divide-y divide-border">
@@ -696,7 +735,7 @@ function AdminDashboard({ name }: { name: string }) {
         <div className="space-y-6">
           <Card>
             <CardContent className="p-5">
-              <h2 className="font-semibold">Systemstatus</h2>
+              <h2 className="font-semibold">{t.systemStatus}</h2>
               <div className="mt-4 space-y-3">
                 {systemHealth.map((s) => (
                   <div
@@ -709,7 +748,10 @@ function AdminDashboard({ name }: { name: string }) {
                       />
                       <span className="text-sm">{s.name}</span>
                     </div>
-                    <Badge variant={s.ok ? "success" : "destructive"} className="text-[10px]">
+                    <Badge
+                      variant={s.ok ? "success" : "destructive"}
+                      className="text-[10px]"
+                    >
                       {s.status}
                     </Badge>
                   </div>
@@ -724,10 +766,9 @@ function AdminDashboard({ name }: { name: string }) {
                 <div className="flex items-start gap-3">
                   <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-brand-400" />
                   <div>
-                    <h3 className="text-sm font-semibold">AI-sammanfattning</h3>
+                    <h3 className="text-sm font-semibold">{t.aiSummaryTitle}</h3>
                     <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                      Öppna Statistik för att se veckovis trend och senaste
-                      konverteringsdata.
+                      {t.aiSummaryBody}
                     </p>
                   </div>
                 </div>
@@ -737,19 +778,27 @@ function AdminDashboard({ name }: { name: string }) {
 
           <Card>
             <CardContent className="p-5">
-              <h2 className="font-semibold">Snabblänkar</h2>
+              <h2 className="font-semibold">{t.quickLinks}</h2>
               <div className="mt-4 space-y-2">
-                <Button variant="secondary" className="w-full justify-start" asChild>
-                  <Link href="/portal/system">
+                <Button
+                  variant="secondary"
+                  className="w-full justify-start"
+                  asChild
+                >
+                  <LocaleLink href="/portal/system">
                     <Activity className="h-4 w-4" />
-                    Systemöversikt
-                  </Link>
+                    {t.systemOverview}
+                  </LocaleLink>
                 </Button>
-                <Button variant="secondary" className="w-full justify-start" asChild>
-                  <Link href="/portal/saljare">
+                <Button
+                  variant="secondary"
+                  className="w-full justify-start"
+                  asChild
+                >
+                  <LocaleLink href="/portal/saljare">
                     <Users className="h-4 w-4" />
-                    Hantera säljare
-                  </Link>
+                    {t.manageSellers}
+                  </LocaleLink>
                 </Button>
               </div>
             </CardContent>

@@ -160,39 +160,5 @@ export function RootsGrassDivider({
   );
 }
 
-/**
- * Branded loading indicator — the Roots symbol with a gentle pulse.
- * Replaces the generic "ring spinner" used in route loading.tsx files.
- * Stays minimalist (single static asset, no clever animation) so it
- * doesn't compete with the page that's about to fade in.
- */
-export function RootsLoader({
-  className,
-  label = "Laddar…",
-}: {
-  className?: string;
-  label?: string;
-}) {
-  return (
-    <div
-      role="status"
-      aria-live="polite"
-      className={cn(
-        "flex min-h-[50vh] flex-col items-center justify-center gap-3",
-        className
-      )}
-    >
-      <span className="relative inline-block h-12 w-12 animate-subtle-pulse">
-        <Image
-          src={SYMBOL_SRC.dark}
-          alt=""
-          fill
-          className="object-contain"
-          sizes="48px"
-          priority
-        />
-      </span>
-      <span className="sr-only">{label}</span>
-    </div>
-  );
-}
+/** Locale-aware branded loader (client). Re-exported for a stable import path. */
+export { RootsLoader } from "./roots-loader";

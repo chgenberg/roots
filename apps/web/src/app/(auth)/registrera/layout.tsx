@@ -1,17 +1,19 @@
 import type { Metadata } from "next";
+import { getAuth } from "@/i18n/get-dictionary";
+import { getRequestLocale } from "@/i18n/request-locale";
+import { pageMetadata } from "@/lib/seo";
 
-// P3.58 (audit 2026-05-26): noindex som defense-in-depth utöver robots.txt.
-export const metadata: Metadata = {
-  title: "Registrera",
-  description:
-    "Skapa konto på Roots — registrera er förening eller lag för att börja sälja naturlig hårvård.",
-  robots: { index: false, follow: false },
-  openGraph: {
-    title: "Registrera — Roots",
-    description:
-      "Skapa konto på Roots — registrera er förening eller lag.",
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getRequestLocale();
+  const t = getAuth("register", locale);
+  return pageMetadata({
+    title: t.metaTitle,
+    description: t.metaDescription,
+    path: "/registrera",
+    locale,
+    noindex: true,
+  });
+}
 
 export default function RegistreraLayout({
   children,

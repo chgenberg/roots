@@ -1,7 +1,12 @@
 "use client";
 
+import { useLocale } from "@/i18n/locale-context";
+import { fundraisingPages } from "@/i18n/dictionaries/fundraising-pages";
+import { tFill } from "@/i18n/format";
+import { appCommon } from "@/i18n/dictionaries/app-common";
+import { LocaleLink } from "@/components/locale-link";
+
 import { Suspense, useEffect, useState } from "react";
-import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { OnboardingBanner } from "@/components/onboarding-banner";
 import { MiniTrendCard } from "@/components/charts/mini-trend-card";
@@ -27,10 +32,10 @@ import {
   Calendar,
 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, rootsFetch } from "@/lib/api";
 import type { AssociationDashboard as AssociationDashboardData, Campaign } from "@/types/fundraising";
 import { getBrowserApiBase } from "@/lib/api-base";
-import { formatKrValue, pluralSv } from "@/lib/format";
+import { formatKr, formatKrValue, pluralSv } from "@/lib/format";
 
 const API_URL = getBrowserApiBase();
 
@@ -53,6 +58,10 @@ interface TeamData {
 }
 
 function AssociationDashboardInner() {
+  const { locale, href } = useLocale();
+  const t = fundraisingPages.associationDashboard[locale];
+  const c = fundraisingPages.common[locale];
+  const dateLocale = appCommon[locale].dateLocale;
   const router = useRouter();
   const params = useSearchParams();
   const [data, setData] = useState<AssociationDashboardData | null>(null);
@@ -76,7 +85,7 @@ function AssociationDashboardInner() {
       const next = new URLSearchParams(params.toString());
       next.delete("openCampaign");
       const qs = next.toString();
-      router.replace(`/forening${qs ? `?${qs}` : ""}`);
+      router.replace(href(`/forening${qs ? `?${qs}` : ""}`));
     }
     // intentionally only run on first mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -98,16 +107,14 @@ function AssociationDashboardInner() {
 
   async function load(silent = false) {
     try {
-      const res = await fetch(`${API_URL}/v1/dashboard/association`, {
-        credentials: "include",
-      });
+      const res = await rootsFetch(`${API_URL}/v1/dashboard/association`);
       if (res.ok) {
         setData(await res.json());
       } else if (!silent) {
-        setError("Kunde inte hämta data. Kontrollera att du har rätt behörighet.");
+        setError(t.loadFailed);
       }
     } catch {
-      if (!silent) setError("Nätverksfel. Kunde inte kontakta servern.");
+      if (!silent) setError(t.networkFailed);
     } finally {
       setLoading(false);
     }
@@ -124,21 +131,21 @@ function AssociationDashboardInner() {
   async function handleCreateCampaign() {
     const trimmed = newName.trim();
     if (trimmed.length < 3) {
-      toast("Kampanjnamn måste vara minst 3 tecken.", "error");
+      toast(t.campaignNameMin, "error");
       return;
     }
     const goalValue = Number.parseInt(newGoalValue, 10);
     if (!Number.isFinite(goalValue) || goalValue < 0) {
-      toast("Målbeloppet måste vara ett positivt heltal.", "error");
+      toast(t.goalPositive, "error");
       return;
     }
     if (newEndDate < newStartDate) {
-      toast("Slutdatum måste vara efter startdatum.", "error");
+      toast(t.endAfterStart, "error");
       return;
     }
     const margin = Number.parseInt(newMargin, 10);
     if (!Number.isFinite(margin) || margin < 0 || margin > 100) {
-      toast("Marginal måste vara 0–100 %.", "error");
+      toast(t.marginRange, "error");
       return;
     }
 
@@ -163,15 +170,15 @@ function AssociationDashboardInner() {
         },
       });
       if (res.ok && res.data?.id) {
-        toast(`Kampanjen "${res.data.name}" är aktiv.`, "success");
+        toast(tFill(t.campaignActive, { name: res.data.name ?? "" }), "success");
         setCampaignDialogOpen(false);
         setNewName("");
         await load();
       } else {
-        toast(res.data?.error || "Kunde inte starta kampanjen.", "error");
+        toast(res.data?.error || t.campaignCreateFailed, "error");
       }
     } catch {
-      toast("Ett nätverksfel uppstod. Försök igen.", "error");
+      toast(c.networkError, "error");
     } finally {
       setSubmitting(false);
     }
@@ -190,7 +197,7 @@ function AssociationDashboardInner() {
       <div className="flex flex-col items-center justify-center gap-3 py-20">
         <p className="text-sm text-destructive">{error}</p>
         <Button variant="outline" onClick={() => window.location.reload()}>
-          Försök igen
+          {c.retry}
         </Button>
       </div>
     );
@@ -228,16 +235,16 @@ function AssociationDashboardInner() {
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Förenings-dashboard</h1>
+          <h1 className="text-2xl font-bold">{t.title}</h1>
           <p className="text-sm text-muted-foreground">
             {activeCampaign
-              ? `Kampanj: ${activeCampaign.name}`
-              : "Ingen aktiv kampanj"}
+              ? tFill(t.campaignLabel, { name: activeCampaign.name })
+              : t.noActiveCampaign}
           </p>
         </div>
         <Button onClick={() => setCampaignDialogOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />
-          {activeCampaign ? "Ny kampanj" : "Starta kampanj"}
+          {activeCampaign ? t.newCampaign : t.startCampaign}
         </Button>
       </div>
 
@@ -245,27 +252,27 @@ function AssociationDashboardInner() {
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <Card>
           <CardContent className="p-4 sm:p-5">
-            <p className="text-xs text-muted-foreground sm:text-sm">Total försäljning</p>
+            <p className="text-xs text-muted-foreground sm:text-sm">{c.totalSales}</p>
             <p className="mt-1 text-xl font-bold sm:text-2xl">
-              {formatKrValue(totalSales)} kr
+              {formatKr(totalSales, locale)}
             </p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 sm:p-5">
-            <p className="text-xs text-muted-foreground sm:text-sm">Beställningar</p>
+            <p className="text-xs text-muted-foreground sm:text-sm">{c.orders}</p>
             <p className="mt-1 text-xl font-bold sm:text-2xl">{totalOrders}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 sm:p-5">
-            <p className="text-xs text-muted-foreground sm:text-sm">Lag</p>
+            <p className="text-xs text-muted-foreground sm:text-sm">{c.teams}</p>
             <p className="mt-1 text-xl font-bold sm:text-2xl">{teams.length}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 sm:p-5">
-            <p className="text-xs text-muted-foreground sm:text-sm">Säljare</p>
+            <p className="text-xs text-muted-foreground sm:text-sm">{c.sellers}</p>
             <p className="mt-1 text-xl font-bold sm:text-2xl">
               {data?.sellers?.length || 0}
             </p>
@@ -284,7 +291,7 @@ function AssociationDashboardInner() {
         <Card>
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-medium">Framsteg mot föreningens mål</p>
+              <p className="text-sm font-medium">{t.progressTitle}</p>
               <span className="text-sm font-bold">{progress}%</span>
             </div>
             <div className="h-3 overflow-hidden rounded-full bg-brand-100">
@@ -295,8 +302,17 @@ function AssociationDashboardInner() {
             </div>
             <p className="mt-2 text-xs text-muted-foreground">
               {isPackageGoal
-                ? `${totalOrders} av ${campaignGoal} paket`
-                : `${formatKrValue(totalSales)} kr av ${campaignGoal.toLocaleString("sv-SE")} kr`}
+                ? tFill(t.packagesOf, {
+                    current: totalOrders,
+                    goal: campaignGoal,
+                  })
+                : tFill(t.amountOf, {
+                    current: formatKr(totalSales, locale),
+                    goal:
+                      locale === "en"
+                        ? `SEK ${campaignGoal.toLocaleString(dateLocale)}`
+                        : `${campaignGoal.toLocaleString(dateLocale)} kr`,
+                  })}
             </p>
           </CardContent>
         </Card>
@@ -305,13 +321,13 @@ function AssociationDashboardInner() {
       {/* Leaderboard */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base">Lag-ranking</CardTitle>
+          <CardTitle className="text-base">{t.teamRanking}</CardTitle>
           <Trophy className="h-4 w-4 text-brand-500" />
         </CardHeader>
         <CardContent>
           {sortedTeams.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Inga lag har registrerats ännu.
+              {t.noTeamsRegistered}
             </p>
           ) : (
             <div className="space-y-3">
@@ -326,12 +342,12 @@ function AssociationDashboardInner() {
                   <div className="flex-1">
                     <p className="text-sm font-medium">{team.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {pluralSv(team.memberCount, "säljare", "säljare")} ·{" "}
-                      {pluralSv(team.orderCount, "order", "ordrar")}
+                      {pluralSv(team.memberCount, c.sellerSingular, c.sellerPlural)} ·{" "}
+                      {pluralSv(team.orderCount, c.orderSingular, c.orderPlural)}
                     </p>
                   </div>
                   <p className="text-sm font-semibold">
-                    {formatKrValue(team.totalSalesOre)} kr
+                    {formatKr(team.totalSalesOre, locale)}
                   </p>
                 </div>
               ))}
@@ -342,53 +358,50 @@ function AssociationDashboardInner() {
 
       {/* Quick actions */}
       <div className="grid gap-3 sm:grid-cols-2">
-        <Link href="/forening/lag">
+        <LocaleLink href="/forening/lag">
           <Card className="cursor-pointer transition-shadow hover:shadow-md">
             <CardContent className="flex items-center gap-3 p-5">
               <Users className="h-5 w-5 text-brand-600" />
               <div className="flex-1">
-                <p className="font-medium text-sm">Hantera lag</p>
+                <p className="font-medium text-sm">{t.manageTeams}</p>
                 <p className="text-xs text-muted-foreground">
-                  Bjud in lag och skicka länkar
+                  {t.manageTeamsHint}
                 </p>
               </div>
               <ArrowRight className="h-4 w-4 text-muted-foreground" />
             </CardContent>
           </Card>
-        </Link>
-        <Link href="/forening/avrakning">
+        </LocaleLink>
+        <LocaleLink href="/forening/avrakning">
           <Card className="cursor-pointer transition-shadow hover:shadow-md">
             <CardContent className="flex items-center gap-3 p-5">
               <TrendingUp className="h-5 w-5 text-brand-600" />
               <div className="flex-1">
-                <p className="font-medium text-sm">Avräkning</p>
+                <p className="font-medium text-sm">{t.settlement}</p>
                 <p className="text-xs text-muted-foreground">
-                  Se intjänat och betalningsstatus
+                  {t.settlementHint}
                 </p>
               </div>
               <ArrowRight className="h-4 w-4 text-muted-foreground" />
             </CardContent>
           </Card>
-        </Link>
+        </LocaleLink>
       </div>
 
       <Dialog open={campaignDialogOpen} onOpenChange={setCampaignDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Starta ny kampanj</DialogTitle>
-            <DialogDescription>
-              Sätter status till <strong>Aktiv</strong> direkt så ni kan bjuda
-              in lag och säljare. Detaljer kan justeras senare.
-            </DialogDescription>
+            <DialogTitle>{t.dialogTitle}</DialogTitle>
+            <DialogDescription>{t.dialogDesc}</DialogDescription>
           </DialogHeader>
           {/* Scout fix 2026-05-26 (UX dialog-overflow): wrappa form-fält
               i px-6 pb-2 så inputs inte glider in i dialog-kanten. */}
           <div className="space-y-4 px-6 py-2">
             <div>
-              <Label htmlFor="campaignName">Kampanjnamn</Label>
+              <Label htmlFor="campaignName">{t.campaignName}</Label>
               <Input
                 id="campaignName"
-                placeholder="t.ex. Vårcup 2026 — Resa till Malmö"
+                placeholder={t.campaignNamePlaceholder}
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 maxLength={255}
@@ -397,7 +410,7 @@ function AssociationDashboardInner() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <Label htmlFor="goalValue">
-                  Mål (kr)
+                  {t.goalKr}
                 </Label>
                 <Input
                   id="goalValue"
@@ -409,7 +422,7 @@ function AssociationDashboardInner() {
                 />
               </div>
               <div>
-                <Label htmlFor="margin">Marginal (%)</Label>
+                <Label htmlFor="margin">{t.marginPct}</Label>
                 <Input
                   id="margin"
                   type="number"
@@ -426,7 +439,7 @@ function AssociationDashboardInner() {
                 <Label htmlFor="startDate">
                   <span className="inline-flex items-center gap-1.5">
                     <Calendar className="h-3.5 w-3.5" />
-                    Startdatum
+                    {t.startDate}
                   </span>
                 </Label>
                 <Input
@@ -440,7 +453,7 @@ function AssociationDashboardInner() {
                 <Label htmlFor="endDate">
                   <span className="inline-flex items-center gap-1.5">
                     <Calendar className="h-3.5 w-3.5" />
-                    Slutdatum
+                    {t.endDate}
                   </span>
                 </Label>
                 <Input
@@ -450,7 +463,7 @@ function AssociationDashboardInner() {
                   onChange={(e) => setNewEndDate(e.target.value)}
                 />
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Standard: 2 veckors säljperiod.
+                  {t.endDateHint}
                 </p>
               </div>
             </div>
@@ -459,7 +472,7 @@ function AssociationDashboardInner() {
                 <Label htmlFor="deliveryDate">
                   <span className="inline-flex items-center gap-1.5">
                     <Calendar className="h-3.5 w-3.5" />
-                    Leverans till klubben
+                    {t.deliveryToClub}
                   </span>
                 </Label>
                 <Input
@@ -469,11 +482,11 @@ function AssociationDashboardInner() {
                   onChange={(e) => setNewDeliveryDate(e.target.value)}
                 />
                 <p className="mt-1 text-xs text-muted-foreground">
-                  När produkterna skickas till föreningen (valfritt).
+                  {t.deliveryDateHint}
                 </p>
               </div>
               <div>
-                <Label htmlFor="deliveryType">Leveranssätt</Label>
+                <Label htmlFor="deliveryType">{t.deliveryType}</Label>
                 <select
                   id="deliveryType"
                   value={newDeliveryType}
@@ -484,9 +497,9 @@ function AssociationDashboardInner() {
                   }
                   className="h-11 w-full rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
                 >
-                  <option value="BULK">Samlat till föreningen (klubben tar frakt)</option>
-                  <option value="DIRECT">Hemleverans (köparen tar frakt)</option>
-                  <option value="BOTH">Båda (kunden väljer)</option>
+                  <option value="BULK">{t.deliveryBulkOption}</option>
+                  <option value="DIRECT">{t.deliveryDirectOption}</option>
+                  <option value="BOTH">{t.deliveryBothOption}</option>
                 </select>
               </div>
             </div>
@@ -499,12 +512,10 @@ function AssociationDashboardInner() {
               />
               <span>
                 <span className="font-medium">
-                  Tillåt försäljning utanför perioden
+                  {t.allowOutside}
                 </span>
                 <span className="block text-xs text-muted-foreground">
-                  Ordrar utanför säljperioden tas emot men räknas inte i
-                  topplistor/statistik. Avmarkera för att blockera försäljning
-                  mellan perioderna helt.
+                  {t.allowOutsideHint}
                 </span>
               </span>
             </label>
@@ -515,13 +526,13 @@ function AssociationDashboardInner() {
               onClick={() => setCampaignDialogOpen(false)}
               disabled={submitting}
             >
-              Avbryt
+              {c.cancel}
             </Button>
             <Button onClick={handleCreateCampaign} disabled={submitting}>
               {submitting && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               )}
-              Starta kampanj
+              {t.startCampaign}
             </Button>
           </DialogFooter>
         </DialogContent>

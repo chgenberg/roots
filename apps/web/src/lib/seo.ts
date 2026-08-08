@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import type { Locale } from "@/i18n/config";
+import { withLocale } from "@/i18n/paths";
 
 /**
  * MASTERPLAN_01 KC7.4 + KC7.5: standard-helper för per-page metadata.
@@ -27,6 +29,8 @@ export interface PageMetadataInput {
   description: string;
   /** Absolute path (måste börja med "/"). Används till canonical + openGraph.url. */
   path: string;
+  /** Active marketing locale — prefixes canonical + hreflang. */
+  locale?: Locale;
   /** Default: "/images/sport-h1desktop.jpg" (root-layoutens fallback). Relativa paths OK. */
   ogImage?: string;
   /**
@@ -49,6 +53,7 @@ export function pageMetadata({
   title,
   description,
   path,
+  locale = "sv",
   ogImage,
   ogType = "website",
   noindex,
@@ -56,10 +61,7 @@ export function pageMetadata({
   modifiedTime,
   authors,
 }: PageMetadataInput): Metadata {
-  const canonical = path;
-  // metadataBase i root-layout gör absolute-resolution åt oss; vi
-  // skickar bara relativ path så samma kod fungerar i preview-deploys
-  // utan att läcka prod-URL.
+  const canonical = withLocale(path, locale);
   const openGraph =
     ogType === "article"
       ? {
@@ -67,6 +69,7 @@ export function pageMetadata({
           url: canonical,
           title,
           description,
+          locale: locale === "en" ? "en_GB" : "sv_SE",
           ...(ogImage ? { images: [{ url: ogImage }] } : {}),
           ...(publishedTime ? { publishedTime } : {}),
           ...(modifiedTime ? { modifiedTime } : {}),
@@ -77,13 +80,21 @@ export function pageMetadata({
           url: canonical,
           title,
           description,
+          locale: locale === "en" ? "en_GB" : "sv_SE",
           ...(ogImage ? { images: [{ url: ogImage }] } : {}),
         };
 
   return {
     title,
     description,
-    alternates: { canonical },
+    alternates: {
+      canonical,
+      languages: {
+        sv: withLocale(path, "sv"),
+        en: withLocale(path, "en"),
+        "x-default": withLocale(path, "sv"),
+      },
+    },
     openGraph,
     twitter: {
       card: "summary_large_image",

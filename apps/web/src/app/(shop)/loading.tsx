@@ -1,5 +1,9 @@
 import { RootsLoader } from "@/components/brand";
+import { getRequestLocale } from "@/i18n/request-locale";
 
-export default function ShopLoading() {
-  return <RootsLoader />;
+export default async function ShopLoading() {
+  const locale = await getRequestLocale();
+  return (
+    <RootsLoader label={locale === "en" ? "Loading…" : "Laddar…"} />
+  );
 }

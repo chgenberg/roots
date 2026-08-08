@@ -1,7 +1,6 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +16,10 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Loader2 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { LocaleLink } from "@/components/locale-link";
+import { auth } from "@/i18n/dictionaries/auth";
+import { tFill } from "@/i18n/format";
+import { useLocale } from "@/i18n/locale-context";
 
 /**
  * MASTERPLAN_01 KC2.3: middleware sätter `?next=/where-they-tried-to-go`
@@ -74,11 +77,13 @@ export default function LoginPage() {
 }
 
 function LoginPageSkeleton() {
+  const { locale } = useLocale();
+  const t = auth.login[locale];
   return (
     <Card className="w-full max-w-md shadow-lg">
       <CardHeader className="text-center">
-        <CardTitle className="text-2xl">Logga in</CardTitle>
-        <CardDescription>För föreningar, lag och säljare</CardDescription>
+        <CardTitle className="text-2xl">{t.title}</CardTitle>
+        <CardDescription>{t.description}</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="h-40 animate-pulse rounded-md bg-muted" aria-hidden="true" />
@@ -91,6 +96,8 @@ function LoginPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const safeNext = pickSafeNext(searchParams.get("next"));
+  const { locale, href } = useLocale();
+  const t = auth.login[locale];
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -113,7 +120,10 @@ function LoginPageInner() {
         mfaRequired?: boolean;
         challenge?: string;
         backupCodesRemaining?: number;
-      }>("/v1/auth/login", { method: "POST", body: { email, password } });
+      }>("/v1/auth/login", {
+        method: "POST",
+        body: { email, password, locale },
+      });
 
       // Lösenordet stämde men kontot har tvåfaktor. Ingen session har
       // skapats ännu, så vi visar kodsteget istället för att navigera.
@@ -124,15 +134,15 @@ function LoginPageInner() {
       }
 
       if (!ok) {
-        setError(data.error || "Något gick fel. Försök igen.");
+        setError(data.error || t.errorGeneric);
         return;
       }
 
       // Honour `?next=` only when provided. Fallback to role-home so
       // a normal login (utan deep-link) lands rätt.
-      router.push(safeNext ?? roleHome(data.user?.role));
+      router.push(safeNext ?? href(roleHome(data.user?.role)));
     } catch {
-      setError("Kunde inte nå servern. Försök igen.");
+      setError(t.errorServer);
     } finally {
       setLoading(false);
     }
@@ -149,17 +159,17 @@ function LoginPageInner() {
         user?: { role: string };
       }>("/v1/auth/login/mfa", {
         method: "POST",
-        body: { challenge, code },
+        body: { challenge, code, locale },
       });
 
       if (!ok) {
-        setError(data.error || "Koden stämmer inte. Försök igen.");
+        setError(data.error || t.errorMfa);
         setCode("");
         return;
       }
-      router.push(safeNext ?? roleHome(data.user?.role));
+      router.push(safeNext ?? href(roleHome(data.user?.role)));
     } catch {
-      setError("Kunde inte nå servern. Försök igen.");
+      setError(t.errorServer);
     } finally {
       setLoading(false);
     }
@@ -169,15 +179,13 @@ function LoginPageInner() {
     return (
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Tvåfaktor</CardTitle>
-          <CardDescription>
-            Ange den sexsiffriga koden från din autentiseringsapp
-          </CardDescription>
+          <CardTitle className="text-2xl">{t.mfaTitle}</CardTitle>
+          <CardDescription>{t.mfaDescription}</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleMfaSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="mfa-code">Kod</Label>
+              <Label htmlFor="mfa-code">{t.mfaCodeLabel}</Label>
               <Input
                 id="mfa-code"
                 // Sifferblock på mobil, och koden hör inte i en
@@ -191,8 +199,9 @@ function LoginPageInner() {
                 onChange={(e) => setCode(e.target.value)}
               />
               <p className="text-xs text-muted-foreground">
-                Har du inte appen tillgänglig? Använd en av dina reservkoder.
-                {backupCodesLeft > 0 && ` Du har ${backupCodesLeft} kvar.`}
+                {t.mfaBackupHint}
+                {backupCodesLeft > 0 &&
+                  tFill(t.mfaBackupRemaining, { count: backupCodesLeft })}
               </p>
             </div>
 
@@ -206,10 +215,10 @@ function LoginPageInner() {
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Kontrollerar…
+                  {t.mfaSubmitting}
                 </>
               ) : (
-                "Fortsätt"
+                t.mfaSubmit
               )}
             </Button>
             <Button
@@ -223,7 +232,7 @@ function LoginPageInner() {
                 setPassword("");
               }}
             >
-              Avbryt
+              {t.mfaCancel}
             </Button>
           </form>
         </CardContent>
@@ -234,17 +243,17 @@ function LoginPageInner() {
   return (
     <Card className="w-full max-w-md shadow-lg">
       <CardHeader className="text-center">
-        <CardTitle className="text-2xl">Logga in</CardTitle>
-        <CardDescription>För föreningar, lag och säljare</CardDescription>
+        <CardTitle className="text-2xl">{t.title}</CardTitle>
+        <CardDescription>{t.description}</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email">E-post</Label>
+            <Label htmlFor="email">{t.emailLabel}</Label>
             <Input
               id="email"
               type="email"
-              placeholder="din@epost.se"
+              placeholder={t.emailPlaceholder}
               autoComplete="email"
               required
               value={email}
@@ -253,18 +262,18 @@ function LoginPageInner() {
           </div>
           <div className="space-y-2">
             <div className="flex items-baseline justify-between">
-              <Label htmlFor="password">Lösenord</Label>
-              <Link
+              <Label htmlFor="password">{t.passwordLabel}</Label>
+              <LocaleLink
                 href="/glomt-losenord"
                 className="text-xs text-muted-foreground underline-offset-4 hover:underline"
               >
-                Glömt lösenordet?
-              </Link>
+                {t.forgotPassword}
+              </LocaleLink>
             </div>
             <Input
               id="password"
               type="password"
-              placeholder="Ditt lösenord"
+              placeholder={t.passwordPlaceholder}
               autoComplete="current-password"
               required
               value={password}
@@ -280,10 +289,10 @@ function LoginPageInner() {
             {loading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Loggar in...
+                {t.submitting}
               </>
             ) : (
-              "Logga in"
+              t.submit
             )}
           </Button>
         </form>
@@ -291,13 +300,13 @@ function LoginPageInner() {
       <Separator />
       <CardFooter className="flex flex-col gap-2 pt-6 text-center text-sm">
         <p className="text-muted-foreground">
-          Ny förening?{" "}
-          <Link
+          {t.newClubPrompt}{" "}
+          <LocaleLink
             href="/registrera"
             className="font-medium text-foreground underline-offset-4 hover:underline"
           >
-            Registrera er
-          </Link>
+            {t.registerLink}
+          </LocaleLink>
         </p>
       </CardFooter>
     </Card>

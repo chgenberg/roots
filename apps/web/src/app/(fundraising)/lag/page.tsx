@@ -1,5 +1,12 @@
 "use client";
 
+import { useLocale } from "@/i18n/locale-context";
+import { fundraisingPages } from "@/i18n/dictionaries/fundraising-pages";
+import { tFill } from "@/i18n/format";
+import { milestoneLabel, milestoneRemaining } from "@/i18n/milestones";
+import { appCommon } from "@/i18n/dictionaries/app-common";
+import { LocaleLink } from "@/components/locale-link";
+
 import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MiniTrendCard } from "@/components/charts/mini-trend-card";
@@ -20,7 +27,8 @@ import { GradeBadge } from "@/components/seller-grade";
 import { OrderDetailDialog } from "@/components/order-detail-dialog";
 import type { TeamDashboard as TeamDashboardData, Seller, Milestone, CustomerOrder } from "@/types/fundraising";
 import { getBrowserApiBase } from "@/lib/api-base";
-import { formatKrValue, pluralSv } from "@/lib/format";
+import { rootsFetch } from "@/lib/api";
+import { formatKr, formatKrValue, pluralSv } from "@/lib/format";
 import { orderStatusColor, orderStatusLabel } from "@/lib/order-status";
 
 const PODIUM_ICONS = ["🥇", "🥈", "🥉"];
@@ -29,6 +37,11 @@ const API_URL = getBrowserApiBase();
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
 export default function TeamDashboard() {
+  const { locale, href } = useLocale();
+  const t = fundraisingPages.teamDashboard[locale];
+  const c = fundraisingPages.common[locale];
+  const dateLocale = appCommon[locale].dateLocale;
+
   const [data, setData] = useState<TeamDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -39,25 +52,21 @@ export default function TeamDashboard() {
 
   const load = useCallback(async (silent = false) => {
     try {
-      const myTeamRes = await fetch(`${API_URL}/v1/dashboard/my-team`, {
-        credentials: "include",
-      });
+      const myTeamRes = await rootsFetch(`${API_URL}/v1/dashboard/my-team`);
       if (!myTeamRes.ok) {
-        if (!silent) setError("Kunde inte hämta lagdata. Försök igen.");
+        if (!silent) setError(t.loadFailed);
         return;
       }
       const { teamId } = await myTeamRes.json();
 
-      const teamRes = await fetch(`${API_URL}/v1/dashboard/team/${teamId}`, {
-        credentials: "include",
-      });
+      const teamRes = await rootsFetch(`${API_URL}/v1/dashboard/team/${teamId}`);
       if (teamRes.ok) {
         setData(await teamRes.json());
       } else if (!silent) {
-        setError("Kunde inte hämta lagdata. Försök igen.");
+        setError(t.loadFailed);
       }
     } catch {
-      if (!silent) setError("Ett nätverksfel uppstod. Försök igen.");
+      if (!silent) setError(c.networkError);
     } finally {
       setLoading(false);
     }
@@ -79,7 +88,7 @@ export default function TeamDashboard() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast("Kunde inte kopiera länken. Kopiera den manuellt.", "error");
+      toast(c.copyLinkFailed, "error");
     }
   }
 
@@ -96,7 +105,7 @@ export default function TeamDashboard() {
       <div className="flex flex-col items-center justify-center gap-3 py-20">
         <p className="text-sm text-destructive">{error}</p>
         <Button variant="outline" onClick={() => window.location.reload()}>
-          Försök igen
+          {c.retry}
         </Button>
       </div>
     );
@@ -106,7 +115,7 @@ export default function TeamDashboard() {
     return (
       <div className="flex flex-col items-center gap-3 py-20">
         <p className="text-sm text-muted-foreground">
-          Inget lag hittades. Kontakta din föreningsadmin.
+          {c.contactAdmin}
         </p>
       </div>
     );
@@ -126,7 +135,7 @@ export default function TeamDashboard() {
     <div className="page-enter space-y-6">
       <div>
         <h1 className="text-2xl font-bold">
-          {data?.team?.name || "Lag-dashboard"}
+          {data?.team?.name || t.titleFallback}
         </h1>
         <p className="text-sm text-muted-foreground">
           {data?.campaign?.name || ""}
@@ -136,9 +145,9 @@ export default function TeamDashboard() {
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <Card>
           <CardContent className="p-4 sm:p-5">
-            <p className="text-xs text-muted-foreground sm:text-sm">Total försäljning</p>
+            <p className="text-xs text-muted-foreground sm:text-sm">{c.totalSales}</p>
             <p className="mt-1 text-xl font-bold sm:text-2xl">
-              {formatKrValue(totalSales)} kr
+              {formatKr(totalSales, locale)}
             </p>
           </CardContent>
         </Card>
@@ -146,27 +155,27 @@ export default function TeamDashboard() {
           <CardContent className="p-4 sm:p-5">
             <div className="flex items-center gap-1.5">
               <TrendingUp className="h-3.5 w-3.5 shrink-0 text-brand-400" />
-              <p className="text-xs text-muted-foreground sm:text-sm">Lagets förtjänst</p>
+              <p className="text-xs text-muted-foreground sm:text-sm">{t.teamEarnings}</p>
             </div>
             <p className="mt-1 text-xl font-bold text-brand-700 sm:text-2xl">
-              {formatKrValue(teamEarnings)} kr
+              {formatKr(teamEarnings, locale)}
             </p>
             {marginPercent > 0 && (
               <p className="text-xs text-muted-foreground mt-0.5">
-                {marginPercent}% marginal
+                {tFill(c.percentMargin, { n: marginPercent })}
               </p>
             )}
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 sm:p-5">
-            <p className="text-xs text-muted-foreground sm:text-sm">Beställningar</p>
+            <p className="text-xs text-muted-foreground sm:text-sm">{c.orders}</p>
             <p className="mt-1 text-xl font-bold sm:text-2xl">{orders.length}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 sm:p-5">
-            <p className="text-xs text-muted-foreground sm:text-sm">Säljare</p>
+            <p className="text-xs text-muted-foreground sm:text-sm">{c.sellers}</p>
             <p className="mt-1 text-xl font-bold sm:text-2xl">{sellers.length}</p>
           </CardContent>
         </Card>
@@ -186,7 +195,7 @@ export default function TeamDashboard() {
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-base flex items-center gap-2">
               <Award className="h-4 w-4 text-brand-500" />
-              Milstolpar
+              {c.milestones}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -194,8 +203,8 @@ export default function TeamDashboard() {
               <div className="rounded-lg bg-brand-50 p-3 flex items-center gap-3">
                 <Star className="h-5 w-5 text-brand-500 shrink-0" />
                 <div>
-                  <p className="text-sm font-medium">Nästa: {milestones.next.label}</p>
-                  <p className="text-xs text-muted-foreground">{milestones.next.remaining}</p>
+                  <p className="text-sm font-medium">{tFill(c.nextMilestone, { label: milestoneLabel(milestones.next.label, locale) })}</p>
+                  <p className="text-xs text-muted-foreground">{milestoneRemaining(milestones.next.remaining, locale)}</p>
                 </div>
               </div>
             )}
@@ -207,7 +216,7 @@ export default function TeamDashboard() {
                     className="bg-brand-100 text-brand-700 text-xs py-1"
                   >
                     <Award className="h-3 w-3 mr-1" />
-                    {m.label}
+                    {milestoneLabel(m.id, locale, m.label)}
                   </Badge>
                 ))}
               </div>
@@ -221,7 +230,7 @@ export default function TeamDashboard() {
         <Card>
           <CardContent className="p-5">
             <p className="mb-2 text-sm font-medium">
-              Skicka denna länk till dina spelare
+              {t.invitePlayers}
             </p>
             <div className="flex gap-2">
               <Input
@@ -244,13 +253,13 @@ export default function TeamDashboard() {
       {/* Seller leaderboard */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base">Säljare-ranking</CardTitle>
+          <CardTitle className="text-base">{t.sellerRanking}</CardTitle>
           <Trophy className="h-4 w-4 text-brand-500" />
         </CardHeader>
         <CardContent>
           {sortedSellers.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Inga säljare har anslutit ännu. Dela inbjudningslänken!
+              {t.noSellersYet}
             </p>
           ) : (
             <div className="space-y-3">
@@ -274,11 +283,11 @@ export default function TeamDashboard() {
                       <GradeBadge grade={seller.grade} size="sm" />
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {pluralSv(seller.orderCount, "order", "ordrar")}
+                      {pluralSv(seller.orderCount, c.orderSingular, c.orderPlural)}
                     </p>
                   </div>
                   <p className="text-sm font-semibold shrink-0">
-                    {formatKrValue(seller.totalSalesOre)} kr
+                    {formatKr(seller.totalSalesOre, locale)}
                   </p>
                 </div>
               ))}
@@ -290,12 +299,12 @@ export default function TeamDashboard() {
       {/* Recent orders */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Senaste beställningar</CardTitle>
+          <CardTitle className="text-base">{c.recentOrders}</CardTitle>
         </CardHeader>
         <CardContent>
           {orders.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Inga beställningar ännu
+              {c.noOrdersYet}
             </p>
           ) : (
             <div className="space-y-2">
@@ -308,7 +317,7 @@ export default function TeamDashboard() {
                     setDetailOpen(true);
                   }}
                   className="flex w-full items-center justify-between rounded-lg border p-3 text-left transition-colors hover:bg-brand-50/60"
-                  aria-label={`Visa detaljer för order från ${order.customerName}`}
+                  aria-label={tFill(c.viewOrderDetails, { name: order.customerName })}
                 >
                   <div>
                     <p className="text-sm font-medium">{order.customerName}</p>
@@ -317,17 +326,17 @@ export default function TeamDashboard() {
                         variant="secondary"
                         className={`text-xs ${orderStatusColor(order.status)}`}
                       >
-                        {orderStatusLabel(order.status)}
+                        {orderStatusLabel(order.status, locale)}
                       </Badge>
                       {order.deliveryType === "DIRECT" && (
                         <Badge variant="secondary" className="text-xs">
-                          Direktleverans
+                          {c.directDelivery}
                         </Badge>
                       )}
                     </div>
                   </div>
                   <p className="text-sm font-semibold">
-                    {formatKrValue(order.totalOre)} kr
+                    {formatKr(order.totalOre, locale)}
                   </p>
                 </button>
               ))}

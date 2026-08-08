@@ -12,78 +12,105 @@ import {
   type ApiProductRow,
   type PortalProductCard,
 } from "@/lib/product-catalog";
-import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ShoppingCart, Minus, Plus } from "lucide-react";
+import { LocaleLink } from "@/components/locale-link";
+import { useLocale } from "@/i18n/locale-context";
+import type { Locale } from "@/i18n/config";
+import { portalPages, portalShared } from "@/i18n/dictionaries/portal-pages";
+import { products as productDict } from "@/i18n/dictionaries/products";
+import type { ProductSlug } from "@/i18n/get-dictionary";
+import { tFill } from "@/i18n/format";
 
-const FALLBACK_PRODUCTS: PortalProductCard[] = [
-  {
-    name: "Roots Schampoo",
-    type: "Schampo",
-    desc: "Milt schampo med SyriCalm® och sockerbaserade, sulfatsnåla tvättämnen",
-    price: 149,
-    sku: "ROOTS-SH-001",
-    slug: FALLBACK_SKU_SLUG["ROOTS-SH-001"]!,
-    image: "/images/sport-schampoo.jpg",
-    isBundle: false,
-  },
-  {
-    name: "Roots Conditioner",
-    type: "Balsam",
-    desc: "Närande balsam med SyriCalm®, Pro-Vitamin B5 & E-vitamin",
-    price: 149,
-    sku: "ROOTS-CO-001",
-    slug: FALLBACK_SKU_SLUG["ROOTS-CO-001"]!,
-    image: "/images/sport-conditioner.jpg",
-    isBundle: false,
-  },
-  {
-    name: "Roots Body Wash",
-    type: "Body Wash",
-    desc: "Skonsam kroppstvätt med SyriCalm® och Panthenol (B5)",
-    price: 129,
-    sku: "ROOTS-BW-001",
-    slug: FALLBACK_SKU_SLUG["ROOTS-BW-001"]!,
-    image: "/images/sport-body-wash.jpg",
-    isBundle: false,
-  },
-  {
-    name: "Roots Komplett paket",
-    type: "Paket — alla tre",
-    desc: "Schampo, balsam och kroppstvätt tillsammans — 28 kr billigare än var för sig",
-    price: 399,
-    sku: BUNDLE_SKU,
-    slug: FALLBACK_SKU_SLUG[BUNDLE_SKU]!,
-    image: "/images/sport-package.jpg",
-    isBundle: true,
-  },
-];
+function fallbackProducts(
+  t: (typeof portalPages)["produkter"][Locale]
+): PortalProductCard[] {
+  return [
+    {
+      name: "Roots Schampoo",
+      type: t.typeShampoo,
+      desc: t.descShampoo,
+      price: 149,
+      sku: "ROOTS-SH-001",
+      slug: FALLBACK_SKU_SLUG["ROOTS-SH-001"]!,
+      image: "/images/sport-schampoo.jpg",
+      isBundle: false,
+    },
+    {
+      name: "Roots Conditioner",
+      type: t.typeConditioner,
+      desc: t.descConditioner,
+      price: 149,
+      sku: "ROOTS-CO-001",
+      slug: FALLBACK_SKU_SLUG["ROOTS-CO-001"]!,
+      image: "/images/sport-conditioner.jpg",
+      isBundle: false,
+    },
+    {
+      name: "Roots Body Wash",
+      type: t.typeBodyWash,
+      desc: t.descBodyWash,
+      price: 129,
+      sku: "ROOTS-BW-001",
+      slug: FALLBACK_SKU_SLUG["ROOTS-BW-001"]!,
+      image: "/images/sport-body-wash.jpg",
+      isBundle: false,
+    },
+    {
+      name: t.bundleName,
+      type: t.typeBundle,
+      desc: t.descBundle,
+      price: 399,
+      sku: BUNDLE_SKU,
+      slug: FALLBACK_SKU_SLUG[BUNDLE_SKU]!,
+      image: "/images/sport-package.jpg",
+      isBundle: true,
+    },
+  ];
+}
 
 export default function ProdukterPortalPage() {
+  const { locale, href } = useLocale();
+  const t = portalPages.produkter[locale];
+  const shared = portalShared[locale];
   const [quantities, setQuantities] = useState<Record<string, number>>({});
-  const [products, setProducts] = useState<PortalProductCard[]>(
-    FALLBACK_PRODUCTS
+  const [products, setProducts] = useState<PortalProductCard[]>(() =>
+    fallbackProducts(t)
   );
+  const [usingFallback, setUsingFallback] = useState(true);
+
+  useEffect(() => {
+    if (usingFallback) {
+      setProducts(fallbackProducts(t));
+    }
+  }, [t, usingFallback]);
 
   useEffect(() => {
     portalFetch<{ products: ApiProductRow[] }>("/products")
       .then((data) => {
         if (data.products?.length) {
+          setUsingFallback(false);
           setProducts(
-            data.products.map(toPortalProductCard).sort(byCatalogOrder)
+            data.products
+              .map((p) => {
+                const copy =
+                  p.slug && p.slug in productDict
+                    ? productDict[p.slug as ProductSlug][locale]
+                    : null;
+                return toPortalProductCard(p, locale, {
+                  name: copy?.name,
+                  desc: copy?.description,
+                });
+              })
+              .sort(byCatalogOrder)
           );
         }
       })
-      // Tyst med flit: FALLBACK_PRODUCTS är den riktiga katalogen med
-      // aktuella priser, så sidan visar rätt innehåll även utan API:t. Ett
-      // felmeddelande här hade bara oroat utan att ge något att göra.
       .catch(() => {});
-  }, []);
+  }, [locale]);
 
-  // Räknas fram ur katalogen istället för att skrivas in i texten, så siffran
-  // följer med om ett pris ändras.
   const bundleSavingKr = useMemo(() => {
     const bundle = products.find((p) => p.isBundle);
     if (!bundle) return 0;
@@ -113,13 +140,16 @@ export default function ProdukterPortalPage() {
     >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Produkter</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Bläddra bland produkter och lägg till i beställning.
-          </p>
+          <h1 className="text-2xl font-bold tracking-tight">{t.title}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t.subtitle}</p>
         </div>
-        <Button variant="outline" size="sm" className="shrink-0 rounded-xl" asChild>
-          <Link href="/portal/bestallningar">Visa beställningar</Link>
+        <Button
+          variant="outline"
+          size="sm"
+          className="shrink-0 rounded-xl"
+          asChild
+        >
+          <LocaleLink href="/portal/bestallningar">{t.viewOrders}</LocaleLink>
         </Button>
       </div>
 
@@ -131,7 +161,7 @@ export default function ProdukterPortalPage() {
               key={p.sku}
               className="overflow-hidden transition-shadow hover:shadow-md"
             >
-              <Link
+              <LocaleLink
                 href={publicProductHref(p.slug)}
                 className="relative block aspect-[4/3] bg-brand-50 outline-none ring-offset-2 transition-opacity hover:opacity-95 focus-visible:ring-2 focus-visible:ring-brand-900"
               >
@@ -144,28 +174,28 @@ export default function ProdukterPortalPage() {
                 />
                 {p.isBundle && bundleSavingKr > 0 && (
                   <span className="absolute left-3 top-3 rounded-full bg-inverse-surface px-3 py-1 text-xs font-semibold text-inverse-on-surface shadow-sm">
-                    Spara {bundleSavingKr} kr
+                    {tFill(t.saveBadge, { amount: bundleSavingKr })}
                   </span>
                 )}
-              </Link>
+              </LocaleLink>
               <CardContent className="p-5">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <h3 className="font-semibold">
-                      <Link
+                      <LocaleLink
                         href={publicProductHref(p.slug)}
                         className="hover:text-brand-800 hover:underline"
                       >
                         {p.name}
-                      </Link>
+                      </LocaleLink>
                     </h3>
                     <p className="text-sm text-muted-foreground">{p.type}</p>
                   </div>
-                  <p className="shrink-0 text-lg font-bold">{p.price} kr</p>
+                  <p className="shrink-0 text-lg font-bold">
+                    {p.price} {shared.kr}
+                  </p>
                 </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {p.desc}
-                </p>
+                <p className="mt-1 text-xs text-muted-foreground">{p.desc}</p>
 
                 <div className="mt-4 flex items-center gap-3">
                   <div className="flex items-center rounded-lg border border-border">
@@ -204,15 +234,24 @@ export default function ProdukterPortalPage() {
               <ShoppingCart className="h-5 w-5" />
               <div>
                 <p className="font-semibold">
-                  {totalItems} produkt{totalItems !== 1 ? "er" : ""} i varukorgen
+                  {tFill(totalItems === 1 ? t.cartOne : t.cartMany, {
+                    count: totalItems,
+                  })}
                 </p>
                 <p className="text-sm text-inverse-on-surface/70">
-                  Totalt: {totalPrice.toLocaleString("sv-SE")} kr
+                  {tFill(t.cartTotal, {
+                    amount: totalPrice.toLocaleString(shared.dateLocale),
+                  })}
                 </p>
               </div>
             </div>
-            <Button className="bg-white text-neutral-900 shadow-sm hover:bg-neutral-100" onClick={() => window.location.href = "/portal/bestallningar"}>
-              Gå till beställning
+            <Button
+              className="bg-white text-neutral-900 shadow-sm hover:bg-neutral-100"
+              onClick={() => {
+                window.location.href = href("/portal/bestallningar");
+              }}
+            >
+              {t.goToOrder}
             </Button>
           </CardContent>
         </Card>

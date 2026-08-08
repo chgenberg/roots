@@ -29,32 +29,22 @@ import {
 } from "@/components/ui/table";
 import { Users, UserPlus, Search, Mail } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
+import { useLocale } from "@/i18n/locale-context";
+import { portalPages, portalShared } from "@/i18n/dictionaries/portal-pages";
+import { tFill } from "@/i18n/format";
+import { appCommon } from "@/i18n/dictionaries/app-common";
 
 interface MemberRow {
   id: string | number;
   name: string;
   email: string;
-  status: string;
+  role: string;
   joined: string;
 }
 
-// API role enum → Swedish UI label. Roots doesn't track invite/active state
-// per user yet, so the "status" column reflects the user's club role.
-const ROLE_LABELS: Record<string, string> = {
-  CLUB_ADMIN: "Klubbadmin",
-  CLUB_MEMBER: "Aktiv",
-  ASSOCIATION_ADMIN: "Föreningsadmin",
-  TEAM_LEADER: "Lagansvarig",
-  SELLER: "Säljare",
-  SALES_REP: "Säljare",
-  SALES_ADMIN: "Säljchef",
-  INTERNAL_ADMIN: "Admin",
-  PUBLIC: "Inbjuden",
-};
-
-function statusVariant(status: string) {
-  if (status === "Aktiv" || status === "Klubbadmin") return "success" as const;
-  if (status === "Inbjuden") return "warning" as const;
+function statusVariant(role: string) {
+  if (role === "CLUB_MEMBER" || role === "CLUB_ADMIN") return "success" as const;
+  if (role === "PUBLIC") return "warning" as const;
   return "secondary" as const;
 }
 
@@ -64,11 +54,6 @@ function isoDate(value: string | Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-// ── Bjud in medlem-dialogen (Sprint C) ─────────────────────────────
-// Minimal-friction invite: email + optional name + role (CLUB_MEMBER by
-// default). The new user lands in the DB immediately with a non-loginable
-// passwordHash so they show up in the table; a follow-up MVP adds a
-// token-link email so they can set a real password.
 function BjudInMedlemDialog({
   open,
   onOpenChange,
@@ -78,6 +63,10 @@ function BjudInMedlemDialog({
   onOpenChange: (open: boolean) => void;
   onInvited: (row: MemberRow) => void;
 }) {
+  const { locale } = useLocale();
+  const t = portalPages.medlemmar[locale];
+  const common = appCommon[locale];
+
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [role, setRole] = useState<"CLUB_MEMBER" | "CLUB_ADMIN">(
@@ -98,7 +87,7 @@ function BjudInMedlemDialog({
     setError(null);
     const cleanedEmail = email.trim().toLowerCase();
     if (!cleanedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanedEmail)) {
-      setError("Ange en giltig e-postadress.");
+      setError(t.invalidEmail);
       return;
     }
     setSubmitting(true);
@@ -112,12 +101,12 @@ function BjudInMedlemDialog({
         id: data.member.id,
         name: data.member.name || data.member.email,
         email: data.member.email,
-        status: ROLE_LABELS[data.member.role] ?? data.member.role,
+        role: data.member.role,
         joined: isoDate(data.member.createdAt),
       });
       onOpenChange(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Kunde inte bjuda in.");
+      setError(err instanceof Error ? err.message : t.inviteFailed);
     } finally {
       setSubmitting(false);
     }
@@ -127,11 +116,8 @@ function BjudInMedlemDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Bjud in medlem</DialogTitle>
+          <DialogTitle>{t.inviteTitle}</DialogTitle>
         </DialogHeader>
-        {/* MASTERPLAN_01 KC6.8: wrap fält + footer i <form> så Enter
-            submitar inbjudan via native form-submit. Mobile-keyboarden
-            visar nu "Go" som faktiskt fungerar. */}
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -141,37 +127,37 @@ function BjudInMedlemDialog({
         >
           <div className="space-y-4 px-6 py-2">
             <div className="space-y-2">
-              <Label htmlFor="invite-email">E-postadress</Label>
+              <Label htmlFor="invite-email">{t.emailLabel}</Label>
               <Input
                 id="invite-email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="namn@klubb.se"
+                placeholder={t.emailPlaceholder}
                 autoFocus
                 autoComplete="email"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="invite-name">Namn (valfritt)</Label>
+              <Label htmlFor="invite-name">{t.nameOptional}</Label>
               <Input
                 id="invite-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Anna Lindgren"
+                placeholder={t.namePlaceholder}
                 autoComplete="name"
               />
             </div>
             <div className="space-y-2">
-              <Label>Roll</Label>
-              <div className="flex gap-2" role="group" aria-label="Välj roll">
+              <Label>{t.roleLabel}</Label>
+              <div className="flex gap-2" role="group" aria-label={t.roleAria}>
                 <Button
                   type="button"
                   variant={role === "CLUB_MEMBER" ? "default" : "outline"}
                   size="sm"
                   onClick={() => setRole("CLUB_MEMBER")}
                 >
-                  Medlem
+                  {t.roleMember}
                 </Button>
                 <Button
                   type="button"
@@ -179,7 +165,7 @@ function BjudInMedlemDialog({
                   size="sm"
                   onClick={() => setRole("CLUB_ADMIN")}
                 >
-                  Klubbadmin
+                  {t.roleAdmin}
                 </Button>
               </div>
             </div>
@@ -196,10 +182,10 @@ function BjudInMedlemDialog({
               onClick={() => onOpenChange(false)}
               disabled={submitting}
             >
-              Avbryt
+              {common.cancel}
             </Button>
             <Button type="submit" disabled={submitting}>
-              {submitting ? "Bjuder in…" : "Skicka inbjudan"}
+              {submitting ? t.inviting : t.sendInvite}
             </Button>
           </DialogFooter>
         </form>
@@ -209,6 +195,11 @@ function BjudInMedlemDialog({
 }
 
 export default function MedlemmarPage() {
+  const { locale } = useLocale();
+  const t = portalPages.medlemmar[locale];
+  const shared = portalShared[locale];
+  const roleLabels = shared.roles;
+
   const [search, setSearch] = useState("");
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -219,7 +210,6 @@ export default function MedlemmarPage() {
   const load = useCallback(() => {
     setLoading(true);
     setListError(null);
-    // API shape: { members: [{ id, email, name, role, createdAt }] }
     portalFetch("/members", { schema: membersListResponseSchema })
       .then((data) => {
         setMembers(
@@ -227,25 +217,23 @@ export default function MedlemmarPage() {
             id: m.id,
             name: m.name || m.email,
             email: m.email,
-            status: ROLE_LABELS[m.role] ?? m.role,
+            role: m.role,
             joined: isoDate(m.createdAt),
           }))
         );
       })
       .catch(() => {
-        // En tom medlemslista efter ett misslyckat anrop får en admin att
-        // tro att medlemmarna försvunnit.
-        setListError("Kunde inte hämta medlemslistan.");
+        setListError(t.loadError);
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [t.loadError]);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  const activeCount = members.filter((m) => m.status === "Aktiv").length;
-  const pendingInvites = members.filter((m) => m.status === "Inbjuden").length;
+  const activeCount = members.filter((m) => m.role === "CLUB_MEMBER").length;
+  const pendingInvites = members.filter((m) => m.role === "PUBLIC").length;
   const now = new Date();
   const y = now.getFullYear();
   const mo = now.getMonth();
@@ -260,18 +248,20 @@ export default function MedlemmarPage() {
       m.email.toLowerCase().includes(search.toLowerCase())
   );
 
+  function roleLabel(role: string): string {
+    return roleLabels[role as keyof typeof roleLabels] ?? role;
+  }
+
   return (
     <div className="page-enter space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Medlemmar</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Hantera era föreningsmedlemmar.
-          </p>
+          <h1 className="text-2xl font-bold tracking-tight">{t.title}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t.subtitle}</p>
         </div>
         <Button onClick={() => setDialogOpen(true)}>
           <UserPlus className="h-4 w-4" />
-          Bjud in medlem
+          {t.invite}
         </Button>
       </div>
 
@@ -282,7 +272,7 @@ export default function MedlemmarPage() {
         onOpenChange={setDialogOpen}
         onInvited={(row) => {
           setMembers((prev) => [row, ...prev]);
-          toast(`${row.name} har bjudits in.`);
+          toast(tFill(t.invitedToast, { name: row.name }));
         }}
       />
 
@@ -293,7 +283,7 @@ export default function MedlemmarPage() {
               <Users className="h-5 w-5 shrink-0 text-brand-400" />
               <div>
                 <p className="text-2xl font-bold">{activeCount}</p>
-                <p className="text-xs text-muted-foreground">Aktiva medlemmar</p>
+                <p className="text-xs text-muted-foreground">{t.activeMembers}</p>
               </div>
             </div>
           </CardContent>
@@ -304,7 +294,7 @@ export default function MedlemmarPage() {
               <Mail className="h-5 w-5 shrink-0 text-brand-400" />
               <div>
                 <p className="text-2xl font-bold">{pendingInvites}</p>
-                <p className="text-xs text-muted-foreground">Väntande inbjudningar</p>
+                <p className="text-xs text-muted-foreground">{t.pendingInvites}</p>
               </div>
             </div>
           </CardContent>
@@ -315,7 +305,7 @@ export default function MedlemmarPage() {
               <UserPlus className="h-5 w-5 shrink-0 text-brand-400" />
               <div>
                 <p className="text-2xl font-bold">{newThisMonth}</p>
-                <p className="text-xs text-muted-foreground">Nya denna månad</p>
+                <p className="text-xs text-muted-foreground">{t.newThisMonth}</p>
               </div>
             </div>
           </CardContent>
@@ -328,7 +318,7 @@ export default function MedlemmarPage() {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Sök medlem..."
+                placeholder={t.searchPlaceholder}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-9"
@@ -339,10 +329,10 @@ export default function MedlemmarPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Namn</TableHead>
-                <TableHead>E-post</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Medlem sedan</TableHead>
+                <TableHead>{t.colName}</TableHead>
+                <TableHead>{t.colEmail}</TableHead>
+                <TableHead>{t.colStatus}</TableHead>
+                <TableHead className="text-right">{t.colJoined}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -351,7 +341,9 @@ export default function MedlemmarPage() {
                   <TableCell className="font-medium">{m.name}</TableCell>
                   <TableCell className="text-muted-foreground">{m.email}</TableCell>
                   <TableCell>
-                    <Badge variant={statusVariant(m.status)}>{m.status}</Badge>
+                    <Badge variant={statusVariant(m.role)}>
+                      {roleLabel(m.role)}
+                    </Badge>
                   </TableCell>
                   <TableCell className="text-right text-muted-foreground">
                     {m.joined}
@@ -361,16 +353,14 @@ export default function MedlemmarPage() {
               {!loading && filtered.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
-                    {members.length === 0
-                      ? "Ingen medlem är registrerad ännu. Bjud in den första medlemmen för att komma igång."
-                      : "Inga medlemmar matchade sökningen."}
+                    {members.length === 0 ? t.empty : t.noMatch}
                   </TableCell>
                 </TableRow>
               )}
               {loading && (
                 <TableRow>
                   <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
-                    Hämtar medlemmar…
+                    {t.loading}
                   </TableCell>
                 </TableRow>
               )}

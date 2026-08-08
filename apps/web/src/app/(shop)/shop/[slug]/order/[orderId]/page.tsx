@@ -2,7 +2,6 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -15,8 +14,13 @@ import {
   ArrowLeft,
 } from "lucide-react";
 
+import { LocaleLink } from "@/components/locale-link";
 import { getBrowserApiBase } from "@/lib/api-base";
-import { formatKrValue } from "@/lib/format";
+import { rootsFetch } from "@/lib/api";
+import { formatKr } from "@/lib/format";
+import { shop } from "@/i18n/dictionaries/shop";
+import { tFill } from "@/i18n/format";
+import { useLocale } from "@/i18n/locale-context";
 
 const API_URL = getBrowserApiBase();
 
@@ -33,16 +37,24 @@ interface OrderData {
   items: Array<{ name: string; qty: number; unitPriceOre: number }>;
 }
 
-const STATUS_STEPS = [
-  { key: "PENDING", label: "Mottagen", icon: Clock },
-  { key: "PAID", label: "Betald", icon: CheckCircle2 },
-  { key: "CONFIRMED", label: "Bekräftad", icon: Package },
-  { key: "SHIPPED", label: "Skickad", icon: Truck },
-  { key: "DELIVERED", label: "Levererad", icon: CheckCircle2 },
-];
+const STATUS_KEYS = [
+  "PENDING",
+  "PAID",
+  "CONFIRMED",
+  "SHIPPED",
+  "DELIVERED",
+] as const;
+
+const STATUS_ICONS = {
+  PENDING: Clock,
+  PAID: CheckCircle2,
+  CONFIRMED: Package,
+  SHIPPED: Truck,
+  DELIVERED: CheckCircle2,
+} as const;
 
 function getStepIndex(status: string): number {
-  const idx = STATUS_STEPS.findIndex((s) => s.key === status);
+  const idx = STATUS_KEYS.indexOf(status as (typeof STATUS_KEYS)[number]);
   return idx >= 0 ? idx : 0;
 }
 
@@ -55,6 +67,17 @@ function OrderStatusPageInner() {
   const slug = params.slug as string;
   const orderId = params.orderId as string;
   const viewToken = searchParams.get("t");
+  const { locale } = useLocale();
+  const t = shop.orderStatus[locale];
+  const dateLocale = locale === "en" ? "en-GB" : "sv-SE";
+
+  const statusSteps = [
+    { key: "PENDING" as const, label: t.stepPending },
+    { key: "PAID" as const, label: t.stepPaid },
+    { key: "CONFIRMED" as const, label: t.stepConfirmed },
+    { key: "SHIPPED" as const, label: t.stepShipped },
+    { key: "DELIVERED" as const, label: t.stepDelivered },
+  ];
 
   const [order, setOrder] = useState<OrderData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -74,9 +97,7 @@ function OrderStatusPageInner() {
         return;
       }
       try {
-        const res = await fetch(
-          `${API_URL}/v1/checkout/order-status/${orderId}?t=${encodeURIComponent(viewToken)}`
-        );
+        const res = await rootsFetch(`${API_URL}/v1/checkout/order-status/${orderId}?t=${encodeURIComponent(viewToken)}`);
         if (cancelled) return;
         if (res.ok) {
           const data = await res.json();
@@ -121,20 +142,16 @@ function OrderStatusPageInner() {
             <CardContent className="flex flex-col items-center gap-5 py-10">
               <AlertCircle className="h-14 w-14 text-destructive" />
               <h1 className="text-2xl font-semibold">
-                {isMissingToken
-                  ? "Länken är ogiltig eller utgången"
-                  : "Order hittades inte"}
+                {isMissingToken ? t.invalidLinkTitle : t.notFoundTitle}
               </h1>
               <p className="text-sm text-muted-foreground text-center">
-                {isMissingToken
-                  ? "Öppna länken i orderbekräftelsen vi mailade dig — den innehåller koden som krävs för att visa din order. Saknar du mailet? Kontakta oss på hej@roots.se."
-                  : "Vi kunde inte hitta denna order. Kontrollera länken och försök igen."}
+                {isMissingToken ? t.invalidLinkBody : t.notFoundBody}
               </p>
-              <Link href={`/shop/${slug}`} className="w-full">
+              <LocaleLink href={`/shop/${slug}`} className="w-full">
                 <Button variant="outline" className="w-full">
-                  Tillbaka till shoppen
+                  {t.backToShop}
                 </Button>
-              </Link>
+              </LocaleLink>
             </CardContent>
           </Card>
         </main>
@@ -152,13 +169,13 @@ function OrderStatusPageInner() {
   return (
     <div className="min-h-screen bg-brand-50/30">
       <main className="mx-auto max-w-lg px-4 py-8">
-        <Link
+        <LocaleLink
           href={`/shop/${slug}`}
           className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-6"
         >
           <ArrowLeft className="h-4 w-4" />
-          Tillbaka till shoppen
-        </Link>
+          {t.backToShop}
+        </LocaleLink>
 
         <Card className="shadow-lg">
           <CardContent className="py-8 space-y-6">
@@ -174,23 +191,23 @@ function OrderStatusPageInner() {
               )}
               <h1 className="text-xl font-semibold">
                 {order.status === "REFUNDED"
-                  ? "Ordern har återbetalats"
+                  ? t.titleRefunded
                   : isFailed
-                  ? "Ordern kunde inte genomföras"
-                  : isPending
-                  ? "Din betalning behandlas..."
-                  : "Orderstatus"}
+                    ? t.titleFailed
+                    : isPending
+                      ? t.titlePending
+                      : t.titleStatus}
               </h1>
               <p className="text-sm text-muted-foreground mt-1">
-                Order #{order.orderId.slice(0, 8)}
+                {tFill(t.orderHash, { id: order.orderId.slice(0, 8) })}
               </p>
             </div>
 
             {!isFailed && (
               <div className="relative">
                 <div className="flex justify-between">
-                  {STATUS_STEPS.map((step, i) => {
-                    const StepIcon = step.icon;
+                  {statusSteps.map((step, i) => {
+                    const StepIcon = STATUS_ICONS[step.key];
                     const isActive = i <= currentStep;
                     return (
                       <div
@@ -223,7 +240,7 @@ function OrderStatusPageInner() {
                   <div
                     className="h-full bg-brand-700 transition-all duration-500"
                     style={{
-                      width: `${(currentStep / (STATUS_STEPS.length - 1)) * 100}%`,
+                      width: `${(currentStep / (statusSteps.length - 1)) * 100}%`,
                     }}
                   />
                 </div>
@@ -231,23 +248,27 @@ function OrderStatusPageInner() {
             )}
 
             <div className="space-y-1 rounded-lg bg-brand-50 p-4">
-              <p className="text-sm text-muted-foreground">Kund</p>
+              <p className="text-sm text-muted-foreground">{t.customer}</p>
               <p className="font-medium">{order.customerName}</p>
-              <p className="text-xs text-muted-foreground mt-2">Leveransmetod</p>
+              <p className="text-xs text-muted-foreground mt-2">
+                {t.deliveryMethod}
+              </p>
               <p className="text-sm font-medium">
                 {order.deliveryType === "DIRECT"
-                  ? "Direktleverans till dig"
-                  : "Samleverans till lagansvarig"}
+                  ? t.deliveryDirect
+                  : t.deliveryBulk}
               </p>
               {order.sellerName && (
                 <>
-                  <p className="text-xs text-muted-foreground mt-2">Säljare</p>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    {t.seller}
+                  </p>
                   <p className="text-sm font-medium">{order.sellerName}</p>
                 </>
               )}
-              <p className="text-xs text-muted-foreground mt-2">Beställd</p>
+              <p className="text-xs text-muted-foreground mt-2">{t.ordered}</p>
               <p className="text-sm font-medium">
-                {new Date(order.createdAt).toLocaleDateString("sv-SE", {
+                {new Date(order.createdAt).toLocaleDateString(dateLocale, {
                   year: "numeric",
                   month: "long",
                   day: "numeric",
@@ -256,7 +277,7 @@ function OrderStatusPageInner() {
             </div>
 
             <div className="space-y-2">
-              <p className="text-sm font-medium">Produkter</p>
+              <p className="text-sm font-medium">{t.products}</p>
               {order.items.map((item, i) => (
                 <div
                   key={i}
@@ -267,25 +288,20 @@ function OrderStatusPageInner() {
                     <span className="text-muted-foreground">x{item.qty}</span>
                   </span>
                   <span className="font-medium">
-                    {((item.unitPriceOre * item.qty) / 100).toLocaleString(
-                      "sv-SE"
-                    )}{" "}
-                    kr
+                    {formatKr(item.unitPriceOre * item.qty, locale)}
                   </span>
                 </div>
               ))}
               {order.shippingOre > 0 && (
                 <div className="flex items-center justify-between text-sm py-1.5 border-b">
-                  <span className="text-muted-foreground">Frakt</span>
-                  <span>
-                    {formatKrValue(order.shippingOre)} kr
-                  </span>
+                  <span className="text-muted-foreground">{t.shipping}</span>
+                  <span>{formatKr(order.shippingOre, locale)}</span>
                 </div>
               )}
               <div className="flex items-center justify-between pt-2">
-                <span className="font-semibold">Totalt</span>
+                <span className="font-semibold">{t.total}</span>
                 <span className="text-lg font-bold">
-                  {formatKrValue(order.totalOre)} kr
+                  {formatKr(order.totalOre, locale)}
                 </span>
               </div>
             </div>

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getBrowserApiBase } from "@/lib/api-base";
+import { rootsFetch } from "@/lib/api";
 import { formatDayLabel, paymentLabel } from "./theme";
 import type { TrendPoint } from "./area-trend";
 
@@ -35,7 +36,7 @@ export function useStats(path: string | null) {
     if (!path) return;
     let cancelled = false;
     setLoading(true);
-    fetch(`${API_URL}${path}`, { credentials: "include" })
+    rootsFetch(`${API_URL}${path}`)
       .then((res) => {
         if (!res.ok) throw new Error(String(res.status));
         return res.json();
@@ -88,9 +89,12 @@ export function buildDailyAxis(
   return { sales: out, cumulative };
 }
 
-export function paymentSlices(payments: StatsResponse["payments"]) {
+export function paymentSlices(
+  payments: StatsResponse["payments"],
+  locale: "sv" | "en" = "sv"
+) {
   return payments.map((p) => ({
-    label: paymentLabel(p.method),
+    label: paymentLabel(p.method, locale),
     value: p.salesOre,
   }));
 }

@@ -17,6 +17,10 @@ import { Loader2, CheckCircle2, ShoppingBag, ExternalLink, LayoutDashboard } fro
 
 import { apiFetch } from "@/lib/api";
 import { GUARDIAN_CONSENT_AGE } from "@roots/contracts";
+import { LocaleLink } from "@/components/locale-link";
+import { auth } from "@/i18n/dictionaries/auth";
+import { tFill } from "@/i18n/format";
+import { useLocale } from "@/i18n/locale-context";
 
 const CURRENT_YEAR = new Date().getFullYear();
 const MIN_PASSWORD_LENGTH = 12;
@@ -24,6 +28,8 @@ const MIN_PASSWORD_LENGTH = 12;
 export default function SellerRegistrationPage() {
   const params = useParams();
   const inviteToken = params.token as string;
+  const { locale } = useLocale();
+  const t = auth.registerSeller[locale];
 
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
@@ -81,7 +87,7 @@ export default function SellerRegistrationPage() {
       );
 
       if (!res.ok) {
-        setError(res.data?.error || "Något gick fel. Försök igen.");
+        setError(res.data?.error || t.errorGeneric);
         return;
       }
 
@@ -93,7 +99,7 @@ export default function SellerRegistrationPage() {
       // Nu visar vi success-skärmen med två tydliga CTA:s och låter
       // sellern välja själv.
     } catch {
-      setError("Kunde inte nå servern. Försök igen.");
+      setError(t.errorServer);
     } finally {
       setLoading(false);
     }
@@ -104,14 +110,16 @@ export default function SellerRegistrationPage() {
       <Card className="w-full max-w-md shadow-lg">
         <CardContent className="flex flex-col items-center gap-4 py-10">
           <CheckCircle2 className="h-12 w-12 text-success" />
-          <h2 className="text-xl font-semibold">Välkommen, {displayName.split(" ")[0]}!</h2>
+          <h2 className="text-xl font-semibold">
+            {tFill(t.welcome, { firstName: displayName.split(" ")[0] })}
+          </h2>
           <p className="text-sm text-muted-foreground text-center">
-            Din personliga shop är redo att börja sälja.
+            {t.successBody}
           </p>
 
           {shopSlug && (
             <div className="w-full rounded-lg bg-brand-50 p-3 text-center">
-              <p className="text-xs text-muted-foreground">Din shop-länk</p>
+              <p className="text-xs text-muted-foreground">{t.shopLinkLabel}</p>
               <p className="mt-1 break-all font-mono text-xs text-foreground">
                 /shop/{shopSlug}
               </p>
@@ -123,14 +131,14 @@ export default function SellerRegistrationPage() {
               <Link href={`/shop/${shopSlug}`} target="_blank" className="w-full">
                 <Button className="w-full">
                   <ExternalLink className="mr-2 h-4 w-4" />
-                  Visa min shop
+                  {t.viewShop}
                 </Button>
               </Link>
             )}
             <Link href="/min-shop" className="w-full">
               <Button variant="outline" className="w-full">
                 <LayoutDashboard className="mr-2 h-4 w-4" />
-                Gå till min dashboard
+                {t.goToDashboard}
               </Button>
             </Link>
           </div>
@@ -145,10 +153,8 @@ export default function SellerRegistrationPage() {
         <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-brand-100">
           <ShoppingBag className="h-6 w-6 text-brand-700" />
         </div>
-        <CardTitle className="text-2xl">Gå med som säljare</CardTitle>
-        <CardDescription>
-          Skapa ditt konto och få din personliga shop direkt
-        </CardDescription>
+        <CardTitle className="text-2xl">{t.title}</CardTitle>
+        <CardDescription>{t.description}</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
@@ -158,48 +164,54 @@ export default function SellerRegistrationPage() {
               describedby vilket gjorde att skärmläsaren aldrig hörde
               hjälptexterna. */}
           <FormField
-            label="Ditt namn"
-            description="Visas som säljarnamn i din shop."
+            label={t.displayName}
+            description={t.displayNameDescription}
             required
           >
             <Input
-              placeholder="Förnamn Efternamn"
+              placeholder={t.displayNamePlaceholder}
               autoComplete="name"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
             />
           </FormField>
-          <FormField label="E-post" required>
+          <FormField label={t.email} required>
             <Input
               type="email"
-              placeholder="din@epost.se"
+              placeholder={t.emailPlaceholder}
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
           </FormField>
           <FormField
-            label="Lösenord"
-            description={`Minst ${MIN_PASSWORD_LENGTH} tecken — använd gärna en lösenordshanterare.`}
+            label={t.password}
+            description={tFill(t.passwordDescription, {
+              minLength: MIN_PASSWORD_LENGTH,
+            })}
             required
           >
             <Input
               type="password"
-              placeholder={`Minst ${MIN_PASSWORD_LENGTH} tecken`}
+              placeholder={tFill(t.passwordPlaceholder, {
+                minLength: MIN_PASSWORD_LENGTH,
+              })}
               autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
           </FormField>
           <FormField
-            label="Födelseår"
-            description={`Är du under ${GUARDIAN_CONSENT_AGE} år behöver en vårdnadshavare godkänna att du säljer.`}
+            label={t.birthYear}
+            description={tFill(t.birthYearDescription, {
+              age: GUARDIAN_CONSENT_AGE,
+            })}
             required
           >
             <Input
               type="text"
               inputMode="numeric"
-              placeholder="2011"
+              placeholder={t.birthYearPlaceholder}
               maxLength={4}
               autoComplete="bday-year"
               value={birthYear}
@@ -212,23 +224,22 @@ export default function SellerRegistrationPage() {
           {needsGuardian && (
             <div className="space-y-4 rounded-lg border border-brand-200 bg-brand-50/60 p-4">
               <p className="text-sm font-medium text-foreground">
-                Vårdnadshavarens godkännande
+                {t.guardianTitle}
               </p>
               <p className="text-xs leading-relaxed text-muted-foreground">
-                Vi mejlar vårdnadshavaren att kontot skapats, så att de vet vad
-                som gäller och kan säga till om något inte stämmer.
+                {t.guardianBody}
               </p>
-              <FormField label="Vårdnadshavarens namn" required>
+              <FormField label={t.guardianName} required>
                 <Input
-                  placeholder="Förnamn Efternamn"
+                  placeholder={t.guardianNamePlaceholder}
                   value={guardianName}
                   onChange={(e) => setGuardianName(e.target.value)}
                 />
               </FormField>
-              <FormField label="Vårdnadshavarens e-post" required>
+              <FormField label={t.guardianEmail} required>
                 <Input
                   type="email"
-                  placeholder="foralder@epost.se"
+                  placeholder={t.guardianEmailPlaceholder}
                   value={guardianEmail}
                   onChange={(e) => setGuardianEmail(e.target.value)}
                 />
@@ -241,28 +252,24 @@ export default function SellerRegistrationPage() {
                   className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-brand-700"
                 />
                 <span className="leading-relaxed text-muted-foreground">
-                  En vårdnadshavare har godkänt att jag registrerar mig som
-                  säljare och att Roots hanterar mina uppgifter enligt{" "}
-                  <Link
+                  {t.consentBefore}
+                  <LocaleLink
                     href="/integritet"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="underline underline-offset-2 hover:text-foreground"
                   >
-                    integritetspolicyn
-                  </Link>
-                  .
+                    {t.privacyLink}
+                  </LocaleLink>
+                  {t.consentAfter}
                 </span>
               </label>
             </div>
           )}
-          <FormField
-            label="Telefon"
-            description="Frivilligt — vi använder det bara om vi behöver nå dig om en leverans."
-          >
+          <FormField label={t.phone} description={t.phoneDescription}>
             <Input
               type="tel"
-              placeholder="070-XXX XX XX"
+              placeholder={t.phonePlaceholder}
               autoComplete="tel"
               inputMode="tel"
               value={phone}
@@ -294,10 +301,10 @@ export default function SellerRegistrationPage() {
             {loading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Skapar konto...
+                {t.submitting}
               </>
             ) : (
-              "Skapa konto och börja sälja"
+              t.submit
             )}
           </Button>
         </form>

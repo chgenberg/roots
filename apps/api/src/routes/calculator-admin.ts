@@ -13,6 +13,7 @@ import { isDemoSession } from "../lib/session";
 import type { SessionData } from "../lib/session";
 import { requireSession } from "../lib/http-session";
 import { childLogger } from "../lib/logger";
+import { resolveUiLocale, uiError } from "../lib/ui-locale";
 
 const log = childLogger("calculator-admin");
 
@@ -42,13 +43,14 @@ function newToken(): string {
 // ── Skapa delbar länk ──────────────────────────────────────────────
 calculatorAdmin.post("/", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
   if (!SALES_ROLES.has(session.role)) {
-    return c.json({ error: "Behörighet saknas" }, 403);
+    return c.json({ error: uiError(locale, "permissionDenied") }, 403);
   }
   if (isDemoSession(session)) {
     return c.json(
-      { error: "Demo-konton kan inte skapa delbara länkar." },
+      { error: uiError(locale, "demoCannotCreateShareableLinks") },
       403
     );
   }
@@ -57,13 +59,14 @@ calculatorAdmin.post("/", async (c) => {
   try {
     raw = await c.req.json();
   } catch {
-    return c.json({ error: "Ogiltig JSON" }, 400);
+    return c.json({ error: uiError(locale, "invalidJsonShort") }, 400);
   }
 
+  locale = resolveUiLocale(c, (raw as { locale?: unknown }).locale);
   const parsed = CreateCalculatorSchema.safeParse(raw);
   if (!parsed.success) {
     return c.json(
-      { error: "Ogiltiga fält", issues: parsed.error.flatten() },
+      { error: uiError(locale, "invalidFields"), issues: parsed.error.flatten() },
       400
     );
   }
@@ -95,16 +98,17 @@ calculatorAdmin.post("/", async (c) => {
     );
   } catch (err) {
     log.error({ err }, "create calculator link failed");
-    return c.json({ error: "Kunde inte skapa länken" }, 500);
+    return c.json({ error: uiError(locale, "couldNotCreateLink") }, 500);
   }
 });
 
 // ── Lista länkar (med visningar + antal leads) ─────────────────────
 calculatorAdmin.get("/", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  const locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
   if (!SALES_ROLES.has(session.role)) {
-    return c.json({ error: "Behörighet saknas" }, 403);
+    return c.json({ error: uiError(locale, "permissionDenied") }, 403);
   }
 
   try {
@@ -149,7 +153,7 @@ calculatorAdmin.get("/", async (c) => {
     });
   } catch (err) {
     log.error({ err }, "list calculator links failed");
-    return c.json({ error: "Kunde inte hämta länkar" }, 500);
+    return c.json({ error: uiError(locale, "couldNotFetchLinks") }, 500);
   }
 });
 
@@ -170,31 +174,33 @@ async function loadOwnedLink(session: SessionData, id: string) {
 // ── Uppdatera antaganden/namn ──────────────────────────────────────
 calculatorAdmin.patch("/:id", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
   if (!SALES_ROLES.has(session.role)) {
-    return c.json({ error: "Behörighet saknas" }, 403);
+    return c.json({ error: uiError(locale, "permissionDenied") }, 403);
   }
   if (isDemoSession(session)) {
-    return c.json({ error: "Demo-konton kan inte ändra länkar." }, 403);
+    return c.json({ error: uiError(locale, "demoCannotChangeLinks") }, 403);
   }
 
   let raw: unknown;
   try {
     raw = await c.req.json();
   } catch {
-    return c.json({ error: "Ogiltig JSON" }, 400);
+    return c.json({ error: uiError(locale, "invalidJsonShort") }, 400);
   }
+  locale = resolveUiLocale(c, (raw as { locale?: unknown }).locale);
   const parsed = UpdateCalculatorSchema.safeParse(raw);
   if (!parsed.success) {
     return c.json(
-      { error: "Ogiltiga fält", issues: parsed.error.flatten() },
+      { error: uiError(locale, "invalidFields"), issues: parsed.error.flatten() },
       400
     );
   }
 
   const { link, forbidden } = await loadOwnedLink(session, c.req.param("id"));
-  if (forbidden) return c.json({ error: "Behörighet saknas" }, 403);
-  if (!link) return c.json({ error: "Länken hittades inte" }, 404);
+  if (forbidden) return c.json({ error: uiError(locale, "permissionDenied") }, 403);
+  if (!link) return c.json({ error: uiError(locale, "linkNotFound") }, 404);
 
   try {
     const [updated] = await db
@@ -220,24 +226,25 @@ calculatorAdmin.patch("/:id", async (c) => {
     });
   } catch (err) {
     log.error({ err }, "update calculator link failed");
-    return c.json({ error: "Kunde inte uppdatera länken" }, 500);
+    return c.json({ error: uiError(locale, "couldNotUpdateLink") }, 500);
   }
 });
 
 // ── Ta bort länk ───────────────────────────────────────────────────
 calculatorAdmin.delete("/:id", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  const locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
   if (!SALES_ROLES.has(session.role)) {
-    return c.json({ error: "Behörighet saknas" }, 403);
+    return c.json({ error: uiError(locale, "permissionDenied") }, 403);
   }
   if (isDemoSession(session)) {
-    return c.json({ error: "Demo-konton kan inte ta bort länkar." }, 403);
+    return c.json({ error: uiError(locale, "demoCannotDeleteLinks") }, 403);
   }
 
   const { link, forbidden } = await loadOwnedLink(session, c.req.param("id"));
-  if (forbidden) return c.json({ error: "Behörighet saknas" }, 403);
-  if (!link) return c.json({ error: "Länken hittades inte" }, 404);
+  if (forbidden) return c.json({ error: uiError(locale, "permissionDenied") }, 403);
+  if (!link) return c.json({ error: uiError(locale, "linkNotFound") }, 404);
 
   try {
     await db
@@ -247,21 +254,22 @@ calculatorAdmin.delete("/:id", async (c) => {
     return c.json({ ok: true });
   } catch (err) {
     log.error({ err }, "delete calculator link failed");
-    return c.json({ error: "Kunde inte ta bort länken" }, 500);
+    return c.json({ error: uiError(locale, "couldNotDeleteLink") }, 500);
   }
 });
 
 // ── Se infångade leads för en länk ─────────────────────────────────
 calculatorAdmin.get("/:id/leads", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  const locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
   if (!SALES_ROLES.has(session.role)) {
-    return c.json({ error: "Behörighet saknas" }, 403);
+    return c.json({ error: uiError(locale, "permissionDenied") }, 403);
   }
 
   const { link, forbidden } = await loadOwnedLink(session, c.req.param("id"));
-  if (forbidden) return c.json({ error: "Behörighet saknas" }, 403);
-  if (!link) return c.json({ error: "Länken hittades inte" }, 404);
+  if (forbidden) return c.json({ error: uiError(locale, "permissionDenied") }, 403);
+  if (!link) return c.json({ error: uiError(locale, "linkNotFound") }, 404);
 
   try {
     const leads = await db
@@ -293,6 +301,6 @@ calculatorAdmin.get("/:id/leads", async (c) => {
     });
   } catch (err) {
     log.error({ err }, "list calculator leads failed");
-    return c.json({ error: "Kunde inte hämta leads" }, 500);
+    return c.json({ error: uiError(locale, "couldNotFetchLeads") }, 500);
   }
 });

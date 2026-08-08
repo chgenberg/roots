@@ -3,54 +3,49 @@ import { Heart, Leaf, Shield } from "lucide-react";
 import { BreadcrumbJsonLd, WebPageJsonLd } from "@/components/json-ld";
 import { pageMetadata } from "@/lib/seo";
 import { TeamSection } from "@/components/sections/team";
+import { getPage } from "@/i18n/get-dictionary";
+import { getRequestLocale } from "@/i18n/request-locale";
+import { withLocale } from "@/i18n/paths";
+import type { Metadata } from "next";
 
-const PAGE_TITLE = "Om oss";
-const PAGE_DESCRIPTION =
-  "Teamet bakom Roots — föreningsliv, teknik och naturlig hårvård utvecklad i Norden.";
+const VALUE_ICONS = [Heart, Leaf, Shield] as const;
 
-export const metadata = pageMetadata({
-  title: PAGE_TITLE,
-  description: PAGE_DESCRIPTION,
-  path: "/om-oss",
-});
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getRequestLocale();
+  const t = getPage("omOss", locale);
+  return pageMetadata({
+    title: t.title,
+    description: t.description,
+    path: "/om-oss",
+    locale,
+  });
+}
 
-const VALUES = [
-  {
-    icon: Heart,
-    title: "Föreningsdriven",
-    description:
-      "Allt vi gör har ett mål: att föreningslivet i Sverige ska blomstra. Vårt företag är byggt från grunden med det perspektivet.",
-  },
-  {
-    icon: Leaf,
-    title: "Naturligt, inte perfekt",
-    description:
-      "Vi tror inte på 100% ekologiska certifieringar för certifieringens skull. Vi tror på ingredienser som fungerar och är så naturliga som möjligt.",
-  },
-  {
-    icon: Shield,
-    title: "Transparens",
-    description:
-      "Från ingredienslista till prissättning — vi är öppna med allt. Det är så man bygger förtroende.",
-  },
-];
+export default async function OmOssPage() {
+  const locale = await getRequestLocale();
+  const t = getPage("omOss", locale);
+  const homeLabel = getPage("produkter", locale).breadcrumbHome;
 
-export default function OmOssPage() {
+  const values = t.values.map((v, i) => ({
+    ...v,
+    icon: VALUE_ICONS[i] ?? Heart,
+  }));
+
   return (
     <>
       <BreadcrumbJsonLd
         items={[
-          { name: "Hem", url: "/" },
-          { name: "Om oss", url: "/om-oss" },
+          { name: homeLabel, url: withLocale("/", locale) },
+          { name: t.title, url: withLocale("/om-oss", locale) },
         ]}
       />
       <WebPageJsonLd
         type="AboutPage"
-        name={PAGE_TITLE}
-        description={PAGE_DESCRIPTION}
-        url="/om-oss"
+        name={t.title}
+        description={t.description}
+        url={withLocale("/om-oss", locale)}
+        locale={locale}
       />
-      {/* Intro — one composition, brand-led, no dashboard clutter */}
       <section className="relative overflow-hidden">
         <div
           aria-hidden
@@ -59,14 +54,13 @@ export default function OmOssPage() {
         <div className="relative mx-auto max-w-[1280px] px-6 pb-6 pt-20 md:px-10 md:pb-8 md:pt-28">
           <div className="mx-auto max-w-2xl text-center">
             <p className="text-xs font-medium uppercase tracking-[0.2em] text-brand-700">
-              Om oss
+              {t.eyebrow}
             </p>
             <h1 className="mt-4 text-[length:var(--font-size-hero)] font-bold tracking-tight">
-              Roots
+              {t.brand}
             </h1>
             <p className="mt-5 text-lg leading-relaxed text-muted-foreground md:text-xl">
-              Naturlig hårvård som kanaliserar vardagsköp tillbaka till
-              föreningslivet.
+              {t.heroBody}
             </p>
           </div>
         </div>
@@ -80,7 +74,7 @@ export default function OmOssPage() {
             <div className="group relative aspect-[4/3] overflow-hidden rounded-2xl">
               <Image
                 src="/images/sport-paddock.jpg"
-                alt="Nordisk känsla — ren och naturlig"
+                alt={t.storyImageAlt}
                 fill
                 className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.02]"
                 sizes="(max-width: 1024px) 100vw, 50vw"
@@ -91,26 +85,15 @@ export default function OmOssPage() {
 
           <div className="max-w-lg">
             <p className="text-xs font-medium uppercase tracking-[0.18em] text-brand-700">
-              Historien
+              {t.storyEyebrow}
             </p>
             <h2 className="mt-3 text-3xl font-bold tracking-tight">
-              Från en enkel insikt
+              {t.storyTitle}
             </h2>
             <div className="mt-6 space-y-4 text-base leading-relaxed text-muted-foreground">
-              <p>
-                Föreningslivet i Sverige ger så mycket till samhället, men får
-                alldeles för lite tillbaka. Vi ville ändra på det.
-              </p>
-              <p>
-                Med bakgrunder inom teknik, idrott och företagande satte vi oss
-                ner och funderade: vad kan alla föreningar ha gemensamt? Svaret
-                var enkelt. Alla duschar. Alla behöver hår- och hudvård.
-              </p>
-              <p>
-                Så vi skapade Roots. Tre naturliga produkter, utvecklade i
-                Norden, med en affärsmodell som kanaliserar intäkter tillbaka
-                till föreningslivet.
-              </p>
+              {t.storyParagraphs.map((p) => (
+                <p key={p.slice(0, 24)}>{p}</p>
+              ))}
             </div>
           </div>
         </div>
@@ -120,15 +103,15 @@ export default function OmOssPage() {
         <div className="mx-auto max-w-[1280px] px-6 md:px-10">
           <div className="mx-auto max-w-2xl text-center">
             <p className="text-xs font-medium uppercase tracking-[0.18em] text-brand-700">
-              Värderingar
+              {t.valuesEyebrow}
             </p>
             <h2 className="mt-3 text-3xl font-bold tracking-tight">
-              Det vi står för
+              {t.valuesTitle}
             </h2>
           </div>
 
           <div className="mt-14 grid gap-10 md:grid-cols-3 md:gap-8">
-            {VALUES.map((v) => (
+            {values.map((v) => (
               <div key={v.title} className="text-center md:text-left">
                 <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-brand-700/10 md:mx-0">
                   <v.icon className="h-5 w-5 text-brand-700" />
@@ -149,36 +132,36 @@ export default function OmOssPage() {
         <div className="mx-auto grid max-w-[1280px] gap-12 px-6 md:grid-cols-2 md:gap-16 md:px-10">
           <div id="press">
             <p className="text-xs font-medium uppercase tracking-[0.18em] text-brand-700">
-              Press
+              {t.pressEyebrow}
             </p>
             <h2 className="mt-3 text-2xl font-bold tracking-tight">
-              Bildmaterial och intervjuer
+              {t.pressTitle}
             </h2>
             <p className="mt-3 text-muted-foreground">
-              Kontakta oss på{" "}
+              {t.pressBodyBefore}{" "}
               <a
-                href="mailto:press@roots.se"
+                href={`mailto:${t.pressEmail}`}
                 className="font-medium text-foreground underline decoration-brand-400 underline-offset-4 transition-colors hover:decoration-brand-700"
               >
-                press@roots.se
+                {t.pressEmail}
               </a>
               .
             </p>
           </div>
           <div id="jobb">
             <p className="text-xs font-medium uppercase tracking-[0.18em] text-brand-700">
-              Jobb
+              {t.jobsEyebrow}
             </p>
             <h2 className="mt-3 text-2xl font-bold tracking-tight">
-              Jobba hos oss
+              {t.jobsTitle}
             </h2>
             <p className="mt-3 text-muted-foreground">
-              Skicka din ansökan till{" "}
+              {t.jobsBodyBefore}{" "}
               <a
-                href="mailto:jobb@roots.se"
+                href={`mailto:${t.jobsEmail}`}
                 className="font-medium text-foreground underline decoration-brand-400 underline-offset-4 transition-colors hover:decoration-brand-700"
               >
-                jobb@roots.se
+                {t.jobsEmail}
               </a>
               .
             </p>

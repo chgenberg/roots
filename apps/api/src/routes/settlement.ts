@@ -18,6 +18,7 @@ import { getSessionId } from "../lib/http-session";
 import { childLogger } from "../lib/logger";
 import { auditLog, requestContext } from "../lib/audit";
 import { redis } from "../lib/redis";
+import { resolveUiLocale, uiError, uiErrorFill } from "../lib/ui-locale";
 
 const log = childLogger("settlement");
 
@@ -46,7 +47,8 @@ async function requireAdmin(c: Context): Promise<SessionData | null> {
 
 settlement.post("/generate/:campaignId", async (c) => {
   const session = await requireAdmin(c);
-  if (!session) return c.json({ error: "Behörighet saknas" }, 403);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "permissionDenied") }, 403);
 
   const campaignId = c.req.param("campaignId");
 
@@ -74,8 +76,7 @@ settlement.post("/generate/:campaignId", async (c) => {
     if (process.env.NODE_ENV === "production") {
       return c.json(
         {
-          error:
-            "Avräkningen kan inte köras just nu (låstjänsten är otillgänglig). Försök igen om några minuter.",
+          error: uiError(locale, "settlementLockUnavailable"),
         },
         503
       );
@@ -85,8 +86,7 @@ settlement.post("/generate/:campaignId", async (c) => {
   if (acquired === null) {
     return c.json(
       {
-        error:
-          "Avräkning körs redan för denna kampanj. Vänta ett par minuter och försök igen.",
+        error: uiError(locale, "settlementAlreadyRunning"),
       },
       409
     );
@@ -100,18 +100,18 @@ settlement.post("/generate/:campaignId", async (c) => {
       .limit(1);
 
     if (!campaign) {
-      return c.json({ error: "Kampanj hittades inte" }, 404);
+      return c.json({ error: uiError(locale, "campaignNotFound") }, 404);
     }
 
     if (
       session.role !== "INTERNAL_ADMIN" &&
       campaign.orgId !== session.orgId
     ) {
-      return c.json({ error: "Behörighet saknas för denna kampanj" }, 403);
+      return c.json({ error: uiError(locale, "permissionDeniedForCampaign") }, 403);
     }
 
     if (campaign.status !== "ENDED") {
-      return c.json({ error: "Kampanjen måste vara avslutad innan avräkning kan genereras" }, 400);
+      return c.json({ error: uiError(locale, "campaignMustBeEndedForSettlement") }, 400);
     }
 
     const teamList = await db
@@ -355,7 +355,7 @@ settlement.post("/generate/:campaignId", async (c) => {
     return c.json({ ok: true, settlements: results });
   } catch (err) {
     log.error({ err }, "Settlement generation failed");
-    return c.json({ error: "Avräkning misslyckades" }, 500);
+    return c.json({ error: uiError(locale, "settlementFailed") }, 500);
   } finally {
     await redis.del(lockKey).catch(() => {});
   }
@@ -363,7 +363,8 @@ settlement.post("/generate/:campaignId", async (c) => {
 
 settlement.get("/by-campaign/:campaignId", async (c) => {
   const session = await requireAdmin(c);
-  if (!session) return c.json({ error: "Behörighet saknas" }, 403);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "permissionDenied") }, 403);
 
   const campaignId = c.req.param("campaignId");
 
@@ -374,13 +375,13 @@ settlement.get("/by-campaign/:campaignId", async (c) => {
       .where(eq(campaigns.id, campaignId))
       .limit(1);
 
-    if (!campaign) return c.json({ error: "Kampanj hittades inte" }, 404);
+    if (!campaign) return c.json({ error: uiError(locale, "campaignNotFound") }, 404);
 
     if (
       session.role !== "INTERNAL_ADMIN" &&
       campaign.orgId !== session.orgId
     ) {
-      return c.json({ error: "Behörighet saknas" }, 403);
+      return c.json({ error: uiError(locale, "permissionDenied") }, 403);
     }
 
     const payoutList = await db
@@ -405,7 +406,7 @@ settlement.get("/by-campaign/:campaignId", async (c) => {
       payouts: payoutList.map((p) => ({
         id: p.id,
         teamId: p.teamId,
-        teamName: teamMap.get(p.teamId) || "Okänt lag",
+        teamName: teamMap.get(p.teamId) || uiError(locale, "unknownTeam"),
         totalSalesOre: p.totalSalesOre,
         rootsShareOre: p.rootsShareOre,
         teamShareOre: p.teamShareOre,
@@ -415,13 +416,14 @@ settlement.get("/by-campaign/:campaignId", async (c) => {
     });
   } catch (err) {
     log.error({ err }, "Failed to fetch settlement by campaign");
-    return c.json({ error: "Kunde inte hämta avräkning" }, 500);
+    return c.json({ error: uiError(locale, "couldNotFetchSettlement") }, 500);
   }
 });
 
 settlement.post("/create-invoice/:payoutId", async (c) => {
   const session = await requireAdmin(c);
-  if (!session) return c.json({ error: "Behörighet saknas" }, 403);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "permissionDenied") }, 403);
 
   // Scout fix 2026-05-26 (Integration CRIT-settlement-null): med
   // FORTNOX_ENABLED=false används NullProvider som skapar
@@ -435,8 +437,7 @@ settlement.post("/create-invoice/:payoutId", async (c) => {
   ) {
     return c.json(
       {
-        error:
-          "Fortnox är inte aktiverat. Sätt FORTNOX_ENABLED=true och giltig FORTNOX_ACCESS_TOKEN innan utbetalningsfaktura skapas.",
+        error: uiError(locale, "fortnoxNotEnabledInvoice"),
       },
       503
     );
@@ -452,14 +453,14 @@ settlement.post("/create-invoice/:payoutId", async (c) => {
       .limit(1);
 
     if (!payout) {
-      return c.json({ error: "Utbetalning hittades inte" }, 404);
+      return c.json({ error: uiError(locale, "payoutNotFound") }, 404);
     }
 
     if (
       session.role !== "INTERNAL_ADMIN" &&
       payout.orgId !== session.orgId
     ) {
-      return c.json({ error: "Behörighet saknas" }, 403);
+      return c.json({ error: uiError(locale, "permissionDenied") }, 403);
     }
 
     // P1.2 (audit 2026-05-26): idempotency på create-invoice.
@@ -483,15 +484,14 @@ settlement.post("/create-invoice/:payoutId", async (c) => {
       // Fortnox igen.
       return c.json(
         {
-          error:
-            "Utbetalningen är markerad som fakturerad men saknar Fortnox-ID. Kontakta support innan ny faktura skapas.",
+          error: uiError(locale, "payoutInvoicedMissingFortnoxId"),
         },
         409
       );
     }
     if (payout.status !== "PENDING") {
       return c.json(
-        { error: `Utbetalningen kan inte faktureras i status ${payout.status}.` },
+        { error: uiError(locale, "payoutCannotInvoiceStatusPrefix") + payout.status + "." },
         409
       );
     }
@@ -518,13 +518,12 @@ settlement.post("/create-invoice/:payoutId", async (c) => {
       .limit(1);
 
     if (!org) {
-      return c.json({ error: "Föreningen hittades inte" }, 404);
+      return c.json({ error: uiError(locale, "associationNotFoundThe") }, 404);
     }
     if (!org.orgNumber) {
       return c.json(
         {
-          error:
-            "Föreningen saknar organisationsnummer — fyll i det i inställningar innan fakturering.",
+          error: uiError(locale, "orgMissingOrgNumberInvoice"),
         },
         422
       );
@@ -571,7 +570,7 @@ settlement.post("/create-invoice/:payoutId", async (c) => {
     }
     if (lockAcquired === null) {
       return c.json(
-        { error: "Faktura skapas redan — vänta några sekunder och försök igen." },
+        { error: uiError(locale, "invoiceAlreadyCreating") },
         409
       );
     }
@@ -601,7 +600,10 @@ settlement.post("/create-invoice/:payoutId", async (c) => {
         orderId: payout.id,
         customer: {
           orgId: payout.orgId,
-          name: org.displayName ?? org.name ?? "Okänd förening",
+          name:
+            org.displayName ??
+            org.name ??
+            uiError(locale, "unknownOrganisation"),
           orgNumber: org.orgNumber,
           email: billingEmail,
           address: {
@@ -613,7 +615,9 @@ settlement.post("/create-invoice/:payoutId", async (c) => {
         lines: [
           {
             sku: "SETTLEMENT",
-            description: `Roots-andel kampanj ${payout.id.slice(0, 8)} (avtalad fee)`,
+            description: uiErrorFill(locale, "settlementInvoiceLine", {
+              name: payout.id.slice(0, 8),
+            }),
             qty: 1,
             unitPriceOre: payout.rootsShareOre,
             vatPercent: 25,
@@ -625,7 +629,11 @@ settlement.post("/create-invoice/:payoutId", async (c) => {
 
       if (result.status === "error" || !result.externalId) {
         return c.json(
-          { error: result.message || "Faktura kunde inte skapas hos leverantören" },
+          {
+            error:
+              result.message ||
+              uiError(locale, "settlementInvoiceCreateFailed"),
+          },
           502
         );
       }
@@ -661,7 +669,7 @@ settlement.post("/create-invoice/:payoutId", async (c) => {
         );
         return c.json(
           {
-            error: "Faktura skapades hos leverantören men kunde inte sparas. Kontakta ops.",
+            error: uiError(locale, "invoiceCreatedNotSaved"),
             invoiceId: result.externalId,
           },
           500
@@ -688,6 +696,6 @@ settlement.post("/create-invoice/:payoutId", async (c) => {
     }
   } catch (err) {
     log.error({ err }, "Invoice creation failed");
-    return c.json({ error: "Faktura kunde inte skapas" }, 500);
+    return c.json({ error: uiError(locale, "invoiceCreateFailed") }, 500);
   }
 });

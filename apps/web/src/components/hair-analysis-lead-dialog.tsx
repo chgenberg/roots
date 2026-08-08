@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { getBrowserApiBase } from "@/lib/api-base";
+import { rootsFetch } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,6 +22,10 @@ import {
   Phone,
   CheckCircle2,
 } from "lucide-react";
+import { useLocale } from "@/i18n/locale-context";
+import { marketingUi } from "@/i18n/dictionaries/marketing-ui";
+import type { HairAnalysisCopy } from "@/i18n/dictionaries/hair-analysis";
+import { LocaleLink } from "@/components/locale-link";
 
 const STEPS = [
   "gate",
@@ -34,17 +39,6 @@ const STEPS = [
 ] as const;
 type Step = (typeof STEPS)[number];
 
-const STEP_LABELS: Record<Step, string> = {
-  gate: "Kom igång",
-  intro: "Vad du får",
-  "photo-back": "Foto bakifrån",
-  "photo-top": "Foto uppifrån",
-  questions: "Dina vanor",
-  confirm: "Skicka",
-  loading: "Analyserar",
-  result: "Resultat",
-};
-
 const VISIBLE_STEPS = STEPS.filter((s) => s !== "loading" && s !== "result");
 
 const API_BASE = getBrowserApiBase();
@@ -53,7 +47,7 @@ const CONSENT_VERSION = "2026-04-02";
 let _hairCsrf: string | null = null;
 async function getHairCsrf(): Promise<string> {
   if (_hairCsrf) return _hairCsrf;
-  const r = await fetch(`${API_BASE}/v1/csrf-token`, { credentials: "include" });
+  const r = await rootsFetch(`${API_BASE}/v1/csrf-token`);
   const d = await r.json();
   _hairCsrf = d.token;
   return _hairCsrf!;
@@ -65,7 +59,7 @@ function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const r = new FileReader();
     r.onload = () => resolve(String(r.result));
-    r.onerror = () => reject(new Error("Kunde inte läsa filen"));
+    r.onerror = () => reject(new Error("FILE_READ"));
     r.readAsDataURL(file);
   });
 }
@@ -125,7 +119,20 @@ function saveDraft(state: Partial<WizardState>) {
   }
 }
 
-function ProgressBar({ current }: { current: Step }) {
+function optionLabel(
+  options: Record<string, string>,
+  value: string
+): string {
+  return options[value] ?? value;
+}
+
+function ProgressBar({
+  current,
+  t,
+}: {
+  current: Step;
+  t: HairAnalysisCopy;
+}) {
   const visibleIndex = VISIBLE_STEPS.indexOf(current as (typeof VISIBLE_STEPS)[number]);
   const idx = visibleIndex >= 0 ? visibleIndex : VISIBLE_STEPS.length;
   const total = VISIBLE_STEPS.length;
@@ -134,10 +141,12 @@ function ProgressBar({ current }: { current: Step }) {
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>{STEP_LABELS[current]}</span>
+        <span>{t.steps[current]}</span>
         {current !== "loading" && current !== "result" && (
           <span>
-            {idx + 1} av {total}
+            {t.stepOf
+              .replace("{current}", String(idx + 1))
+              .replace("{total}", String(total))}
           </span>
         )}
       </div>
@@ -156,6 +165,9 @@ export function HairAnalysisLeadDialog({
 }: {
   trigger: React.ReactNode;
 }) {
+  const { locale } = useLocale();
+  const t = marketingUi[locale].hairAnalysis;
+
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<Step>("gate");
 
@@ -271,7 +283,7 @@ export function HairAnalysisLeadDialog({
     const f = e.target.files?.[0];
     if (!f) return;
     if (f.size > 4 * 1024 * 1024) {
-      setError("Bilden får vara max 4 MB. Prova en mindre fil eller JPEG-format.");
+      setError(t.errors.imageTooLarge);
       return;
     }
     setError(null);
@@ -307,14 +319,13 @@ export function HairAnalysisLeadDialog({
       const idempotencyKey = crypto.randomUUID();
 
       const csrf = await getHairCsrf();
-      const res = await fetch(`${API_BASE}/v1/ai/hair-analysis`, {
+      const res = await rootsFetch(`${API_BASE}/v1/ai/hair-analysis`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Idempotency-Key": idempotencyKey,
           "x-csrf-token": csrf,
         },
-        credentials: "include",
         signal: controller.signal,
         body: JSON.stringify({
           consentAccepted: true,
@@ -322,6 +333,7 @@ export function HairAnalysisLeadDialog({
           email,
           newsletterConsent,
           ageConfirmed: true,
+          locale,
           backImage: backData,
           topImage: topData,
           answers: {
@@ -340,7 +352,7 @@ export function HairAnalysisLeadDialog({
       if (controller.signal.aborted) return;
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "Något gick fel");
+        throw new Error(data.error || t.errors.generic);
       }
 
       const raw = data.analysis as string;
@@ -358,7 +370,13 @@ export function HairAnalysisLeadDialog({
       if ((e as Error)?.name === "AbortError" || controller.signal.aborted) {
         return;
       }
-      setError(e instanceof Error ? e.message : "Vi kunde inte slutföra analysen just nu. Försök igen.");
+      const message =
+        e instanceof Error && e.message === "FILE_READ"
+          ? t.errors.fileRead
+          : e instanceof Error
+            ? e.message
+            : t.errors.analysisFailed;
+      setError(message);
       setStep("confirm");
     } finally {
       if (!controller.signal.aborted) setLoading(false);
@@ -391,16 +409,16 @@ export function HairAnalysisLeadDialog({
       <DialogContent className="max-h-[min(92vh,860px)] max-w-2xl overflow-hidden p-0">
         <DialogHeader className="border-b border-border px-6 pb-4 pt-6">
           <DialogTitle className="text-xl font-semibold tracking-tight">
-            Håranalys
+            {t.title}
           </DialogTitle>
           <DialogDescription className="text-sm text-muted-foreground">
-            Två bilder och några frågor — personligt resultat på under 2 minuter.
+            {t.description}
           </DialogDescription>
         </DialogHeader>
 
         <div ref={contentRef} className="overflow-y-auto px-6 pb-6">
           <div className="mb-5 mt-4">
-            <ProgressBar current={step} />
+            <ProgressBar current={step} t={t} />
           </div>
 
           {step !== "gate" && step !== "loading" && step !== "result" && (
@@ -413,7 +431,7 @@ export function HairAnalysisLeadDialog({
                 onClick={goBack}
               >
                 <ChevronLeft className="h-4 w-4" />
-                Tillbaka
+                {t.back}
               </Button>
             </div>
           )}
@@ -433,11 +451,11 @@ export function HairAnalysisLeadDialog({
               noValidate
             >
               <div className="grid gap-2">
-                <Label htmlFor="gate-email">E-postadress</Label>
+                <Label htmlFor="gate-email">{t.gate.emailLabel}</Label>
                 <Input
                   id="gate-email"
                   type="email"
-                  placeholder="namn@exempel.se"
+                  placeholder={t.gate.emailPlaceholder}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   autoFocus
@@ -451,14 +469,18 @@ export function HairAnalysisLeadDialog({
                   checked={consent}
                   onChange={(e) => setConsent(e.target.checked)}
                   className="mt-0.5 h-4 w-4 rounded border-border accent-brand-500"
-                  aria-label="Godkänn integritetspolicy"
+                  aria-label={t.gate.consentAria}
                 />
                 <span className="text-xs leading-relaxed text-muted-foreground">
-                  Jag godkänner{" "}
-                  <a href="/integritet" target="_blank" className="underline underline-offset-2 hover:text-foreground">
-                    integritetspolicyn
-                  </a>
-                  {" "}och att mina bilder analyseras av AI. Resultatet är vägledande.
+                  {t.gate.consentBefore}{" "}
+                  <LocaleLink
+                    href="/integritet"
+                    target="_blank"
+                    className="underline underline-offset-2 hover:text-foreground"
+                  >
+                    {t.gate.consentLink}
+                  </LocaleLink>{" "}
+                  {t.gate.consentAfter}
                 </span>
               </label>
 
@@ -468,7 +490,7 @@ export function HairAnalysisLeadDialog({
                 size="lg"
                 disabled={!gateReady}
               >
-                Fortsätt
+                {t.gate.continue}
               </Button>
             </form>
           )}
@@ -477,28 +499,27 @@ export function HairAnalysisLeadDialog({
           {step === "intro" && (
             <div className="space-y-6">
               <div className="space-y-4">
-                <h3 className="text-lg font-semibold">Så här fungerar det</h3>
+                <h3 className="text-lg font-semibold">{t.intro.heading}</h3>
                 <ul className="space-y-3 text-sm leading-relaxed text-muted-foreground">
                   <li className="flex items-start gap-3">
                     <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-100 text-xs font-bold text-brand-600">1</span>
-                    <span>Du laddar upp två bilder på ditt hår — bakifrån och uppifrån.</span>
+                    <span>{t.intro.step1}</span>
                   </li>
                   <li className="flex items-start gap-3">
                     <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-100 text-xs font-bold text-brand-600">2</span>
-                    <span>Du svarar på några korta frågor om dina vanor.</span>
+                    <span>{t.intro.step2}</span>
                   </li>
                   <li className="flex items-start gap-3">
                     <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-100 text-xs font-bold text-brand-600">3</span>
-                    <span>Vår AI analyserar bilderna och ger dig en personlig bedömning med livsstils-, kost- och produktrekommendationer.</span>
+                    <span>{t.intro.step3}</span>
                   </li>
                 </ul>
               </div>
               <div className="rounded-lg border border-brand-200 bg-brand-50/60 px-4 py-3 text-xs leading-relaxed text-brand-700">
-                Indikativ analys — ersätter inte professionell vård. Vid ihållande
-                besvär, kontakta en legitimerad hudläkare.
+                {t.intro.disclaimer}
               </div>
               <Button className="w-full" size="lg" onClick={() => setStep("photo-back")}>
-                Börja med första fotot
+                {t.intro.cta}
               </Button>
             </div>
           )}
@@ -506,13 +527,13 @@ export function HairAnalysisLeadDialog({
           {/* STEG 3: Foto bakifrån */}
           {step === "photo-back" && (
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold">Foto bakifrån</h3>
+              <h3 className="text-lg font-semibold">{t.photoBack.heading}</h3>
               <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
-                <p className="mb-2 font-medium text-foreground">Tips för bästa resultat:</p>
+                <p className="mb-2 font-medium text-foreground">{t.photoBack.tipsTitle}</p>
                 <ol className="list-inside list-decimal space-y-1">
-                  <li>Jämnt ljus — undvik direkt blixt som bleker håret.</li>
-                  <li>Håll kameran ca 30 cm från huvudet.</li>
-                  <li>Torrt hår utan styling ger tydligast bild.</li>
+                  <li>{t.photoBack.tip1}</li>
+                  <li>{t.photoBack.tip2}</li>
+                  <li>{t.photoBack.tip3}</li>
                 </ol>
               </div>
               <label
@@ -521,7 +542,7 @@ export function HairAnalysisLeadDialog({
               >
                 <Camera className="h-10 w-10 text-muted-foreground" />
                 <span className="text-sm font-medium">
-                  {backFile ? "Byt bild" : "Välj bild eller ta foto"}
+                  {backFile ? t.photoBack.changePhoto : t.photoBack.choosePhoto}
                 </span>
                 <input
                   id="upload-back"
@@ -530,7 +551,7 @@ export function HairAnalysisLeadDialog({
                   capture="environment"
                   className="sr-only"
                   onChange={(e) => handlePhoto(e, setBackFile, setBackPreview, backPreview)}
-                  aria-label="Ladda upp foto av hår bakifrån"
+                  aria-label={t.photoBack.uploadAria}
                 />
               </label>
               {backPreview && (
@@ -538,7 +559,7 @@ export function HairAnalysisLeadDialog({
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={backPreview}
-                    alt="Förhandsvisning bakifrån"
+                    alt={t.photoBack.previewAlt}
                     className="h-full w-full object-contain"
                   />
                 </div>
@@ -550,7 +571,7 @@ export function HairAnalysisLeadDialog({
                 disabled={!backFile}
                 onClick={() => { setError(null); setStep("photo-top"); }}
               >
-                Nästa: foto uppifrån
+                {t.photoBack.next}
               </Button>
             </div>
           )}
@@ -558,13 +579,13 @@ export function HairAnalysisLeadDialog({
           {/* STEG 4: Foto uppifrån */}
           {step === "photo-top" && (
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold">Foto uppifrån</h3>
+              <h3 className="text-lg font-semibold">{t.photoTop.heading}</h3>
               <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
-                <p className="mb-2 font-medium text-foreground">Tips:</p>
+                <p className="mb-2 font-medium text-foreground">{t.photoTop.tipsTitle}</p>
                 <ol className="list-inside list-decimal space-y-1">
-                  <li>Fotografera rakt uppifrån så hjässan och hårstrån syns.</li>
-                  <li>Samma ljusförhållanden som föregående bild.</li>
-                  <li>Inget filter — naturlig bild ger bäst analys.</li>
+                  <li>{t.photoTop.tip1}</li>
+                  <li>{t.photoTop.tip2}</li>
+                  <li>{t.photoTop.tip3}</li>
                 </ol>
               </div>
               <label
@@ -573,7 +594,7 @@ export function HairAnalysisLeadDialog({
               >
                 <Camera className="h-10 w-10 text-muted-foreground" />
                 <span className="text-sm font-medium">
-                  {topFile ? "Byt bild" : "Välj bild eller ta foto"}
+                  {topFile ? t.photoTop.changePhoto : t.photoTop.choosePhoto}
                 </span>
                 <input
                   id="upload-top"
@@ -582,7 +603,7 @@ export function HairAnalysisLeadDialog({
                   capture="user"
                   className="sr-only"
                   onChange={(e) => handlePhoto(e, setTopFile, setTopPreview, topPreview)}
-                  aria-label="Ladda upp foto av hår uppifrån"
+                  aria-label={t.photoTop.uploadAria}
                 />
               </label>
               {topPreview && (
@@ -590,7 +611,7 @@ export function HairAnalysisLeadDialog({
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={topPreview}
-                    alt="Förhandsvisning uppifrån"
+                    alt={t.photoTop.previewAlt}
                     className="h-full w-full object-contain"
                   />
                 </div>
@@ -602,7 +623,7 @@ export function HairAnalysisLeadDialog({
                 disabled={!topFile}
                 onClick={() => { setError(null); setStep("questions"); }}
               >
-                Nästa: några frågor
+                {t.photoTop.next}
               </Button>
             </div>
           )}
@@ -610,95 +631,88 @@ export function HairAnalysisLeadDialog({
           {/* STEG 5: Frågeformulär */}
           {step === "questions" && (
             <div className="space-y-5">
-              <h3 className="text-lg font-semibold">Berätta om dina vanor</h3>
+              <h3 className="text-lg font-semibold">{t.questions.heading}</h3>
 
               <div className="grid gap-2">
-                <Label>Hur ofta tvättar du håret?</Label>
+                <Label>{t.questions.washLabel}</Label>
                 <select
                   className="flex h-11 w-full rounded-lg border border-border bg-background px-3 text-sm"
                   value={washFrequency}
                   onChange={(e) => setWashFrequency(e.target.value)}
                 >
-                  <option value="dagligen">Dagligen</option>
-                  <option value="varannan-dag">Varannan dag</option>
-                  <option value="2-3">2–3 gånger per vecka</option>
-                  <option value="sallan">Sällan</option>
+                  {(Object.keys(t.questions.washOptions) as Array<keyof typeof t.questions.washOptions>).map((key) => (
+                    <option key={key} value={key}>{t.questions.washOptions[key]}</option>
+                  ))}
                 </select>
               </div>
 
               <div className="grid gap-2">
-                <Label>Hur beskriver du ditt hår?</Label>
+                <Label>{t.questions.hairTypeLabel}</Label>
                 <select
                   className="flex h-11 w-full rounded-lg border border-border bg-background px-3 text-sm"
                   value={hairType}
                   onChange={(e) => setHairType(e.target.value)}
                 >
-                  <option value="torrt">Torrt</option>
-                  <option value="normalt">Normalt</option>
-                  <option value="fett">Fett / oljigt</option>
-                  <option value="blandat">Blandat (fett vid rötterna, torrt i längderna)</option>
+                  {(Object.keys(t.questions.hairTypeOptions) as Array<keyof typeof t.questions.hairTypeOptions>).map((key) => (
+                    <option key={key} value={key}>{t.questions.hairTypeOptions[key]}</option>
+                  ))}
                 </select>
               </div>
 
               <div className="grid gap-2">
-                <Label>Hårbotten</Label>
+                <Label>{t.questions.scalpLabel}</Label>
                 <select
                   className="flex h-11 w-full rounded-lg border border-border bg-background px-3 text-sm"
                   value={scalpCondition}
                   onChange={(e) => setScalpCondition(e.target.value)}
                 >
-                  <option value="normal">Inga besvär</option>
-                  <option value="torr">Torr / stram</option>
-                  <option value="fett">Fet / oljig</option>
-                  <option value="kliar">Kliar ibland</option>
-                  <option value="flagnar">Flagnar / mjäll</option>
+                  {(Object.keys(t.questions.scalpOptions) as Array<keyof typeof t.questions.scalpOptions>).map((key) => (
+                    <option key={key} value={key}>{t.questions.scalpOptions[key]}</option>
+                  ))}
                 </select>
               </div>
 
               <div className="grid gap-2">
-                <Label>Värmeverktyg</Label>
+                <Label>{t.questions.heatLabel}</Label>
                 <select
                   className="flex h-11 w-full rounded-lg border border-border bg-background px-3 text-sm"
                   value={heatTools}
                   onChange={(e) => setHeatTools(e.target.value)}
                 >
-                  <option value="aldrig">Aldrig</option>
-                  <option value="ibland">Ibland</option>
-                  <option value="ofta">Ofta</option>
+                  {(Object.keys(t.questions.heatOptions) as Array<keyof typeof t.questions.heatOptions>).map((key) => (
+                    <option key={key} value={key}>{t.questions.heatOptions[key]}</option>
+                  ))}
                 </select>
               </div>
 
               <div className="grid gap-2">
-                <Label>Kemisk behandling</Label>
+                <Label>{t.questions.chemicalLabel}</Label>
                 <select
                   className="flex h-11 w-full rounded-lg border border-border bg-background px-3 text-sm"
                   value={chemicalTreatment}
                   onChange={(e) => setChemicalTreatment(e.target.value)}
                 >
-                  <option value="ingen">Ingen</option>
-                  <option value="farg">Färg</option>
-                  <option value="blek">Blekning</option>
-                  <option value="permanent">Permanent</option>
-                  <option value="annat">Annat / flera</option>
+                  {(Object.keys(t.questions.chemicalOptions) as Array<keyof typeof t.questions.chemicalOptions>).map((key) => (
+                    <option key={key} value={key}>{t.questions.chemicalOptions[key]}</option>
+                  ))}
                 </select>
               </div>
 
               <div className="grid gap-2">
-                <Label>Simmar du i klor- eller saltvatten?</Label>
+                <Label>{t.questions.swimLabel}</Label>
                 <select
                   className="flex h-11 w-full rounded-lg border border-border bg-background px-3 text-sm"
                   value={swimFrequency}
                   onChange={(e) => setSwimFrequency(e.target.value)}
                 >
-                  <option value="nej">Nej / sällan</option>
-                  <option value="ibland">Ibland (någon gång i månaden)</option>
-                  <option value="regelbundet">Regelbundet (varje vecka)</option>
-                  <option value="dagligen">Nästan dagligen</option>
+                  {(Object.keys(t.questions.swimOptions) as Array<keyof typeof t.questions.swimOptions>).map((key) => (
+                    <option key={key} value={key}>{t.questions.swimOptions[key]}</option>
+                  ))}
                 </select>
               </div>
 
               <div className="grid gap-2">
-                <Label>Stress och sömn (1 = låg stress, bra sömn — 5 = hög stress, dålig sömn)</Label>
+                <Label>{t.questions.stressLabel}</Label>
                 <input
                   type="range"
                   min={1}
@@ -706,29 +720,29 @@ export function HairAnalysisLeadDialog({
                   value={stressSleep}
                   onChange={(e) => setStressSleep(e.target.value)}
                   className="w-full accent-brand-500"
-                  aria-label="Stressnivå och sömnkvalitet"
+                  aria-label={t.questions.stressAria}
                 />
                 <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>1 — Lugnt</span>
-                  <span>Nivå {stressSleep}</span>
-                  <span>5 — Stressat</span>
+                  <span>{t.questions.stressLow}</span>
+                  <span>{t.questions.stressLevel.replace("{level}", stressSleep)}</span>
+                  <span>{t.questions.stressHigh}</span>
                 </div>
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="notes">Övrigt (valfritt)</Label>
+                <Label htmlFor="notes">{t.questions.notesLabel}</Label>
                 <textarea
                   id="notes"
                   rows={3}
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="T.ex. kliar hårbotten, mycket tovor, nyligen bytt schampo"
+                  placeholder={t.questions.notesPlaceholder}
                   className="flex w-full rounded-lg border border-border bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 />
               </div>
 
               <Button className="w-full" size="lg" onClick={() => setStep("confirm")}>
-                Granska och skicka
+                {t.questions.review}
               </Button>
             </div>
           )}
@@ -736,28 +750,37 @@ export function HairAnalysisLeadDialog({
           {/* STEG 6: Bekräftelse */}
           {step === "confirm" && (
             <div className="space-y-5">
-              <h3 className="text-lg font-semibold">Redo att analysera</h3>
+              <h3 className="text-lg font-semibold">{t.confirm.heading}</h3>
               <div className="grid grid-cols-2 gap-3">
                 {backPreview && (
                   <div className="overflow-hidden rounded-xl bg-muted">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={backPreview} alt="Bakifrån" className="aspect-square w-full object-cover" />
-                    <p className="px-2 py-1.5 text-center text-xs text-muted-foreground">Bakifrån</p>
+                    <img src={backPreview} alt={t.confirm.backLabel} className="aspect-square w-full object-cover" />
+                    <p className="px-2 py-1.5 text-center text-xs text-muted-foreground">{t.confirm.backLabel}</p>
                   </div>
                 )}
                 {topPreview && (
                   <div className="overflow-hidden rounded-xl bg-muted">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={topPreview} alt="Uppifrån" className="aspect-square w-full object-cover" />
-                    <p className="px-2 py-1.5 text-center text-xs text-muted-foreground">Uppifrån</p>
+                    <img src={topPreview} alt={t.confirm.topLabel} className="aspect-square w-full object-cover" />
+                    <p className="px-2 py-1.5 text-center text-xs text-muted-foreground">{t.confirm.topLabel}</p>
                   </div>
                 )}
               </div>
               <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm">
-                <p><span className="font-medium">E-post:</span> {email}</p>
-                <p><span className="font-medium">Hårtyp:</span> {hairType}</p>
-                <p><span className="font-medium">Tvättfrekvens:</span> {washFrequency}</p>
-                <p><span className="font-medium">Hårbotten:</span> {scalpCondition}</p>
+                <p><span className="font-medium">{t.confirm.email}</span> {email}</p>
+                <p>
+                  <span className="font-medium">{t.confirm.hairType}</span>{" "}
+                  {optionLabel(t.questions.hairTypeOptions, hairType)}
+                </p>
+                <p>
+                  <span className="font-medium">{t.confirm.washFrequency}</span>{" "}
+                  {optionLabel(t.questions.washOptions, washFrequency)}
+                </p>
+                <p>
+                  <span className="font-medium">{t.confirm.scalp}</span>{" "}
+                  {optionLabel(t.questions.scalpOptions, scalpCondition)}
+                </p>
               </div>
               {error && <p className="text-sm text-destructive">{error}</p>}
               <Button
@@ -766,7 +789,7 @@ export function HairAnalysisLeadDialog({
                 onClick={() => void submitAnalysis()}
                 disabled={loading}
               >
-                Starta analysen
+                {t.confirm.start}
               </Button>
             </div>
           )}
@@ -775,9 +798,9 @@ export function HairAnalysisLeadDialog({
           {step === "loading" && (
             <div className="flex flex-col items-center justify-center py-16" role="status" aria-live="polite">
               <div className="h-16 w-16 animate-spin rounded-full border-4 border-brand-200 border-t-brand-500" />
-              <p className="mt-6 text-base font-semibold">Analyserar…</p>
+              <p className="mt-6 text-base font-semibold">{t.loading.title}</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Tar vanligtvis 10–30 sekunder.
+                {t.loading.body}
               </p>
             </div>
           )}
@@ -793,18 +816,16 @@ export function HairAnalysisLeadDialog({
                   role="alert"
                   className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
                 >
-                  <p className="font-semibold">Generisk rekommendation</p>
+                  <p className="font-semibold">{t.result.fallbackTitle}</p>
                   <p className="mt-1">
-                    Vår AI-analys är tillfälligt otillgänglig — du ser därför
-                    ett allmänt råd baserat på dina svar, inte en personlig
-                    bedömning av dina bilder. Mejla{" "}
+                    {t.result.fallbackBodyBefore}{" "}
                     <a
                       href="mailto:hej@roots.se"
                       className="underline underline-offset-2"
                     >
                       hej@roots.se
                     </a>{" "}
-                    så hjälper vi dig direkt.
+                    {t.result.fallbackBodyAfter}
                   </p>
                 </div>
               )}
@@ -815,8 +836,8 @@ export function HairAnalysisLeadDialog({
                     <div>
                       <h3 className="text-lg font-semibold">
                         {isFallback
-                          ? "Allmän hårrekommendation"
-                          : "Din håranalys är klar"}
+                          ? t.result.titleFallback
+                          : t.result.titleReady}
                       </h3>
                       <p className="mt-1 text-base leading-relaxed text-muted-foreground">
                         {parsed.summary}
@@ -827,15 +848,15 @@ export function HairAnalysisLeadDialog({
                   {parsed.hairProfile && (
                     <div className="grid grid-cols-3 gap-3">
                       <div className="rounded-xl border border-border bg-brand-50/40 p-3 text-center">
-                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Struktur</p>
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t.result.profileTexture}</p>
                         <p className="mt-1 text-sm font-semibold">{parsed.hairProfile.texture}</p>
                       </div>
                       <div className="rounded-xl border border-border bg-brand-50/40 p-3 text-center">
-                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Glans</p>
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t.result.profileShine}</p>
                         <p className="mt-1 text-sm font-semibold">{parsed.hairProfile.shine}</p>
                       </div>
                       <div className="rounded-xl border border-border bg-brand-50/40 p-3 text-center">
-                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Hårbotten</p>
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t.result.profileScalp}</p>
                         <p className="mt-1 text-sm font-semibold">{parsed.hairProfile.scalpNotes}</p>
                       </div>
                     </div>
@@ -844,7 +865,7 @@ export function HairAnalysisLeadDialog({
                   {parsed.observationsFromImages && parsed.observationsFromImages.length > 0 && (
                     <div>
                       <h4 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                        Observationer från bilderna
+                        {t.result.observations}
                       </h4>
                       <ul className="mt-2 space-y-1.5 text-sm">
                         {parsed.observationsFromImages.map((o, i) => (
@@ -862,7 +883,7 @@ export function HairAnalysisLeadDialog({
                   {parsed.lifestyleTips && parsed.lifestyleTips.length > 0 && (
                     <div>
                       <h4 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                        Livsstilstips
+                        {t.result.lifestyle}
                       </h4>
                       <ul className="mt-2 space-y-1.5 text-sm">
                         {parsed.lifestyleTips.map((o, i) => (
@@ -878,7 +899,7 @@ export function HairAnalysisLeadDialog({
                   {parsed.nutritionGeneralTips && parsed.nutritionGeneralTips.length > 0 && (
                     <div>
                       <h4 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                        Kost (allmänna råd)
+                        {t.result.nutrition}
                       </h4>
                       <ul className="mt-2 space-y-1.5 text-sm">
                         {parsed.nutritionGeneralTips.map((o, i) => (
@@ -896,43 +917,43 @@ export function HairAnalysisLeadDialog({
                   {(parsed.rootsProductRecommendation || parsed.rootsProductAngle) && (
                     <div className="rounded-2xl border border-foreground/10 bg-foreground p-6 text-background">
                       <p className="text-xs font-medium uppercase tracking-widest opacity-70">
-                        Rekommenderat paket
+                        {t.result.packageLabel}
                       </p>
                       <h4 className="mt-1 text-xl font-bold">
-                        {parsed.rootsProductRecommendation?.packageName || "Roots Complete Kit"}
+                        {parsed.rootsProductRecommendation?.packageName || t.result.packageFallback}
                       </h4>
                       <p className="mt-3 text-sm leading-relaxed opacity-90">
                         {parsed.rootsProductRecommendation?.description || parsed.rootsProductAngle}
                       </p>
                       <div className="mt-5 flex flex-col gap-3 sm:flex-row">
                         <Button variant="secondary" size="lg" className="gap-2" asChild>
-                          <a href="/produkter">
+                          <LocaleLink href="/produkter">
                             <ShoppingBag className="h-4 w-4" />
-                            Se produkterna
-                          </a>
+                            {t.result.seeProducts}
+                          </LocaleLink>
                         </Button>
                         <Button variant="outline" size="lg" className="gap-2 border-background/20 text-background hover:bg-background/10" asChild>
-                          <a href="/foreningsliv">
+                          <LocaleLink href="/foreningsliv">
                             <Phone className="h-4 w-4" />
-                            Boka samtal
-                          </a>
+                            {t.result.bookCall}
+                          </LocaleLink>
                         </Button>
                       </div>
                     </div>
                   )}
 
                   <p className="text-xs leading-relaxed text-muted-foreground">
-                    {parsed.disclaimer || "Indikativ analys — ersätter inte professionell vård."}{" "}
-                    <a href="/integritet" className="underline underline-offset-2 hover:text-brand-500">
-                      Läs mer om hur vi hanterar dina uppgifter.
-                    </a>
+                    {parsed.disclaimer || t.result.disclaimerFallback}{" "}
+                    <LocaleLink href="/integritet" className="underline underline-offset-2 hover:text-brand-500">
+                      {t.result.privacyMore}
+                    </LocaleLink>
                   </p>
                 </>
               ) : (
                 <div className="space-y-4">
                   <div className="flex items-start gap-3">
                     <CheckCircle2 className="mt-0.5 h-6 w-6 shrink-0 text-brand-600" />
-                    <h3 className="text-lg font-semibold">Din håranalys är klar</h3>
+                    <h3 className="text-lg font-semibold">{t.result.titleReady}</h3>
                   </div>
                   <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-lg bg-muted p-4 text-sm">
                     {resultText}
@@ -940,7 +961,7 @@ export function HairAnalysisLeadDialog({
                 </div>
               )}
               <Button variant="secondary" className="w-full" onClick={() => setOpen(false)}>
-                Stäng
+                {t.result.close}
               </Button>
             </div>
           )}

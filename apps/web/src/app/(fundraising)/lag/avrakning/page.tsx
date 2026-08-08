@@ -1,5 +1,11 @@
 "use client";
 
+import { useLocale } from "@/i18n/locale-context";
+import { fundraisingPages } from "@/i18n/dictionaries/fundraising-pages";
+import { tFill } from "@/i18n/format";
+import { appCommon } from "@/i18n/dictionaries/app-common";
+import { LocaleLink } from "@/components/locale-link";
+
 import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LoadError } from "@/components/load-error";
@@ -18,11 +24,17 @@ import type { TeamDashboard, CustomerOrder } from "@/types/fundraising";
 import { OrderDetailDialog } from "@/components/order-detail-dialog";
 
 import { getBrowserApiBase } from "@/lib/api-base";
-import { formatKrValue } from "@/lib/format";
+import { rootsFetch } from "@/lib/api";
+import { formatKr, formatKrValue } from "@/lib/format";
 
 const API_URL = getBrowserApiBase();
 
 export default function TeamSettlementPage() {
+  const { locale, href } = useLocale();
+  const t = fundraisingPages.teamSettlement[locale];
+  const c = fundraisingPages.common[locale];
+  const dateLocale = appCommon[locale].dateLocale;
+
   const [data, setData] = useState<TeamDashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -31,26 +43,22 @@ export default function TeamSettlementPage() {
 
   const load = useCallback(async () => {
     try {
-      const myTeamRes = await fetch(`${API_URL}/v1/dashboard/my-team`, {
-        credentials: "include",
-      });
+      const myTeamRes = await rootsFetch(`${API_URL}/v1/dashboard/my-team`);
       if (!myTeamRes.ok) {
-        setError("Kunde inte hämta lagdata.");
+        setError(t.loadFailed);
         return;
       }
       const { teamId } = await myTeamRes.json();
 
-      const teamRes = await fetch(`${API_URL}/v1/dashboard/team/${teamId}`, {
-        credentials: "include",
-      });
+      const teamRes = await rootsFetch(`${API_URL}/v1/dashboard/team/${teamId}`);
       if (teamRes.ok) {
         setData(await teamRes.json());
         setError(null);
       } else {
-        setError("Kunde inte hämta lagdata.");
+        setError(t.loadFailed);
       }
     } catch {
-      setError("Ett nätverksfel uppstod.");
+      setError(c.networkError);
     } finally {
       setLoading(false);
     }
@@ -76,7 +84,7 @@ export default function TeamSettlementPage() {
     return (
       <div className="flex flex-col items-center gap-3 py-20">
         <CreditCard className="h-10 w-10 text-muted-foreground" />
-        <p className="text-sm text-muted-foreground">Inget lag hittades</p>
+        <p className="text-sm text-muted-foreground">{c.noTeamFound}</p>
       </div>
     );
   }
@@ -125,18 +133,18 @@ export default function TeamSettlementPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Avräkning</h1>
+        <h1 className="text-2xl font-bold">{t.title}</h1>
         <p className="text-sm text-muted-foreground">
-          Intjänat och betalstatus för {data.team?.name}
+          {tFill(t.subtitle, { team: data.team?.name ?? "" })}
         </p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">Total försäljning</p>
+            <p className="text-sm text-muted-foreground">{c.totalSales}</p>
             <p className="mt-1 text-2xl font-bold">
-              {formatKrValue(totalSales)} kr
+              {formatKr(totalSales, locale)}
             </p>
           </CardContent>
         </Card>
@@ -144,19 +152,24 @@ export default function TeamSettlementPage() {
           <CardContent className="p-5">
             <div className="flex items-center gap-1.5">
               <TrendingUp className="h-3.5 w-3.5 text-brand-400" />
-              <p className="text-sm text-muted-foreground">Lagets förtjänst</p>
+              <p className="text-sm text-muted-foreground">{t.teamEarnings}</p>
             </div>
             <p className="mt-1 text-2xl font-bold text-brand-700">
-              {formatKrValue(teamEarnings)} kr
+              {formatKr(teamEarnings, locale)}
             </p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {marginPercent}% av försäljningen
+              {tFill(c.ofSales, { n: marginPercent })}
             </p>
             {unverifiedEarningsOre > 0 && (
               <p className="mt-1.5 text-xs text-warning-strong">
-                Varav {formatKrValue(unverifiedEarningsOre)} kr väntar på att du
-                bekräftar {unverifiedCount}{" "}
-                {unverifiedCount === 1 ? "manuell order" : "manuella ordrar"}.
+                {tFill(t.unverifiedHint, {
+                  amount: formatKr(unverifiedEarningsOre, locale),
+                  count: unverifiedCount,
+                  orderWord:
+                    unverifiedCount === 1
+                      ? t.manualOrderOne
+                      : t.manualOrderMany,
+                })}
               </p>
             )}
           </CardContent>
@@ -165,19 +178,19 @@ export default function TeamSettlementPage() {
           <CardContent className="p-5">
             <div className="flex items-center gap-1.5">
               <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">Roots-andel</p>
+              <p className="text-sm text-muted-foreground">{t.rootsShare}</p>
             </div>
             <p className="mt-1 text-2xl font-bold">
-              {formatKrValue(rootsShare)} kr
+              {formatKr(rootsShare, locale)}
             </p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {100 - marginPercent}% av försäljningen
+              {tFill(c.ofSales, { n: 100 - marginPercent })}
             </p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">Betalda ordrar</p>
+            <p className="text-sm text-muted-foreground">{t.paidOrders}</p>
             <p className="mt-1 text-2xl font-bold">{paidOrders.length}</p>
           </CardContent>
         </Card>
@@ -188,13 +201,13 @@ export default function TeamSettlementPage() {
           <CardContent className="p-5">
             <div className="flex items-center gap-1.5 mb-1">
               <CreditCard className="h-3.5 w-3.5 text-brand-400" />
-              <p className="text-sm font-medium">Betalt via Klarna</p>
+              <p className="text-sm font-medium">{t.paidViaKlarna}</p>
             </div>
             <p className="text-xl font-bold">
-              {formatKrValue(klarnaPaidTotal)} kr
+              {formatKr(klarnaPaidTotal, locale)}
             </p>
             <p className="text-xs text-muted-foreground">
-              {klarnaOrders.length} ordrar — betalat direkt till Roots
+              {tFill(t.klarnaHint, { n: klarnaOrders.length })}
             </p>
           </CardContent>
         </Card>
@@ -202,13 +215,13 @@ export default function TeamSettlementPage() {
           <CardContent className="p-5">
             <div className="flex items-center gap-1.5 mb-1">
               <ArrowDownRight className="h-3.5 w-3.5 text-brand-500" />
-              <p className="text-sm font-medium">Betala till ansvarig</p>
+              <p className="text-sm font-medium">{t.payToLeader}</p>
             </div>
             <p className="text-xl font-bold">
-              {formatKrValue(directPaidTotal)} kr
+              {formatKr(directPaidTotal, locale)}
             </p>
             <p className="text-xs text-muted-foreground">
-              {directOrders.length} ordrar — ska samlas in
+              {tFill(t.directHint, { n: directOrders.length })}
             </p>
           </CardContent>
         </Card>
@@ -216,11 +229,11 @@ export default function TeamSettlementPage() {
           <CardContent className="p-5">
             <div className="flex items-center gap-1.5 mb-1">
               <Package className="h-3.5 w-3.5 text-muted-foreground" />
-              <p className="text-sm font-medium">Direktleveranser</p>
+              <p className="text-sm font-medium">{t.directDeliveries}</p>
             </div>
             <p className="text-xl font-bold">{directDeliveries.length}</p>
             <p className="text-xs text-muted-foreground">
-              Skickas direkt hem till kund
+              {t.directDeliveriesHint}
             </p>
           </CardContent>
         </Card>
@@ -228,12 +241,12 @@ export default function TeamSettlementPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Betalstatus per kund</CardTitle>
+          <CardTitle className="text-base">{t.paymentPerCustomer}</CardTitle>
         </CardHeader>
         <CardContent>
           {paidOrders.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-6">
-              Inga betalda ordrar ännu
+              {t.noPaidOrders}
             </p>
           ) : (
             <div className="space-y-2">
@@ -246,7 +259,7 @@ export default function TeamSettlementPage() {
                     setDetailOpen(true);
                   }}
                   className="flex w-full items-center justify-between rounded-lg border p-3 text-left transition-colors hover:bg-brand-50/60"
-                  aria-label={`Visa detaljer för order från ${order.customerName}`}
+                  aria-label={tFill(c.viewOrderDetails, { name: order.customerName })}
                 >
                   <div className="space-y-0.5">
                     <p className="text-sm font-medium">{order.customerName}</p>
@@ -260,12 +273,12 @@ export default function TeamSettlementPage() {
                         }`}
                       >
                         {order.paymentMethod === "KLARNA"
-                          ? "Betalt till Roots"
-                          : "Samlas in av ansvarig"}
+                          ? c.paidToRoots
+                          : c.collectByLeader}
                       </Badge>
                       {order.deliveryType === "DIRECT" && (
                         <Badge variant="secondary" className="text-xs">
-                          Direktleverans
+                          {c.directDelivery}
                         </Badge>
                       )}
                       {order.isManual && !order.verifiedAt && (
@@ -274,17 +287,17 @@ export default function TeamSettlementPage() {
                           className="text-xs bg-warning-surface text-warning-strong"
                         >
                           <Clock className="h-3 w-3 mr-1" />
-                          Väntar på bekräftelse
+                          {c.awaitingConfirmation}
                         </Badge>
                       )}
                     </div>
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-semibold">
-                      {formatKrValue(order.totalOre)} kr
+                      {formatKr(order.totalOre, locale)}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {new Date(order.createdAt).toLocaleDateString("sv-SE")}
+                      {new Date(order.createdAt).toLocaleDateString(dateLocale)}
                     </p>
                   </div>
                 </button>

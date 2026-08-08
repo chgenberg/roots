@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Image from "next/image";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,113 +8,107 @@ import { Separator } from "@/components/ui/separator";
 import { BreadcrumbJsonLd, ProductJsonLd } from "@/components/json-ld";
 import { ArrowLeft } from "lucide-react";
 import { Breadcrumbs } from "@/components/breadcrumbs";
-import { BUNDLE_SKU, BUNDLE_SLUG } from "@/lib/product-catalog";
+import { LocaleLink } from "@/components/locale-link";
+import { BUNDLE_SKU, BUNDLE_SLUG, productImage } from "@/lib/product-catalog";
+import { pageMetadata } from "@/lib/seo";
+import {
+  getPage,
+  getProduct,
+  isProductSlug,
+  type ProductSlug,
+} from "@/i18n/get-dictionary";
+import { getRequestLocale } from "@/i18n/request-locale";
+import { withLocale } from "@/i18n/paths";
 
-const PRODUCTS: Record<
-  string,
-  {
-    name: string;
-    /** Riktig katalog-SKU — går ut i strukturerad data, så den får inte gissas. */
-    sku: string;
-    tagline: string;
-    description: string;
-    price: string;
-    priceOre: number;
-    volume: string;
-    image: string;
-    image2: string;
-    highlights: string[];
-    /** Enskilda produkter har en INCI-lista; paketet har `contains` istället. */
-    ingredients?: string[];
-    contains?: { slug: string; label: string }[];
-  }
-> = {
-  shampoo: {
-    name: "Roots Schampoo",
-    sku: "ROOTS-SH-001",
-    tagline: "Schampo som rengör på riktigt — och lämnar hårbotten i ro",
-    description:
-      "Ett mjukt men effektivt schampo som löser smuts och fett utan att skala bort hårbottnens naturliga balans. Sockerbaserade, sulfatsnåla tvättämnen rengör skonsamt medan SyriCalm® — en forskningsförankrad nordisk aktiv av vass (Phragmites Communis) och svamp (Poria Cocos) — lugnar och stärker hårbotten. Polyquaternium reder ut och ger naturlig glans. Håret känns rent, lätt och levande, dag efter dag.",
-    price: "149 kr",
-    priceOre: 14900,
-    volume: "250 ml",
-    image: "/images/sport-schampoo.jpg",
-    image2: "/images/sport-schampoo-lifestyle.jpg",
-    highlights: ["Sulfatsnålt", "SyriCalm® – lugnar hårbotten", "Reder ut & ger glans"],
-    ingredients: [
-      "Aqua", "Coco-Glucoside", "Cocamidopropyl Betaine",
-      "Disodium Lauryl Sulfosuccinate", "Glycerin", "Sodium Chloride",
-      "PEG-4 Rapeseedamide", "Sodium Benzoate", "Citric Acid",
-      "Potassium Sorbate", "Parfum", "Polyquaternium-10", "Polyquaternium-7",
-      "Sodium Citrate", "Phragmites Communis Extract", "Poria Cocos Extract",
-      "Octadecyl Di-t-Butyl-4-Hydroxyhydrocinnamate", "Sodium Hydroxide",
-    ],
-  },
-  conditioner: {
-    name: "Roots Conditioner",
-    sku: "ROOTS-CO-001",
-    tagline: "Balsam som ger håret exakt det det behöver — inget mer, inget mindre",
-    description:
-      "Ett närande balsam som gör håret mjukt, följsamt och lätt att reda ut utan att tynga ner. Ett lätt emollient-komplex och Pro-Vitamin B5 (Panthenol) återfuktar på djupet, medan E-vitamin och antioxidanter från svartpeppar (Piper Nigrum) och Inga-bark skyddar håret mot daglig miljöstress. SyriCalm® lugnar hårbotten. Resultatet: silkeslent hår med en lyster som håller hela dagen.",
-    price: "149 kr",
-    priceOre: 14900,
-    volume: "250 ml",
-    image: "/images/sport-conditioner.jpg",
-    image2: "/images/sport-conditioner-lifestyle.jpg",
-    highlights: ["SyriCalm® & Panthenol", "E-vitamin & antioxidanter", "Närande – utan att tynga"],
-    ingredients: [
-      "Aqua", "Cetearyl Alcohol", "Caprylic/Capric Triglyceride",
-      "Distearoylethyl Hydroxyethylmonium Methosulfate",
-      "Stearamidopropyl Dimethylamine", "Phenoxyethanol", "Panthenol",
-      "Hydrolyzed Corn Starch", "Beta Vulgaris Root Extract", "Butylene Glycol",
-      "Parfum", "Citric Acid", "Benzoic Acid", "Sodium Lauroyl Lactylate",
-      "Sodium Caproyl Lactylate", "Dehydroacetic Acid", "Lactic Acid",
-      "Ethylhexylglycerin", "Sodium Citrate", "Piper Nigrum Fruit Extract",
-      "Phragmites Communis Extract", "Poria Cocos Extract", "Sodium Benzoate",
-      "Pentaerythrityl Tetra-Di-T-Butyl Hydroxyhydrocinnamate",
-      "Inga Alba Bark Extract", "Tocopherol",
-    ],
-  },
-  "body-wash": {
-    name: "Roots Body Wash",
-    sku: "ROOTS-BW-001",
-    tagline: "Body wash som respekterar huden — istället för att störa den",
-    description:
-      "En skonsam kroppstvätt med krämigt lödder som rengör utan att torka ut. Milda tvättämnen och ett Panthenol-derivat lämnar huden len och återfuktad, medan SyriCalm® — av vass (Phragmites Communis) och svamp (Poria Cocos) — lugnar och stärker hudens naturliga skyddsbarriär. Huden känns ren, mjuk och i balans efter varje dusch.",
-    price: "129 kr",
-    priceOre: 12900,
-    volume: "250 ml",
-    image: "/images/sport-body-wash.jpg",
-    image2: "/images/sport-body-wash-lifestyle.jpg",
-    highlights: ["Sulfatsnålt", "SyriCalm® – lugnar huden", "Panthenol (B5)"],
-    ingredients: [
-      "Aqua", "Cocamidopropyl Betaine", "Sodium Lauroyl Sarcosinate",
-      "Sodium Chloride", "Citric Acid", "Sodium Benzoate",
-      "Panthenyl Hydroxypropyl Steardimonium Chloride",
-      "PEG-150 Pentaerythrityl Tetrastearate", "Parfum", "Potassium Sorbate",
-      "PPG-2 Hydroxyethyl Cocamide", "Panthenol", "Sodium Citrate",
-      "Phragmites Communis Extract", "Poria Cocos Extract",
-    ],
-  },
-  [BUNDLE_SLUG]: {
-    name: "Roots Komplett paket",
-    sku: BUNDLE_SKU,
-    tagline: "Hela rutinen — schampo, balsam och kroppstvätt i ett paket",
-    description:
-      "De tre produkterna är formulerade för att användas tillsammans. Schampot rengör utan att rubba hårbottnens balans, balsamet ger tillbaka fukt och följsamhet, och kroppstvätten tar hand om huden på samma skonsamma sätt. SyriCalm® — den nordiska aktiven av vass och svamp — går igenom alla tre. Som paket kostar de 399 kr istället för 427 kr var för sig.",
-    price: "399 kr",
-    priceOre: 39900,
-    volume: "3 × 250 ml",
-    image: "/images/sport-package.jpg",
-    image2: "/images/sport-hockey.jpg",
-    highlights: ["Alla tre produkterna", "Spara 28 kr", "SyriCalm® i hela rutinen"],
-    contains: [
-      { slug: "shampoo", label: "Roots Schampoo — 250 ml" },
-      { slug: "conditioner", label: "Roots Conditioner — 250 ml" },
-      { slug: "body-wash", label: "Roots Body Wash — 250 ml" },
-    ],
-  },
+const SKU_BY_SLUG: Record<ProductSlug, string> = {
+  shampoo: "ROOTS-SH-001",
+  conditioner: "ROOTS-CO-001",
+  "body-wash": "ROOTS-BW-001",
+  [BUNDLE_SLUG]: BUNDLE_SKU,
 };
+
+const IMAGE2_BY_SLUG: Record<ProductSlug, string> = {
+  shampoo: "/images/sport-schampoo-lifestyle.jpg",
+  conditioner: "/images/sport-conditioner-lifestyle.jpg",
+  "body-wash": "/images/sport-body-wash-lifestyle.jpg",
+  [BUNDLE_SLUG]: "/images/sport-hockey.jpg",
+};
+
+const INGREDIENTS: Partial<Record<ProductSlug, string[]>> = {
+  shampoo: [
+    "Aqua",
+    "Coco-Glucoside",
+    "Cocamidopropyl Betaine",
+    "Disodium Lauryl Sulfosuccinate",
+    "Glycerin",
+    "Sodium Chloride",
+    "PEG-4 Rapeseedamide",
+    "Sodium Benzoate",
+    "Citric Acid",
+    "Potassium Sorbate",
+    "Parfum",
+    "Polyquaternium-10",
+    "Polyquaternium-7",
+    "Sodium Citrate",
+    "Phragmites Communis Extract",
+    "Poria Cocos Extract",
+    "Octadecyl Di-t-Butyl-4-Hydroxyhydrocinnamate",
+    "Sodium Hydroxide",
+  ],
+  conditioner: [
+    "Aqua",
+    "Cetearyl Alcohol",
+    "Caprylic/Capric Triglyceride",
+    "Distearoylethyl Hydroxyethylmonium Methosulfate",
+    "Stearamidopropyl Dimethylamine",
+    "Phenoxyethanol",
+    "Panthenol",
+    "Hydrolyzed Corn Starch",
+    "Beta Vulgaris Root Extract",
+    "Butylene Glycol",
+    "Parfum",
+    "Citric Acid",
+    "Benzoic Acid",
+    "Sodium Lauroyl Lactylate",
+    "Sodium Caproyl Lactylate",
+    "Dehydroacetic Acid",
+    "Lactic Acid",
+    "Ethylhexylglycerin",
+    "Sodium Citrate",
+    "Piper Nigrum Fruit Extract",
+    "Phragmites Communis Extract",
+    "Poria Cocos Extract",
+    "Sodium Benzoate",
+    "Pentaerythrityl Tetra-Di-T-Butyl Hydroxyhydrocinnamate",
+    "Inga Alba Bark Extract",
+    "Tocopherol",
+  ],
+  "body-wash": [
+    "Aqua",
+    "Cocamidopropyl Betaine",
+    "Sodium Lauroyl Sarcosinate",
+    "Sodium Chloride",
+    "Citric Acid",
+    "Sodium Benzoate",
+    "Panthenyl Hydroxypropyl Steardimonium Chloride",
+    "PEG-150 Pentaerythrityl Tetrastearate",
+    "Parfum",
+    "Potassium Sorbate",
+    "PPG-2 Hydroxyethyl Cocamide",
+    "Panthenol",
+    "Sodium Citrate",
+    "Phragmites Communis Extract",
+    "Poria Cocos Extract",
+  ],
+};
+
+function displayName(slug: ProductSlug, name: string) {
+  return slug === "shampoo" ? "Roots Schampoo" : name;
+}
+
+function formatPriceSek(priceSek: number, locale: "sv" | "en") {
+  return locale === "en" ? `SEK ${priceSek}` : `${priceSek} kr`;
+}
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -123,82 +116,88 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const product = PRODUCTS[slug];
-  if (!product) {
-    return { title: "Produkt hittades inte", robots: { index: false } };
+  const locale = await getRequestLocale();
+  if (!isProductSlug(slug)) {
+    const ui = getProduct("shampoo", locale).ui;
+    return { title: ui.notFoundTitle, robots: { index: false } };
   }
-  // MASTERPLAN_01 KC7.4 + KC7.5: canonical + per-produkt OG-image så
-  // produktdelningar i Slack/iMessage visar rätt produktbild istället
-  // för site-default. Inline:ar pageMetadata() här för att slippa
-  // import-cykel mellan PRODUCTS-data och seo-helpern.
-  return {
-    title: product.name,
+  const product = getProduct(slug, locale);
+  const name = displayName(slug, product.name);
+  return pageMetadata({
+    title: name,
     description: product.tagline,
-    alternates: { canonical: `/produkter/${slug}` },
-    openGraph: {
-      type: "website",
-      url: `/produkter/${slug}`,
-      title: product.name,
-      description: product.tagline,
-      images: [{ url: product.image, alt: product.name }],
-    },
-    twitter: {
-      card: "summary_large_image",
-      title: product.name,
-      description: product.tagline,
-      images: [product.image],
-    },
-  };
+    path: `/produkter/${slug}`,
+    locale,
+    ogImage: productImage(slug),
+  });
 }
 
 export function generateStaticParams() {
-  return Object.keys(PRODUCTS).map((slug) => ({ slug }));
+  return (["shampoo", "conditioner", "body-wash", BUNDLE_SLUG] as const).map(
+    (slug) => ({ slug })
+  );
 }
 
 export default async function ProductDetailPage({ params }: PageProps) {
   const { slug } = await params;
-  const product = PRODUCTS[slug];
-  if (!product) notFound();
+  if (!isProductSlug(slug)) notFound();
+
+  const locale = await getRequestLocale();
+  const product = getProduct(slug, locale);
+  const produkter = getPage("produkter", locale);
+  const name = displayName(slug, product.name);
+  const price = formatPriceSek(product.priceSek, locale);
+  const image = productImage(slug);
+  const image2 = IMAGE2_BY_SLUG[slug];
+  const sku = SKU_BY_SLUG[slug];
+  const ingredients = INGREDIENTS[slug];
+  const contains = product.contains?.map((item) => ({
+    ...item,
+    label:
+      item.slug === "shampoo"
+        ? item.label.replace("Roots Shampoo", "Roots Schampoo")
+        : item.label,
+  }));
 
   const siteUrl = (
     process.env.NEXT_PUBLIC_SITE_URL || "https://roots.se"
   ).replace(/\/$/, "");
-  const productUrl = `${siteUrl}/produkter/${slug}`;
+  const productUrl = `${siteUrl}${withLocale(`/produkter/${slug}`, locale)}`;
 
   const includes =
-    product.contains?.map((item) => {
-      const contained = PRODUCTS[item.slug];
+    contains?.map((item) => {
+      if (!isProductSlug(item.slug)) {
+        return {
+          name: item.label,
+          url: `${siteUrl}${withLocale(`/produkter/${item.slug}`, locale)}`,
+          sku: item.slug,
+        };
+      }
+      const contained = getProduct(item.slug, locale);
       return {
-        name: contained?.name ?? item.label,
-        url: `${siteUrl}/produkter/${item.slug}`,
-        sku: contained?.sku ?? item.slug,
+        name: displayName(item.slug, contained.name),
+        url: `${siteUrl}${withLocale(`/produkter/${item.slug}`, locale)}`,
+        sku: SKU_BY_SLUG[item.slug],
       };
     }) ?? undefined;
-
-  const category =
-    slug === "body-wash"
-      ? "Kroppsvård"
-      : slug === BUNDLE_SLUG
-        ? "Paket"
-        : "Hårvård";
 
   return (
     <>
       <BreadcrumbJsonLd
         items={[
-          { name: "Hem", url: "/" },
-          { name: "Produkter", url: "/produkter" },
-          { name: product.name, url: `/produkter/${slug}` },
+          { name: produkter.breadcrumbHome, url: withLocale("/", locale) },
+          { name: produkter.title, url: withLocale("/produkter", locale) },
+          { name, url: withLocale(`/produkter/${slug}`, locale) },
         ]}
       />
       <ProductJsonLd
-        name={product.name}
+        name={name}
         description={product.description}
-        sku={product.sku}
+        sku={sku}
         price={product.priceOre}
-        image={product.image}
+        image={image}
         url={productUrl}
-        category={category}
+        category={product.category}
         includes={includes}
       />
 
@@ -206,25 +205,25 @@ export default async function ProductDetailPage({ params }: PageProps) {
         <div className="mx-auto max-w-[1280px] px-6 md:px-10">
           <Breadcrumbs
             items={[
-              { label: "Produkter", href: "/produkter" },
-              { label: product.name },
+              { label: produkter.title, href: "/produkter" },
+              { label: name },
             ]}
           />
 
-          <Link
+          <LocaleLink
             href="/produkter"
             className="mt-4 mb-8 inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
           >
             <ArrowLeft className="h-4 w-4" />
-            Alla produkter
-          </Link>
+            {product.ui.allProducts}
+          </LocaleLink>
 
           <div className="grid gap-12 lg:grid-cols-2 lg:gap-20">
             <div className="flex flex-col gap-4">
               <div className="group relative aspect-[4/3] overflow-hidden rounded-3xl bg-brand-50 shadow-xl shadow-brand-900/5">
                 <Image
-                  src={product.image}
-                  alt={product.name}
+                  src={image}
+                  alt={name}
                   fill
                   className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.02]"
                   priority
@@ -234,8 +233,8 @@ export default async function ProductDetailPage({ params }: PageProps) {
               </div>
               <div className="group relative aspect-[3/2] overflow-hidden rounded-3xl bg-brand-50 shadow-xl shadow-brand-900/5">
                 <Image
-                  src={product.image2}
-                  alt={`${product.name} — i användning`}
+                  src={image2}
+                  alt={`${name} ${product.ui.inUseAltSuffix}`}
                   fill
                   className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.02]"
                   sizes="(max-width: 1024px) 100vw, 50vw"
@@ -245,8 +244,10 @@ export default async function ProductDetailPage({ params }: PageProps) {
             </div>
 
             <div className="flex flex-col justify-center">
-              <Badge variant="secondary" className="mb-3 w-fit">{product.volume}</Badge>
-              <h1 className="text-3xl font-bold tracking-tight">{product.name}</h1>
+              <Badge variant="secondary" className="mb-3 w-fit">
+                {product.volume}
+              </Badge>
+              <h1 className="text-3xl font-bold tracking-tight">{name}</h1>
               <p className="mt-2 text-lg text-muted-foreground">{product.tagline}</p>
               <p className="mt-6 max-w-[50ch] leading-relaxed text-muted-foreground">
                 {product.description}
@@ -254,41 +255,45 @@ export default async function ProductDetailPage({ params }: PageProps) {
 
               <div className="mt-6 flex flex-wrap gap-2">
                 {product.highlights.map((h) => (
-                  <Badge key={h} variant="outline">{h}</Badge>
+                  <Badge key={h} variant="outline">
+                    {h}
+                  </Badge>
                 ))}
               </div>
 
-              <p className="mt-8 text-3xl font-bold">{product.price}</p>
+              <p className="mt-8 text-3xl font-bold">{price}</p>
 
               <Button size="lg" pulse className="mt-6 w-fit" asChild>
-                <Link href="/foreningsliv">Beställ via din förening</Link>
+                <LocaleLink href="/foreningsliv">
+                  {product.ui.orderViaAssociation}
+                </LocaleLink>
               </Button>
 
               <Separator className="my-8" />
 
-              {/* Paketet listar sitt innehåll och länkar vidare — tre INCI-listor
-                  efter varandra hade bara varit svårlästa. */}
               <Card className="border-border/60 bg-brand-50/40 shadow-none">
                 <CardContent className="p-5">
                   <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    {product.contains ? "Detta ingår" : "Ingredienser (INCI)"}
+                    {contains
+                      ? product.ui.containsHeading
+                      : product.ui.ingredientsHeading}
                   </h2>
-                  {product.contains ? (
+                  {contains ? (
                     <ul className="mt-3 space-y-2 text-sm">
-                      {product.contains.map((item) => (
+                      {contains.map((item) => (
                         <li key={item.slug}>
-                          <Link
+                          <LocaleLink
                             href={`/produkter/${item.slug}`}
                             className="text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
                           >
                             {item.label}
-                          </Link>
+                          </LocaleLink>
                         </li>
                       ))}
                     </ul>
                   ) : (
                     <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-                      {product.ingredients?.join(", ")}
+                      {ingredients?.join(", ")}
                     </p>
                   )}
                 </CardContent>
@@ -298,18 +303,16 @@ export default async function ProductDetailPage({ params }: PageProps) {
         </div>
       </section>
 
-      {/* Sticky mobile CTA */}
-      {/* MASTERPLAN_01 KC6.2: respect iOS safe-area så home-indikatorn
-          inte täcker köp-knappen på iPhone X+. pb-[max(...)] säkerställer
-          minst 0.75rem padding på äldre enheter utan safe-area-inset. */}
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border/60 bg-background/80 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-xl lg:hidden">
         <div className="mx-auto flex max-w-[1280px] items-center justify-between gap-4">
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold">{product.name}</p>
-            <p className="text-sm text-muted-foreground">{product.price}</p>
+            <p className="truncate text-sm font-semibold">{name}</p>
+            <p className="text-sm text-muted-foreground">{price}</p>
           </div>
           <Button size="sm" className="shrink-0" asChild>
-            <Link href="/foreningsliv">Beställ via din förening</Link>
+            <LocaleLink href="/foreningsliv">
+              {product.ui.orderViaAssociation}
+            </LocaleLink>
           </Button>
         </div>
       </div>

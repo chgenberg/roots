@@ -21,9 +21,12 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import { Bell, X, Sparkles, Inbox } from "lucide-react";
 import { getBrowserApiBase } from "@/lib/api-base";
+import { rootsFetch } from "@/lib/api";
+import { LocaleLink } from "@/components/locale-link";
+import { appCommon } from "@/i18n/dictionaries/app-common";
+import { useLocale } from "@/i18n/locale-context";
 
 const API_URL = getBrowserApiBase();
 const STORAGE_KEY = "roots.notifications.lastReadAt";
@@ -51,24 +54,26 @@ function writeLastReadAt(): void {
   window.localStorage.setItem(STORAGE_KEY, new Date().toISOString());
 }
 
-function relativeTime(iso: string): string {
+function relativeTime(iso: string, locale: "sv" | "en"): string {
   const then = new Date(iso).getTime();
   if (!Number.isFinite(then)) return "";
   const seconds = Math.floor((Date.now() - then) / 1000);
-  if (seconds < 60) return "nyss";
+  if (seconds < 60) return appCommon[locale].justNow;
   const minutes = Math.floor(seconds / 60);
   if (minutes < 60) return `${minutes} min`;
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours} h`;
   const days = Math.floor(hours / 24);
   if (days < 7) return `${days} d`;
-  return new Date(iso).toLocaleDateString("sv-SE", {
+  return new Date(iso).toLocaleDateString(appCommon[locale].dateLocale, {
     month: "short",
     day: "numeric",
   });
 }
 
 export default function NotificationBell() {
+  const { locale } = useLocale();
+  const c = appCommon[locale];
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -82,9 +87,7 @@ export default function NotificationBell() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/v1/notifications`, {
-        credentials: "include",
-      });
+      const res = await rootsFetch(`${API_URL}/v1/notifications`);
       if (res.ok) {
         const j = (await res.json()) as { items: NotificationItem[] };
         setItems(j.items ?? []);
@@ -96,16 +99,12 @@ export default function NotificationBell() {
     }
   }, []);
 
-  // Initial fetch + lightweight polling. We intentionally don't use
-  // SSE/WebSocket — a 60-second refresh is plenty for the kind of
-  // events this surface shows, and avoids new infra for the demo.
   useEffect(() => {
     load();
     const id = setInterval(load, POLL_MS);
     return () => clearInterval(id);
   }, [load]);
 
-  // Close the dropdown when the user clicks anywhere outside it.
   useEffect(() => {
     if (!open) return;
     function onClick(e: MouseEvent) {
@@ -116,9 +115,6 @@ export default function NotificationBell() {
         setOpen(false);
       }
     }
-    // P3.66 (audit 2026-05-26): keyboard-användare ska kunna stänga
-    // popovern med Escape. Tidigare fanns ingen handler — bara click-
-    // outside funkade.
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") setOpen(false);
     }
@@ -139,9 +135,6 @@ export default function NotificationBell() {
     const wasOpen = open;
     setOpen(!wasOpen);
     if (!wasOpen) {
-      // Stamp the "read up to now" pointer the moment the dropdown opens.
-      // We don't wait for the user to click each row — it would be way
-      // more friction than the audit value warrants here.
       writeLastReadAt();
       setLastReadAt(Date.now());
     }
@@ -152,15 +145,13 @@ export default function NotificationBell() {
       <button
         type="button"
         onClick={handleOpen}
-        aria-label="Notifikationer"
+        aria-label={c.notifications}
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-controls="notification-bell-popover"
         className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-brand-50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <Bell className="h-4 w-4" />
-        {/* brand-600 med vit text landade på 3,97:1 — under AA för 10px.
-            brand-900/brand-50 vänder med temat och håller sig läsbar. */}
         {unreadCount > 0 && (
           <span className="absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-brand-900 px-1 text-[10px] font-bold text-brand-50">
             {unreadCount > 9 ? "9+" : unreadCount}
@@ -172,19 +163,19 @@ export default function NotificationBell() {
         <div
           id="notification-bell-popover"
           role="dialog"
-          aria-label="Notifikationer"
+          aria-label={c.notifications}
           className="absolute right-0 z-50 mt-2 w-80 max-w-[calc(100vw-2rem)] origin-top-right rounded-xl border bg-background shadow-xl"
         >
           <div className="flex items-center justify-between border-b px-4 py-3">
             <div className="flex items-center gap-2">
               <Inbox className="h-4 w-4 text-brand-600" />
-              <p className="text-sm font-semibold">Notifikationer</p>
+              <p className="text-sm font-semibold">{c.notifications}</p>
             </div>
             <button
               type="button"
               onClick={() => setOpen(false)}
               className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              aria-label="Stäng notifikationer"
+              aria-label={c.notificationsClose}
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -193,13 +184,13 @@ export default function NotificationBell() {
           <div className="max-h-96 overflow-y-auto">
             {loading && items.length === 0 ? (
               <div className="px-4 py-6 text-center text-xs text-muted-foreground">
-                Laddar…
+                {c.loading}
               </div>
             ) : items.length === 0 ? (
               <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
                 <Sparkles className="h-6 w-6 text-muted-foreground" />
                 <p className="text-xs text-muted-foreground">
-                  Inget nytt på sistone.
+                  {c.notificationsEmpty}
                 </p>
               </div>
             ) : (
@@ -228,7 +219,7 @@ export default function NotificationBell() {
                           </p>
                         )}
                         <p className="mt-1 text-[10px] uppercase tracking-wide text-muted-foreground">
-                          {relativeTime(it.createdAt)}
+                          {relativeTime(it.createdAt, locale)}
                         </p>
                       </div>
                     </div>
@@ -236,9 +227,9 @@ export default function NotificationBell() {
                   return (
                     <li key={it.id}>
                       {it.href ? (
-                        <Link href={it.href} onClick={() => setOpen(false)}>
+                        <LocaleLink href={it.href} onClick={() => setOpen(false)}>
                           {inner}
-                        </Link>
+                        </LocaleLink>
                       ) : (
                         inner
                       )}

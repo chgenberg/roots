@@ -1,9 +1,15 @@
 import { LEGAL_IDENTITY } from "@/lib/legal-identity";
+import type { Locale } from "@/i18n/config";
 
 interface OrganizationLdProps {
   name?: string;
   url?: string;
   description?: string;
+  locale?: Locale;
+}
+
+function schemaLanguage(locale: Locale = "sv"): string {
+  return locale === "en" ? "en-GB" : "sv-SE";
 }
 
 const SITE_URL = (
@@ -56,10 +62,16 @@ export function JsonLd({ data }: { data: object }) {
 export function OrganizationJsonLd({
   name = LEGAL_IDENTITY.tradingName,
   url = SITE_URL,
-  description = "Naturlig hårvård för föreningslivet i Sverige. Premiumprodukter som säljs via föreningsförsäljning.",
+  description,
+  locale = "sv",
 }: OrganizationLdProps) {
   const a = LEGAL_IDENTITY.address;
   const phone = LEGAL_IDENTITY.contact.phone;
+  const resolvedDescription =
+    description ??
+    (locale === "en"
+      ? "Natural hair care for sports clubs in Sweden. Premium products sold through club fundraising."
+      : "Naturlig hårvård för föreningslivet i Sverige. Premiumprodukter som säljs via föreningsförsäljning.");
   const jsonLd: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": "Organization",
@@ -68,7 +80,7 @@ export function OrganizationJsonLd({
     legalName: LEGAL_IDENTITY.legalName,
     url,
     logo: absoluteUrl("/brand/roots-logo-black.png"),
-    description,
+    description: resolvedDescription,
     areaServed: "SE",
     foundingDate: "2025",
     vatID: LEGAL_IDENTITY.vatId,
@@ -78,7 +90,7 @@ export function OrganizationJsonLd({
       "@type": "ContactPoint",
       contactType: "Customer Service",
       email: LEGAL_IDENTITY.contact.email,
-      availableLanguage: "Swedish",
+      availableLanguage: locale === "en" ? ["English", "Swedish"] : ["Swedish", "English"],
     },
     address: {
       "@type": "PostalAddress",
@@ -181,7 +193,7 @@ export function ProductJsonLd({
  * Organization via @id. SearchAction utelämnas tills vi har en
  * riktig sök-route (tidigare /sok → 404 i sitelink-search).
  */
-export function SiteJsonLd() {
+export function SiteJsonLd({ locale = "sv" }: { locale?: Locale }) {
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "WebSite",
@@ -189,7 +201,7 @@ export function SiteJsonLd() {
     name: LEGAL_IDENTITY.tradingName,
     alternateName: LEGAL_IDENTITY.legalName,
     url: SITE_URL,
-    inLanguage: "sv-SE",
+    inLanguage: schemaLanguage(locale),
     publisher: {
       "@id": ORG_ID,
     },
@@ -222,6 +234,7 @@ interface WebPageJsonLdProps {
   type?: "WebPage" | "AboutPage" | "ContactPage" | "CollectionPage";
   primaryImage?: string;
   speakableCssSelectors?: string[];
+  locale?: Locale;
 }
 
 export function WebPageJsonLd({
@@ -231,6 +244,7 @@ export function WebPageJsonLd({
   type = "WebPage",
   primaryImage,
   speakableCssSelectors,
+  locale = "sv",
 }: WebPageJsonLdProps) {
   const absUrl = absoluteUrl(url) ?? url;
   const jsonLd: Record<string, unknown> = {
@@ -240,7 +254,7 @@ export function WebPageJsonLd({
     name,
     description,
     url: absUrl,
-    inLanguage: "sv-SE",
+    inLanguage: schemaLanguage(locale),
     isPartOf: { "@id": WEBSITE_ID },
     about: { "@id": ORG_ID },
     publisher: { "@id": ORG_ID },
@@ -340,6 +354,7 @@ interface ArticleJsonLdProps {
   /** @deprecated Author är alltid Organization via @id; prop behålls för bakåtkompatibilitet. */
   authorName?: string;
   speakableCssSelectors?: string[];
+  locale?: Locale;
 }
 
 const DEFAULT_ARTICLE_SPEAKABLE = [
@@ -356,6 +371,7 @@ export function ArticleJsonLd({
   dateModified,
   image,
   speakableCssSelectors = DEFAULT_ARTICLE_SPEAKABLE,
+  locale = "sv",
 }: ArticleJsonLdProps) {
   const absUrl = absoluteUrl(url) ?? url;
   const jsonLd: Record<string, unknown> = {
@@ -366,7 +382,7 @@ export function ArticleJsonLd({
     url: absUrl,
     datePublished,
     dateModified: dateModified ?? datePublished,
-    inLanguage: "sv-SE",
+    inLanguage: schemaLanguage(locale),
     author: {
       "@type": "Organization",
       "@id": ORG_ID,

@@ -1,5 +1,12 @@
 "use client";
 
+import { useLocale } from "@/i18n/locale-context";
+import { fundraisingPages } from "@/i18n/dictionaries/fundraising-pages";
+import { appCommon } from "@/i18n/dictionaries/app-common";
+import { tFill } from "@/i18n/format";
+import { LocaleLink } from "@/components/locale-link";
+import { formatKr } from "@/lib/format";
+
 /**
  * Seller order history — Sprint E10.
  *
@@ -13,7 +20,6 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { LoadError } from "@/components/load-error";
@@ -33,6 +39,7 @@ import { useToast } from "@/components/ui/toast";
 import { countsAsRevenue } from "@roots/contracts";
 import type { SellerDashboard as SellerDashboardData } from "@/types/fundraising";
 import { getBrowserApiBase } from "@/lib/api-base";
+import { rootsFetch } from "@/lib/api";
 import { OrderDetailDialog } from "@/components/order-detail-dialog";
 import { orderStatusColor, orderStatusLabel } from "@/lib/order-status";
 
@@ -40,16 +47,13 @@ const API_URL = getBrowserApiBase();
 
 type SellerOrder = SellerDashboardData["orders"][number];
 
-function formatSek(ore: number): string {
-  return `${(ore / 100).toLocaleString("sv-SE", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  })} kr`;
+function formatSek(ore: number, locale: "sv" | "en"): string {
+  return formatKr(ore, locale);
 }
 
-function formatDate(iso: string): string {
+function formatDate(iso: string, dateLocale: string): string {
   try {
-    return new Date(iso).toLocaleDateString("sv-SE", {
+    return new Date(iso).toLocaleDateString(dateLocale, {
       year: "numeric",
       month: "short",
       day: "numeric",
@@ -60,6 +64,10 @@ function formatDate(iso: string): string {
 }
 
 export default function SellerOrdersPage() {
+  const { locale, href } = useLocale();
+  const t = fundraisingPages.myShopOrders[locale];
+  const c = fundraisingPages.common[locale];
+  const dateLocale = appCommon[locale].dateLocale;
   const [data, setData] = useState<SellerDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -85,16 +93,14 @@ export default function SellerOrdersPage() {
   const load = useCallback(async () => {
     setError(null);
     try {
-      const res = await fetch(`${API_URL}/v1/dashboard/seller`, {
-        credentials: "include",
-      });
+      const res = await rootsFetch(`${API_URL}/v1/dashboard/seller`);
       if (res.ok) {
         setData(await res.json());
       } else {
-        setError("Kunde inte hämta dina beställningar.");
+        setError(t.loadFailed);
       }
     } catch {
-      setError("Nätverksfel.");
+      setError(c.networkErrorShort);
     } finally {
       setLoading(false);
     }
@@ -139,14 +145,14 @@ export default function SellerOrdersPage() {
 
   function exportCsv() {
     if (sortedFiltered.length === 0) {
-      toast("Inga rader att exportera.", "error");
+      toast(t.nothingToExport, "error");
       return;
     }
-    const header = "datum;kund;status;belopp_kr\n";
+    const header = `${t.csvHeader}\n`;
     const rows = sortedFiltered
       .map((o: SellerOrder) => {
         const day = o.createdAt.slice(0, 10);
-        const safeName = (o.customerName || "Okänd").replace(/[;"\n\r]/g, " ");
+        const safeName = (o.customerName || c.unknown).replace(/[;"\n\r]/g, " ");
         const kr = (o.totalOre / 100).toFixed(2).replace(".", ",");
         return `${day};${safeName};${o.status};${kr}`;
       })
@@ -157,7 +163,7 @@ export default function SellerOrdersPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `mina-bestallningar-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `${t.csvFilename}-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -178,37 +184,37 @@ export default function SellerOrdersPage() {
     <div className="page-enter space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <Link
+          <LocaleLink
             href="/min-shop"
             className="mb-2 inline-flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
-            Tillbaka till min shop
-          </Link>
-          <h1 className="text-2xl font-bold">Mina beställningar</h1>
+            {t.back}
+          </LocaleLink>
+          <h1 className="text-2xl font-bold">{t.title}</h1>
           <p className="text-sm text-muted-foreground">
-            Fullständig historik över alla dina kundbeställningar
+            {t.subtitle}
           </p>
         </div>
         <Button variant="outline" onClick={exportCsv}>
           <Download className="mr-2 h-4 w-4" />
-          Exportera CSV
+          {t.export}
         </Button>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Card>
           <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">Visade beställningar</p>
+            <p className="text-sm text-muted-foreground">{t.shownOrders}</p>
             <p className="mt-1 text-2xl font-bold">{orderCount}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-5">
             <p className="text-sm text-muted-foreground">
-              Belopp (betalda i urvalet)
+              {t.paidInSelection}
             </p>
-            <p className="mt-1 text-2xl font-bold">{formatSek(totalOre)}</p>
+            <p className="mt-1 text-2xl font-bold">{formatSek(totalOre, locale)}</p>
           </CardContent>
         </Card>
       </div>
@@ -217,25 +223,25 @@ export default function SellerOrdersPage() {
         <CardContent className="p-5">
           <div className="mb-4 flex items-center gap-2 text-sm font-medium">
             <Filter className="h-4 w-4 text-brand-500" />
-            Filter
+            {t.filters}
           </div>
           <div className="grid gap-4 sm:grid-cols-3">
             <div>
-              <Label htmlFor="statusFilter">Status</Label>
+              <Label htmlFor="statusFilter">{t.status}</Label>
               <select
                 id="statusFilter"
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
-                <option value="ALL">Alla statusar</option>
-                <option value="PAID">Betald</option>
-                <option value="PENDING">Avvaktar</option>
-                <option value="CANCELLED">Avbruten</option>
+                <option value="ALL">{t.allStatuses}</option>
+                <option value="PAID">{fundraisingPages.orderStatus[locale].PAID}</option>
+                <option value="PENDING">{t.pendingShort}</option>
+                <option value="CANCELLED">{fundraisingPages.orderStatus[locale].CANCELLED}</option>
               </select>
             </div>
             <div>
-              <Label htmlFor="fromDate">Från datum</Label>
+              <Label htmlFor="fromDate">{t.from}</Label>
               <Input
                 id="fromDate"
                 type="date"
@@ -244,7 +250,7 @@ export default function SellerOrdersPage() {
               />
             </div>
             <div>
-              <Label htmlFor="toDate">Till datum</Label>
+              <Label htmlFor="toDate">{t.to}</Label>
               <Input
                 id="toDate"
                 type="date"
@@ -264,7 +270,7 @@ export default function SellerOrdersPage() {
                 setToDate("");
               }}
             >
-              Rensa filter
+              {t.clearFilters}
             </Button>
           )}
         </CardContent>
@@ -276,8 +282,8 @@ export default function SellerOrdersPage() {
             <ShoppingBag className="h-10 w-10 text-muted-foreground" />
             <p className="text-sm text-muted-foreground">
               {orders.length === 0
-                ? "Du har inga beställningar ännu. Dela din shop för att komma igång!"
-                : "Inga beställningar matchar valda filter."}
+                ? t.empty
+                : t.emptyFiltered}
             </p>
           </CardContent>
         </Card>
@@ -293,14 +299,16 @@ export default function SellerOrdersPage() {
                     type="button"
                     onClick={() => openOrderDetail(o.id)}
                     className="flex w-full flex-wrap items-center justify-between gap-3 p-4 text-left transition-colors hover:bg-brand-50/50 focus-visible:outline-none focus-visible:bg-brand-50"
-                    aria-label={`Visa detaljer för order från ${o.customerName || "okänd kund"}`}
+                    aria-label={tFill(c.viewOrderDetails, {
+                      name: o.customerName || c.unknownCustomer,
+                    })}
                   >
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">
-                        {o.customerName || "Okänd kund"}
+                        {o.customerName || c.unknownCustomer}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {formatDate(o.createdAt)}
+                        {formatDate(o.createdAt, dateLocale)}
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-1.5">
@@ -308,7 +316,7 @@ export default function SellerOrdersPage() {
                         variant="outline"
                         className={`text-[10px] uppercase tracking-wide ${statusClass}`}
                       >
-                        {orderStatusLabel(o.status)}
+                        {orderStatusLabel(o.status, locale)}
                       </Badge>
                       {/* En egen registrerad order syns i statistiken men
                           betalas inte ut förrän lagledaren bekräftat den.
@@ -319,12 +327,12 @@ export default function SellerOrdersPage() {
                           className="border-warning-edge bg-warning-surface text-[10px] text-warning-strong"
                         >
                           <Clock className="mr-1 h-3 w-3" />
-                          Väntar på lagledaren
+                          {t.awaitingLeader}
                         </Badge>
                       )}
                     </div>
                     <p className="text-sm font-semibold whitespace-nowrap">
-                      {formatSek(o.totalOre)}
+                      {formatSek(o.totalOre, locale)}
                     </p>
                     <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
                   </button>

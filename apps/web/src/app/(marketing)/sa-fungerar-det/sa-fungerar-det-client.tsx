@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import type { CalculatorInputs, CalculatorResult } from "@roots/contracts";
 import { RevenueCalculator } from "@/components/calculator/revenue-calculator";
 import { Card, CardContent } from "@/components/ui/card";
@@ -9,72 +8,23 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { LocaleLink } from "@/components/locale-link";
 import { apiFetch } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useLocale } from "@/i18n/locale-context";
+import type { Locale } from "@/i18n/config";
+import { pages } from "@/i18n/dictionaries/pages";
 import { ArrowRight, CheckCircle2, Sparkles, Play } from "lucide-react";
 
-interface DemoStep {
-  id: string;
-  tab: string;
-  eyebrow: string;
-  title: string;
-  description: string;
-  bullets: string[];
-  video: string;
-  poster: string;
-}
+type SaCopy = (typeof pages.saFungerarDet)[Locale];
+type DemoStep = SaCopy["steps"][number];
 
-// Filmerna är de inspelade demo-klippen (telefon-i-hand, 9:16) som
-// ligger i /public/demo. Varje klipp visar hur enkelt ett steg är.
-const STEPS: DemoStep[] = [
-  {
-    id: "forening",
-    tab: "Föreningen",
-    eyebrow: "Steg 1",
-    title: "Föreningen kommer igång",
-    description:
-      "Föreningsansvarig loggar in, sätter ett mål och öppnar en säljperiod. Allt syns live i dashboarden — ni ser exakt hur långt ni har kvar.",
-    bullets: [
-      "Sätt mål per lag och per säljare",
-      "Skapa säljperioder med start- och slutdatum",
-      "Följ försäljningen i realtid mot målet",
-    ],
-    video: "/demo/forening.mp4",
-    poster: "/demo/forening-poster.jpg",
-  },
-  {
-    id: "lag",
-    tab: "Lagledaren",
-    eyebrow: "Steg 2",
-    title: "Lagledaren bjuder in laget",
-    description:
-      "Tränaren eller föräldragruppen skickar en registreringslänk till spelarna och peppar laget via topplistan — utan att hålla i någon pärm.",
-    bullets: [
-      "Bjud in hela laget med en länk",
-      "Topplista som driver lite vänskaplig tävling",
-      "Chatt och uppföljning på ett ställe",
-    ],
-    video: "/demo/lag.mp4",
-    poster: "/demo/lag-poster.jpg",
-  },
-  {
-    id: "seller",
-    tab: "Medlemmen",
-    eyebrow: "Steg 3",
-    title: "Medlemmen säljer",
-    description:
-      "Spelaren får sin egen personliga shop-länk. Hen delar den med släkt och vänner — som handlar med Swish eller kort på några sekunder.",
-    bullets: [
-      "Egen personlig webshop-sida",
-      "Dela via SMS, sociala medier eller QR-kod",
-      "Swish och kort direkt i mobilen",
-    ],
-    video: "/demo/seller.mp4",
-    poster: "/demo/seller-poster.jpg",
-  },
-];
+const STEP_MEDIA: Record<string, { video: string; poster: string }> = {
+  forening: { video: "/demo/forening.mp4", poster: "/demo/forening-poster.jpg" },
+  lag: { video: "/demo/lag.mp4", poster: "/demo/lag-poster.jpg" },
+  seller: { video: "/demo/seller.mp4", poster: "/demo/seller-poster.jpg" },
+};
 
-// Telefon-inramad film (9:16) med mjuk glöd — matchar demo-sektionen.
 function PhoneFilm({
   src,
   poster,
@@ -106,12 +56,18 @@ function PhoneFilm({
   );
 }
 
-function DemoFilms() {
+function DemoFilms({
+  steps,
+  roleTablistLabel,
+}: {
+  steps: readonly DemoStep[];
+  roleTablistLabel: string;
+}) {
   const [active, setActive] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const step = STEPS[active];
+  const step = steps[active];
+  const media = STEP_MEDIA[step.id] ?? STEP_MEDIA.forening;
 
-  // Starta om klippet när man byter flik så det alltid spelar från början.
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
@@ -123,7 +79,6 @@ function DemoFilms() {
 
   return (
     <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
-      {/* Telefon-film */}
       <div className="order-2 lg:order-1">
         <div className="relative mx-auto w-full max-w-[320px]">
           <div
@@ -135,8 +90,8 @@ function DemoFilms() {
               ref={videoRef}
               key={step.id}
               className="aspect-[9/16] w-full bg-brand-50 object-cover"
-              poster={step.poster}
-              src={step.video}
+              poster={media.poster}
+              src={media.video}
               muted
               playsInline
               autoPlay
@@ -147,14 +102,13 @@ function DemoFilms() {
         </div>
       </div>
 
-      {/* Beskrivning + flikar */}
       <div className="order-1 lg:order-2">
         <div
           role="tablist"
-          aria-label="Välj roll"
+          aria-label={roleTablistLabel}
           className="inline-flex flex-wrap gap-1 rounded-full border border-border bg-background/60 p-1"
         >
-          {STEPS.map((s, i) => (
+          {steps.map((s, i) => (
             <button
               key={s.id}
               role="tab"
@@ -197,7 +151,7 @@ function DemoFilms() {
   );
 }
 
-function CalculatorBlock() {
+function CalculatorBlock({ copy }: { copy: SaCopy }) {
   const [inputs, setInputs] = useState<CalculatorInputs | null>(null);
   const [products, setProducts] = useState<
     { name: string; priceOre: number }[]
@@ -241,7 +195,7 @@ function CalculatorBlock() {
     e.preventDefault();
     if (!inputs) return;
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setError("Ange en giltig e-postadress.");
+      setError(copy.leadErrorInvalidEmail);
       return;
     }
     setError(null);
@@ -263,14 +217,17 @@ function CalculatorBlock() {
       if (ok) {
         setSent(true);
       } else {
-        setError(data?.error || "Något gick fel. Försök igen.");
+        setError(data?.error || copy.leadErrorGeneric);
       }
     } catch {
-      setError("Något gick fel. Försök igen.");
+      setError(copy.leadErrorGeneric);
     } finally {
       setSending(false);
     }
   }
+
+  const linkWord = copy.leadConsentPrivacyLink;
+  const consentIdx = copy.leadConsent.indexOf(linkWord);
 
   return (
     <>
@@ -285,52 +242,48 @@ function CalculatorBlock() {
           {sent ? (
             <div className="flex flex-col items-center gap-3 py-6 text-center">
               <CheckCircle2 className="h-10 w-10 text-brand-600" />
-              <h3 className="text-xl font-bold">Tack!</h3>
+              <h3 className="text-xl font-bold">{copy.leadThanksTitle}</h3>
               <p className="max-w-md text-sm text-muted-foreground">
-                Vi hör av oss med en sammanfattning och hjälper er igång. Under
-                tiden kan du fortsätta räkna ovan.
+                {copy.leadThanksBody}
               </p>
             </div>
           ) : (
             <>
-              <h3 className="text-xl font-bold">
-                Vill ni se vad det skulle ge er förening?
-              </h3>
+              <h3 className="text-xl font-bold">{copy.leadTitle}</h3>
               <p className="mt-1 text-sm text-muted-foreground">
-                Lämna er mejl så skickar vi en sammanfattning och hjälper er
-                igång. Inga förpliktelser.
+                {copy.leadBody}
               </p>
               <form
                 onSubmit={submitLead}
                 className="mt-5 grid gap-4 sm:grid-cols-2"
               >
                 <div className="space-y-1.5">
-                  <Label htmlFor="lead-email">E-post *</Label>
+                  <Label htmlFor="lead-email">{copy.leadEmailLabel}</Label>
                   <Input
                     id="lead-email"
                     type="email"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="namn@forening.se"
+                    placeholder={copy.leadEmailPlaceholder}
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="lead-name">Namn (valfritt)</Label>
+                  <Label htmlFor="lead-name">{copy.leadNameLabel}</Label>
                   <Input
                     id="lead-name"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="Ditt namn"
+                    placeholder={copy.leadNamePlaceholder}
                   />
                 </div>
                 <div className="space-y-1.5 sm:col-span-2">
-                  <Label htmlFor="lead-msg">Meddelande (valfritt)</Label>
+                  <Label htmlFor="lead-msg">{copy.leadMessageLabel}</Label>
                   <Input
                     id="lead-msg"
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
-                    placeholder="Berätta gärna lite om er förening"
+                    placeholder={copy.leadMessagePlaceholder}
                     maxLength={2000}
                   />
                 </div>
@@ -342,15 +295,20 @@ function CalculatorBlock() {
                     className="mt-0.5 h-4 w-4 accent-[#6B794F]"
                   />
                   <span>
-                    Ja, ni får mejla mig om Roots för föreningar. Vi hanterar
-                    uppgifterna enligt vår{" "}
-                    <Link
-                      href="/integritet"
-                      className="underline underline-offset-2"
-                    >
-                      integritetspolicy
-                    </Link>
-                    .
+                    {consentIdx === -1 ? (
+                      copy.leadConsent
+                    ) : (
+                      <>
+                        {copy.leadConsent.slice(0, consentIdx)}
+                        <LocaleLink
+                          href="/integritet"
+                          className="underline underline-offset-2"
+                        >
+                          {linkWord}
+                        </LocaleLink>
+                        {copy.leadConsent.slice(consentIdx + linkWord.length)}
+                      </>
+                    )}
                   </span>
                 </label>
                 {error && (
@@ -360,7 +318,7 @@ function CalculatorBlock() {
                 )}
                 <div className="sm:col-span-2">
                   <Button type="submit" disabled={sending} size="lg">
-                    {sending ? "Skickar…" : "Skicka till mig"}
+                    {sending ? copy.leadSubmitting : copy.leadSubmit}
                   </Button>
                 </div>
               </form>
@@ -373,9 +331,11 @@ function CalculatorBlock() {
 }
 
 export function SaFungerarDetClient() {
+  const { locale } = useLocale();
+  const t = pages.saFungerarDet[locale];
+
   return (
     <>
-      {/* Hero */}
       <section className="relative overflow-hidden bg-brand-50/40 py-20 md:py-28">
         <div
           className="pointer-events-none absolute -top-16 right-[8%] h-48 w-48 rounded-full border border-brand-200/30 animate-float motion-reduce:animate-none"
@@ -383,76 +343,64 @@ export function SaFungerarDetClient() {
         />
         <div className="mx-auto max-w-[760px] px-6 text-center md:px-10">
           <Badge variant="secondary" className="mb-4">
-            För föreningar
+            {t.badge}
           </Badge>
           <h1 className="text-[length:var(--font-size-hero)] font-bold leading-[1.05] tracking-tight">
-            Så fungerar det
+            {t.heroTitle}
           </h1>
           <p className="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-muted-foreground">
-            Tre enkla steg — från att föreningen kommer igång till att medlemmen
-            säljer i mobilen. Se hur det går till och räkna ut vad det kan ge er
-            förening.
+            {t.heroBody}
           </p>
           <div className="mt-10 flex flex-wrap justify-center gap-4">
             <Button size="lg" asChild>
               <a href="#rakna">
-                Räkna på er förtjänst
+                {t.ctaCalc}
                 <ArrowRight className="ml-1 h-4 w-4" />
               </a>
             </Button>
             <Button variant="secondary" size="lg" asChild>
-              <Link href="/kontakt?intent=demo">Boka en demo</Link>
+              <LocaleLink href="/kontakt?intent=demo">{t.ctaDemo}</LocaleLink>
             </Button>
           </div>
         </div>
       </section>
 
-      {/* Filmerna — tre steg */}
       <section className="py-20 md:py-28">
         <div className="mx-auto max-w-[1280px] px-6 md:px-10">
           <div className="mx-auto mb-14 max-w-xl text-center">
             <p className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-700">
               <Sparkles className="h-4 w-4" />
-              Se det i praktiken
+              {t.demoEyebrow}
             </p>
             <h2 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
-              Enkelt för alla — i varje steg
+              {t.demoTitle}
             </h2>
-            <p className="mt-3 text-muted-foreground">
-              Byt mellan rollerna och se hur lätt det är. Inga pärmar, inga
-              kontanter — allt sker i mobilen.
-            </p>
+            <p className="mt-3 text-muted-foreground">{t.demoSubtitle}</p>
           </div>
-          <DemoFilms />
+          <DemoFilms steps={t.steps} roleTablistLabel={t.roleTablistLabel} />
         </div>
       </section>
 
-      {/* Kalkylator */}
       <section id="rakna" className="scroll-mt-24 bg-brand-50/40 py-20 md:py-28">
         <div className="mx-auto max-w-[1100px] px-6 md:px-10">
-          {/* Titta & prova: film till vänster, intro + reglage nedanför */}
           <div className="mb-14 grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
             <div className="order-2 lg:order-1">
-              <PhoneFilm src="/demo/kalkylator.mp4" poster="/demo/kalkylator-poster.jpg" />
+              <PhoneFilm
+                src="/demo/kalkylator.mp4"
+                poster="/demo/kalkylator-poster.jpg"
+              />
             </div>
             <div className="order-1 lg:order-2">
               <p className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-700">
                 <Sparkles className="h-4 w-4" />
-                Räkna på er förtjänst
+                {t.calcEyebrow}
               </p>
               <h2 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
-                Vad kan er förening tjäna?
+                {t.calcTitle}
               </h2>
-              <p className="mt-3 max-w-md text-muted-foreground">
-                Se hur enkelt det är att räkna — och prova själv direkt nedan.
-                Dra i reglagen så uppdateras förtjänsten i realtid.
-              </p>
+              <p className="mt-3 max-w-md text-muted-foreground">{t.calcBody}</p>
               <ul className="mt-6 space-y-3">
-                {[
-                  "Justera antal säljare och snittförsäljning",
-                  "Se förtjänsten och hur långt ni når mot målet",
-                  "Dela resultatet — vi hjälper er igång",
-                ].map((b) => (
+                {t.calcBullets.map((b) => (
                   <li key={b} className="flex items-start gap-3 text-sm">
                     <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-brand-600" />
                     <span>{b}</span>
@@ -460,12 +408,12 @@ export function SaFungerarDetClient() {
                 ))}
               </ul>
               <p className="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-brand-700">
-                Prova själv nedan
+                {t.calcTryBelow}
                 <ArrowRight className="h-4 w-4" />
               </p>
             </div>
           </div>
-          <CalculatorBlock />
+          <CalculatorBlock copy={t} />
         </div>
       </section>
     </>

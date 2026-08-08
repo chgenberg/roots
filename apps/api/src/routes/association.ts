@@ -17,10 +17,7 @@
 import { Hono } from "hono";
 import { eq, and, sql, gt, isNull, inArray } from "drizzle-orm";
 import { REVENUE_ORDER_STATUSES } from "@roots/contracts";
-import {
-  isOrgApprovedForPublicSales,
-  ORG_NOT_APPROVED_MESSAGE,
-} from "../lib/org-approval";
+import { isOrgApprovedForPublicSales } from "../lib/org-approval";
 import { hash } from "@node-rs/argon2";
 import { randomBytes } from "crypto";
 import { db } from "@roots/db";
@@ -44,7 +41,9 @@ import { getEmailSender } from "../lib/email";
 import {
   teamLeaderInviteEmail,
   teamLeaderClaimedEmail,
+  withLocalePath,
 } from "../lib/email/templates";
+import { resolveUiLocale, uiError } from "../lib/ui-locale";
 
 const SITE_URL = (
   process.env.NEXT_PUBLIC_SITE_URL ||
@@ -98,13 +97,14 @@ function generateToken(): string {
  */
 association.get("/onboarding-status", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
-  if (!session.orgId) return c.json({ error: "Ingen organisation" }, 403);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
+  if (!session.orgId) return c.json({ error: uiError(locale, "noOrganisation") }, 403);
   if (
     session.role !== "ASSOCIATION_ADMIN" &&
     session.role !== "INTERNAL_ADMIN"
   ) {
-    return c.json({ error: "Behörighet saknas" }, 403);
+    return c.json({ error: uiError(locale, "permissionDenied") }, 403);
   }
 
   try {
@@ -122,7 +122,7 @@ association.get("/onboarding-status", async (c) => {
       .where(eq(organizations.id, orgId))
       .limit(1);
 
-    if (!org) return c.json({ error: "Organisation hittades inte." }, 404);
+    if (!org) return c.json({ error: uiError(locale, "organisationNotFoundPeriod") }, 404);
 
     // count() returnerar [{ c: <num> }] — vi använder `sql<number>` så
     // typen blir korrekt utan en explicit cast.
@@ -254,7 +254,7 @@ association.get("/onboarding-status", async (c) => {
     });
   } catch (err) {
     log.error({ err, orgId: session.orgId }, "onboarding-status failed");
-    return c.json({ error: "Kunde inte hämta onboarding-status." }, 500);
+    return c.json({ error: uiError(locale, "couldNotFetchOnboarding") }, 500);
   }
 });
 
@@ -297,14 +297,15 @@ async function ensureUniqueSlug(base: string): Promise<string> {
  */
 association.post("/team-invites", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
-  if (!session.orgId) return c.json({ error: "Ingen organisation" }, 403);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
+  if (!session.orgId) return c.json({ error: uiError(locale, "noOrganisation") }, 403);
   if (session.role !== "ASSOCIATION_ADMIN" && session.role !== "INTERNAL_ADMIN") {
-    return c.json({ error: "Behörighet saknas" }, 403);
+    return c.json({ error: uiError(locale, "permissionDenied") }, 403);
   }
   // P3.29 (audit 2026-05-26): demo-konton ska inte muta:a DB.
   if (isDemoSession(session)) {
-    return c.json({ error: "Demo-konton kan inte skapa inbjudningar." }, 403);
+    return c.json({ error: uiError(locale, "demoCannotCreateInvites") }, 403);
   }
 
   type Body = {
@@ -317,21 +318,22 @@ association.post("/team-invites", async (c) => {
   try {
     body = await c.req.json<Body>();
   } catch {
-    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+    return c.json({ error: uiError(locale, "invalidJson") }, 400);
   }
+  locale = resolveUiLocale(c, (body as { locale?: unknown }).locale);
 
   const campaignId = (body.campaignId ?? "").trim();
   const teamName = (body.teamName ?? "").trim();
   const invitedEmail = body.invitedEmail?.trim().toLowerCase() || null;
 
   if (!/^[0-9a-f-]{36}$/i.test(campaignId)) {
-    return c.json({ error: "Ogiltigt kampanj-ID." }, 400);
+    return c.json({ error: uiError(locale, "invalidCampaignId") }, 400);
   }
   if (!teamName || teamName.length < 2 || teamName.length > 255) {
-    return c.json({ error: "Lagnamn måste vara 2–255 tecken." }, 400);
+    return c.json({ error: uiError(locale, "teamNameLength") }, 400);
   }
   if (invitedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(invitedEmail)) {
-    return c.json({ error: "Ogiltig e-postadress." }, 400);
+    return c.json({ error: uiError(locale, "invalidEmail") }, 400);
   }
 
   try {
@@ -341,12 +343,12 @@ association.post("/team-invites", async (c) => {
       .from(campaigns)
       .where(eq(campaigns.id, campaignId))
       .limit(1);
-    if (!campaign) return c.json({ error: "Kampanjen hittades inte." }, 404);
+    if (!campaign) return c.json({ error: uiError(locale, "campaignNotFoundPeriod") }, 404);
     if (
       session.role !== "INTERNAL_ADMIN" &&
       campaign.orgId !== session.orgId
     ) {
-      return c.json({ error: "Behörighet saknas" }, 403);
+      return c.json({ error: uiError(locale, "permissionDenied") }, 403);
     }
 
     const token = generateToken();
@@ -401,20 +403,21 @@ association.post("/team-invites", async (c) => {
         const inviterName =
           inviter?.contactName ||
           inviter?.email?.split("@")[0] ||
-          "Föreningsadmin";
+          (locale === "en" ? "Club admin" : "Föreningsadmin");
 
-        const inviteUrl = `${SITE_URL}/registrera/lagansvarig/${invite.token}`;
+        const inviteUrl = `${SITE_URL}${withLocalePath(`/registrera/lagansvarig/${invite.token}`, locale)}`;
 
         void getEmailSender()
           .sendEmail({
             to: invitedEmail,
             ...teamLeaderInviteEmail({
               inviterName,
-              orgName: org?.name ?? "föreningen",
+              orgName: org?.name ?? (locale === "en" ? "the club" : "föreningen"),
               campaignName: campaign.name,
               teamName: invite.teamName,
               inviteUrl,
               expiresAt: invite.expiresAt,
+              locale,
             }),
           })
           .catch((err) =>
@@ -439,7 +442,7 @@ association.post("/team-invites", async (c) => {
     );
   } catch (err) {
     log.error({ err }, "team invite create failed");
-    return c.json({ error: "Kunde inte skapa inbjudan just nu." }, 500);
+    return c.json({ error: uiError(locale, "couldNotCreateInvite") }, 500);
   }
 });
 
@@ -450,9 +453,10 @@ association.post("/team-invites", async (c) => {
  * Returns 404 if expired, used, or unknown — we don't leak why.
  */
 association.get("/team-invites/:token", async (c) => {
+  const locale = resolveUiLocale(c);
   const token = c.req.param("token");
   if (!token || token.length < 16 || token.length > 64) {
-    return c.json({ error: "Inbjudan hittades inte." }, 404);
+    return c.json({ error: uiError(locale, "inviteNotFound") }, 404);
   }
 
   try {
@@ -462,11 +466,11 @@ association.get("/team-invites/:token", async (c) => {
       .where(eq(teamInvites.token, token))
       .limit(1);
 
-    if (!invite) return c.json({ error: "Inbjudan hittades inte." }, 404);
+    if (!invite) return c.json({ error: uiError(locale, "inviteNotFound") }, 404);
     if (invite.usedAt)
-      return c.json({ error: "Inbjudan är redan använd." }, 410);
+      return c.json({ error: uiError(locale, "inviteAlreadyUsed") }, 410);
     if (invite.expiresAt.getTime() < Date.now())
-      return c.json({ error: "Inbjudan har gått ut." }, 410);
+      return c.json({ error: uiError(locale, "inviteExpired") }, 410);
 
     const [org] = await db
       .select({ id: organizations.id, name: organizations.name })
@@ -483,13 +487,13 @@ association.get("/team-invites/:token", async (c) => {
     return c.json({
       teamName: invite.teamName,
       invitedEmail: invite.invitedEmail,
-      orgName: org?.name ?? "Okänd förening",
-      campaignName: campaign?.name ?? "Okänd kampanj",
+      orgName: org?.name ?? uiError(locale, "unknownOrganisation"),
+      campaignName: campaign?.name ?? uiError(locale, "unknownCampaign"),
       expiresAt: invite.expiresAt.toISOString(),
     });
   } catch (err) {
     log.error({ err }, "team invite preview failed");
-    return c.json({ error: "Kunde inte hämta inbjudan just nu." }, 500);
+    return c.json({ error: uiError(locale, "couldNotFetchInvite") }, 500);
   }
 });
 
@@ -502,6 +506,7 @@ association.get("/team-invites/:token", async (c) => {
  * logged in.
  */
 association.post("/team-invites/claim", async (c) => {
+  let locale = resolveUiLocale(c);
   type Body = {
     token?: string;
     email?: string;
@@ -514,8 +519,9 @@ association.post("/team-invites/claim", async (c) => {
   try {
     body = await c.req.json<Body>();
   } catch {
-    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+    return c.json({ error: uiError(locale, "invalidJson") }, 400);
   }
+  locale = resolveUiLocale(c, (body as { locale?: unknown }).locale);
 
   const token = (body.token ?? "").trim();
   const email = (body.email ?? "").trim().toLowerCase();
@@ -524,20 +530,20 @@ association.post("/team-invites/claim", async (c) => {
   const phone = body.phone?.trim() || null;
 
   if (!token || token.length < 16 || token.length > 64) {
-    return c.json({ error: "Inbjudan hittades inte." }, 404);
+    return c.json({ error: uiError(locale, "inviteNotFound") }, 404);
   }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return c.json({ error: "Ogiltig e-postadress." }, 400);
+    return c.json({ error: uiError(locale, "invalidEmail") }, 400);
   }
   // Pre-push fix 2026-05-26: tidigare tillät claim 8-tecken-lösenord,
   // medan resten av plattformen kräver minst 12 tecken via
   // validatePassword. Inbjudna team-leaders ska följa samma policy.
-  const pwErr = validatePassword(password);
+  const pwErr = validatePassword(password, locale);
   if (pwErr) {
     return c.json({ error: pwErr }, 400);
   }
   if (!contactName || contactName.length < 2) {
-    return c.json({ error: "Namn krävs." }, 400);
+    return c.json({ error: uiError(locale, "nameRequired") }, 400);
   }
 
   try {
@@ -546,11 +552,11 @@ association.post("/team-invites/claim", async (c) => {
       .from(teamInvites)
       .where(eq(teamInvites.token, token))
       .limit(1);
-    if (!invite) return c.json({ error: "Inbjudan hittades inte." }, 404);
+    if (!invite) return c.json({ error: uiError(locale, "inviteNotFound") }, 404);
     if (invite.usedAt)
-      return c.json({ error: "Inbjudan är redan använd." }, 410);
+      return c.json({ error: uiError(locale, "inviteAlreadyUsed") }, 410);
     if (invite.expiresAt.getTime() < Date.now())
-      return c.json({ error: "Inbjudan har gått ut." }, 410);
+      return c.json({ error: uiError(locale, "inviteExpired") }, 410);
 
     const [existingUser] = await db
       .select({ id: users.id })
@@ -558,7 +564,7 @@ association.post("/team-invites/claim", async (c) => {
       .where(eq(users.email, email))
       .limit(1);
     if (existingUser) {
-      return c.json({ error: "E-postadressen är redan registrerad." }, 409);
+      return c.json({ error: uiError(locale, "emailAlreadyRegistered") }, 409);
     }
 
     const passwordHash = await hash(password, ARGON2_OPTIONS);
@@ -620,12 +626,12 @@ association.post("/team-invites/claim", async (c) => {
       });
     } catch (err) {
       if (raceLost) {
-        return c.json({ error: "Inbjudan är redan använd." }, 410);
+        return c.json({ error: uiError(locale, "inviteAlreadyUsed") }, 410);
       }
       throw err;
     }
     if (!tx) {
-      return c.json({ error: "Kunde inte slutföra inbjudan just nu." }, 500);
+      return c.json({ error: uiError(locale, "couldNotCompleteInvite") }, 500);
     }
 
     const sessionData: SessionData = {
@@ -675,12 +681,15 @@ association.post("/team-invites/claim", async (c) => {
               adminName:
                 admin.contactName?.split(" ")[0] ||
                 admin.email.split("@")[0] ||
-                "där",
+                (locale === "en" ? "there" : "där"),
               leaderName: contactName,
               leaderEmail: email,
               teamName: invite.teamName,
-              campaignName: campaign?.name ?? "kampanjen",
-              teamUrl: `${SITE_URL}/forening`,
+              campaignName:
+                campaign?.name ??
+                (locale === "en" ? "the campaign" : "kampanjen"),
+              teamUrl: `${SITE_URL}${withLocalePath("/forening", locale)}`,
+              locale,
             }),
           });
         } catch (err) {
@@ -702,7 +711,7 @@ association.post("/team-invites/claim", async (c) => {
     );
   } catch (err) {
     log.error({ err }, "team invite claim failed");
-    return c.json({ error: "Kunde inte slutföra inbjudan just nu." }, 500);
+    return c.json({ error: uiError(locale, "couldNotCompleteInvite") }, 500);
   }
 });
 
@@ -720,23 +729,24 @@ association.post("/team-invites/claim", async (c) => {
  */
 association.post("/team-invites/:id/resend", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
-  if (!session.orgId) return c.json({ error: "Ingen organisation" }, 403);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
+  if (!session.orgId) return c.json({ error: uiError(locale, "noOrganisation") }, 403);
   if (
     session.role !== "ASSOCIATION_ADMIN" &&
     session.role !== "INTERNAL_ADMIN"
   ) {
-    return c.json({ error: "Behörighet saknas" }, 403);
+    return c.json({ error: uiError(locale, "permissionDenied") }, 403);
   }
   // Scout fix 2026-05-26 (Auth-C2): demo-konton kunde tidigare
   // resend:a riktiga invite-mail.
   if (isDemoSession(session)) {
-    return c.json({ error: "Demo-konton kan inte skicka inbjudningar." }, 403);
+    return c.json({ error: uiError(locale, "demoCannotSendInvitesAccounts") }, 403);
   }
 
   const inviteId = c.req.param("id");
   if (!/^[0-9a-f-]{36}$/i.test(inviteId)) {
-    return c.json({ error: "Ogiltigt ID." }, 400);
+    return c.json({ error: uiError(locale, "invalidId") }, 400);
   }
 
   // P3.26 (audit 2026-05-26): kommentaren ovan utlovar 5 resends/10 min/
@@ -746,21 +756,22 @@ association.post("/team-invites/:id/resend", async (c) => {
   if (!rl.allowed) {
     c.header("Retry-After", String(rl.resetInSeconds));
     return c.json(
-      { error: "För många försök att skicka om denna inbjudan. Vänta en stund." },
+      { error: uiError(locale, "inviteResendRateLimited") },
       429
     );
   }
 
-  let body: { email?: string } = {};
+  let body: { email?: string; locale?: unknown } = {};
   try {
-    body = await c.req.json<{ email?: string }>();
+    body = await c.req.json<{ email?: string; locale?: unknown }>();
   } catch {
     // Body är valfri — en tom POST betyder "skicka till den adress vi
     // redan har på inbjudan".
   }
+  locale = resolveUiLocale(c, body.locale);
   const overrideEmail = body.email?.trim().toLowerCase() || null;
   if (overrideEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(overrideEmail)) {
-    return c.json({ error: "Ogiltig e-postadress." }, 400);
+    return c.json({ error: uiError(locale, "invalidEmail") }, 400);
   }
 
   try {
@@ -769,21 +780,21 @@ association.post("/team-invites/:id/resend", async (c) => {
       .from(teamInvites)
       .where(eq(teamInvites.id, inviteId))
       .limit(1);
-    if (!invite) return c.json({ error: "Inbjudan hittades inte." }, 404);
+    if (!invite) return c.json({ error: uiError(locale, "inviteNotFound") }, 404);
 
     // Org-tenancy check. INTERNAL_ADMIN får överskrida.
     if (
       session.role !== "INTERNAL_ADMIN" &&
       invite.orgId !== session.orgId
     ) {
-      return c.json({ error: "Behörighet saknas" }, 403);
+      return c.json({ error: uiError(locale, "permissionDenied") }, 403);
     }
     if (invite.usedAt) {
-      return c.json({ error: "Inbjudan är redan accepterad." }, 410);
+      return c.json({ error: uiError(locale, "inviteAlreadyAccepted") }, 410);
     }
     if (invite.expiresAt.getTime() < Date.now()) {
       return c.json(
-        { error: "Inbjudan har gått ut — skapa en ny istället." },
+        { error: uiError(locale, "inviteExpiredCreateNew") },
         410
       );
     }
@@ -791,7 +802,7 @@ association.post("/team-invites/:id/resend", async (c) => {
     const targetEmail = overrideEmail ?? invite.invitedEmail;
     if (!targetEmail) {
       return c.json(
-        { error: "Ingen e-postadress angiven på inbjudan." },
+        { error: uiError(locale, "inviteNoEmail") },
         400
       );
     }
@@ -819,9 +830,9 @@ association.post("/team-invites/:id/resend", async (c) => {
     const inviterName =
       inviter?.contactName ||
       inviter?.email?.split("@")[0] ||
-      "Föreningsadmin";
+      (locale === "en" ? "Club admin" : "Föreningsadmin");
 
-    const inviteUrl = `${SITE_URL}/registrera/lagansvarig/${invite.token}`;
+    const inviteUrl = `${SITE_URL}${withLocalePath(`/registrera/lagansvarig/${invite.token}`, locale)}`;
 
     // Spara override-adressen så efterföljande resends defaultar till
     // den nya adressen + UI:t kan visa "skickad till X".
@@ -837,11 +848,13 @@ association.post("/team-invites/:id/resend", async (c) => {
         to: targetEmail,
         ...teamLeaderInviteEmail({
           inviterName,
-          orgName: org?.name ?? "föreningen",
-          campaignName: campaign?.name ?? "kampanjen",
+          orgName: org?.name ?? (locale === "en" ? "the club" : "föreningen"),
+          campaignName:
+            campaign?.name ?? (locale === "en" ? "the campaign" : "kampanjen"),
           teamName: invite.teamName,
           inviteUrl,
           expiresAt: invite.expiresAt,
+          locale,
         }),
       })
       .catch((err) =>
@@ -866,7 +879,7 @@ association.post("/team-invites/:id/resend", async (c) => {
     return c.json({ ok: true, sentTo: targetEmail });
   } catch (err) {
     log.error({ err }, "team invite resend failed");
-    return c.json({ error: "Kunde inte skicka inbjudan just nu." }, 500);
+    return c.json({ error: uiError(locale, "couldNotSendInvite") }, 500);
   }
 });
 
@@ -878,14 +891,15 @@ association.post("/team-invites/:id/resend", async (c) => {
  */
 association.post("/campaigns", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
-  if (!session.orgId) return c.json({ error: "Ingen organisation" }, 403);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
+  if (!session.orgId) return c.json({ error: uiError(locale, "noOrganisation") }, 403);
   if (session.role !== "ASSOCIATION_ADMIN" && session.role !== "INTERNAL_ADMIN") {
-    return c.json({ error: "Behörighet saknas" }, 403);
+    return c.json({ error: uiError(locale, "permissionDenied") }, 403);
   }
   // P3.29 (audit 2026-05-26): demo-konton ska inte muta:a DB.
   if (isDemoSession(session)) {
-    return c.json({ error: "Demo-konton kan inte skapa kampanjer." }, 403);
+    return c.json({ error: uiError(locale, "demoCannotCreateCampaigns") }, 403);
   }
 
   type Body = {
@@ -906,12 +920,13 @@ association.post("/campaigns", async (c) => {
   try {
     body = await c.req.json<Body>();
   } catch {
-    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+    return c.json({ error: uiError(locale, "invalidJson") }, 400);
   }
+  locale = resolveUiLocale(c, (body as { locale?: unknown }).locale);
 
   const name = (body.name ?? "").trim();
   if (!name || name.length < 3 || name.length > 255) {
-    return c.json({ error: "Kampanjnamn måste vara 3–255 tecken." }, 400);
+    return c.json({ error: uiError(locale, "campaignNameLength") }, 400);
   }
   const goalType = body.goalType === "PACKAGES" ? "PACKAGES" : "AMOUNT";
   const goalValue = Math.max(0, Math.floor(body.goalValue ?? 0));
@@ -920,17 +935,17 @@ association.post("/campaigns", async (c) => {
   const startDate = body.startDate ?? "";
   const endDate = body.endDate ?? "";
   if (!datePattern.test(startDate) || !datePattern.test(endDate)) {
-    return c.json({ error: "Start- och slutdatum krävs (YYYY-MM-DD)." }, 400);
+    return c.json({ error: uiError(locale, "startEndDatesRequired") }, 400);
   }
   if (endDate < startDate) {
-    return c.json({ error: "Slutdatum måste vara efter startdatum." }, 400);
+    return c.json({ error: uiError(locale, "endDateAfterStart") }, 400);
   }
 
   // Valfritt leveransdatum till klubben (måste vara giltigt om angivet).
   let deliveryDate: string | null = null;
   if (body.deliveryDate) {
     if (!datePattern.test(body.deliveryDate)) {
-      return c.json({ error: "Leveransdatum måste vara YYYY-MM-DD." }, 400);
+      return c.json({ error: uiError(locale, "deliveryDateFormat") }, 400);
     }
     deliveryDate = body.deliveryDate;
   }
@@ -950,7 +965,7 @@ association.post("/campaigns", async (c) => {
   // Kampanjen skapas direkt som ACTIVE nedan, så den här vägen måste ha
   // samma spärr som tRPC-aktiveringen — annars är den ett kryphål.
   if (!(await isOrgApprovedForPublicSales(session.orgId))) {
-    return c.json({ error: ORG_NOT_APPROVED_MESSAGE }, 403);
+    return c.json({ error: uiError(locale, "orgNotApprovedForPublicSales") }, 403);
   }
 
   try {
@@ -997,7 +1012,7 @@ association.post("/campaigns", async (c) => {
     );
   } catch (err) {
     log.error({ err }, "campaign create failed");
-    return c.json({ error: "Kunde inte skapa kampanj just nu." }, 500);
+    return c.json({ error: uiError(locale, "couldNotCreateCampaign") }, 500);
   }
 });
 
@@ -1005,13 +1020,14 @@ association.post("/campaigns", async (c) => {
 
 association.get("/org", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
-  if (!session.orgId) return c.json({ error: "Ingen organisation" }, 403);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
+  if (!session.orgId) return c.json({ error: uiError(locale, "noOrganisation") }, 403);
   if (
     session.role !== "ASSOCIATION_ADMIN" &&
     session.role !== "INTERNAL_ADMIN"
   ) {
-    return c.json({ error: "Behörighet saknas" }, 403);
+    return c.json({ error: uiError(locale, "permissionDenied") }, 403);
   }
 
   try {
@@ -1031,23 +1047,24 @@ association.get("/org", async (c) => {
       .where(eq(organizations.id, session.orgId))
       .limit(1);
 
-    if (!org) return c.json({ error: "Föreningen hittades inte" }, 404);
+    if (!org) return c.json({ error: uiError(locale, "associationNotFoundThe") }, 404);
     return c.json({ organization: org });
   } catch (err) {
     log.error({ err }, "association org get failed");
-    return c.json({ error: "Kunde inte hämta föreningsuppgifter." }, 500);
+    return c.json({ error: uiError(locale, "couldNotFetchAssociationDetails") }, 500);
   }
 });
 
 association.patch("/org", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
-  if (!session.orgId) return c.json({ error: "Ingen organisation" }, 403);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
+  if (!session.orgId) return c.json({ error: uiError(locale, "noOrganisation") }, 403);
   if (session.role !== "ASSOCIATION_ADMIN") {
-    return c.json({ error: "Behörighet saknas" }, 403);
+    return c.json({ error: uiError(locale, "permissionDenied") }, 403);
   }
   if (isDemoSession(session)) {
-    return c.json({ error: "Demo-konton kan inte ändra föreningsuppgifter." }, 403);
+    return c.json({ error: uiError(locale, "demoCannotChangeAssociation") }, 403);
   }
 
   type Body = {
@@ -1062,8 +1079,9 @@ association.patch("/org", async (c) => {
   try {
     body = await c.req.json<Body>();
   } catch {
-    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+    return c.json({ error: uiError(locale, "invalidJson") }, 400);
   }
+  locale = resolveUiLocale(c, (body as { locale?: unknown }).locale);
 
   const patch: {
     orgNumber?: string | null;
@@ -1078,7 +1096,7 @@ association.patch("/org", async (c) => {
     const orgNumber = body.orgNumber.trim().replace(/\s+/g, "");
     if (orgNumber && !/^\d{6,12}-?\d{4}$/.test(orgNumber)) {
       return c.json(
-        { error: "Organisationsnummer måste vara i formatet 556677-8899." },
+        { error: uiError(locale, "orgNumberFormat") },
         400
       );
     }
@@ -1094,7 +1112,7 @@ association.patch("/org", async (c) => {
   if (body.postalCode !== undefined) {
     const postal = body.postalCode.trim().replace(/\s+/g, "");
     if (postal && !/^\d{5}$/.test(postal)) {
-      return c.json({ error: "Postnummer måste vara fem siffror." }, 400);
+      return c.json({ error: uiError(locale, "postalCodeFiveDigits") }, 400);
     }
     patch.postalCode = postal || null;
   }
@@ -1118,7 +1136,7 @@ association.patch("/org", async (c) => {
         verified: organizations.verified,
       });
 
-    if (!updated) return c.json({ error: "Föreningen hittades inte" }, 404);
+    if (!updated) return c.json({ error: uiError(locale, "associationNotFoundThe") }, 404);
 
     void auditLog({
       userId: session.userId,
@@ -1134,7 +1152,7 @@ association.patch("/org", async (c) => {
     return c.json({ ok: true, organization: updated });
   } catch (err) {
     log.error({ err }, "association org patch failed");
-    return c.json({ error: "Kunde inte spara föreningsuppgifter." }, 500);
+    return c.json({ error: uiError(locale, "couldNotSaveAssociation") }, 500);
   }
 });
 
@@ -1142,21 +1160,22 @@ association.patch("/org", async (c) => {
 
 association.post("/campaigns/:id/end", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
-  if (!session.orgId) return c.json({ error: "Ingen organisation" }, 403);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
+  if (!session.orgId) return c.json({ error: uiError(locale, "noOrganisation") }, 403);
   if (
     session.role !== "ASSOCIATION_ADMIN" &&
     session.role !== "INTERNAL_ADMIN"
   ) {
-    return c.json({ error: "Behörighet saknas" }, 403);
+    return c.json({ error: uiError(locale, "permissionDenied") }, 403);
   }
   if (isDemoSession(session)) {
-    return c.json({ error: "Demo-konton kan inte avsluta kampanjer." }, 403);
+    return c.json({ error: uiError(locale, "demoCannotEndCampaigns") }, 403);
   }
 
   const campaignId = c.req.param("id");
   if (!/^[0-9a-f-]{36}$/i.test(campaignId)) {
-    return c.json({ error: "Ogiltigt kampanj-id." }, 400);
+    return c.json({ error: uiError(locale, "invalidCampaignIdLower") }, 400);
   }
 
   try {
@@ -1166,12 +1185,12 @@ association.post("/campaigns/:id/end", async (c) => {
       .where(eq(campaigns.id, campaignId))
       .limit(1);
 
-    if (!campaign) return c.json({ error: "Kampanjen hittades inte" }, 404);
+    if (!campaign) return c.json({ error: uiError(locale, "campaignNotFoundThe") }, 404);
     if (
       session.role !== "INTERNAL_ADMIN" &&
       campaign.orgId !== session.orgId
     ) {
-      return c.json({ error: "Behörighet saknas" }, 403);
+      return c.json({ error: uiError(locale, "permissionDenied") }, 403);
     }
     if (campaign.status === "ENDED" || campaign.status === "SETTLED") {
       return c.json({
@@ -1183,7 +1202,7 @@ association.post("/campaigns/:id/end", async (c) => {
     }
     if (campaign.status !== "ACTIVE") {
       return c.json(
-        { error: `Kampanjen kan inte avslutas i status ${campaign.status}.` },
+        { error: uiError(locale, "campaignCannotEndStatusPrefix") + campaign.status + "." },
         409
       );
     }
@@ -1215,6 +1234,6 @@ association.post("/campaigns/:id/end", async (c) => {
     });
   } catch (err) {
     log.error({ err, campaignId }, "campaign end failed");
-    return c.json({ error: "Kunde inte avsluta kampanjen." }, 500);
+    return c.json({ error: uiError(locale, "couldNotEndCampaign") }, 500);
   }
 });

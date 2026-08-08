@@ -173,3 +173,10 @@ export const CLAIMS_BLOCKED_REPLY =
   "om något som besvärar dig är frisör, hudterapeut eller läkare rätt " +
   "instans. Vill du veta vad produkterna innehåller och hur de används " +
   "svarar jag gärna på det — eller maila hej@roots.se.";
+
+export const CLAIMS_BLOCKED_REPLY_EN =
+  "I would rather not guess there. Roots is skin and hair care, not medicine, " +
+  "so I cannot comment on skin conditions or treatments. If something is " +
+  "bothering you, a hairdresser, skin therapist or doctor is the right place " +
+  "to turn. If you want to know what is in the products and how to use them, " +
+  "I am happy to help — or email hej@roots.se.";

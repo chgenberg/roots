@@ -80,33 +80,93 @@ function isValidImageDataUrl(s: string): boolean {
  * får i värsta fall en generisk men hjälpsam Roots-rekommendation
  * istället för en blank 502-skärm.
  */
-function buildFallbackAnalysis(reason: "ai-off" | "ai-error"): string {
+function buildFallbackAnalysis(
+  reason: "ai-off" | "ai-error",
+  locale: "sv" | "en" = "sv"
+): string {
+  const en = locale === "en";
   const summary =
     reason === "ai-off"
-      ? "AI är inte konfigurerat på servern. Kontakta oss på hej@roots.se för personlig rådgivning."
-      : "Vi kunde inte göra en fullständig analys just nu, men du kan börja här. Maila hej@roots.se så återkommer vi med personlig rådgivning.";
+      ? en
+        ? "AI is not configured on the server. Contact us at hej@roots.se for personal advice."
+        : "AI är inte konfigurerat på servern. Kontakta oss på hej@roots.se för personlig rådgivning."
+      : en
+        ? "We could not complete a full analysis right now, but you can start here. Email hej@roots.se and we will get back with personal advice."
+        : "Vi kunde inte göra en fullständig analys just nu, men du kan börja här. Maila hej@roots.se så återkommer vi med personlig rådgivning.";
 
   return JSON.stringify({
     summary,
     observationsFromImages: [],
     hairProfile: { texture: "—", shine: "—", scalpNotes: "—" },
-    lifestyleTips: [
-      "Tvätta håret 2–3 gånger i veckan med ett milt schampo.",
-      "Undvik överdriven värme (föna på låg temp, hoppa över plattången när det går).",
-      "Använd balsam regelbundet — fokusera på längderna, inte hårbotten.",
-    ],
-    nutritionGeneralTips: [
-      "Drick tillräckligt med vatten varje dag.",
-      "Ät varierat med fokus på protein, omega-3 och järnrika livsmedel.",
-    ],
+    lifestyleTips: en
+      ? [
+          "Wash your hair 2–3 times a week with a mild shampoo.",
+          "Avoid excessive heat (blow-dry on low heat, skip the straightener when you can).",
+          "Use conditioner regularly — focus on the lengths, not the scalp.",
+        ]
+      : [
+          "Tvätta håret 2–3 gånger i veckan med ett milt schampo.",
+          "Undvik överdriven värme (föna på låg temp, hoppa över plattången när det går).",
+          "Använd balsam regelbundet — fokusera på längderna, inte hårbotten.",
+        ],
+    nutritionGeneralTips: en
+      ? [
+          "Drink enough water every day.",
+          "Eat a varied diet with protein, omega-3 and iron-rich foods.",
+        ]
+      : [
+          "Drick tillräckligt med vatten varje dag.",
+          "Ät varierat med fokus på protein, omega-3 och järnrika livsmedel.",
+        ],
     rootsProductRecommendation: {
-      packageName: "Roots Underhåll",
-      description:
-        "Roots Complete Kit fungerar som en enkel trestegsrutin för dagligt underhåll.",
+      packageName: en ? "Roots Maintenance" : "Roots Underhåll",
+      description: en
+        ? "The Roots Complete pack is a simple three-step routine for everyday maintenance."
+        : "Roots Complete Kit fungerar som en enkel trestegsrutin för dagligt underhåll.",
     },
-    disclaimer:
-      "Indikativ information — ersätter inte professionell vård av frisör eller hudläkare.",
+    disclaimer: en
+      ? "Indicative information — does not replace professional care from a hairdresser or dermatologist."
+      : "Indikativ information — ersätter inte professionell vård av frisör eller hudläkare.",
   });
+}
+
+function hairCopy(locale: "sv" | "en") {
+  const en = locale === "en";
+  return {
+    unavailable: en
+      ? "This feature is not available."
+      : "Funktionen är inte tillgänglig.",
+    invalidJson: en ? "Invalid JSON" : "Ogiltig JSON",
+    consentRequired: en ? "Consent is required" : "Samtycke krävs",
+    ageRequired: en
+      ? "The analysis requires that you are 18 or older, or have a guardian's consent."
+      : "Analysen kräver att du är 18 år eller äldre, eller har målsmans godkännande.",
+    emailRequired: en
+      ? "A valid email address is required"
+      : "En giltig e-postadress krävs",
+    bothImages: en ? "Both photos are required" : "Båda bilderna krävs",
+    imagesTooLarge: en
+      ? "The photos are too large. Please try smaller files."
+      : "Bilderna är för stora. Prova mindre filer.",
+    invalidImage: en
+      ? "Invalid image format. Use JPEG, PNG or WebP."
+      : "Ogiltigt bildformat. Använd JPEG, PNG eller WebP.",
+    overloaded: en
+      ? "The service is temporarily overloaded. Please try again in a moment."
+      : "Tjänsten är tillfälligt överbelastad. Försök igen om en stund.",
+    dailyLimit: en
+      ? "You have reached today's analysis limit. Please try again tomorrow."
+      : "Du har nått maxgränsen för analyser idag. Försök igen imorgon.",
+    globalCap: en
+      ? "Vision analysis has reached today's capacity. Please try again after midnight or contact us."
+      : "Vision-analysen har nått dagens kapacitetstak. Försök igen efter midnatt eller kontakta oss.",
+    disclaimerIndicative: en
+      ? "Indicative information — does not replace professional care."
+      : "Indikativ information — ersätter inte professionell vård.",
+    disclaimerAi: en
+      ? "AI-generated analysis — please verify important information. Does not replace professional care."
+      : "AI-genererad analys — verifiera viktig information. Ersätter inte professionell vård.",
+  };
 }
 
 hairAnalysis.post("/hair-analysis", async (c) => {
@@ -120,22 +180,33 @@ hairAnalysis.post("/hair-analysis", async (c) => {
     topImage?: string;
     answers?: Partial<HairAnswers>;
     idempotencyKey?: string;
+    locale?: string;
   };
   // Funktionen är gömd i webbens UI via en konstant. Utan samma spärr här
   // ligger endpointen öppen för den som hittar den — och varje anrop är
   // vision-tokens vi betalar för.
-  if (!flags.hairAnalysisEnabled()) {
-    return c.json({ error: "Funktionen är inte tillgänglig." }, 404);
-  }
-
   try {
     body = await c.req.json();
   } catch {
-    return c.json({ error: "Ogiltig JSON" }, 400);
+    const headerLocale =
+      c.req.header("x-roots-locale") === "en" ? "en" : "sv";
+    return c.json(
+      {
+        error: headerLocale === "en" ? "Invalid JSON" : "Ogiltig JSON",
+      },
+      400
+    );
+  }
+
+  const locale = body.locale === "en" ? "en" : "sv";
+  const copy = hairCopy(locale);
+
+  if (!flags.hairAnalysisEnabled()) {
+    return c.json({ error: copy.unavailable }, 404);
   }
 
   if (!body.consentAccepted) {
-    return c.json({ error: "Samtycke krävs" }, 400);
+    return c.json({ error: copy.consentRequired }, 400);
   }
 
   // Åldersgrind. Klienten skickade tidigare alltid ageConfirmed: true utan
@@ -145,8 +216,7 @@ hairAnalysis.post("/hair-analysis", async (c) => {
   if (body.ageConfirmed !== true) {
     return c.json(
       {
-        error:
-          "Analysen kräver att du är 18 år eller äldre, eller har målsmans godkännande.",
+        error: copy.ageRequired,
         requiresAgeConfirmation: true,
       },
       400
@@ -154,19 +224,19 @@ hairAnalysis.post("/hair-analysis", async (c) => {
   }
 
   if (!body.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email)) {
-    return c.json({ error: "En giltig e-postadress krävs" }, 400);
+    return c.json({ error: copy.emailRequired }, 400);
   }
 
   const back = body.backImage?.trim();
   const top = body.topImage?.trim();
   if (!back || !top) {
-    return c.json({ error: "Båda bilderna krävs" }, 400);
+    return c.json({ error: copy.bothImages }, 400);
   }
   if (back.length > MAX_IMAGE_CHARS || top.length > MAX_IMAGE_CHARS) {
-    return c.json({ error: "Bilderna är för stora. Prova mindre filer." }, 413);
+    return c.json({ error: copy.imagesTooLarge }, 413);
   }
   if (!isValidImageDataUrl(back) || !isValidImageDataUrl(top)) {
-    return c.json({ error: "Ogiltigt bildformat. Använd JPEG, PNG eller WebP." }, 400);
+    return c.json({ error: copy.invalidImage }, 400);
   }
 
   const answers: HairAnswers = {
@@ -189,9 +259,7 @@ hairAnalysis.post("/hair-analysis", async (c) => {
   if (!rl.allowed) {
     return c.json(
       {
-        error: rl.degraded
-          ? "Tjänsten är tillfälligt överbelastad. Försök igen om en stund."
-          : "Du har nått maxgränsen för analyser idag. Försök igen imorgon.",
+        error: rl.degraded ? copy.overloaded : copy.dailyLimit,
         retryAfter: rl.resetInSeconds,
       },
       429
@@ -229,8 +297,7 @@ hairAnalysis.post("/hair-analysis", async (c) => {
     });
     return c.json(
       {
-        error:
-          "Vision-analysen har nått dagens kapacitetstak. Försök igen efter midnatt eller kontakta oss.",
+        error: copy.globalCap,
         retryAfter: globalCap.resetInSeconds,
       },
       429
@@ -259,10 +326,9 @@ hairAnalysis.post("/hair-analysis", async (c) => {
   if (!flags.aiEnabled() || !isAiConfigured()) {
     return c.json({
       fallback: true,
-      analysis: buildFallbackAnalysis("ai-off"),
+      analysis: buildFallbackAnalysis("ai-off", locale),
       model: "none",
-      disclaimer:
-        "Indikativ information — ersätter inte professionell vård.",
+      disclaimer: copy.disclaimerIndicative,
     });
   }
 
@@ -271,6 +337,7 @@ hairAnalysis.post("/hair-analysis", async (c) => {
       backDataUrl: back.startsWith("data:") ? back : `data:image/jpeg;base64,${back}`,
       topDataUrl: top.startsWith("data:") ? top : `data:image/jpeg;base64,${top}`,
       answers,
+      locale,
     });
     recordAiUsage({
       surface: "hair_analysis",
@@ -281,8 +348,7 @@ hairAnalysis.post("/hair-analysis", async (c) => {
     const payload: CachedVisionResult = {
       analysis: result.raw,
       model: result.model,
-      disclaimer:
-        "AI-genererad analys — verifiera viktig information. Ersätter inte professionell vård.",
+      disclaimer: copy.disclaimerAi,
     };
     if (idempotencyKey) {
       void visionResultCache.set(idempotencyKey, payload);
@@ -303,10 +369,9 @@ hairAnalysis.post("/hair-analysis", async (c) => {
     });
     return c.json({
       fallback: true,
-      analysis: buildFallbackAnalysis("ai-error"),
+      analysis: buildFallbackAnalysis("ai-error", locale),
       model: "fallback",
-      disclaimer:
-        "Indikativ information — ersätter inte professionell vård.",
+      disclaimer: copy.disclaimerIndicative,
     });
   }
 });

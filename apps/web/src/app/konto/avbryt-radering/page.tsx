@@ -7,20 +7,21 @@
  * Token i query-string är signed (HMAC) och innehåller userId +
  * expires. Vi visar en bekräftelse-knapp (inte auto-cancel — vi vill
  * inte att en email-preview-fetch ska trigga cancel av misstag).
- *
- * Sidan är publik — kräver INGEN login. Detta är medvetet: om
- * användaren har glömt sitt lösenord ska de fortfarande kunna ångra
- * raderingen.
  */
 
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { LocaleLink } from "@/components/locale-link";
 import { apiFetch } from "@/lib/api";
+import { cancelDeletion } from "@/i18n/dictionaries/errors";
+import { tFill } from "@/i18n/format";
+import { useLocale } from "@/i18n/locale-context";
 
 function CancelDeletionInner() {
+  const { locale } = useLocale();
+  const t = cancelDeletion[locale];
   const params = useSearchParams();
   const token = params.get("token");
   const [state, setState] = useState<
@@ -28,8 +29,6 @@ function CancelDeletionInner() {
   >("idle");
   const [error, setError] = useState<string | null>(null);
 
-  // Pre-validera token i UI:t — sparar en server-round-trip om länken
-  // har lett till en uppenbart trasig URL.
   useEffect(() => {
     if (!token) setState("expired");
   }, [token]);
@@ -39,14 +38,12 @@ function CancelDeletionInner() {
     setState("submitting");
     setError(null);
     try {
-      // apiFetch hämtar/cachelagar CSRF-token även för anonyma users
-      // → server-CSRF-middleware släpper igenom POST:en.
       const { ok, data, status } = await apiFetch<{
         ok?: boolean;
         error?: string;
       }>("/v1/auth/cancel-deletion", {
         method: "POST",
-        body: { token },
+        body: { token, locale },
       });
       if (ok && data?.ok) {
         setState("success");
@@ -56,10 +53,12 @@ function CancelDeletionInner() {
         setState("expired");
         return;
       }
-      setError(data?.error ?? `Kunde inte avbryta (${status}).`);
+      setError(
+        data?.error ?? tFill(t.cancelFailed, { status: String(status) })
+      );
       setState("error");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Något gick fel.");
+      setError(err instanceof Error ? err.message : t.genericError);
       setState("error");
     }
   }
@@ -68,12 +67,8 @@ function CancelDeletionInner() {
     <Card>
       <CardContent className="space-y-6 p-8">
         <div className="space-y-2">
-          <h1 className="text-2xl font-bold tracking-tight">
-            Avbryt radering av ditt Roots-konto
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Klicka på knappen nedan för att behålla ditt konto.
-          </p>
+          <h1 className="text-2xl font-bold tracking-tight">{t.title}</h1>
+          <p className="text-sm text-muted-foreground">{t.body}</p>
         </div>
 
         {state === "success" && (
@@ -81,10 +76,8 @@ function CancelDeletionInner() {
             role="status"
             className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900"
           >
-            <p className="font-medium">Raderingen är avbruten.</p>
-            <p className="mt-1">
-              Du kan logga in som vanligt — allt är som vanligt.
-            </p>
+            <p className="font-medium">{t.successTitle}</p>
+            <p className="mt-1">{t.successBody}</p>
           </div>
         )}
 
@@ -93,10 +86,9 @@ function CancelDeletionInner() {
             role="alert"
             className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
           >
-            <p className="font-medium">Länken är inte längre giltig.</p>
+            <p className="font-medium">{t.expiredTitle}</p>
             <p className="mt-1">
-              Logga in på portalen och tryck på "Avbryt radering" där.
-              Om kontot redan är raderat — kontakta{" "}
+              {t.expiredBody}{" "}
               <a className="underline" href="mailto:hej@roots.se">
                 hej@roots.se
               </a>
@@ -106,7 +98,10 @@ function CancelDeletionInner() {
         )}
 
         {state === "error" && error && (
-          <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
+          <p
+            role="alert"
+            className="rounded-lg bg-red-50 p-3 text-sm text-red-700"
+          >
             {error}
           </p>
         )}
@@ -117,11 +112,11 @@ function CancelDeletionInner() {
               onClick={handleCancel}
               disabled={state === "submitting" || !token}
             >
-              {state === "submitting" ? "Avbryter…" : "Behåll mitt konto"}
+              {state === "submitting" ? t.submitting : t.keepAccount}
             </Button>
           )}
           <Button variant="outline" asChild>
-            <Link href="/login">Tillbaka till inloggning</Link>
+            <LocaleLink href="/login">{t.backToLogin}</LocaleLink>
           </Button>
         </div>
       </CardContent>
@@ -131,13 +126,7 @@ function CancelDeletionInner() {
 
 export default function CancelDeletionPage() {
   return (
-    // P3.75 (audit 2026-05-26): tidigare saknade sidan #main-content
-    // (skip-länk landade ingenstans) och pageMetadata (browsertab fick
-    // default-rubriken). Lägg båda + noindex så crawlers inte indexerar.
-    <main
-      id="main-content"
-      className="mx-auto max-w-xl px-4 py-16"
-    >
+    <main id="main-content" className="mx-auto max-w-xl px-4 py-16">
       <Suspense
         fallback={
           <div className="flex min-h-[200px] items-center justify-center">

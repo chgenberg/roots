@@ -13,9 +13,12 @@ import { GoalGauge } from "@/components/charts";
 import { cn } from "@/lib/utils";
 import { Lock } from "lucide-react";
 import { formatKr } from "@/lib/format";
+import { useLocale } from "@/i18n/locale-context";
+import { marketingUi } from "@/i18n/dictionaries/marketing-ui";
 
-function krLabel(kr: number): string {
-  return `${Math.round(kr).toLocaleString("sv-SE")} kr`;
+function krLabel(kr: number, locale: string): string {
+  const tag = locale === "en" ? "en-GB" : "sv-SE";
+  return `${Math.round(kr).toLocaleString(tag)} ${locale === "en" ? "SEK" : "kr"}`;
 }
 interface SliderFieldProps {
   label: string;
@@ -93,6 +96,8 @@ export function RevenueCalculator({
   onChange,
   className,
 }: RevenueCalculatorProps) {
+  const { locale } = useLocale();
+  const t = marketingUi[locale].calculator;
   const [inputs, setInputs] = useState<CalculatorInputs>({
     ...CALCULATOR_DEFAULTS,
     ...defaultInputs,
@@ -104,6 +109,7 @@ export function RevenueCalculator({
   const [avgOrderKr, setAvgOrderKr] = useState(500);
 
   const result = useMemo(() => computeCalculator(inputs), [inputs]);
+  const money = (kr: number) => krLabel(kr, locale);
 
   useEffect(() => {
     onChange?.(inputs, result);
@@ -136,49 +142,51 @@ export function RevenueCalculator({
       <Card className="lg:col-span-2">
         <CardContent className="space-y-6 p-6">
           <SliderField
-            label="Antal säljare"
+            label={t.sellers}
             value={inputs.sellers}
             min={1}
             max={2000}
             onChange={(v) => set("sellers", v)}
-            hint="Spelare eller medlemmar som faktiskt säljer."
+            hint={t.sellersHint}
           />
 
           {!showAdvanced ? (
             <SliderField
-              label="Snittförsäljning per säljare"
+              label={t.avgPerSeller}
               value={inputs.avgPerSellerKr}
               min={0}
               max={20000}
               step={100}
-              suffix="kr"
+              suffix={locale === "en" ? "SEK" : "kr"}
               onChange={(v) => set("avgPerSellerKr", v)}
               hint={
                 avgProductKr
-                  ? `En produkt kostar i snitt ${avgProductKr} kr.`
-                  : "Hur mycket varje säljare säljer för i snitt."
+                  ? locale === "en"
+                    ? `A product costs about ${avgProductKr} SEK on average.`
+                    : `En produkt kostar i snitt ${avgProductKr} kr.`
+                  : t.avgHint
               }
             />
           ) : (
             <div className="space-y-6 rounded-lg border border-dashed border-border p-4">
               <SliderField
-                label="Antal ordrar per säljare"
+                label={t.ordersPerSeller}
                 value={ordersPerSeller}
                 min={1}
                 max={50}
                 onChange={(v) => applyAdvanced(v, avgOrderKr)}
               />
               <SliderField
-                label="Snittordervärde"
+                label={t.avgOrder}
                 value={avgOrderKr}
                 min={0}
                 max={5000}
                 step={50}
-                suffix="kr"
+                suffix={locale === "en" ? "SEK" : "kr"}
                 onChange={(v) => applyAdvanced(ordersPerSeller, v)}
               />
               <p className="text-xs text-muted-foreground">
-                = {krLabel(inputs.avgPerSellerKr)} per säljare
+                = {money(inputs.avgPerSellerKr)} {t.perSeller}
               </p>
             </div>
           )}
@@ -188,16 +196,13 @@ export function RevenueCalculator({
             onClick={() => setShowAdvanced((v) => !v)}
             className="text-xs font-medium text-brand-700 underline-offset-2 hover:underline"
           >
-            {showAdvanced
-              ? "Använd enkel uppskattning"
-              : "Räkna på ordrar × ordervärde"}
+            {showAdvanced ? t.simpleMode : t.advancedMode}
           </button>
 
-          {/* Föreningens marginal är låst till 35 % — fast erbjudande. */}
           <div className="space-y-2">
             <div className="flex items-baseline justify-between gap-3">
               <label className="text-sm font-medium text-foreground">
-                Föreningens marginal
+                {t.marginLabel}
               </label>
               <span className="inline-flex items-center gap-1.5 rounded-md bg-brand-50 px-2 py-1 text-sm font-semibold tabular-nums text-brand-800">
                 <Lock className="h-3.5 w-3.5 text-brand-600" aria-hidden="true" />
@@ -205,36 +210,34 @@ export function RevenueCalculator({
               </span>
             </div>
             <p className="text-xs text-muted-foreground">
-              Föreningen behåller {LOCKED_MARGIN_PERCENT}% av försäljningen — fast
-              och tydligt, oavsett hur mycket ni säljer.
+              {t.marginBody.replace("{pct}", String(LOCKED_MARGIN_PERCENT))}
             </p>
           </div>
 
           <SliderField
-            label="Mål: insamlat belopp (valfritt)"
+            label={t.goal}
             value={inputs.goalKr ?? 0}
             min={0}
             max={500000}
             step={5000}
-            suffix="kr"
+            suffix={locale === "en" ? "SEK" : "kr"}
             onChange={(v) => set("goalKr", v)}
           />
         </CardContent>
       </Card>
 
-      {/* Resultat */}
       <div className="space-y-4 lg:col-span-3">
         <Card className="overflow-hidden border-brand-200 bg-brand-50/40">
           <CardContent className="p-6">
             <p className="text-sm font-medium text-muted-foreground">
-              Föreningens förtjänst
+              {t.profit}
             </p>
             <p className="mt-1 text-4xl font-bold tabular-nums text-brand-800 sm:text-5xl">
-              {krLabel(result.earningsKr)}
+              {money(result.earningsKr)}
             </p>
             <p className="mt-2 text-sm text-muted-foreground">
-              av {krLabel(result.grossKr)} i total försäljning ·{" "}
-              {result.marginPercent}% marginal
+              {t.ofGross.replace("{gross}", money(result.grossKr))} ·{" "}
+              {result.marginPercent}%
             </p>
           </CardContent>
         </Card>
@@ -242,17 +245,17 @@ export function RevenueCalculator({
         <div className="grid gap-4 sm:grid-cols-3">
           <Card>
             <CardContent className="p-5">
-              <p className="text-sm text-muted-foreground">Per säljare</p>
+              <p className="text-sm text-muted-foreground">{t.perSellerLabel}</p>
               <p className="mt-2 text-2xl font-bold tabular-nums">
-                {krLabel(result.earningsPerSellerKr)}
+                {money(result.earningsPerSellerKr)}
               </p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-5">
-              <p className="text-sm text-muted-foreground">Total försäljning</p>
+              <p className="text-sm text-muted-foreground">{t.totalSales}</p>
               <p className="mt-2 text-2xl font-bold tabular-nums">
-                {krLabel(result.grossKr)}
+                {money(result.grossKr)}
               </p>
             </CardContent>
           </Card>
@@ -267,17 +270,14 @@ export function RevenueCalculator({
                 />
               ) : (
                 <p className="px-2 py-6 text-center text-xs text-muted-foreground">
-                  Sätt ett mål för att se hur långt ni når.
+                  {t.setGoal}
                 </p>
               )}
             </CardContent>
           </Card>
         </div>
 
-        <p className="text-xs text-muted-foreground">
-          Uppskattning baserad på era antaganden. Faktisk förtjänst beror på hur
-          mycket laget säljer under perioden.
-        </p>
+        <p className="text-xs text-muted-foreground">{t.disclaimer}</p>
       </div>
     </div>
   );

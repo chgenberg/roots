@@ -23,6 +23,9 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { formatKr } from "@/lib/format";
+import { useLocale } from "@/i18n/locale-context";
+import { portalPages, portalShared } from "@/i18n/dictionaries/portal-pages";
+import { tFill } from "@/i18n/format";
 
 interface CalcLink {
   id: string;
@@ -49,6 +52,9 @@ interface CalcLead {
 }
 
 export default function RaknesnurraPage() {
+  const { locale } = useLocale();
+  const t = portalPages.raknesnurra[locale];
+  const shared = portalShared[locale];
   const { toast } = useToast();
   const [current, setCurrent] = useState<CalculatorInputs | null>(null);
   const [assocName, setAssocName] = useState("");
@@ -68,7 +74,7 @@ export default function RaknesnurraPage() {
       const data = await portalFetch<{ links: CalcLink[] }>("/calculators");
       setLinks(data.links);
     } catch {
-      // tom lista är ok
+      // empty list is ok
     } finally {
       setLoading(false);
     }
@@ -81,7 +87,7 @@ export default function RaknesnurraPage() {
   async function createLink() {
     if (!current) return;
     if (assocName.trim().length < 2) {
-      toast("Ange föreningens namn först.", "error");
+      toast(t.nameRequired, "error");
       return;
     }
     setCreating(true);
@@ -91,11 +97,11 @@ export default function RaknesnurraPage() {
         body: { associationName: assocName.trim(), presets: current },
       });
       setAssocName("");
-      toast("Delbar länk skapad.", "success");
+      toast(t.linkCreated, "success");
       await loadLinks();
     } catch (err) {
       toast(
-        err instanceof Error ? err.message : "Kunde inte skapa länken.",
+        err instanceof Error ? err.message : t.linkCreateFail,
         "error"
       );
     } finally {
@@ -109,19 +115,20 @@ export default function RaknesnurraPage() {
       setCopiedId(link.id);
       setTimeout(() => setCopiedId((v) => (v === link.id ? null : v)), 2000);
     } catch {
-      toast("Kunde inte kopiera. Markera och kopiera manuellt.", "error");
+      toast(t.copyFail, "error");
     }
   }
 
   async function removeLink(link: CalcLink) {
-    if (!window.confirm(`Ta bort länken för ${link.associationName}?`)) return;
+    if (!window.confirm(tFill(t.removeConfirm, { name: link.associationName })))
+      return;
     try {
       await portalFetch(`/calculators/${link.id}`, { method: "DELETE" });
-      toast("Länken togs bort.", "success");
+      toast(t.linkRemoved, "success");
       await loadLinks();
     } catch (err) {
       toast(
-        err instanceof Error ? err.message : "Kunde inte ta bort länken.",
+        err instanceof Error ? err.message : t.removeFail,
         "error"
       );
     }
@@ -152,56 +159,44 @@ export default function RaknesnurraPage() {
           <Calculator className="h-5 w-5" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Räknesnurra</h1>
-          <p className="text-sm text-muted-foreground">
-            Visa föreningar hur mycket de kan tjäna — live i mötet eller via en
-            länk de räknar på själva.
-          </p>
+          <h1 className="text-2xl font-bold tracking-tight">{t.title}</h1>
+          <p className="text-sm text-muted-foreground">{t.subtitle}</p>
         </div>
       </div>
 
-      {/* Live-kalkyl */}
       <RevenueCalculator onChange={onCalcChange} />
 
-      {/* Skapa delbar länk */}
       <Card>
         <CardContent className="space-y-4 p-6">
           <div className="flex items-center gap-2">
             <Link2 className="h-4 w-4 text-brand-700" />
-            <h2 className="font-semibold">Skapa delbar länk</h2>
+            <h2 className="font-semibold">{t.createLinkTitle}</h2>
           </div>
-          <p className="text-sm text-muted-foreground">
-            Spara antagandena ovan som en länk du kan skicka till föreningen. De
-            kan räkna själva utan att logga in — och du får en notis när de
-            lämnar sina uppgifter.
-          </p>
+          <p className="text-sm text-muted-foreground">{t.createLinkBody}</p>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
             <div className="flex-1 space-y-1.5">
-              <Label htmlFor="assoc">Föreningens namn</Label>
+              <Label htmlFor="assoc">{t.assocName}</Label>
               <Input
                 id="assoc"
                 value={assocName}
                 onChange={(e) => setAssocName(e.target.value)}
-                placeholder="t.ex. Sundsvalls IF"
+                placeholder={t.assocPlaceholder}
                 maxLength={160}
               />
             </div>
             <Button onClick={createLink} disabled={creating || !current}>
-              {creating ? "Skapar…" : "Skapa länk"}
+              {creating ? t.creating : t.createLink}
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* Lista över länkar */}
       <div className="space-y-3">
-        <h2 className="font-semibold">Dina länkar</h2>
+        <h2 className="font-semibold">{t.yourLinks}</h2>
         {loading ? (
-          <p className="text-sm text-muted-foreground">Laddar…</p>
+          <p className="text-sm text-muted-foreground">{t.loading}</p>
         ) : links.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            Inga länkar ännu. Skapa din första ovan.
-          </p>
+          <p className="text-sm text-muted-foreground">{t.noLinks}</p>
         ) : (
           <div className="space-y-3">
             {links.map((link) => (
@@ -216,14 +211,16 @@ export default function RaknesnurraPage() {
                       <div className="mt-2 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
                         <span className="inline-flex items-center gap-1">
                           <Eye className="h-3.5 w-3.5" />
-                          {link.viewCount} visningar
+                          {tFill(t.views, { count: link.viewCount })}
                         </span>
                         <span className="inline-flex items-center gap-1">
                           <Mail className="h-3.5 w-3.5" />
-                          {link.leadCount} leads
+                          {tFill(t.leads, { count: link.leadCount })}
                         </span>
                         <span>
-                          {new Date(link.createdAt).toLocaleDateString("sv-SE")}
+                          {new Date(link.createdAt).toLocaleDateString(
+                            shared.dateLocale
+                          )}
                         </span>
                       </div>
                     </div>
@@ -235,11 +232,11 @@ export default function RaknesnurraPage() {
                       >
                         {copiedId === link.id ? (
                           <>
-                            <Check className="h-4 w-4" /> Kopierad
+                            <Check className="h-4 w-4" /> {t.copied}
                           </>
                         ) : (
                           <>
-                            <Copy className="h-4 w-4" /> Kopiera
+                            <Copy className="h-4 w-4" /> {t.copy}
                           </>
                         )}
                       </Button>
@@ -249,7 +246,7 @@ export default function RaknesnurraPage() {
                         onClick={() => toggleLeads(link)}
                         disabled={link.leadCount === 0}
                       >
-                        Leads
+                        {t.leadsBtn}
                         <ChevronDown
                           className={
                             openLeads === link.id ? "rotate-180" : undefined
@@ -260,7 +257,7 @@ export default function RaknesnurraPage() {
                         size="sm"
                         variant="ghost"
                         onClick={() => removeLink(link)}
-                        aria-label="Ta bort länk"
+                        aria-label={t.removeAria}
                       >
                         <Trash2 className="h-4 w-4 text-muted-foreground" />
                       </Button>
@@ -271,7 +268,7 @@ export default function RaknesnurraPage() {
                     <div className="mt-4 space-y-2 border-t border-border pt-4">
                       {(leads[link.id] ?? []).length === 0 ? (
                         <p className="text-sm text-muted-foreground">
-                          Inga leads ännu.
+                          {t.noLeads}
                         </p>
                       ) : (
                         (leads[link.id] ?? []).map((lead) => (
@@ -287,17 +284,22 @@ export default function RaknesnurraPage() {
                               </span>
                               <span className="text-xs text-muted-foreground">
                                 {new Date(lead.createdAt).toLocaleString(
-                                  "sv-SE"
+                                  shared.dateLocale
                                 )}
                               </span>
                             </div>
                             <p className="mt-1 text-xs text-muted-foreground">
-                              Räknade på {formatKr(lead.computedEarningsOre)} i
-                              förtjänst
-                              {lead.inputs
-                                ? ` (${lead.inputs.sellers} säljare)`
-                                : ""}
-                              .
+                              {tFill(t.computedEarnings, {
+                                amount: formatKr(
+                                  lead.computedEarningsOre,
+                                  locale
+                                ),
+                                sellers: lead.inputs
+                                  ? tFill(t.sellersSuffix, {
+                                      count: lead.inputs.sellers,
+                                    })
+                                  : "",
+                              })}
                             </p>
                             {lead.message && (
                               <p className="mt-1 text-xs">

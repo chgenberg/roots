@@ -46,7 +46,7 @@ import {
 import { formatKr } from "@/lib/format";
 import {
   ALL_STAGES,
-  STAGE_LABELS,
+  getStageLabels,
   daysSince,
   dropIntent,
   stageBadgeVariant,
@@ -57,14 +57,18 @@ import {
   type PipelineDealRef,
 } from "@/components/pipeline-deal-dialog";
 import { NyOffertDialog } from "@/components/ny-offert-dialog";
+import { useLocale } from "@/i18n/locale-context";
+import { portalPages, portalShared } from "@/i18n/dictionaries/portal-pages";
+import { tFill } from "@/i18n/format";
+import { appCommon } from "@/i18n/dictionaries/app-common";
 
-const LEAD_SOURCES = [
-  { value: "INBOUND", label: "Inkommande (förfrågan)" },
-  { value: "OUTBOUND", label: "Utgående (kallt samtal)" },
-  { value: "EVENT", label: "Mässa / event" },
-  { value: "REFERRAL", label: "Rekommendation" },
-  { value: "WEB", label: "Webbplats" },
-  { value: "MANUAL", label: "Manuellt skapad" },
+const LEAD_SOURCE_KEYS = [
+  "INBOUND",
+  "OUTBOUND",
+  "EVENT",
+  "REFERRAL",
+  "WEB",
+  "MANUAL",
 ] as const;
 
 const VIEW_STORAGE_KEY = "roots.pipeline.view";
@@ -103,8 +107,12 @@ const STAGE_SCAFFOLD: Record<
   },
 };
 
-function dealValue(deal: BoardDeal): string {
-  return deal.totalOre > 0 ? formatKr(deal.totalOre) : "Ej offererad";
+function dealValue(
+  deal: BoardDeal,
+  notQuoted: string,
+  locale: "sv" | "en"
+): string {
+  return deal.totalOre > 0 ? formatKr(deal.totalOre, locale) : notQuoted;
 }
 
 // ── Card ───────────────────────────────────────────────────────────
@@ -119,6 +127,10 @@ function DealCard({
   onOpen,
   onDragStart,
   onDragEnd,
+  stageLabels,
+  notQuoted,
+  openDetailsAria,
+  locale,
 }: {
   deal: BoardDeal;
   dragging: boolean;
@@ -126,6 +138,10 @@ function DealCard({
   onOpen: () => void;
   onDragStart: (e: React.DragEvent) => void;
   onDragEnd: () => void;
+  stageLabels: Record<string, string>;
+  notQuoted: string;
+  openDetailsAria: string;
+  locale: "sv" | "en";
 }) {
   return (
     <div
@@ -143,7 +159,11 @@ function DealCard({
           onOpen();
         }
       }}
-      aria-label={`${deal.orgName}, ${STAGE_LABELS[deal.status] ?? deal.status}, ${dealValue(deal)}. Öppna detaljer.`}
+      aria-label={tFill(openDetailsAria, {
+        name: deal.orgName,
+        stage: stageLabels[deal.status] ?? deal.status,
+        value: dealValue(deal, notQuoted, locale),
+      })}
       className={`group rounded-xl border border-border bg-card p-3 text-left text-card-foreground shadow-sm outline-none transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring ${
         draggable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
       } ${dragging ? "opacity-40" : ""}`}
@@ -163,7 +183,9 @@ function DealCard({
             </p>
           )}
           <div className="mt-2 flex items-center justify-between gap-2">
-            <span className="text-sm font-bold">{dealValue(deal)}</span>
+            <span className="text-sm font-bold">
+              {dealValue(deal, notQuoted, locale)}
+            </span>
             <Badge
               variant={
                 daysSince(deal.stageSince) > 7 ? "destructive" : "secondary"
@@ -180,6 +202,13 @@ function DealCard({
 }
 
 export default function PipelinePage() {
+  const { locale } = useLocale();
+  const t = portalPages.pipeline[locale];
+  const shared = portalShared[locale];
+  const common = appCommon[locale];
+  const stageLabels = getStageLabels(locale);
+  const leadSources = shared.leadSources;
+
   const [deals, setDeals] = useState<BoardDeal[]>([]);
   const [stageTotals, setStageTotals] = useState<
     Record<string, { count: number; totalOre: number }>
@@ -276,12 +305,12 @@ export default function PipelinePage() {
       // The board previously soft-failed to an empty scaffold, which is
       // indistinguishable from "you have no deals". Say what happened.
       setLoadError(
-        err instanceof Error ? err.message : "Kunde inte hämta pipeline."
+        err instanceof Error ? err.message : t.loadError
       );
     } finally {
       setLoaded(true);
     }
-  }, []);
+  }, [t.loadError]);
 
   useEffect(() => {
     void loadPipeline();
@@ -291,7 +320,7 @@ export default function PipelinePage() {
     () =>
       ALL_STAGES.map((code) => ({
         code,
-        label: STAGE_LABELS[code],
+        label: stageLabels[code],
         ...STAGE_SCAFFOLD[code],
         deals: deals
           .filter((d) => d.status === code)
@@ -301,7 +330,7 @@ export default function PipelinePage() {
               new Date(b.stageSince).getTime()
           ),
       })),
-    [deals]
+    [deals, stageLabels]
   );
 
   const sortedDeals = useMemo(
@@ -350,11 +379,14 @@ export default function PipelinePage() {
         body: { status },
       });
       toast(
-        `${deal.orgName} flyttad till ${STAGE_LABELS[status] ?? status}.`,
+        tFill(t.movedToast, {
+          name: deal.orgName,
+          stage: stageLabels[status] ?? status,
+        }),
         "success"
       );
       if (res.orgPromotedToCustomer) {
-        toast(`${deal.orgName} är nu registrerad som kund.`, "success");
+        toast(tFill(t.promotedToast, { name: deal.orgName }), "success");
       }
       // Pull authoritative stage sums (they include deals beyond the cap).
       void loadPipeline();
@@ -365,7 +397,7 @@ export default function PipelinePage() {
         )
       );
       toast(
-        err instanceof Error ? err.message : "Kunde inte flytta affären.",
+        err instanceof Error ? err.message : t.moveFail,
         "error"
       );
     }
@@ -385,7 +417,7 @@ export default function PipelinePage() {
       case "noop":
         return;
       case "blocked":
-        toast(intent.reason, "error");
+        toast(shared.dropBlocked[intent.reasonKey], "error");
         return;
       case "create-quote":
         setQuoteFor({
@@ -407,12 +439,12 @@ export default function PipelinePage() {
   async function handleCreateLead() {
     const name = leadName.trim();
     if (name.length < 2) {
-      toast("Klubbnamn måste vara minst 2 tecken.", "error");
+      toast(t.nameMin, "error");
       return;
     }
     const score = Number.parseInt(leadScore, 10);
     if (!Number.isFinite(score) || score < 0 || score > 100) {
-      toast("Potential måste vara 0–100.", "error");
+      toast(t.scoreRange, "error");
       return;
     }
     setLeadSubmitting(true);
@@ -434,7 +466,7 @@ export default function PipelinePage() {
         },
       });
       if (res.ok && res.data?.id) {
-        toast(`"${res.data.name}" är nu i Pipeline.`, "success");
+        toast(tFill(t.leadCreated, { name: res.data.name ?? name }), "success");
         setLeadDialogOpen(false);
         setLeadName("");
         setLeadMunicipality("");
@@ -442,10 +474,10 @@ export default function PipelinePage() {
         setLeadOrgNumber("");
         void loadPipeline();
       } else {
-        toast(res.data?.error || "Kunde inte skapa leadet.", "error");
+        toast(res.data?.error || t.leadCreateFail, "error");
       }
     } catch {
-      toast("Ett nätverksfel uppstod. Försök igen.", "error");
+      toast(t.networkFail, "error");
     } finally {
       setLeadSubmitting(false);
     }
@@ -514,32 +546,25 @@ export default function PipelinePage() {
     <div className="page-enter space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Pipeline</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t.title}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Totalt pipeline-värde:{" "}
+            {t.totalValue}{" "}
             <span className="font-semibold text-foreground">
-              {loaded ? formatKr(totalValueOre) : "—"}
+              {loaded ? formatKr(totalValueOre, locale) : "—"}
             </span>
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
             {readOnly ? (
-              "Demokonto: du kan öppna affärerna, men inte ändra dem. Logga in med ditt eget säljarkonto för att flytta affärer och lägga till lead."
+              t.readOnlyHint
             ) : view === "board" ? (
               <>
-                {/* Dragning finns bara på tavlan i lg+; i mobil-accordionen
-                    byter man steg via detalj-popupen. */}
-                <span className="hidden lg:inline">
-                  Dra korten mellan stegen, eller klicka på ett kort för
-                  detaljer.
-                </span>
-                <span className="lg:hidden">
-                  Tryck på ett kort för detaljer och för att byta steg.
-                </span>
+                <span className="hidden lg:inline">{t.boardHintDesktop}</span>
+                <span className="lg:hidden">{t.boardHintMobile}</span>
               </>
             ) : (
-              "Klicka på en rad för detaljer."
+              t.listHint
             )}
-            {isTruncated && " Vyn visar de senaste affärerna per steg."}
+            {isTruncated && t.truncated}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -547,7 +572,7 @@ export default function PipelinePage() {
           <div
             className="flex rounded-lg border border-border p-0.5"
             role="group"
-            aria-label="Välj vy"
+            aria-label={t.viewAria}
           >
             <button
               type="button"
@@ -560,7 +585,7 @@ export default function PipelinePage() {
               }`}
             >
               <LayoutGrid className="h-3.5 w-3.5" />
-              Tavla
+              {t.board}
             </button>
             <button
               type="button"
@@ -573,20 +598,16 @@ export default function PipelinePage() {
               }`}
             >
               <List className="h-3.5 w-3.5" />
-              Lista
+              {t.list}
             </button>
           </div>
           <Button
             onClick={() => setLeadDialogOpen(true)}
             disabled={readOnly}
-            title={
-              readOnly
-                ? "Demokontot kan inte skapa lead — logga in med ditt säljarkonto."
-                : undefined
-            }
+            title={readOnly ? t.newLeadDemoTitle : undefined}
           >
             <Plus className="mr-2 h-4 w-4" />
-            Nytt lead
+            {t.newLead}
           </Button>
         </div>
       </div>
@@ -598,7 +619,7 @@ export default function PipelinePage() {
         >
           <span>{loadError}</span>
           <Button size="sm" variant="outline" onClick={() => void loadPipeline()}>
-            Försök igen
+            {common.retry}
           </Button>
         </div>
       )}
@@ -609,11 +630,11 @@ export default function PipelinePage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Förening</TableHead>
-                  <TableHead>Steg</TableHead>
-                  <TableHead>Värde</TableHead>
-                  <TableHead>I steget</TableHead>
-                  <TableHead className="text-right">Kommun</TableHead>
+                  <TableHead>{t.colClub}</TableHead>
+                  <TableHead>{t.colStage}</TableHead>
+                  <TableHead>{t.colValue}</TableHead>
+                  <TableHead>{t.colInStage}</TableHead>
+                  <TableHead className="text-right">{t.colMunicipality}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -636,14 +657,16 @@ export default function PipelinePage() {
                     </TableCell>
                     <TableCell>
                       <Badge variant={stageBadgeVariant(deal.status)}>
-                        {STAGE_LABELS[deal.status] ?? deal.status}
+                        {stageLabels[deal.status] ?? deal.status}
                       </Badge>
                     </TableCell>
                     <TableCell className="font-medium">
-                      {dealValue(deal)}
+                      {dealValue(deal, shared.notQuoted, locale)}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {daysSince(deal.stageSince)} dagar
+                      {tFill(t.daysInStage, {
+                        days: daysSince(deal.stageSince),
+                      })}
                     </TableCell>
                     <TableCell className="text-right text-muted-foreground">
                       {deal.municipality ?? "—"}
@@ -656,8 +679,7 @@ export default function PipelinePage() {
                       colSpan={5}
                       className="py-8 text-center text-muted-foreground"
                     >
-                      Inga affärer ännu. Klicka på ”Nytt lead” för att lägga
-                      till din första klubb.
+                      {t.emptyList}
                     </TableCell>
                   </TableRow>
                 )}
@@ -667,7 +689,7 @@ export default function PipelinePage() {
                       colSpan={5}
                       className="py-8 text-center text-muted-foreground"
                     >
-                      Hämtar pipeline…
+                      {t.loading}
                     </TableCell>
                   </TableRow>
                 )}
@@ -714,16 +736,20 @@ export default function PipelinePage() {
                           key={deal.id}
                           deal={deal}
                           onOpen={() => openDeal(deal)}
+                          stageLabels={stageLabels}
+                          notQuoted={shared.notQuoted}
+                          openDetailsAria={t.openDetailsAria}
+                          locale={locale}
                           {...cardDragProps(deal)}
                         />
                       ))}
                       {col.deals.length === 0 && (
                         <div className="rounded-xl border border-dashed border-border/80 bg-muted/20 py-8 text-center text-xs text-muted-foreground">
                           {!draggedDeal
-                            ? "Inga affärer i detta steg"
+                            ? t.emptyStage
                             : zone.allowed
-                              ? "Släpp här"
-                              : "Kan inte släppas här"}
+                              ? t.dropHere
+                              : t.cannotDrop}
                         </div>
                       )}
                     </div>
@@ -741,7 +767,7 @@ export default function PipelinePage() {
               (keyboard, screen-reader announce). Dragning är avstängd
               här; på touch flyttar man affären via steg-väljaren i
               detalj-dialogen istället. */}
-          <div className="space-y-3 lg:hidden" aria-label="Pipeline-stages">
+          <div className="space-y-3 lg:hidden" aria-label={t.stagesAria}>
             {columns.map((col, idx) => (
               <details
                 key={col.code}
@@ -774,11 +800,15 @@ export default function PipelinePage() {
                       onOpen={() => openDeal(deal)}
                       onDragStart={() => {}}
                       onDragEnd={() => {}}
+                      stageLabels={stageLabels}
+                      notQuoted={shared.notQuoted}
+                      openDetailsAria={t.openDetailsAria}
+                      locale={locale}
                     />
                   ))}
                   {col.deals.length === 0 && (
                     <div className="rounded-xl border border-dashed border-border/80 bg-muted/20 py-6 text-center text-xs text-muted-foreground">
-                      Inga affärer i detta steg
+                      {t.emptyStage}
                     </div>
                   )}
                 </div>
@@ -815,7 +845,10 @@ export default function PipelinePage() {
         initialSendNow={quoteFor?.sendNow ?? false}
         onCreated={(quote) => {
           toast(
-            `Offert på ${formatKr(quote.totalOre)} skapad för ${quote.orgName ?? "föreningen"}.`,
+            tFill(t.quoteCreated, {
+              amount: formatKr(quote.totalOre, locale),
+              name: quote.orgName ?? t.quoteCreatedFallback,
+            }),
             "success"
           );
           setQuoteFor(null);
@@ -828,44 +861,41 @@ export default function PipelinePage() {
       <Dialog open={leadDialogOpen} onOpenChange={setLeadDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Nytt lead</DialogTitle>
-            <DialogDescription>
-              Lägg till en klubb du har börjat bearbeta. Den hamnar under{" "}
-              <strong>Lead</strong>-stadiet och tilldelas dig som ansvarig.
-            </DialogDescription>
+            <DialogTitle>{t.leadDialogTitle}</DialogTitle>
+            <DialogDescription>{t.leadDialogDesc}</DialogDescription>
           </DialogHeader>
 
           {/* Scout fix 2026-05-26 (UX dialog-overflow): inputs satt
               tidigare i dialog-kanten utan padding. */}
           <div className="space-y-4 px-6 py-2">
             <div>
-              <Label htmlFor="leadName">Klubbnamn</Label>
+              <Label htmlFor="leadName">{t.clubName}</Label>
               <Input
                 id="leadName"
                 value={leadName}
                 onChange={(e) => setLeadName(e.target.value)}
-                placeholder="t.ex. Solna IF, IK Sirius"
+                placeholder={t.clubNamePlaceholder}
                 maxLength={255}
               />
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <Label htmlFor="leadSource">Källa</Label>
+                <Label htmlFor="leadSource">{t.source}</Label>
                 <select
                   id="leadSource"
                   value={leadSource}
                   onChange={(e) => setLeadSource(e.target.value)}
                   className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 >
-                  {LEAD_SOURCES.map((s) => (
-                    <option key={s.value} value={s.value}>
-                      {s.label}
+                  {LEAD_SOURCE_KEYS.map((key) => (
+                    <option key={key} value={key}>
+                      {leadSources[key]}
                     </option>
                   ))}
                 </select>
               </div>
               <div>
-                <Label htmlFor="leadScore">Potential (0–100)</Label>
+                <Label htmlFor="leadScore">{t.potential}</Label>
                 <Input
                   id="leadScore"
                   type="number"
@@ -878,16 +908,16 @@ export default function PipelinePage() {
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <Label htmlFor="leadMunicipality">Kommun (valfritt)</Label>
+                <Label htmlFor="leadMunicipality">{t.municipalityOptional}</Label>
                 <Input
                   id="leadMunicipality"
                   value={leadMunicipality}
                   onChange={(e) => setLeadMunicipality(e.target.value)}
-                  placeholder="t.ex. Stockholm"
+                  placeholder={t.municipalityPlaceholder}
                 />
               </div>
               <div>
-                <Label htmlFor="leadOrgNumber">Org.nr (valfritt)</Label>
+                <Label htmlFor="leadOrgNumber">{t.orgNumberOptional}</Label>
                 <Input
                   id="leadOrgNumber"
                   value={leadOrgNumber}
@@ -897,7 +927,7 @@ export default function PipelinePage() {
               </div>
             </div>
             <div>
-              <Label htmlFor="leadWebsite">Webbplats (valfritt)</Label>
+              <Label htmlFor="leadWebsite">{t.websiteOptional}</Label>
               <Input
                 id="leadWebsite"
                 value={leadWebsite}
@@ -913,13 +943,13 @@ export default function PipelinePage() {
               onClick={() => setLeadDialogOpen(false)}
               disabled={leadSubmitting}
             >
-              Avbryt
+              {common.cancel}
             </Button>
             <Button onClick={handleCreateLead} disabled={leadSubmitting}>
               {leadSubmitting && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               )}
-              Skapa lead
+              {t.createLead}
             </Button>
           </DialogFooter>
         </DialogContent>

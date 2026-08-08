@@ -1,6 +1,7 @@
 import type { Context, Next } from "hono";
 import { requireSession } from "../lib/http-session";
 import { childLogger } from "../lib/logger";
+import { resolveUiLocale, uiError } from "../lib/ui-locale";
 
 const log = childLogger("mfa-guard");
 
@@ -73,10 +74,10 @@ export async function mfaRequired(c: Context, next: Next) {
 
   if (!session?.mfaPending) return next();
 
+  const locale = resolveUiLocale(c);
   return c.json(
     {
-      error:
-        "Din roll kräver tvåfaktorsautentisering. Registrera en autentiseringsapp under Inställningar för att fortsätta.",
+      error: uiError(locale, "mfaEnrollmentRequired"),
       mfaEnrollmentRequired: true,
     },
     403

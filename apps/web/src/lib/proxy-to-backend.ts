@@ -139,11 +139,17 @@ export async function proxyRequestToBackend(
       `[proxy] ${req.method} ${backendPath} ${timedOut ? "timeout" : "misslyckades"}`,
       err
     );
+    const localeHeader = req.headers.get("x-roots-locale");
+    const en = localeHeader === "en";
     return NextResponse.json(
       {
         error: timedOut
-          ? "Servern svarade inte i tid. Försök igen."
-          : "Kunde inte nå servern. Försök igen.",
+          ? en
+            ? "The server did not respond in time. Please try again."
+            : "Servern svarade inte i tid. Försök igen."
+          : en
+            ? "Could not reach the server. Please try again."
+            : "Kunde inte nå servern. Försök igen.",
       },
       { status: timedOut ? 504 : 502 }
     );

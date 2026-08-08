@@ -1,15 +1,7 @@
 "use client";
 
 /**
- * Registrering och avstängning av tvåfaktor.
- *
- * Egen komponent eftersom flödet har fyra lägen (av, påbörjad, nyss
- * aktiverad med koder att skriva ner, aktiverad) och inställningssidan är
- * lång nog som den är.
- *
- * Reservkoderna visas en enda gång, direkt efter aktiveringen. Att kunna
- * hämta dem igen senare skulle göra dem lika användbara för någon med en
- * kapad session som för användaren själv.
+ * Registrering och avstängning av tvåfaktorsautentisering.
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -26,6 +18,9 @@ import {
   Check,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { useLocale } from "@/i18n/locale-context";
+import { portalPages } from "@/i18n/dictionaries/portal-pages";
+import { tFill } from "@/i18n/format";
 
 interface MfaStatus {
   enabled: boolean;
@@ -36,11 +31,12 @@ interface MfaStatus {
 }
 
 export function MfaSection() {
+  const { locale } = useLocale();
+  const t = portalPages.mfa[locale];
   const { toast } = useToast();
   const [status, setStatus] = useState<MfaStatus | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // Registreringsflödet
   const [password, setPassword] = useState("");
   const [setupUri, setSetupUri] = useState<string | null>(null);
   const [setupSecret, setSetupSecret] = useState<string | null>(null);
@@ -59,8 +55,6 @@ export function MfaSection() {
     void load();
   }, [load]);
 
-  // Biblioteket är ~50 kB och behövs bara av den handfull användare som
-  // faktiskt registrerar en app, så det laddas när QR-koden ska visas.
   useEffect(() => {
     if (!setupUri) {
       setQrDataUrl(null);
@@ -75,8 +69,6 @@ export function MfaSection() {
         if (!cancelled) setQrDataUrl(url);
       })
       .catch(() => {
-        // Nyckeln visas i klartext vid sidan om, så en trasig QR-kod
-        // blockerar inte registreringen.
         if (!cancelled) setQrDataUrl(null);
       });
     return () => {
@@ -87,9 +79,6 @@ export function MfaSection() {
   async function startSetup(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
-    // Vid byte av app skickas även en kod från den nuvarande appen. Utan den
-    // skulle lösenordet räcka för att flytta andra faktorn till en annan
-    // enhet, och en kapad session vore lika bra som att äga kontot.
     const { ok, data } = await apiFetch<{
       error?: string;
       secret?: string;
@@ -100,15 +89,13 @@ export function MfaSection() {
     });
     setBusy(false);
     if (!ok || !data?.uri) {
-      toast(data?.error ?? "Kunde inte starta registreringen.", "error");
+      toast(data?.error ?? t.startFail, "error");
       return;
     }
     setSetupUri(data.uri);
     setSetupSecret(data.secret ?? null);
     setPassword("");
     setCode("");
-    // Bytet nollställde aktiveringen i backend — statusen ska följa med, så
-    // formuläret nedan inte fortsätter kräva en kod från den gamla appen.
     void load();
   }
 
@@ -121,7 +108,7 @@ export function MfaSection() {
     }>("/v1/auth/mfa/enable", { method: "POST", body: { code } });
     setBusy(false);
     if (!ok || !data?.backupCodes) {
-      toast(data?.error ?? "Koden stämmer inte.", "error");
+      toast(data?.error ?? t.codeMismatch, "error");
       setCode("");
       return;
     }
@@ -137,35 +124,29 @@ export function MfaSection() {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin" />
-        Hämtar status för tvåfaktor…
+        {t.loading}
       </div>
     );
   }
 
   if (status.demo) {
     return (
-      <p className="text-sm text-muted-foreground">
-        Tvåfaktor går inte att ändra i demoläget.
-      </p>
+      <p className="text-sm text-muted-foreground">{t.demoLocked}</p>
     );
   }
 
-  // Reservkoderna, direkt efter aktivering. Enda gången de visas.
   if (freshCodes) {
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-2">
           <ShieldCheck className="h-4 w-4 text-success" />
-          <p className="text-sm font-medium">Tvåfaktor är aktiverad</p>
+          <p className="text-sm font-medium">{t.enabled}</p>
         </div>
         <div className="rounded-lg border border-warning-edge bg-warning-surface p-4">
           <p className="text-sm font-medium text-warning-strong">
-            Spara dina reservkoder nu
+            {t.saveCodesTitle}
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Var och en fungerar en gång, om du inte har telefonen. Du kan inte
-            hämta dem igen senare — då får du registrera appen på nytt.
-          </p>
+          <p className="mt-1 text-xs text-muted-foreground">{t.saveCodesBody}</p>
           <ul className="mt-3 grid grid-cols-2 gap-1.5 font-mono text-sm">
             {freshCodes.map((c) => (
               <li key={c} className="tabular-nums">
@@ -183,7 +164,7 @@ export function MfaSection() {
                 setCopied(true);
                 setTimeout(() => setCopied(false), 2000);
               } catch {
-                toast("Kunde inte kopiera. Markera och kopiera manuellt.", "error");
+                toast(t.copyFail, "error");
               }
             }}
           >
@@ -192,50 +173,40 @@ export function MfaSection() {
             ) : (
               <Copy className="mr-2 h-4 w-4" />
             )}
-            {copied ? "Kopierat" : "Kopiera koderna"}
+            {copied ? t.copied : t.copyCodes}
           </Button>
         </div>
         <Button variant="outline" size="sm" onClick={() => setFreshCodes(null)}>
-          Jag har sparat dem
+          {t.codesSaved}
         </Button>
       </div>
     );
   }
 
-  // Prövas före `status.enabled`: ett appbyte nollställer aktiveringen i
-  // backend, och status hinner släpa efter ett ögonblick. Annars försvann
-  // QR-koden under användaren mitt i bytet.
   if (status.enabled && !setupUri) {
     return (
       <div className="space-y-3">
         <div className="flex items-center gap-2">
           <ShieldCheck className="h-4 w-4 text-success" />
-          <p className="text-sm font-medium">Tvåfaktor är aktiverad</p>
+          <p className="text-sm font-medium">{t.enabled}</p>
         </div>
         <p className="text-sm text-muted-foreground">
-          Du anger en kod från din autentiseringsapp varje gång du loggar in.
+          {t.enabledBody}
           {status.backupCodesRemaining > 0
-            ? ` Du har ${status.backupCodesRemaining} reservkoder kvar.`
-            : " Du har inga reservkoder kvar — byt app nedan för att få nya."}
+            ? tFill(t.backupRemaining, {
+                count: status.backupCodesRemaining,
+              })
+            : t.backupNone}
         </p>
         {status.required && (
-          <p className="text-xs text-muted-foreground">
-            Din roll kräver tvåfaktor, så den kan inte stängas av.
-          </p>
+          <p className="text-xs text-muted-foreground">{t.roleRequired}</p>
         )}
 
-        {/* Bytet kräver båda faktorerna, så en kapad session inte kan flytta
-            andra faktorn till en angripares telefon. Har du tappat appen och
-            är utan reservkoder kan bara vi återställa den — hör av dig. */}
         {rebinding ? (
           <form onSubmit={startSetup} className="space-y-3 pt-1">
-            <p className="text-sm text-muted-foreground">
-              Ange ditt lösenord och en kod från appen du använder nu. Sedan
-              får du en ny QR-kod att skanna. Den gamla appen slutar gälla
-              direkt.
-            </p>
+            <p className="text-sm text-muted-foreground">{t.rebindIntro}</p>
             <div className="space-y-1.5">
-              <Label htmlFor="mfa-rebind-password">Lösenord</Label>
+              <Label htmlFor="mfa-rebind-password">{t.password}</Label>
               <Input
                 id="mfa-rebind-password"
                 type="password"
@@ -245,9 +216,7 @@ export function MfaSection() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="mfa-rebind-code">
-                Kod från nuvarande app (eller en reservkod)
-              </Label>
+              <Label htmlFor="mfa-rebind-code">{t.currentCode}</Label>
               <Input
                 id="mfa-rebind-code"
                 inputMode="numeric"
@@ -259,7 +228,7 @@ export function MfaSection() {
             <div className="flex flex-wrap gap-2">
               <Button type="submit" size="sm" disabled={busy || !password || !code}>
                 {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Fortsätt
+                {t.continue}
               </Button>
               <Button
                 type="button"
@@ -271,7 +240,7 @@ export function MfaSection() {
                   setCode("");
                 }}
               >
-                Avbryt
+                {t.cancel}
               </Button>
             </div>
           </form>
@@ -281,29 +250,23 @@ export function MfaSection() {
             size="sm"
             onClick={() => setRebinding(true)}
           >
-            Byt till en ny app
+            {t.switchApp}
           </Button>
         )}
       </div>
     );
   }
 
-  // Steg 2: appen är tillagd, koden ska bekräftas.
   if (setupUri) {
     return (
       <form onSubmit={confirmSetup} className="space-y-4">
-        <p className="text-sm text-muted-foreground">
-          Skanna koden med Google Authenticator, 1Password, Authy eller en
-          annan app. Ange sedan den sexsiffriga koden appen visar.
-        </p>
+        <p className="text-sm text-muted-foreground">{t.scanIntro}</p>
         <div className="flex flex-wrap items-start gap-4">
-          {/* QR-koden ritas lokalt. otpauth-URI:n innehåller hemligheten, så
-              den får aldrig gå till en extern bildtjänst. */}
           {qrDataUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={qrDataUrl}
-              alt="QR-kod för att registrera tvåfaktor"
+              alt={t.qrAlt}
               width={180}
               height={180}
               className="rounded-lg border bg-white p-2"
@@ -315,9 +278,7 @@ export function MfaSection() {
           )}
           {setupSecret && (
             <div className="space-y-1">
-              <p className="text-xs font-medium">
-                Kan du inte skanna? Skriv in nyckeln:
-              </p>
+              <p className="text-xs font-medium">{t.manualKey}</p>
               <code className="block break-all rounded bg-muted px-2 py-1 font-mono text-xs">
                 {setupSecret}
               </code>
@@ -325,7 +286,7 @@ export function MfaSection() {
           )}
         </div>
         <div className="max-w-xs space-y-2">
-          <Label htmlFor="mfa-confirm">Kod från appen</Label>
+          <Label htmlFor="mfa-confirm">{t.appCode}</Label>
           <Input
             id="mfa-confirm"
             inputMode="numeric"
@@ -339,7 +300,7 @@ export function MfaSection() {
         <div className="flex flex-wrap gap-2">
           <Button type="submit" size="sm" disabled={busy}>
             {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Aktivera tvåfaktor
+            {t.activate}
           </Button>
           <Button
             type="button"
@@ -351,34 +312,26 @@ export function MfaSection() {
               setCode("");
             }}
           >
-            Avbryt
+            {t.cancel}
           </Button>
         </div>
       </form>
     );
   }
 
-  // Steg 1: av. Lösenordet krävs igen så att en kapad session inte kan
-  // byta ut andra faktorn mot angriparens egen app.
   return (
     <form onSubmit={startSetup} className="space-y-4">
       {status.required ? (
         <div className="flex items-start gap-2 rounded-lg border border-warning-edge bg-warning-surface p-3">
           <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning-strong" />
-          <p className="text-sm text-warning-strong">
-            Din roll ser data för alla föreningar, så tvåfaktor krävs. Fram
-            till att du registrerat en app är portalen låst.
-          </p>
+          <p className="text-sm text-warning-strong">{t.roleRequiredBanner}</p>
         </div>
       ) : (
-        <p className="text-sm text-muted-foreground">
-          Lägg till en kod från en autentiseringsapp vid inloggning. Då räcker
-          det inte med ditt lösenord för att komma in på kontot.
-        </p>
+        <p className="text-sm text-muted-foreground">{t.enableIntro}</p>
       )}
 
       <div className="max-w-xs space-y-2">
-        <Label htmlFor="mfa-password">Bekräfta med ditt lösenord</Label>
+        <Label htmlFor="mfa-password">{t.confirmPassword}</Label>
         <Input
           id="mfa-password"
           type="password"
@@ -394,7 +347,7 @@ export function MfaSection() {
         ) : (
           <KeyRound className="mr-2 h-4 w-4" />
         )}
-        Kom igång
+        {t.getStarted}
       </Button>
     </form>
   );

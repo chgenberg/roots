@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
+import { useLocale } from "@/i18n/locale-context";
 
 /**
  * Legacy CTA from onboarding pointed here (`/forening/installningar`).
@@ -10,9 +11,10 @@ import { Loader2 } from "lucide-react";
  */
 export default function ForeningInstallningarRedirect() {
   const router = useRouter();
+  const { href } = useLocale();
   useEffect(() => {
-    router.replace("/installningar");
-  }, [router]);
+    router.replace(href("/installningar"));
+  }, [router, href]);
 
   return (
     <div className="flex items-center justify-center py-20">

@@ -1,9 +1,11 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import type { Locale } from "@/i18n/config";
+import { withLocale } from "@/i18n/paths";
 
 /**
  * Lightweight inline markup for guide paragraphs:
- * - [label](/path) → internal Link (same-origin path only)
+ * - [label](/path) → internal Link with locale prefix (same-origin path only)
  * - [label](https://…) → external <a> (http/https only)
  * - **bold**
  * - *italic*
@@ -11,8 +13,14 @@ import type { ReactNode } from "react";
  * Protocol-relative (`//evil.com`) must NOT be treated as internal: it
  * starts with "/" but leaves the origin. javascript:/data: are dropped.
  */
-export function GuideRichText({ text }: { text: string }) {
-  return <>{parseInline(text)}</>;
+export function GuideRichText({
+  text,
+  locale = "sv",
+}: {
+  text: string;
+  locale?: Locale;
+}) {
+  return <>{parseInline(text, locale)}</>;
 }
 
 function isSafeInternalHref(href: string): boolean {
@@ -34,7 +42,7 @@ function isSafeExternalHref(href: string): boolean {
   }
 }
 
-function parseInline(input: string): ReactNode[] {
+function parseInline(input: string, locale: Locale): ReactNode[] {
   const nodes: ReactNode[] = [];
   const pattern =
     /(\[([^\]]+)\]\(([^)]+)\))|(\*\*([^*]+)\*\*)|(\*([^*]+)\*)/g;
@@ -54,7 +62,7 @@ function parseInline(input: string): ReactNode[] {
         "font-medium text-foreground underline decoration-brand-300 underline-offset-2 transition-colors hover:decoration-brand-500";
       if (isSafeInternalHref(href)) {
         nodes.push(
-          <Link key={key++} href={href} className={className}>
+          <Link key={key++} href={withLocale(href, locale)} className={className}>
             {label}
           </Link>
         );

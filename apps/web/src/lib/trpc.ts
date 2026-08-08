@@ -6,6 +6,7 @@ import superjson from "superjson";
 import type { AppRouter } from "../../../api/src/trpc/router";
 
 import { getBrowserApiBase } from "./api-base";
+import { getBrowserLocale } from "@/i18n/browser-locale";
 
 function getBaseUrl() {
   if (typeof window !== "undefined") {
@@ -24,9 +25,12 @@ export const trpc = createTRPCClient<AppRouter>({
       url: `${getBaseUrl()}/trpc`,
       transformer: superjson,
       fetch(url, options) {
+        const headers = new Headers(options?.headers);
+        headers.set("x-roots-locale", getBrowserLocale());
         return fetch(url, {
           ...options,
           credentials: "include",
+          headers,
         });
       },
     }),

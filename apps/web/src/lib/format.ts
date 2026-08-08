@@ -11,14 +11,19 @@
  * beloppen ser likadana ut oavsett vilken vy man tittar på.
  */
 
-/** Öre → "12 300 kr" (svensk gruppering, inga decimaler). */
-export function formatKr(ore: number): string {
-  return `${Math.round(ore / 100).toLocaleString("sv-SE")} kr`;
+/** Öre → "12 300 kr" / "SEK 12,300" (inga decimaler). */
+export function formatKr(ore: number, locale: "sv" | "en" = "sv"): string {
+  const amount = Math.round(ore / 100).toLocaleString(
+    locale === "en" ? "en-GB" : "sv-SE"
+  );
+  return locale === "en" ? `SEK ${amount}` : `${amount} kr`;
 }
 
-/** Öre → "12 300" utan enhet, för när vyn sätter "kr" själv. */
-export function formatKrValue(ore: number): string {
-  return Math.round(ore / 100).toLocaleString("sv-SE");
+/** Öre → "12 300" utan enhet, för när vyn sätter enheten själv. */
+export function formatKrValue(ore: number, locale: "sv" | "en" = "sv"): string {
+  return Math.round(ore / 100).toLocaleString(
+    locale === "en" ? "en-GB" : "sv-SE"
+  );
 }
 
 /** Öre → kompakt "12,3k" för axel- och stapeletiketter. */

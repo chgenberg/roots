@@ -1,5 +1,11 @@
 "use client";
 
+import { useLocale } from "@/i18n/locale-context";
+import { fundraisingPages } from "@/i18n/dictionaries/fundraising-pages";
+import { tFill } from "@/i18n/format";
+import { appCommon } from "@/i18n/dictionaries/app-common";
+import { LocaleLink } from "@/components/locale-link";
+
 import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -21,23 +27,31 @@ import { countsAsRevenue } from "@roots/contracts";
 import type { TeamDashboard, CustomerOrder, Seller } from "@/types/fundraising";
 
 import { getBrowserApiBase } from "@/lib/api-base";
-import { formatKrValue } from "@/lib/format";
+import { rootsFetch } from "@/lib/api";
+import { formatKr, formatKrValue } from "@/lib/format";
 import { orderStatusColor, orderStatusLabel } from "@/lib/order-status";
 
 const API_URL = getBrowserApiBase();
 
 type FilterStatus = "ALL" | "PAID" | "PENDING" | "DRAFT" | "FAILED" | "CANCELLED";
 
-function paymentMethodLabel(method: string) {
+function paymentMethodLabel(method: string, locale: "sv" | "en") {
+  const labels = fundraisingPages.paymentMethod[locale];
   const m = method.toLowerCase();
-  if (m.includes("swish")) return "Swish";
-  if (m.includes("card")) return "Kort";
-  if (m.includes("klarna") || m.includes("pay_later") || m.includes("invoice")) return "Klarna";
-  if (m === "cash" || m.includes("kontant")) return "Kontant";
+  if (m.includes("swish")) return labels.swish;
+  if (m.includes("card") || m.includes("kort")) return labels.card;
+  if (m.includes("klarna") || m.includes("pay_later") || m.includes("invoice"))
+    return labels.klarna;
+  if (m === "cash" || m.includes("kontant")) return labels.cash;
   return method;
 }
 
 export default function TeamOrdersPage() {
+  const { locale, href } = useLocale();
+  const t = fundraisingPages.teamOrders[locale];
+  const c = fundraisingPages.common[locale];
+  const dateLocale = appCommon[locale].dateLocale;
+
   const [data, setData] = useState<TeamDashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -52,26 +66,22 @@ export default function TeamOrdersPage() {
 
   const load = useCallback(async () => {
     try {
-      const myTeamRes = await fetch(`${API_URL}/v1/dashboard/my-team`, {
-        credentials: "include",
-      });
+      const myTeamRes = await rootsFetch(`${API_URL}/v1/dashboard/my-team`);
       if (!myTeamRes.ok) {
-        setError("Kunde inte hämta lagdata.");
+        setError(t.loadFailed);
         return;
       }
       const { teamId } = await myTeamRes.json();
 
-      const teamRes = await fetch(`${API_URL}/v1/dashboard/team/${teamId}`, {
-        credentials: "include",
-      });
+      const teamRes = await rootsFetch(`${API_URL}/v1/dashboard/team/${teamId}`);
       if (teamRes.ok) {
         setData(await teamRes.json());
         setError(null);
       } else {
-        setError("Kunde inte hämta lagdata.");
+        setError(t.loadFailed);
       }
     } catch {
-      setError("Ett nätverksfel uppstod.");
+      setError(c.networkError);
     } finally {
       setLoading(false);
     }
@@ -98,7 +108,7 @@ export default function TeamOrdersPage() {
       <div className="flex flex-col items-center gap-3 py-20">
         <ClipboardList className="h-10 w-10 text-muted-foreground" />
         <p className="text-sm text-muted-foreground">
-          Inget lag hittades
+          {c.noTeamFound}
         </p>
       </div>
     );
@@ -153,27 +163,28 @@ export default function TeamOrdersPage() {
   function exportCsv() {
     if (filteredOrders.length === 0) return;
     downloadCustomerOrdersCsv(
-      `bestallningar-${data?.team?.name || "lag"}`.toLowerCase().replace(/\s+/g, "-"),
+      `${locale === "en" ? "orders" : "bestallningar"}-${data?.team?.name || (locale === "en" ? "team" : "lag")}`.toLowerCase().replace(/\s+/g, "-"),
       filteredOrders.map((o) => ({
         id: o.id,
         createdAt: o.createdAt,
         customerName: o.customerName,
         customerEmail: o.customerEmail,
         sellerName: sellerMap.get(o.sellerId ?? "") ?? null,
-        status: orderStatusLabel(o.status),
+        status: orderStatusLabel(o.status, locale),
         paymentMethod: o.paymentMethod,
         deliveryType: o.deliveryType,
         totalOre: o.totalOre,
-      }))
+      })),
+      locale
     );
   }
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Beställningar</h1>
+        <h1 className="text-2xl font-bold">{t.title}</h1>
         <p className="text-sm text-muted-foreground">
-          Ordersammanställning för {data.team?.name}
+          {tFill(t.subtitle, { team: data.team?.name ?? "" })}
         </p>
       </div>
 
@@ -186,13 +197,14 @@ export default function TeamOrdersPage() {
                 <p className="text-sm font-semibold">
                   {awaitingVerification.length}{" "}
                   {awaitingVerification.length === 1
-                    ? "manuell order väntar"
-                    : "manuella ordrar väntar"}{" "}
-                  på din bekräftelse
+                    ? t.awaitingTitleOne
+                    : t.awaitingTitleMany}{" "}
+                  {t.awaitingSuffix}
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  {formatKrValue(awaitingOre)} kr räknas inte med i avräkningen
-                  förrän du bekräftat att pengarna kommit in.
+                  {tFill(t.awaitingBody, {
+                    amount: formatKr(awaitingOre, locale),
+                  })}
                 </p>
               </div>
             </div>
@@ -201,7 +213,7 @@ export default function TeamOrdersPage() {
               variant={onlyUnverified ? "default" : "outline"}
               onClick={() => setOnlyUnverified((v) => !v)}
             >
-              {onlyUnverified ? "Visa alla ordrar" : "Visa dem"}
+              {onlyUnverified ? t.showAll : t.showThem}
             </Button>
           </CardContent>
         </Card>
@@ -210,21 +222,21 @@ export default function TeamOrdersPage() {
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
           <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">Totalt antal ordrar</p>
+            <p className="text-sm text-muted-foreground">{t.totalOrderCount}</p>
             <p className="mt-1 text-2xl font-bold">{orders.length}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">Betald summa</p>
+            <p className="text-sm text-muted-foreground">{t.paidSum}</p>
             <p className="mt-1 text-2xl font-bold">
-              {formatKrValue(paidTotal)} kr
+              {formatKr(paidTotal, locale)}
             </p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">Direktleveranser</p>
+            <p className="text-sm text-muted-foreground">{t.directDeliveries}</p>
             <p className="mt-1 text-2xl font-bold">
               {orders.filter((o: CustomerOrder) => o.deliveryType === "DIRECT").length}
             </p>
@@ -242,7 +254,7 @@ export default function TeamOrdersPage() {
                 variant={filter === f ? "default" : "outline"}
                 onClick={() => setFilter(f)}
               >
-                {f === "ALL" ? "Alla" : orderStatusLabel(f)}
+                {f === "ALL" ? c.all : orderStatusLabel(f, locale)}
               </Button>
             ))}
             <div className="ml-auto">
@@ -254,7 +266,7 @@ export default function TeamOrdersPage() {
                 className="gap-1.5"
               >
                 <Download className="h-4 w-4" />
-                Exportera CSV
+                {c.exportCsv}
               </Button>
             </div>
           </div>
@@ -262,7 +274,7 @@ export default function TeamOrdersPage() {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Sök kund, e-post eller säljare…"
+                placeholder={c.searchPlaceholder}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-9"
@@ -272,13 +284,13 @@ export default function TeamOrdersPage() {
               type="date"
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
-              aria-label="Från-datum"
+              aria-label={c.dateFrom}
             />
             <Input
               type="date"
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
-              aria-label="Till-datum"
+              aria-label={c.dateTo}
             />
           </div>
         </CardContent>
@@ -288,15 +300,17 @@ export default function TeamOrdersPage() {
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <ClipboardList className="h-4 w-4" />
-            Ordrar ({filteredOrders.length})
+            {tFill(t.ordersHeading, { n: filteredOrders.length })}
           </CardTitle>
         </CardHeader>
         <CardContent>
           {filteredOrders.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-6">
               {filter === "ALL"
-                ? "Inga beställningar ännu"
-                : `Inga ordrar med status "${orderStatusLabel(filter)}"`}
+                ? c.noOrdersYet
+                : tFill(t.emptyFiltered, {
+                    status: orderStatusLabel(filter, locale),
+                  })}
             </p>
           ) : (
             <div className="space-y-2">
@@ -309,35 +323,38 @@ export default function TeamOrdersPage() {
                     setDetailOpen(true);
                   }}
                   className="flex w-full items-center justify-between rounded-lg border p-3 text-left transition-colors hover:bg-brand-50/60"
-                  aria-label={`Visa detaljer för order från ${order.customerName}`}
+                  aria-label={tFill(c.viewOrderDetails, { name: order.customerName })}
                 >
                   <div className="space-y-1">
                     <p className="text-sm font-medium">{order.customerName}</p>
                     <p className="text-xs text-muted-foreground">
-                      Säljare: {sellerMap.get(order.sellerId ?? "") || "Okänd"}
+                      {tFill(t.sellerLabel, { name: sellerMap.get(order.sellerId ?? "") || c.unknown })}
                     </p>
                     <div className="flex flex-wrap gap-1.5">
                       <Badge
                         variant="secondary"
                         className={`text-xs ${orderStatusColor(order.status)}`}
                       >
-                        {orderStatusLabel(order.status)}
+                        {orderStatusLabel(order.status, locale)}
                       </Badge>
                       {order.paymentMethod === "DIRECT_TO_LEADER" && (
                         <Badge variant="secondary" className="text-xs bg-brand-50 text-brand-600">
                           <CreditCard className="h-3 w-3 mr-1" />
-                          Betala till ansvarig
+                          {c.payToLeader}
                         </Badge>
                       )}
                       {order.deliveryType === "DIRECT" && (
                         <Badge variant="secondary" className="text-xs">
                           <Package className="h-3 w-3 mr-1" />
-                          Direktleverans
+                          {c.directDelivery}
                         </Badge>
                       )}
                       {order.selectedPaymentMethod && (
                         <Badge variant="secondary" className="text-xs bg-brand-50 text-brand-600">
-                          {paymentMethodLabel(order.selectedPaymentMethod)}
+                          {paymentMethodLabel(
+                            order.selectedPaymentMethod,
+                            locale
+                          )}
                         </Badge>
                       )}
                       {order.isManual &&
@@ -347,29 +364,29 @@ export default function TeamOrdersPage() {
                             className="text-xs bg-warning-surface text-warning-strong"
                           >
                             <Clock className="h-3 w-3 mr-1" />
-                            Väntar på bekräftelse
+                            {c.awaitingConfirmation}
                           </Badge>
                         ) : (
                           <Badge
                             variant="secondary"
                             className="text-xs bg-warning-surface/60 text-warning-strong"
                           >
-                            Manuell
+                            {c.manual}
                           </Badge>
                         ))}
                       {order.countsTowardStats === false && (
                         <Badge variant="secondary" className="text-xs bg-muted text-muted-foreground">
-                          Utanför period
+                          {c.outsidePeriod}
                         </Badge>
                       )}
                     </div>
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-semibold">
-                      {formatKrValue(order.totalOre)} kr
+                      {formatKr(order.totalOre, locale)}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {new Date(order.createdAt).toLocaleDateString("sv-SE")}
+                      {new Date(order.createdAt).toLocaleDateString(dateLocale)}
                     </p>
                   </div>
                 </button>

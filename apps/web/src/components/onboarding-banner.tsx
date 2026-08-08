@@ -6,24 +6,16 @@
  * Visas högst upp på /forening dashboard så länge ASSOCIATION_ADMIN
  * inte har klarat alla checklist-steg. Klick = navigera till
  * /forening/kom-igang.
- *
- * Designval:
- *   - Self-contained: hämtar sin egen status via apiFetch så att den
- *     kan renderas på vilken sida som helst utan props-drilling.
- *   - Auto-hide när `completed: true` så vi inte vänjer användaren vid
- *     att stänga av banners (annars börjar de stänga av riktiga warnings).
- *   - Localstorage-baserad "ignored"-state finns INTE medvetet — vi vill
- *     att den dyker upp tills det är gjort. Användare som tycker den är
- *     i vägen är just de som mest behöver checklistan.
- *   - Fail-soft: rendera ingen banner om endpointen failar (403 för fel
- *     roll, 500, etc) istället för en intrusive error-state.
  */
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { Sparkles, ArrowRight } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { LocaleLink } from "@/components/locale-link";
+import { useLocale } from "@/i18n/locale-context";
+import { fundraisingPages } from "@/i18n/dictionaries/fundraising-pages";
+import { tFill } from "@/i18n/format";
 
 interface MinimalStatus {
   completed: boolean;
@@ -32,6 +24,8 @@ interface MinimalStatus {
 }
 
 export function OnboardingBanner({ className }: { className?: string }) {
+  const { locale } = useLocale();
+  const t = fundraisingPages.onboardingBanner[locale];
   const [status, setStatus] = useState<MinimalStatus | null>(null);
 
   useEffect(() => {
@@ -54,7 +48,7 @@ export function OnboardingBanner({ className }: { className?: string }) {
   );
 
   return (
-    <Link
+    <LocaleLink
       href="/forening/kom-igang"
       className={cn(
         "group relative block overflow-hidden rounded-xl border border-brand-200 bg-gradient-to-br from-brand-50 to-brand-100/50 p-4 transition-shadow hover:shadow-md sm:p-5",
@@ -67,10 +61,13 @@ export function OnboardingBanner({ className }: { className?: string }) {
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-brand-900 sm:text-base">
-            Slutför uppstarten — {status.completedCount} av {status.totalSteps} klara
+            {tFill(t.title, {
+              done: status.completedCount,
+              total: status.totalSteps,
+            })}
           </p>
           <p className="mt-0.5 text-xs text-brand-800/80 sm:text-sm">
-            Vi har en checklista som tar er hela vägen till första försäljningen.
+            {t.body}
           </p>
           <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-brand-200/60">
             <div
@@ -82,6 +79,6 @@ export function OnboardingBanner({ className }: { className?: string }) {
         </div>
         <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-brand-700 transition-transform group-hover:translate-x-0.5" />
       </div>
-    </Link>
+    </LocaleLink>
   );
 }

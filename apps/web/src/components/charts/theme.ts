@@ -2,6 +2,9 @@
 // tokens (E13) so charts never drift from the design system. No neon, no
 // gradients outside the subtle area-fills below.
 
+import type { Locale } from "@/i18n/config";
+import { fundraisingPages } from "@/i18n/dictionaries/fundraising-pages";
+
 export const CHART = {
   // Primärt dataspår — brandbook FOREST (brand-700).
   primary: "#6B794F",
@@ -31,40 +34,35 @@ export function seriesColor(i: number): string {
   return SERIES[i % SERIES.length];
 }
 
-// formatKr/formatKrShort bor i @/lib/format och åter-exporteras här så att
+// formatKr/formatKrShort bor i @/lib/format och åter-exportas här så att
 // diagram-importerna inte behöver skrivas om.
 export { formatKr, formatKrShort } from "@/lib/format";
 
-/** "YYYY-MM-DD" → "5 jun". */
-export function formatDayLabel(iso: string): string {
+/** "YYYY-MM-DD" → "5 jun" / "5 Jun". */
+export function formatDayLabel(iso: string, locale: Locale = "sv"): string {
   const d = new Date(`${iso}T00:00:00Z`);
-  return d.toLocaleDateString("sv-SE", {
+  return d.toLocaleDateString(locale === "en" ? "en-GB" : "sv-SE", {
     day: "numeric",
     month: "short",
     timeZone: "UTC",
   });
 }
 
-const PAYMENT_LABELS: Record<string, string> = {
-  swish: "Swish",
-  card: "Kort",
-  klarna: "Klarna",
-  pay_later: "Klarna",
-  pay_now: "Klarna",
-  invoice: "Klarna",
-  direct_to_leader: "Via laget",
-  cash: "Kontant",
-  kontant: "Kontant",
-};
-
-export function paymentLabel(method: string): string {
+export function paymentLabel(method: string, locale: Locale = "sv"): string {
+  const t = fundraisingPages.paymentMethod[locale];
   const m = method.toLowerCase();
-  if (PAYMENT_LABELS[m]) return PAYMENT_LABELS[m];
-  if (m.includes("swish")) return "Swish";
-  if (m.includes("card") || m.includes("kort")) return "Kort";
-  if (m.includes("klarna") || m.includes("invoice") || m.includes("pay"))
-    return "Klarna";
-  if (m.includes("cash") || m.includes("kontant")) return "Kontant";
-  if (m === "okänd" || !m) return "Okänd";
+  if (m === "swish" || m.includes("swish")) return t.swish;
+  if (m === "card" || m.includes("card") || m.includes("kort")) return t.card;
+  if (
+    m.includes("klarna") ||
+    m.includes("invoice") ||
+    m.includes("pay_later") ||
+    m.includes("pay_now") ||
+    m.includes("pay")
+  )
+    return t.klarna;
+  if (m === "direct_to_leader" || m.includes("direct")) return t.viaTeam;
+  if (m === "cash" || m.includes("kontant") || m.includes("cash")) return t.cash;
+  if (m === "okänd" || m === "unknown" || !m) return t.unknown;
   return method.charAt(0).toUpperCase() + method.slice(1);
 }

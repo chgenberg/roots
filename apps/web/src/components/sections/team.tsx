@@ -1,4 +1,6 @@
 import Image from "next/image";
+import { getRequestLocale } from "@/i18n/request-locale";
+import { marketingUi } from "@/i18n/dictionaries/marketing-ui";
 
 const TEAM = [
   {
@@ -31,7 +33,10 @@ const TEAM = [
   },
 ] as const;
 
-export function TeamSection() {
+export async function TeamSection() {
+  const locale = await getRequestLocale();
+  const t = marketingUi[locale].team;
+
   return (
     <section id="teamet" className="relative overflow-hidden py-20 md:py-28">
       {/* Soft brand atmosphere — sand wash + forest vignette, not flat fill */}
@@ -43,14 +48,13 @@ export function TeamSection() {
       <div className="relative mx-auto max-w-[1280px] px-6 md:px-10">
         <div className="mx-auto max-w-2xl text-center">
           <p className="text-xs font-medium uppercase tracking-[0.2em] text-brand-700">
-            Teamet
+            {t.badge}
           </p>
           <h2 className="mt-3 text-3xl font-bold tracking-tight md:text-4xl">
-            Sju grannar. Ett mål.
+            {t.title}
           </h2>
           <p className="mt-4 text-base leading-relaxed text-muted-foreground md:text-lg">
-            Föreningsliv, teknik och produkt — vi bygger det vi själva hade
-            velat ha som förening.
+            {t.body}
           </p>
         </div>
 
@@ -59,7 +63,7 @@ export function TeamSection() {
           <div className="relative aspect-[4/5] w-full sm:aspect-[5/4] md:aspect-[16/10]">
             <Image
               src="/personal/gruppbild.jpg"
-              alt="Roots teamet samlat utomhus"
+              alt={t.groupAlt}
               fill
               className="object-cover object-[center_32%] transition-transform duration-[1.1s] ease-out group-hover:scale-[1.02]"
               sizes="(max-width: 1024px) 100vw, 1024px"
@@ -69,8 +73,7 @@ export function TeamSection() {
             <div className="pointer-events-none absolute inset-0 ring-1 ring-inset ring-brand-900/10" />
           </div>
           <figcaption className="sr-only">
-            Roots teamet: Kent Gustafson, Fredrik Lindqvist, Johan Lindqvist,
-            Christopher Genberg, Ola Nordlund, Johan Fogell och Niclas Corse.
+            {t.groupCaption}
           </figcaption>
         </figure>
 

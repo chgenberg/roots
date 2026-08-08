@@ -1,23 +1,25 @@
 import type { Metadata } from "next";
 import Image from "next/image";
-import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ArrowRight } from "lucide-react";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { GuideRichText } from "@/components/guide-rich-text";
+import { LocaleLink } from "@/components/locale-link";
 import {
   ArticleJsonLd,
   BreadcrumbJsonLd,
   FaqJsonLd,
 } from "@/components/json-ld";
 import { Button } from "@/components/ui/button";
-import { pageMetadata } from "@/lib/seo";
 import {
-  GUIDE_CATEGORIES,
   GUIDE_SLUGS,
   getGuide,
-  guides,
+  getGuideCategories,
 } from "@/content/guides";
-import { ArrowRight } from "lucide-react";
+import { getPage } from "@/i18n/get-dictionary";
+import { withLocale } from "@/i18n/paths";
+import { getRequestLocale } from "@/i18n/request-locale";
+import { pageMetadata } from "@/lib/seo";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -30,13 +32,16 @@ export function generateStaticParams() {
 export async function generateMetadata({
   params,
 }: PageProps): Promise<Metadata> {
+  const locale = await getRequestLocale();
+  const chrome = getPage("guiderArticle", locale);
   const { slug } = await params;
-  const guide = getGuide(slug);
+  const guide = getGuide(slug, locale);
   if (!guide) {
     return pageMetadata({
-      title: "Guiden hittades inte",
-      description: "Guiden finns inte.",
+      title: chrome.notFoundTitle,
+      description: chrome.notFoundDescription,
       path: `/guider/${slug}`,
+      locale,
       noindex: true,
     });
   }
@@ -44,6 +49,7 @@ export async function generateMetadata({
     title: guide.title,
     description: guide.description,
     path: `/guider/${guide.slug}`,
+    locale,
     ogType: "article",
     ogImage: guide.heroImage,
     publishedTime: guide.publishedAt,
@@ -53,16 +59,20 @@ export async function generateMetadata({
 }
 
 export default async function GuideArticlePage({ params }: PageProps) {
+  const locale = await getRequestLocale();
+  const chrome = getPage("guiderArticle", locale);
+  const categories = getGuideCategories(locale);
   const { slug } = await params;
-  const guide = getGuide(slug);
+  const guide = getGuide(slug, locale);
   if (!guide) notFound();
 
-  const category = GUIDE_CATEGORIES[guide.category];
+  const category = categories[guide.category];
   const related = (guide.relatedSlugs ?? [])
-    .map((s) => guides.find((g) => g.slug === s))
+    .map((s) => getGuide(s, locale))
     .filter((g): g is NonNullable<typeof g> => Boolean(g));
 
-  const updatedLabel = new Date(guide.updatedAt).toLocaleDateString("sv-SE", {
+  const dateLocale = locale === "en" ? "en-GB" : "sv-SE";
+  const updatedLabel = new Date(guide.updatedAt).toLocaleDateString(dateLocale, {
     year: "numeric",
     month: "long",
     day: "numeric",
@@ -74,8 +84,8 @@ export default async function GuideArticlePage({ params }: PageProps) {
         <div className="mx-auto max-w-3xl px-6 py-12 md:px-10 md:py-16">
           <Breadcrumbs
             items={[
-              { label: "Hem", href: "/" },
-              { label: "Guider", href: "/guider" },
+              { label: chrome.breadcrumbHome, href: "/" },
+              { label: chrome.breadcrumbGuides, href: "/guider" },
               { label: guide.title },
             ]}
           />
@@ -89,7 +99,7 @@ export default async function GuideArticlePage({ params }: PageProps) {
             {guide.description}
           </p>
           <p className="mt-3 text-sm text-muted-foreground">
-            Uppdaterad {updatedLabel}
+            {chrome.updatedPrefix} {updatedLabel}
           </p>
         </div>
       </header>
@@ -118,7 +128,7 @@ export default async function GuideArticlePage({ params }: PageProps) {
               <div className={section.heading ? "mt-3 space-y-3" : "space-y-3"}>
                 {section.paragraphs.map((p, j) => (
                   <p key={j}>
-                    <GuideRichText text={p} />
+                    <GuideRichText text={p} locale={locale} />
                   </p>
                 ))}
               </div>
@@ -129,7 +139,7 @@ export default async function GuideArticlePage({ params }: PageProps) {
         {guide.faqs && guide.faqs.length > 0 ? (
           <section className="mt-14 border-t border-border pt-12">
             <h2 className="text-xl font-semibold tracking-tight">
-              Vanliga frågor
+              {chrome.faqTitle}
             </h2>
             <dl className="mt-6 space-y-6">
               {guide.faqs.map((faq) => (
@@ -149,17 +159,14 @@ export default async function GuideArticlePage({ params }: PageProps) {
         {guide.cta ? (
           <div className="mt-14 rounded-2xl bg-brand-50/70 px-6 py-8 md:px-8">
             <p className="text-lg font-semibold tracking-tight text-foreground">
-              Nästa steg
+              {chrome.nextStepTitle}
             </p>
-            <p className="mt-2 text-muted-foreground">
-              Vill ni ta det vidare med er förening eller förstå produkterna
-              bättre? Vi hjälper er gärna.
-            </p>
+            <p className="mt-2 text-muted-foreground">{chrome.nextStepBody}</p>
             <Button className="mt-5" asChild>
-              <Link href={guide.cta.href}>
+              <LocaleLink href={guide.cta.href}>
                 {guide.cta.label}
                 <ArrowRight className="ml-1 h-4 w-4" />
-              </Link>
+              </LocaleLink>
             </Button>
           </div>
         ) : null}
@@ -167,12 +174,12 @@ export default async function GuideArticlePage({ params }: PageProps) {
         {related.length > 0 ? (
           <section className="mt-14 border-t border-border pt-12">
             <h2 className="text-xl font-semibold tracking-tight">
-              Relaterade guider
+              {chrome.relatedTitle}
             </h2>
             <ul className="mt-5 space-y-3">
               {related.map((r) => (
                 <li key={r.slug}>
-                  <Link
+                  <LocaleLink
                     href={`/guider/${r.slug}`}
                     className="group inline-flex items-start gap-2 text-foreground transition-colors hover:text-brand-700"
                   >
@@ -180,10 +187,10 @@ export default async function GuideArticlePage({ params }: PageProps) {
                     <span>
                       <span className="font-medium">{r.title}</span>
                       <span className="mt-0.5 block text-sm text-muted-foreground">
-                        {GUIDE_CATEGORIES[r.category].label}
+                        {categories[r.category].label}
                       </span>
                     </span>
-                  </Link>
+                  </LocaleLink>
                 </li>
               ))}
             </ul>
@@ -191,28 +198,35 @@ export default async function GuideArticlePage({ params }: PageProps) {
         ) : null}
 
         <p className="mt-12 text-sm text-muted-foreground">
-          <Link
+          <LocaleLink
             href="/guider"
             className="font-medium text-foreground underline decoration-brand-300 underline-offset-2 hover:decoration-brand-500"
           >
-            ← Alla guider
-          </Link>
+            {chrome.allGuides}
+          </LocaleLink>
         </p>
       </div>
 
       <ArticleJsonLd
         headline={guide.title}
         description={guide.description}
-        url={`/guider/${guide.slug}`}
+        url={withLocale(`/guider/${guide.slug}`, locale)}
         datePublished={guide.publishedAt}
         dateModified={guide.updatedAt}
         image={guide.heroImage}
+        locale={locale}
       />
       <BreadcrumbJsonLd
         items={[
-          { name: "Hem", url: "/" },
-          { name: "Guider", url: "/guider" },
-          { name: guide.title, url: `/guider/${guide.slug}` },
+          { name: chrome.breadcrumbHome, url: withLocale("/", locale) },
+          {
+            name: chrome.breadcrumbGuides,
+            url: withLocale("/guider", locale),
+          },
+          {
+            name: guide.title,
+            url: withLocale(`/guider/${guide.slug}`, locale),
+          },
         ]}
       />
       {guide.faqs && guide.faqs.length > 0 ? (

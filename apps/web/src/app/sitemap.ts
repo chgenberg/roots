@@ -55,6 +55,22 @@ function guideEntries(): MetadataRoute.Sitemap {
   });
 }
 
+/** Duplicate marketing URLs under `/en` for the English locale. */
+function withEnVariants(entries: MetadataRoute.Sitemap): MetadataRoute.Sitemap {
+  return entries.flatMap((entry) => {
+    const path = entry.url.slice(BASE_URL.length) || "/";
+    if (
+      path.startsWith("/en") ||
+      path.startsWith("/shop/") ||
+      path === "/feed.xml"
+    ) {
+      return [entry];
+    }
+    const enPath = path === "/" ? "/en" : `/en${path}`;
+    return [entry, { ...entry, url: `${BASE_URL}${enPath}` }];
+  });
+}
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticEntries: MetadataRoute.Sitemap = [
     { url: BASE_URL, lastModified: new Date(), changeFrequency: "weekly", priority: 1 },
@@ -88,5 +104,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   const shopEntries = await fetchShopUrls();
-  return [...staticEntries, ...guideEntries(), ...shopEntries];
+  const marketing = withEnVariants([...staticEntries, ...guideEntries()]);
+  return [...marketing, ...shopEntries];
 }

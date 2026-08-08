@@ -1,27 +1,7 @@
 "use client";
 
-/**
- * MASTERPLAN_01 KC3.1 — Kom-igång (onboarding-wizard) för ASSOCIATION_ADMIN.
- *
- * Designval:
- *   - Inte en modal — sidan ÄR ändpunkten efter signup. Användare ska
- *     kunna bookmarka /forening/kom-igang och få samma vy.
- *   - Checklist är driven av `GET /v1/association/onboarding-status`
- *     så vi har en SSOT (single source of truth) som även dashboard-
- *     bannern kan läsa. Ändrar vi kriterier centralt fortsätter UI:t
- *     spegla server-state utan duplicate-logic.
- *   - Inga inline-formulär här — vi länkar till befintliga sidor som
- *     redan vet hur de skapar kampanjer, lag, fyller i uppgifter.
- *     Bra för konsistens (en plats per action) och för att inte ha en
- *     halv-implementation av varje wizard-step.
- *   - "Hoppa över"-länk = `/forening` direkt. Användaren tvingas inte
- *     genomföra checklistan — bara nudgad. När `completed` blir true
- *     döljer vi bannern på dashboard:en helt.
- */
-
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import Link from "next/link";
 import {
   CheckCircle2,
   Circle,
@@ -33,15 +13,21 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { apiFetch } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { LocaleLink } from "@/components/locale-link";
+import { useLocale } from "@/i18n/locale-context";
+import { fundraisingPages } from "@/i18n/dictionaries/fundraising-pages";
+import { tFill } from "@/i18n/format";
+
+type StepId =
+  | "approval"
+  | "org_details"
+  | "campaign"
+  | "team"
+  | "team_leader"
+  | "first_sale";
 
 interface OnboardingStep {
-  id:
-    | "approval"
-    | "org_details"
-    | "campaign"
-    | "team"
-    | "team_leader"
-    | "first_sale";
+  id: StepId;
   label: string;
   description: string;
   completed: boolean;
@@ -52,7 +38,6 @@ interface OnboardingStep {
 interface OnboardingStatus {
   orgId: string;
   orgName: string;
-  /** Godkänd för publik försäljning. Se lib/org-approval.ts i API:t. */
   orgApproved?: boolean;
   completed: boolean;
   completedCount: number;
@@ -60,8 +45,72 @@ interface OnboardingStatus {
   steps: OnboardingStep[];
 }
 
+function localizeStep(
+  step: OnboardingStep,
+  t: (typeof fundraisingPages.getStarted)["sv"]
+): OnboardingStep {
+  const map: Record<
+    StepId,
+    { label: string; descDone: string; descTodo: string; ctaDone: string; ctaTodo: string }
+  > = {
+    approval: {
+      label: t.step_approval_label,
+      descDone: t.step_approval_desc_done,
+      descTodo: t.step_approval_desc_todo,
+      ctaDone: t.step_approval_cta_done,
+      ctaTodo: t.step_approval_cta_todo,
+    },
+    org_details: {
+      label: t.step_org_details_label,
+      descDone: t.step_org_details_desc,
+      descTodo: t.step_org_details_desc,
+      ctaDone: t.step_org_details_cta_done,
+      ctaTodo: t.step_org_details_cta_todo,
+    },
+    campaign: {
+      label: t.step_campaign_label,
+      descDone: t.step_campaign_desc,
+      descTodo: t.step_campaign_desc,
+      ctaDone: t.step_campaign_cta_done,
+      ctaTodo: t.step_campaign_cta_todo,
+    },
+    team: {
+      label: t.step_team_label,
+      descDone: t.step_team_desc,
+      descTodo: t.step_team_desc,
+      ctaDone: t.step_team_cta_done,
+      ctaTodo: t.step_team_cta_todo,
+    },
+    team_leader: {
+      label: t.step_team_leader_label,
+      descDone: t.step_team_leader_desc,
+      descTodo: t.step_team_leader_desc,
+      ctaDone: t.step_team_leader_cta_done,
+      ctaTodo: t.step_team_leader_cta_todo,
+    },
+    first_sale: {
+      label: t.step_first_sale_label,
+      descDone: t.step_first_sale_desc,
+      descTodo: t.step_first_sale_desc,
+      ctaDone: t.step_first_sale_cta_done,
+      ctaTodo: t.step_first_sale_cta_todo,
+    },
+  };
+  const copy = map[step.id];
+  if (!copy) return step;
+  return {
+    ...step,
+    label: copy.label,
+    description: step.completed ? copy.descDone : copy.descTodo,
+    ctaLabel: step.completed ? copy.ctaDone : copy.ctaTodo,
+  };
+}
+
 function KomIgangInner() {
   const params = useSearchParams();
+  const { locale } = useLocale();
+  const t = fundraisingPages.getStarted[locale];
+  const c = fundraisingPages.common[locale];
   const isFreshSignup = params.get("onboarding") === "1";
   const [status, setStatus] = useState<OnboardingStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -73,7 +122,9 @@ function KomIgangInner() {
       OnboardingStatus & { error?: string }
     >("/v1/association/onboarding-status");
     if (!ok) {
-      setError(data?.error ?? `Kunde inte hämta status (${httpStatus}).`);
+      setError(
+        data?.error ?? tFill(t.loadFailed, { status: httpStatus })
+      );
       setLoading(false);
       return;
     }
@@ -83,17 +134,16 @@ function KomIgangInner() {
 
   useEffect(() => {
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Refresha när tab:en blir aktiv igen — låter användaren göra en
-  // step i en annan tab (t.ex. fylla i org-nr i inställningar) och se
-  // checklist:en bockas av direkt vid byte tillbaka.
   useEffect(() => {
     function onFocus() {
       load();
     }
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (loading) {
@@ -108,7 +158,7 @@ function KomIgangInner() {
     return (
       <Card>
         <CardContent className="p-6 text-sm text-destructive" role="alert">
-          {error ?? "Något gick fel."}
+          {error ?? c.somethingWrong}
         </CardContent>
       </Card>
     );
@@ -117,6 +167,7 @@ function KomIgangInner() {
   const progress = Math.round(
     (status.completedCount / status.totalSteps) * 100
   );
+  const steps = status.steps.map((step) => localizeStep(step, t));
 
   return (
     <div className="page-enter space-y-6">
@@ -124,27 +175,27 @@ function KomIgangInner() {
         {isFreshSignup && (
           <div className="inline-flex items-center gap-2 rounded-full bg-brand-50 px-3 py-1 text-xs font-medium text-brand-700">
             <Sparkles className="h-3.5 w-3.5" />
-            Välkommen till Roots
+            {t.welcomeBadge}
           </div>
         )}
         <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
           {isFreshSignup
-            ? `Roligt att ha er ombord, ${status.orgName}!`
-            : "Kom igång med Roots"}
+            ? tFill(t.welcomeTitle, { name: status.orgName })
+            : t.title}
         </h1>
         <p className="text-sm text-muted-foreground sm:text-base">
-          {status.completed
-            ? "Allt på checklistan är klart — föreningen är igång!"
-            : "Sex snabba steg så är ni redo att sälja. Hoppa runt i vilken ordning ni vill."}
+          {status.completed ? t.completedBody : t.introBody}
         </p>
       </header>
 
-      {/* Progress-bar — visar både siffra och visuell fyllning */}
       <Card>
         <CardContent className="space-y-3 p-5">
           <div className="flex items-center justify-between text-sm">
             <span className="font-medium">
-              {status.completedCount} av {status.totalSteps} klara
+              {tFill(t.progressOf, {
+                done: status.completedCount,
+                total: status.totalSteps,
+              })}
             </span>
             <span className="text-muted-foreground">{progress}%</span>
           </div>
@@ -154,7 +205,7 @@ function KomIgangInner() {
             aria-valuenow={progress}
             aria-valuemin={0}
             aria-valuemax={100}
-            aria-label="Onboarding-progress"
+            aria-label={t.progressAria}
           >
             <div
               className="h-full rounded-full bg-brand-700 transition-all duration-700"
@@ -164,8 +215,8 @@ function KomIgangInner() {
         </CardContent>
       </Card>
 
-      <ol className="space-y-3" aria-label="Onboarding-checklista">
-        {status.steps.map((step, index) => (
+      <ol className="space-y-3" aria-label={t.checklistAria}>
+        {steps.map((step, index) => (
           <li key={step.id}>
             <Card
               className={cn(
@@ -184,11 +235,11 @@ function KomIgangInner() {
                 <div className="min-w-0 flex-1 space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Steg {index + 1}
+                      {tFill(t.stepLabel, { n: index + 1 })}
                     </p>
                     {step.completed && (
                       <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-700">
-                        Klart
+                        {t.doneBadge}
                       </span>
                     )}
                   </div>
@@ -210,10 +261,10 @@ function KomIgangInner() {
                   variant={step.completed ? "outline" : "default"}
                   className="shrink-0"
                 >
-                  <Link href={step.ctaHref}>
+                  <LocaleLink href={step.ctaHref}>
                     {step.ctaLabel}
                     <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
-                  </Link>
+                  </LocaleLink>
                 </Button>
               </CardContent>
             </Card>
@@ -223,13 +274,16 @@ function KomIgangInner() {
 
       <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs text-muted-foreground">
-          Det här fönstret syns tills allt är klart. Du hittar alltid checklistan
-          på <Link href="/forening/kom-igang" className="underline">/forening/kom-igang</Link>.
+          {t.footerHint}{" "}
+          <LocaleLink href="/forening/kom-igang" className="underline">
+            /forening/kom-igang
+          </LocaleLink>
+          .
         </p>
         <Button asChild variant="ghost" size="sm">
-          <Link href="/forening">
-            {status.completed ? "Till dashboard" : "Hoppa till dashboard"}
-          </Link>
+          <LocaleLink href="/forening">
+            {status.completed ? t.toDashboard : t.skipDashboard}
+          </LocaleLink>
         </Button>
       </div>
     </div>

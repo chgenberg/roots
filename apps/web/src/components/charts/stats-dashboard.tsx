@@ -17,6 +17,10 @@ import {
   paymentSlices,
 } from "./use-stats";
 import { formatKr, formatKrShort, CHART } from "./theme";
+import { useLocale } from "@/i18n/locale-context";
+import { fundraisingPages } from "@/i18n/dictionaries/fundraising-pages";
+import { tFill } from "@/i18n/format";
+import { appCommon } from "@/i18n/dictionaries/app-common";
 
 interface StatsDashboardProps {
   path: string;
@@ -35,6 +39,9 @@ export function StatsDashboard({
   breakdownTitle,
   breakdownUnit = "orders",
 }: StatsDashboardProps) {
+  const { locale } = useLocale();
+  const t = fundraisingPages.stats[locale];
+  const dateLocale = appCommon[locale].dateLocale;
   const { data, loading, error } = useStats(path);
   const [mode, setMode] = useState<"daily" | "cumulative">("daily");
 
@@ -68,7 +75,7 @@ export function StatsDashboard({
           <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
         </div>
         <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-          Kunde inte hämta statistik just nu. Försök igen om en stund.
+          {t.loadFailed}
         </p>
       </div>
     );
@@ -77,7 +84,7 @@ export function StatsDashboard({
   const axis = buildDailyAxis(data.daily, data.periodStart, data.periodEnd);
   const trend = mode === "daily" ? axis.sales : axis.cumulative;
   const hasSales = data.totals.salesOre > 0;
-  const payments = paymentSlices(data.payments);
+  const payments = paymentSlices(data.payments, locale);
   const goalPct =
     data.goalOre > 0
       ? Math.round((data.currentOre / data.goalOre) * 100)
@@ -89,14 +96,25 @@ export function StatsDashboard({
     value: b.salesOre,
     sub:
       breakdownUnit === "units"
-        ? `${b.units ?? 0} sålda enheter`
-        : `${b.orders ?? 0} ordrar`,
+        ? tFill(t.unitsSold, { n: b.units ?? 0 })
+        : tFill(t.ordersCount, { n: b.orders ?? 0 }),
   }));
 
-  const weekday = data.weekday.map((w) => ({
-    label: w.label,
+  const weekdayLabels = [
+    t.weekdayMon,
+    t.weekdayTue,
+    t.weekdayWed,
+    t.weekdayThu,
+    t.weekdayFri,
+    t.weekdaySat,
+    t.weekdaySun,
+  ];
+  const weekday = data.weekday.map((w, i) => ({
+    label: weekdayLabels[i] ?? w.label,
     value: w.salesOre,
   }));
+
+  const formatMoney = (ore: number) => formatKr(ore, locale);
 
   return (
     <div className="page-enter space-y-6">
@@ -107,39 +125,37 @@ export function StatsDashboard({
         )}
       </div>
 
-      {/* KPI-rad */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <StatCard
-          label="Total försäljning"
-          value={formatKr(data.totals.salesOre)}
+          label={t.totalSales}
+          value={formatMoney(data.totals.salesOre)}
           icon={TrendingUp}
         />
         <StatCard
-          label="Antal ordrar"
-          value={data.totals.orders.toLocaleString("sv-SE")}
+          label={t.orderCount}
+          value={data.totals.orders.toLocaleString(dateLocale)}
           icon={ShoppingCart}
         />
         <StatCard
-          label="Snittorder"
-          value={formatKr(data.totals.avgOrderOre)}
+          label={t.avgOrder}
+          value={formatMoney(data.totals.avgOrderOre)}
           icon={Receipt}
         />
         <StatCard
-          label="Måluppfyllnad"
+          label={t.goalProgress}
           value={goalPct !== null ? `${goalPct}%` : "—"}
           icon={Target}
           hint={
             data.goalOre > 0
-              ? `Mål: ${formatKr(data.goalOre)}`
-              : "Inget mål satt ännu"
+              ? tFill(t.goalLabel, { amount: formatMoney(data.goalOre) })
+              : t.noGoalYet
           }
         />
       </div>
 
-      {/* Trend (daglig / ackumulerat) */}
       <ChartCard
-        title="Försäljning över tid"
-        subtitle="Betalda ordrar inom perioden"
+        title={t.salesOverTime}
+        subtitle={t.paidOrdersInPeriod}
         empty={!hasSales}
         right={
           <div className="flex rounded-lg border border-border p-0.5 text-xs">
@@ -152,7 +168,7 @@ export function StatsDashboard({
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              Daglig
+              {t.daily}
             </button>
             <button
               type="button"
@@ -163,70 +179,71 @@ export function StatsDashboard({
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              Ackumulerat
+              {t.cumulative}
             </button>
           </div>
         }
       >
         <AreaTrend
           points={trend}
-          format={formatKr}
+          format={formatMoney}
           reference={
             mode === "cumulative" && data.goalOre > 0
-              ? { value: data.goalOre, label: `Mål ${formatKr(data.goalOre)}` }
+              ? {
+                  value: data.goalOre,
+                  label: tFill(t.goalRef, {
+                    amount: formatMoney(data.goalOre),
+                  }),
+                }
               : null
           }
         />
       </ChartCard>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Mål-gauge */}
         <ChartCard
-          title="Mot målet"
-          subtitle="Andel av periodens mål"
+          title={t.towardsGoal}
+          subtitle={t.goalShare}
           className="lg:col-span-1"
           empty={data.goalOre <= 0 && !hasSales}
-          emptyLabel="Sätt ett mål för att se progress mot det."
+          emptyLabel={t.setGoalHint}
         >
           <div className="flex justify-center pt-2">
             <GoalGauge
               currentOre={data.currentOre}
               goalOre={data.goalOre}
-              format={formatKr}
+              format={formatMoney}
             />
           </div>
         </ChartCard>
 
-        {/* Betalmetoder */}
         <ChartCard
-          title="Betalmetoder"
-          subtitle="Fördelning av betald försäljning"
+          title={t.paymentMethods}
+          subtitle={t.paymentSplit}
           className="lg:col-span-2"
           empty={payments.length === 0}
         >
           <Donut
             data={payments}
             centerLabel={formatKrShort(data.totals.salesOre)}
-            centerSub="totalt"
-            format={formatKr}
+            centerSub={t.total}
+            format={formatMoney}
           />
         </ChartCard>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Topplista / fördelning */}
         <ChartCard
           title={breakdownTitle}
-          subtitle="Betald försäljning inom perioden"
+          subtitle={t.paidSalesInPeriod}
           empty={rankedItems.length === 0}
         >
-          <RankedBars items={rankedItems} format={formatKr} />
+          <RankedBars items={rankedItems} format={formatMoney} />
         </ChartCard>
 
-        {/* Veckodagar */}
         <ChartCard
-          title="Bästa säljdagar"
-          subtitle="Försäljning per veckodag"
+          title={t.bestDays}
+          subtitle={t.salesByWeekday}
           empty={!hasSales}
         >
           <BarSeries data={weekday} format={formatKrShort} color={CHART.primary} />
@@ -235,9 +252,9 @@ export function StatsDashboard({
 
       <p className="flex items-center gap-2 text-xs text-muted-foreground">
         <Badge variant="outline" className="text-[10px]">
-          Senaste 90 dagarna
+          {t.last90}
         </Badge>
-        Endast betalda ordrar som räknas mot statistiken visas.
+        {t.paidOnlyNote}
       </p>
     </div>
   );

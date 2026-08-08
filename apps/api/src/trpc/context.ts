@@ -1,5 +1,9 @@
 import type { FetchCreateContextFnOptions } from "@trpc/server/adapters/fetch";
 import { getSession, SESSION_COOKIE_NAME } from "../lib/session";
+import {
+  resolveUiLocaleFromHeaders,
+  type UiLocale,
+} from "../lib/ui-locale";
 
 export interface Context {
   userId: string | null;
@@ -10,6 +14,7 @@ export interface Context {
   // Scout fix 2026-05-26 (Auth-C2): expose demo-flagga i tRPC-context
   // så middleware kan blockera mutations från demo-konton.
   isDemo: boolean;
+  locale: UiLocale;
 }
 
 function parseCookies(cookieHeader: string): Record<string, string> {
@@ -30,9 +35,18 @@ export async function createContext(
   const ip =
     opts.req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
     "unknown";
+  const locale = resolveUiLocaleFromHeaders((n) => opts.req.headers.get(n));
 
   if (!sessionId) {
-    return { userId: null, role: null, orgId: null, sessionId: null, ip, isDemo: false };
+    return {
+      userId: null,
+      role: null,
+      orgId: null,
+      sessionId: null,
+      ip,
+      isDemo: false,
+      locale,
+    };
   }
 
   try {
@@ -45,9 +59,18 @@ export async function createContext(
         sessionId,
         ip,
         isDemo: session.isDemoAccount === true || Boolean(session.demoProfile),
+        locale,
       };
     }
   } catch {}
 
-  return { userId: null, role: null, orgId: null, sessionId: null, ip, isDemo: false };
+  return {
+    userId: null,
+    role: null,
+    orgId: null,
+    sessionId: null,
+    ip,
+    isDemo: false,
+    locale,
+  };
 }

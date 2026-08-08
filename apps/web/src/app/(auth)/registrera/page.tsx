@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,8 +22,12 @@ import {
   ArrowLeft,
   CheckCircle2,
 } from "lucide-react";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, rootsFetch } from "@/lib/api";
 import { getBrowserApiBase } from "@/lib/api-base";
+import { LocaleLink } from "@/components/locale-link";
+import { auth } from "@/i18n/dictionaries/auth";
+import { tFill } from "@/i18n/format";
+import { useLocale } from "@/i18n/locale-context";
 
 const API_URL = getBrowserApiBase();
 
@@ -38,6 +41,8 @@ interface OrgSearchResult {
 
 export default function RegisterPage() {
   const router = useRouter();
+  const { locale } = useLocale();
+  const t = auth.register[locale];
   const [type, setType] = useState<RegistrationType>(null);
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -75,10 +80,7 @@ export default function RegisterPage() {
       return;
     }
     try {
-      const res = await fetch(
-        `${API_URL}/v1/auth/organizations/search?q=${encodeURIComponent(query)}`,
-        { credentials: "include" }
-      );
+      const res = await rootsFetch(`${API_URL}/v1/auth/organizations/search?q=${encodeURIComponent(query)}`);
       const data = await res.json();
       setOrgSearchResults(data.organizations || []);
     } catch {
@@ -130,7 +132,7 @@ export default function RegisterPage() {
       );
 
       if (!resOk) {
-        setError(data.error || "Något gick fel. Försök igen.");
+        setError(data.error || t.errorGeneric);
         return;
       }
 
@@ -146,7 +148,7 @@ export default function RegisterPage() {
         }
       }, 1500);
     } catch {
-      setError("Kunde inte nå servern. Försök igen.");
+      setError(t.errorServer);
     } finally {
       setLoading(false);
     }
@@ -157,9 +159,9 @@ export default function RegisterPage() {
       <Card className="w-full max-w-md shadow-lg">
         <CardContent className="flex flex-col items-center gap-4 py-12">
           <CheckCircle2 className="h-12 w-12 text-success" />
-          <h2 className="text-xl font-semibold">Registrering klar!</h2>
+          <h2 className="text-xl font-semibold">{t.successTitle}</h2>
           <p className="text-sm text-muted-foreground text-center">
-            Du skickas vidare till din dashboard...
+            {t.successBody}
           </p>
         </CardContent>
       </Card>
@@ -170,10 +172,8 @@ export default function RegisterPage() {
     return (
       <Card className="w-full max-w-lg shadow-lg">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Kom igång med Roots</CardTitle>
-          <CardDescription>
-            Välj hur du vill registrera dig
-          </CardDescription>
+          <CardTitle className="text-2xl">{t.chooserTitle}</CardTitle>
+          <CardDescription>{t.chooserDescription}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <button
@@ -187,9 +187,9 @@ export default function RegisterPage() {
               <Building2 className="h-6 w-6 text-brand-700" />
             </div>
             <div className="flex-1">
-              <p className="font-semibold">Förening</p>
+              <p className="font-semibold">{t.clubTitle}</p>
               <p className="text-sm text-muted-foreground">
-                Registrera din förening och hantera lag, mål och försäljning
+                {t.clubDescription}
               </p>
             </div>
             <ArrowRight className="h-5 w-5 text-muted-foreground" />
@@ -206,9 +206,9 @@ export default function RegisterPage() {
               <Users className="h-6 w-6 text-brand-700" />
             </div>
             <div className="flex-1">
-              <p className="font-semibold">Lag eller klass</p>
+              <p className="font-semibold">{t.teamTitle}</p>
               <p className="text-sm text-muted-foreground">
-                Registrera ditt lag eller din klass och börja sälja direkt
+                {t.teamDescription}
               </p>
             </div>
             <ArrowRight className="h-5 w-5 text-muted-foreground" />
@@ -216,13 +216,13 @@ export default function RegisterPage() {
         </CardContent>
         <Separator />
         <CardFooter className="justify-center pt-6 text-sm text-muted-foreground">
-          Har ni redan konto?{" "}
-          <Link
+          {t.alreadyHaveAccount}{" "}
+          <LocaleLink
             href="/login"
             className="ml-1 font-medium text-foreground underline-offset-4 hover:underline"
           >
-            Logga in
-          </Link>
+            {t.loginLink}
+          </LocaleLink>
         </CardFooter>
       </Card>
     );
@@ -246,10 +246,10 @@ export default function RegisterPage() {
             className="flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
           >
             <ArrowLeft className="h-4 w-4" />
-            Tillbaka
+            {t.back}
           </button>
           <span className="text-sm text-muted-foreground">
-            Steg {step} av {totalSteps}
+            {tFill(t.stepOf, { step, total: totalSteps })}
           </span>
         </div>
         <div className="mt-3 flex gap-1.5">
@@ -265,15 +265,15 @@ export default function RegisterPage() {
         <CardTitle className="mt-4 text-xl">
           {type === "association"
             ? step === 1
-              ? "Din förening"
+              ? t.stepClubInfo
               : step === 2
-              ? "Dina uppgifter"
-              : "Ditt konto"
+              ? t.stepYourDetails
+              : t.stepYourAccount
             : step === 1
-            ? "Ditt lag eller klass"
+            ? t.stepTeamInfo
             : step === 2
-            ? "Dina uppgifter"
-            : "Ditt konto"}
+            ? t.stepYourDetails
+            : t.stepYourAccount}
         </CardTitle>
       </CardHeader>
 
@@ -288,38 +288,38 @@ export default function RegisterPage() {
         {type === "association" && step === 1 && (
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="orgName">Föreningens namn *</Label>
+              <Label htmlFor="orgName">{t.orgName}</Label>
               <Input
                 id="orgName"
-                placeholder="T.ex. Sundsvalls FK"
+                placeholder={t.orgNamePlaceholder}
                 required
                 value={orgName}
                 onChange={(e) => setOrgName(e.target.value)}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="orgNumber">Organisationsnummer</Label>
+              <Label htmlFor="orgNumber">{t.orgNumber}</Label>
               <Input
                 id="orgNumber"
-                placeholder="XXXXXX-XXXX"
+                placeholder={t.orgNumberPlaceholder}
                 value={orgNumber}
                 onChange={(e) => setOrgNumber(e.target.value)}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="nationalFederation">Riksorganisation</Label>
+              <Label htmlFor="nationalFederation">{t.nationalFederation}</Label>
               <Input
                 id="nationalFederation"
-                placeholder="T.ex. Riksidrottsförbundet"
+                placeholder={t.nationalFederationPlaceholder}
                 value={nationalFederation}
                 onChange={(e) => setNationalFederation(e.target.value)}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="sportType">Idrott / Verksamhet</Label>
+              <Label htmlFor="sportType">{t.sportType}</Label>
               <Input
                 id="sportType"
-                placeholder="T.ex. Fotboll"
+                placeholder={t.sportTypePlaceholder}
                 value={sportType}
                 onChange={(e) => setSportType(e.target.value)}
               />
@@ -329,7 +329,7 @@ export default function RegisterPage() {
               disabled={!orgName}
               onClick={() => setStep(2)}
             >
-              Nästa
+              {t.next}
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           </div>
@@ -339,20 +339,20 @@ export default function RegisterPage() {
         {type === "team" && step === 1 && (
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="teamName">Lag-/klassnamn *</Label>
+              <Label htmlFor="teamName">{t.teamName}</Label>
               <Input
                 id="teamName"
-                placeholder="T.ex. P13 Blå"
+                placeholder={t.teamNamePlaceholder}
                 required
                 value={teamName}
                 onChange={(e) => setTeamName(e.target.value)}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="orgSearch">Tillhör en förening?</Label>
+              <Label htmlFor="orgSearch">{t.orgSearch}</Label>
               <Input
                 id="orgSearch"
-                placeholder="Sök efter din förening..."
+                placeholder={t.orgSearchPlaceholder}
                 value={orgSearchQuery}
                 onChange={(e) => searchOrganizations(e.target.value)}
               />
@@ -385,19 +385,17 @@ export default function RegisterPage() {
                     }}
                     className="ml-auto text-muted-foreground hover:text-foreground"
                   >
-                    Ändra
+                    {t.changeOrg}
                   </button>
                 </div>
               )}
             </div>
             {!selectedOrg && (
               <div className="space-y-2">
-                <Label htmlFor="newOrgName">
-                  Eller skriv föreningsnamn
-                </Label>
+                <Label htmlFor="newOrgName">{t.newOrgName}</Label>
                 <Input
                   id="newOrgName"
-                  placeholder="Om din förening inte finns i listan"
+                  placeholder={t.newOrgNamePlaceholder}
                   value={newOrgName}
                   onChange={(e) => setNewOrgName(e.target.value)}
                 />
@@ -408,7 +406,7 @@ export default function RegisterPage() {
               disabled={!teamName}
               onClick={() => setStep(2)}
             >
-              Nästa
+              {t.next}
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           </div>
@@ -423,10 +421,10 @@ export default function RegisterPage() {
         {step === 2 && (
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="contactName">Ditt namn *</Label>
+              <Label htmlFor="contactName">{t.contactName}</Label>
               <Input
                 id="contactName"
-                placeholder="Förnamn Efternamn"
+                placeholder={t.contactNamePlaceholder}
                 required
                 autoComplete="name"
                 value={contactName}
@@ -434,11 +432,11 @@ export default function RegisterPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="phone">Telefon</Label>
+              <Label htmlFor="phone">{t.phone}</Label>
               <Input
                 id="phone"
                 type="tel"
-                placeholder="070-XXX XX XX"
+                placeholder={t.phonePlaceholder}
                 autoComplete="tel"
                 inputMode="tel"
                 value={phone}
@@ -446,10 +444,10 @@ export default function RegisterPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="address">Leveransadress (för bulkleverans)</Label>
+              <Label htmlFor="address">{t.address}</Label>
               <Input
                 id="address"
-                placeholder="Gatuadress"
+                placeholder={t.addressPlaceholder}
                 autoComplete="street-address"
                 value={addressLine1}
                 onChange={(e) => setAddressLine1(e.target.value)}
@@ -457,10 +455,10 @@ export default function RegisterPage() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label htmlFor="postalCode">Postnummer</Label>
+                <Label htmlFor="postalCode">{t.postalCode}</Label>
                 <Input
                   id="postalCode"
-                  placeholder="123 45"
+                  placeholder={t.postalCodePlaceholder}
                   autoComplete="postal-code"
                   inputMode="numeric"
                   pattern="\d{3}\s?\d{2}"
@@ -469,10 +467,10 @@ export default function RegisterPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="city">Ort</Label>
+                <Label htmlFor="city">{t.city}</Label>
                 <Input
                   id="city"
-                  placeholder="Stockholm"
+                  placeholder={t.cityPlaceholder}
                   autoComplete="address-level2"
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
@@ -484,7 +482,7 @@ export default function RegisterPage() {
               disabled={!contactName}
               onClick={() => setStep(3)}
             >
-              Nästa
+              {t.next}
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           </div>
@@ -494,11 +492,11 @@ export default function RegisterPage() {
         {step === 3 && (
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">E-post *</Label>
+              <Label htmlFor="email">{t.email}</Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="din@epost.se"
+                placeholder={t.emailPlaceholder}
                 autoComplete="email"
                 required
                 value={email}
@@ -506,19 +504,17 @@ export default function RegisterPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Lösenord *</Label>
+              <Label htmlFor="password">{t.password}</Label>
               <Input
                 id="password"
                 type="password"
-                placeholder="Minst 8 tecken"
+                placeholder={t.passwordPlaceholder}
                 autoComplete="new-password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
-              <p className="text-xs text-muted-foreground">
-                Minst 8 tecken
-              </p>
+              <p className="text-xs text-muted-foreground">{t.passwordHint}</p>
             </div>
             <Button
               className="w-full"
@@ -528,10 +524,10 @@ export default function RegisterPage() {
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Registrerar...
+                  {t.registering}
                 </>
               ) : (
-                "Skapa konto"
+                t.createAccount
               )}
             </Button>
           </div>
@@ -539,13 +535,13 @@ export default function RegisterPage() {
       </CardContent>
       <Separator />
       <CardFooter className="justify-center pt-6 text-sm text-muted-foreground">
-        Har ni redan konto?{" "}
-        <Link
+        {t.alreadyHaveAccount}{" "}
+        <LocaleLink
           href="/login"
           className="ml-1 font-medium text-foreground underline-offset-4 hover:underline"
         >
-          Logga in
-        </Link>
+          {t.loginLink}
+        </LocaleLink>
       </CardFooter>
     </Card>
   );

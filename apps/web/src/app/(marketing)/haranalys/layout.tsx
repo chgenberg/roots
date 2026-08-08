@@ -1,11 +1,18 @@
 import { pageMetadata } from "@/lib/seo";
+import { getPage } from "@/i18n/get-dictionary";
+import { getRequestLocale } from "@/i18n/request-locale";
+import type { Metadata } from "next";
 
-export const metadata = pageMetadata({
-  title: "Gratis håranalys online",
-  description:
-    "Få en personlig AI-driven håranalys helt gratis. Ladda upp två bilder, svara på frågor om dina vanor och få skräddarsydda rekommendationer med nordiska ingredienser.",
-  path: "/haranalys",
-});
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getRequestLocale();
+  const t = getPage("haranalys", locale);
+  return pageMetadata({
+    title: t.heroTitle,
+    description: t.heroBody,
+    path: "/haranalys",
+    locale,
+  });
+}
 
 export default function HaranalysLayout({
   children,

@@ -2,6 +2,8 @@
 
 import { webFlags } from "@/lib/flags";
 import { cn } from "@/lib/utils";
+import { useLocale } from "@/i18n/locale-context";
+import { portalShared } from "@/i18n/dictionaries/portal-pages";
 
 interface DataSourceBadgeProps {
   /** When true the dataset is local fallback/illustrative. */
@@ -15,6 +17,8 @@ interface DataSourceBadgeProps {
  * `FEATURE_DATA_SOURCE_BADGE` flag is off, so it is safe to scatter in the UI.
  */
 export function DataSourceBadge({ demo, className }: DataSourceBadgeProps) {
+  const { locale } = useLocale();
+  const t = portalShared[locale];
   if (!webFlags.dataSourceBadge()) return null;
   return (
     <span
@@ -25,8 +29,8 @@ export function DataSourceBadge({ demo, className }: DataSourceBadgeProps) {
           : "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-400/40 dark:bg-emerald-400/10 dark:text-emerald-200",
         className
       )}
-      aria-label={demo ? "Demo-data" : "Live data"}
-      title={demo ? "Demo-data — inga riktiga siffror än" : "Live data"}
+      aria-label={demo ? t.demoDataAria : t.liveDataAria}
+      title={demo ? t.demoDataTitle : t.liveDataTitle}
     >
       <span
         aria-hidden="true"
@@ -35,7 +39,7 @@ export function DataSourceBadge({ demo, className }: DataSourceBadgeProps) {
           demo ? "bg-amber-500" : "bg-emerald-500"
         )}
       />
-      {demo ? "Demo-data" : "Live"}
+      {demo ? t.demoData : t.liveData}
     </span>
   );
 }

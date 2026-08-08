@@ -13,19 +13,36 @@ import {
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, Loader2, Package, Truck } from "lucide-react";
-import Link from "next/link";
+import { LocaleLink } from "@/components/locale-link";
 import { getBrowserApiBase } from "@/lib/api-base";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, rootsFetch } from "@/lib/api";
 import { useCart } from "@/lib/use-cart";
-import { formatKrValue } from "@/lib/format";
+import { formatKr } from "@/lib/format";
 import { vatOfGrossOre } from "@roots/contracts";
+import { shop } from "@/i18n/dictionaries/shop";
+import { products as productDict } from "@/i18n/dictionaries/products";
+import { tFill } from "@/i18n/format";
+import { useLocale } from "@/i18n/locale-context";
+import type { ProductSlug } from "@/i18n/get-dictionary";
 
 const API_URL = getBrowserApiBase();
 
 interface CheckoutProduct {
   id: string;
+  slug?: string;
   name: string;
   priceOre: number;
+}
+
+function localizedProductName(
+  product: CheckoutProduct,
+  locale: "sv" | "en"
+): string {
+  const slug = product.slug;
+  if (slug && slug in productDict) {
+    return productDict[slug as ProductSlug][locale].name;
+  }
+  return product.name;
 }
 
 interface CheckoutShop {
@@ -41,12 +58,15 @@ interface CheckoutShop {
 // P2.28 (audit 2026-05-26): useSearchParams kräver <Suspense>-wrap i
 // Next 15. Default-exporten wrappar, inner-componenten gör jobbet.
 export default function CheckoutPage() {
+  const { locale } = useLocale();
+  const t = shop.checkout[locale];
+
   return (
     <Suspense
       fallback={
         <div className="min-h-screen bg-brand-50/30">
           <main className="mx-auto max-w-2xl px-4 py-16 text-center text-muted-foreground">
-            Laddar kassa...
+            {t.loading}
           </main>
         </div>
       }
@@ -60,8 +80,10 @@ function CheckoutPageInner() {
   const params = useParams();
   const searchParams = useSearchParams();
   const slug = params.slug as string;
+  const { locale } = useLocale();
+  const t = shop.checkout[locale];
 
-  const [shop, setShop] = useState<CheckoutShop | null>(null);
+  const [shopData, setShopData] = useState<CheckoutShop | null>(null);
 
   const [customerName, setCustomerName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
@@ -107,10 +129,10 @@ function CheckoutPageInner() {
   useEffect(() => {
     async function loadShop() {
       try {
-        const res = await fetch(`${API_URL}/v1/shop/by-slug/${slug}`);
+        const res = await rootsFetch(`${API_URL}/v1/shop/by-slug/${slug}`);
         if (!res.ok) return;
         const data = (await res.json()) as CheckoutShop;
-        setShop(data);
+        setShopData(data);
       } catch {
         // non-fatal: order summary will degrade to item count only
       }
@@ -118,14 +140,14 @@ function CheckoutPageInner() {
     loadShop();
   }, [slug]);
 
-  const resolvedLines = shop
+  const resolvedLines = shopData
     ? items
         .map((line) => {
-          const p = shop.products.find((p) => p.id === line.productId);
+          const p = shopData.products.find((p) => p.id === line.productId);
           if (!p) return null;
           return {
             productId: p.id,
-            name: p.name,
+            name: localizedProductName(p, locale),
             qty: line.qty,
             unitPriceOre: p.priceOre,
             totalOre: p.priceOre * line.qty,
@@ -140,8 +162,8 @@ function CheckoutPageInner() {
   // (checkout.ts ~235–254). Tidigare visade kassan ENDAST subtotal,
   // sedan tog Klarna in subtotal + frakt → supportern betalade mer än
   // vi visade. Bedrägeririsk + lagligt problem (prisindikering).
-  const shippingFee = shop?.campaign?.shippingFeeOre ?? 0;
-  const shippingThreshold = shop?.campaign?.shippingThresholdOre ?? 0;
+  const shippingFee = shopData?.campaign?.shippingFeeOre ?? 0;
+  const shippingThreshold = shopData?.campaign?.shippingThresholdOre ?? 0;
   const shippingOre =
     deliveryType === "DIRECT" &&
     shippingFee > 0 &&
@@ -153,7 +175,7 @@ function CheckoutPageInner() {
   // Priserna är inklusive moms. Samma helper som API:t och orderbekräftelsen
   // använder, så kunden, Klarna och bokföringen ser samma öre.
   const vatOre = vatOfGrossOre(totalOre);
-  const campaignAcceptsOrders = shop?.campaign?.status === "ACTIVE";
+  const campaignAcceptsOrders = shopData?.campaign?.status === "ACTIVE";
 
   async function handleCheckout(e: React.FormEvent) {
     e.preventDefault();
@@ -180,6 +202,7 @@ function CheckoutPageInner() {
               deliveryType === "DIRECT" ? postalCode : undefined,
             items,
             note: note || undefined,
+            locale,
             // Servern loggar vilken version av villkoren kunden godkände;
             // kryssrutan här är beviset som skickas med.
             acceptTerms: termsAccepted,
@@ -188,13 +211,13 @@ function CheckoutPageInner() {
       );
 
       if (!res.ok) {
-        setError(res.data?.error || "Något gick fel.");
+        setError(res.data?.error || t.errorGeneric);
         return;
       }
 
       setKlarnaHtml(res.data?.htmlSnippet || "");
     } catch {
-      setError("Kunde inte nå servern.");
+      setError(t.errorServer);
     } finally {
       setLoading(false);
     }
@@ -215,9 +238,7 @@ function CheckoutPageInner() {
       !/javascript:/i.test(klarnaHtml);
     if (!looksLikeKlarnaSnippet) {
       console.error("Refusing to render non-Klarna checkout snippet");
-      setError(
-        "Kassan kunde inte initieras. Kontakta supporten om problemet kvarstår."
-      );
+      setError(t.klarnaInitFailed);
       setKlarnaHtml("");
       return;
     }
@@ -239,14 +260,14 @@ function CheckoutPageInner() {
       newScript.appendChild(document.createTextNode(oldScript.innerHTML));
       oldScript.parentNode?.replaceChild(newScript, oldScript);
     });
-  }, [klarnaHtml]);
+  }, [klarnaHtml, t.klarnaInitFailed]);
 
   if (klarnaHtml) {
     return (
       <div className="min-h-screen bg-brand-50/30">
         <header className="border-b bg-background">
           <div className="mx-auto max-w-2xl px-4 py-4">
-            <h1 className="text-lg font-semibold">Slutför din beställning</h1>
+            <h1 className="text-lg font-semibold">{t.completeOrder}</h1>
           </div>
         </header>
         <main className="mx-auto max-w-2xl px-4 py-8">
@@ -260,14 +281,14 @@ function CheckoutPageInner() {
     <div className="min-h-screen bg-brand-50/30">
       <header className="border-b bg-background">
         <div className="mx-auto flex max-w-2xl items-center gap-3 px-4 py-4">
-          <Link
+          <LocaleLink
             href={`/shop/${slug}`}
             className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
           >
             <ArrowLeft className="h-4 w-4" />
-            Tillbaka
-          </Link>
-          <h1 className="text-lg font-semibold">Kassa</h1>
+            {t.back}
+          </LocaleLink>
+          <h1 className="text-lg font-semibold">{t.title}</h1>
         </div>
       </header>
 
@@ -283,27 +304,27 @@ function CheckoutPageInner() {
               to pay for before being redirected to Klarna. */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Din beställning</CardTitle>
+              <CardTitle className="text-base">{t.orderSummary}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               {/* KC4.1: medan vi väntar på hydrate/shop-fetch, visa
                   loader istället för en falsk "tom"-skylt — det är en
                   jättevanlig felkälla att se "Din varukorg är tom"
                   blink-fram precis innan items dyker upp. */}
-              {!hydrated || !shop ? (
+              {!hydrated || !shopData ? (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Hämtar din varukorg...
+                  {t.fetchingCart}
                 </div>
               ) : resolvedLines.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  Din varukorg är tom.{" "}
-                  <Link
+                  {t.emptyCart}{" "}
+                  <LocaleLink
                     href={`/shop/${slug}`}
                     className="underline underline-offset-2"
                   >
-                    Gå tillbaka till shoppen
-                  </Link>
+                    {t.backToShop}
+                  </LocaleLink>
                   .
                 </p>
               ) : (
@@ -317,12 +338,14 @@ function CheckoutPageInner() {
                         <div className="min-w-0">
                           <p className="truncate font-medium">{l.name}</p>
                           <p className="text-xs text-muted-foreground">
-                            {l.qty} st &times;{" "}
-                            {formatKrValue(l.unitPriceOre)} kr
+                            {tFill(t.lineQtyPrice, {
+                              qty: l.qty,
+                              amount: formatKr(l.unitPriceOre, locale),
+                            })}
                           </p>
                         </div>
                         <p className="shrink-0 font-medium tabular-nums">
-                          {formatKrValue(l.totalOre)} kr
+                          {formatKr(l.totalOre, locale)}
                         </p>
                       </li>
                     ))}
@@ -330,39 +353,38 @@ function CheckoutPageInner() {
                   <Separator />
                   <div className="space-y-1 text-sm">
                     <div className="flex items-center justify-between text-muted-foreground">
-                      <span>Delsumma</span>
+                      <span>{t.subtotal}</span>
                       <span className="tabular-nums">
-                        {formatKrValue(subtotalOre)} kr
+                        {formatKr(subtotalOre, locale)}
                       </span>
                     </div>
                     {deliveryType === "DIRECT" && shippingFee > 0 && (
                       <div className="flex items-center justify-between text-muted-foreground">
                         <span>
-                          Frakt
+                          {t.shipping}
                           {shippingOre === 0 && shippingThreshold > 0 ? (
                             <span className="ml-1 text-xs">
-                              (fri över{" "}
-                              {formatKrValue(shippingThreshold)} kr)
+                              {tFill(t.freeOver, {
+                                amount: formatKr(shippingThreshold, locale),
+                              })}
                             </span>
                           ) : null}
                         </span>
                         <span className="tabular-nums">
-                          {shippingOre === 0
-                            ? "0 kr"
-                            : `${formatKrValue(shippingOre)} kr`}
+                          {formatKr(shippingOre, locale)}
                         </span>
                       </div>
                     )}
                     <div className="flex items-center justify-between text-muted-foreground">
-                      <span>Varav moms (25 %)</span>
+                      <span>{t.vatIncluded}</span>
                       <span className="tabular-nums">
-                        {formatKrValue(vatOre)} kr
+                        {formatKr(vatOre, locale)}
                       </span>
                     </div>
                     <div className="flex items-center justify-between font-semibold">
-                      <span>Totalt att betala</span>
+                      <span>{t.totalToPay}</span>
                       <span className="tabular-nums">
-                        {formatKrValue(totalOre)} kr
+                        {formatKr(totalOre, locale)}
                       </span>
                     </div>
                   </div>
@@ -373,7 +395,7 @@ function CheckoutPageInner() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Dina uppgifter</CardTitle>
+              <CardTitle className="text-base">{t.yourDetails}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               {/* MASTERPLAN_01 KC6.7: autoComplete-tokens enligt WHATWG.
@@ -381,18 +403,18 @@ function CheckoutPageInner() {
                   mobil där supportrar konverterar är det skillnaden
                   mellan 30 s checkout och abandon. */}
               <div className="space-y-2">
-                <Label htmlFor="name">Namn *</Label>
+                <Label htmlFor="name">{t.nameLabel}</Label>
                 <Input
                   id="name"
                   required
                   autoComplete="name"
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
-                  placeholder="Förnamn Efternamn"
+                  placeholder={t.namePlaceholder}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="email">E-post *</Label>
+                <Label htmlFor="email">{t.emailLabel}</Label>
                 <Input
                   id="email"
                   type="email"
@@ -401,11 +423,11 @@ function CheckoutPageInner() {
                   inputMode="email"
                   value={customerEmail}
                   onChange={(e) => setCustomerEmail(e.target.value)}
-                  placeholder="din@epost.se"
+                  placeholder={t.emailPlaceholder}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="phone">Telefon</Label>
+                <Label htmlFor="phone">{t.phoneLabel}</Label>
                 <Input
                   id="phone"
                   type="tel"
@@ -413,7 +435,7 @@ function CheckoutPageInner() {
                   inputMode="tel"
                   value={customerPhone}
                   onChange={(e) => setCustomerPhone(e.target.value)}
-                  placeholder="070-XXX XX XX"
+                  placeholder={t.phonePlaceholder}
                 />
               </div>
             </CardContent>
@@ -421,7 +443,7 @@ function CheckoutPageInner() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Leverans</CardTitle>
+              <CardTitle className="text-base">{t.delivery}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-3 sm:grid-cols-2">
@@ -436,9 +458,9 @@ function CheckoutPageInner() {
                 >
                   <Package className="mt-0.5 h-5 w-5 shrink-0" />
                   <div>
-                    <p className="font-medium text-sm">Samleverans</p>
+                    <p className="font-medium text-sm">{t.bulkTitle}</p>
                     <p className="text-xs text-muted-foreground">
-                      Hämta hos lagansvarig
+                      {t.bulkHint}
                     </p>
                   </div>
                 </button>
@@ -453,9 +475,9 @@ function CheckoutPageInner() {
                 >
                   <Truck className="mt-0.5 h-5 w-5 shrink-0" />
                   <div>
-                    <p className="font-medium text-sm">Hemleverans</p>
+                    <p className="font-medium text-sm">{t.homeTitle}</p>
                     <p className="text-xs text-muted-foreground">
-                      Direkt till din dörr
+                      {t.homeHint}
                     </p>
                   </div>
                 </button>
@@ -464,19 +486,19 @@ function CheckoutPageInner() {
               {deliveryType === "DIRECT" && (
                 <div className="space-y-3 animate-fade-in">
                   <div className="space-y-2">
-                    <Label htmlFor="address">Adress *</Label>
+                    <Label htmlFor="address">{t.addressLabel}</Label>
                     <Input
                       id="address"
                       required
                       autoComplete="street-address"
                       value={addressLine1}
                       onChange={(e) => setAddressLine1(e.target.value)}
-                      placeholder="Gatuadress"
+                      placeholder={t.addressPlaceholder}
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">
-                      <Label htmlFor="postalCode">Postnummer *</Label>
+                      <Label htmlFor="postalCode">{t.postalLabel}</Label>
                       <Input
                         id="postalCode"
                         required
@@ -489,14 +511,14 @@ function CheckoutPageInner() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="city">Ort *</Label>
+                      <Label htmlFor="city">{t.cityLabel}</Label>
                       <Input
                         id="city"
                         required
                         autoComplete="address-level2"
                         value={city}
                         onChange={(e) => setCity(e.target.value)}
-                        placeholder="Stockholm"
+                        placeholder={t.cityPlaceholder}
                       />
                     </div>
                   </div>
@@ -507,13 +529,13 @@ function CheckoutPageInner() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Meddelande (valfritt)</CardTitle>
+              <CardTitle className="text-base">{t.noteTitle}</CardTitle>
             </CardHeader>
             <CardContent>
               <Input
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                placeholder="Hälsning eller önskemål"
+                placeholder={t.notePlaceholder}
               />
             </CardContent>
           </Card>
@@ -533,42 +555,46 @@ function CheckoutPageInner() {
               aria-describedby="terms-help"
               className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-brand-700"
             />
-            <span id="terms-help" className="leading-relaxed text-muted-foreground">
-              Jag godkänner Roots{" "}
-              <Link
+            <span
+              id="terms-help"
+              className="leading-relaxed text-muted-foreground"
+            >
+              {t.termsPrefix}
+              <LocaleLink
                 href="/villkor"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="underline underline-offset-2 hover:text-foreground"
               >
-                köpvillkor
-              </Link>{" "}
-              och{" "}
-              <Link
+                {t.termsLink}
+              </LocaleLink>
+              {t.termsAnd}
+              <LocaleLink
                 href="/integritet"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="underline underline-offset-2 hover:text-foreground"
               >
-                integritetspolicy
-              </Link>
-              . Betalningen hanteras säkert av Klarna.
+                {t.privacyLink}
+              </LocaleLink>
+              {t.termsSuffix}
             </span>
           </label>
 
-          {shop && !campaignAcceptsOrders && (
+          {shopData && !campaignAcceptsOrders && (
             <p
               role="alert"
               className="rounded-lg border border-amber-200 bg-amber-50/70 p-3 text-sm text-amber-900 dark:border-amber-400/40 dark:bg-amber-400/10 dark:text-amber-100"
             >
-              Kampanjen är inte aktiv just nu. Det går inte att slutföra en
-              beställning.
+              {t.campaignInactive}
             </p>
           )}
 
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
-              {items.reduce((s, i) => s + i.qty, 0)} produkter
+              {tFill(t.productCount, {
+                count: items.reduce((s, i) => s + i.qty, 0),
+              })}
             </p>
             <Button
               type="submit"
@@ -579,7 +605,7 @@ function CheckoutPageInner() {
                 !customerEmail ||
                 items.length === 0 ||
                 !termsAccepted ||
-                (shop !== null && !campaignAcceptsOrders) ||
+                (shopData !== null && !campaignAcceptsOrders) ||
                 // KC4.3 spegel: vid hemleverans måste alla tre adressfält
                 // vara ifyllda — annars går servern bara att blockera 400.
                 (deliveryType === "DIRECT" &&
@@ -591,10 +617,10 @@ function CheckoutPageInner() {
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Förbereder...
+                  {t.preparing}
                 </>
               ) : (
-                "Gå till betalning"
+                t.goToPayment
               )}
             </Button>
           </div>

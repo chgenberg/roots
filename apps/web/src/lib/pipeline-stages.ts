@@ -1,4 +1,6 @@
 import type { PipelineDealKind } from "@roots/contracts";
+import type { Locale } from "@/i18n/config";
+import { portalShared } from "@/i18n/dictionaries/portal-pages";
 
 /**
  * Pipeline stages, shared by the kanban board, the list view and the deal
@@ -25,13 +27,19 @@ export type Stage = (typeof ALL_STAGES)[number];
 /** The four stages that are backed by `quotes.status`. */
 export const QUOTE_STAGES = ["DRAFT", "SENT", "ACCEPTED", "REJECTED"] as const;
 
+/** @deprecated Prefer getStageLabels(locale) — Swedish default for legacy callers. */
 export const STAGE_LABELS: Record<string, string> = {
-  LEAD: "Lead",
-  DRAFT: "Utkast",
-  SENT: "Skickad",
-  ACCEPTED: "Accepterad",
-  REJECTED: "Nekad",
+  ...portalShared.sv.stages,
 };
+
+export function getStageLabels(locale: Locale): Record<string, string> {
+  return { ...portalShared[locale].stages };
+}
+
+export type DropBlockedReason =
+  | "leadNeedsQuote"
+  | "cannotBecomeLead"
+  | "unknownStage";
 
 export function stageIndex(stage: string): number {
   const i = (ALL_STAGES as readonly string[]).indexOf(stage);
@@ -70,8 +78,8 @@ export type DropIntent =
   | { type: "move-quote"; status: (typeof QUOTE_STAGES)[number] }
   /** Turn a lead into a quote: open the quote dialog prefilled. */
   | { type: "create-quote"; sendNow: boolean }
-  /** Not a legal move — `reason` is shown to the rep. */
-  | { type: "blocked"; reason: string };
+  /** Not a legal move — translate `reasonKey` via portalShared.dropBlocked. */
+  | { type: "blocked"; reasonKey: DropBlockedReason };
 
 /**
  * What dropping `deal` on `target` should do.
@@ -92,27 +100,19 @@ export function dropIntent(
     // Accepting or rejecting presupposes something to accept or reject.
     // Silently creating an accepted 0 kr quote would corrupt the pipeline
     // value and the rep's commission base, so we stop and say why.
-    return {
-      type: "blocked",
-      reason:
-        "Leadet har ingen offert än. Dra det till Utkast eller Skickad för att skapa en offert först.",
-    };
+    return { type: "blocked", reasonKey: "leadNeedsQuote" };
   }
 
   if (target === "LEAD") {
     // A quote exists; a lead is by definition a club without one. Moving
     // left would mean deleting the quote — that is a destructive action and
     // must not be triggered by a drag gesture.
-    return {
-      type: "blocked",
-      reason:
-        "Det finns redan en offert för klubben, så den kan inte bli ett lead igen. Ta bort offerten om den skapades av misstag.",
-    };
+    return { type: "blocked", reasonKey: "cannotBecomeLead" };
   }
 
   const status = QUOTE_STAGES.find((s) => s === target);
   if (!status) {
-    return { type: "blocked", reason: "Okänt steg." };
+    return { type: "blocked", reasonKey: "unknownStage" };
   }
   return { type: "move-quote", status };
 }

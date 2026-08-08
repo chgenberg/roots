@@ -6,6 +6,8 @@ import { MessageCircle } from "lucide-react";
 import { ChatThread, type ChatMessage } from "@/components/chat-thread";
 import { apiFetch } from "@/lib/api";
 import { useToast } from "@/components/ui/toast";
+import { useLocale } from "@/i18n/locale-context";
+import { fundraisingPages } from "@/i18n/dictionaries/fundraising-pages";
 
 interface SellerChatResponse {
   sellerId: string;
@@ -14,6 +16,8 @@ interface SellerChatResponse {
 }
 
 export default function SellerChatPage() {
+  const { locale } = useLocale();
+  const t = fundraisingPages.myShopChat[locale];
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
@@ -23,7 +27,6 @@ export default function SellerChatPage() {
     const { ok, data } = await apiFetch<SellerChatResponse>("/v1/chat/seller");
     if (ok && data?.messages) {
       setMessages(data.messages);
-      // Markera som läst (best-effort) första gången.
       if (!loadedOnce.current) {
         loadedOnce.current = true;
         apiFetch("/v1/chat/seller/read", { method: "POST", body: {} }).catch(
@@ -48,25 +51,22 @@ export default function SellerChatPage() {
     if (ok && data?.message) {
       setMessages((prev) => [...prev, data.message]);
     } else {
-      toast(data?.error || "Kunde inte skicka meddelandet.", "error");
+      toast(data?.error || t.sendFailed, "error");
     }
   }
 
   return (
     <div className="page-enter space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Chatt med laget</h1>
-        <p className="text-sm text-muted-foreground">
-          Skriv direkt till din lagledare. Meddelanden till hela laget visas
-          markerade.
-        </p>
+        <h1 className="text-2xl font-bold">{t.title}</h1>
+        <p className="text-sm text-muted-foreground">{t.subtitle}</p>
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <MessageCircle className="h-4 w-4 text-brand-500" />
-            Konversation
+            {t.conversation}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -74,8 +74,8 @@ export default function SellerChatPage() {
             messages={messages}
             onSend={send}
             loading={loading}
-            emptyText="Inga meddelanden ännu. Säg hej till din lagledare!"
-            placeholder="Skriv till din lagledare…"
+            emptyText={t.empty}
+            placeholder={t.placeholder}
           />
         </CardContent>
       </Card>

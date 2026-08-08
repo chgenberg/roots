@@ -28,8 +28,12 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { Loader2, CheckCircle2, ShieldAlert, Users } from "lucide-react";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, rootsFetch } from "@/lib/api";
 import { getBrowserApiBase } from "@/lib/api-base";
+import { LocaleLink } from "@/components/locale-link";
+import { auth } from "@/i18n/dictionaries/auth";
+import { tFill } from "@/i18n/format";
+import { useLocale } from "@/i18n/locale-context";
 
 const API_URL = getBrowserApiBase();
 
@@ -45,6 +49,8 @@ export default function TeamLeaderClaimPage() {
   const router = useRouter();
   const params = useParams();
   const token = params.token as string;
+  const { locale } = useLocale();
+  const t = auth.registerTeamLeader[locale];
 
   const [preview, setPreview] = useState<InvitePreview | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -62,11 +68,11 @@ export default function TeamLeaderClaimPage() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`${API_URL}/v1/association/team-invites/${token}`);
+        const res = await rootsFetch(`${API_URL}/v1/association/team-invites/${token}`);
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
           if (!cancelled)
-            setPreviewError(data?.error || "Inbjudan hittades inte.");
+            setPreviewError(data?.error || t.inviteNotFound);
         } else {
           const data = (await res.json()) as InvitePreview;
           if (!cancelled) {
@@ -75,8 +81,7 @@ export default function TeamLeaderClaimPage() {
           }
         }
       } catch {
-        if (!cancelled)
-          setPreviewError("Kunde inte hämta inbjudan. Försök igen om en stund.");
+        if (!cancelled) setPreviewError(t.inviteFetchFailed);
       } finally {
         if (!cancelled) setPreviewLoading(false);
       }
@@ -84,22 +89,22 @@ export default function TeamLeaderClaimPage() {
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, [token, t.inviteNotFound, t.inviteFetchFailed]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setFormError(null);
 
     if (!contactName.trim() || contactName.trim().length < 2) {
-      setFormError("Skriv ditt namn.");
+      setFormError(t.nameRequired);
       return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      setFormError("Ogiltig e-postadress.");
+      setFormError(t.invalidEmail);
       return;
     }
     if (password.length < 8) {
-      setFormError("Lösenord måste vara minst 8 tecken.");
+      setFormError(t.passwordTooShort);
       return;
     }
 
@@ -125,12 +130,10 @@ export default function TeamLeaderClaimPage() {
         setSuccess(true);
         setTimeout(() => router.push(res.data?.redirect || "/lag"), 1500);
       } else {
-        setFormError(
-          res.data?.error || "Något gick fel. Försök igen."
-        );
+        setFormError(res.data?.error || t.errorGeneric);
       }
     } catch {
-      setFormError("Kunde inte nå servern. Försök igen.");
+      setFormError(t.errorServer);
     } finally {
       setSubmitting(false);
     }
@@ -151,12 +154,12 @@ export default function TeamLeaderClaimPage() {
       <Card className="w-full max-w-md shadow-lg">
         <CardContent className="flex flex-col items-center gap-3 py-10">
           <ShieldAlert className="h-10 w-10 text-destructive" />
-          <h2 className="text-xl font-semibold">Inbjudan kunde inte öppnas</h2>
+          <h2 className="text-xl font-semibold">{t.inviteErrorTitle}</h2>
           <p className="text-center text-sm text-muted-foreground">
-            {previewError || "Länken är ogiltig eller har gått ut."}
+            {previewError || t.inviteFallback}
           </p>
-          <Button variant="outline" onClick={() => router.push("/login")}>
-            Till inloggning
+          <Button variant="outline" asChild>
+            <LocaleLink href="/login">{t.goToLogin}</LocaleLink>
           </Button>
         </CardContent>
       </Card>
@@ -168,10 +171,11 @@ export default function TeamLeaderClaimPage() {
       <Card className="w-full max-w-md shadow-lg">
         <CardContent className="flex flex-col items-center gap-4 py-12">
           <CheckCircle2 className="h-12 w-12 text-success" />
-          <h2 className="text-xl font-semibold">Välkommen, {contactName}!</h2>
+          <h2 className="text-xl font-semibold">
+            {tFill(t.welcome, { name: contactName })}
+          </h2>
           <p className="text-center text-sm text-muted-foreground">
-            Ditt lag <strong>{preview.teamName}</strong> är skapat. Du
-            skickas vidare till lagets dashboard…
+            {tFill(t.successBody, { teamName: preview.teamName })}
           </p>
         </CardContent>
       </Card>
@@ -184,31 +188,34 @@ export default function TeamLeaderClaimPage() {
         <div className="mb-2 flex items-center gap-2">
           <Users className="h-5 w-5 text-brand-600" />
           <span className="text-xs font-medium uppercase tracking-wide text-brand-600">
-            Inbjudan som lagansvarig
+            {t.badge}
           </span>
         </div>
-        <CardTitle className="text-2xl">Bli lagansvarig för {preview.teamName}</CardTitle>
+        <CardTitle className="text-2xl">
+          {tFill(t.title, { teamName: preview.teamName })}
+        </CardTitle>
         <CardDescription>
-          <strong>{preview.orgName}</strong> har bjudit in dig att leda laget i
-          kampanjen "{preview.campaignName}". Skapa ditt konto nedan så är ni
-          igång direkt.
+          {tFill(t.description, {
+            orgName: preview.orgName,
+            campaignName: preview.campaignName,
+          })}
         </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <Label htmlFor="contactName">Ditt namn</Label>
+            <Label htmlFor="contactName">{t.contactName}</Label>
             <Input
               id="contactName"
               value={contactName}
               onChange={(e) => setContactName(e.target.value)}
-              placeholder="För- och efternamn"
+              placeholder={t.contactNamePlaceholder}
               required
               autoComplete="name"
             />
           </div>
           <div>
-            <Label htmlFor="email">E-post</Label>
+            <Label htmlFor="email">{t.email}</Label>
             <Input
               id="email"
               type="email"
@@ -219,18 +226,18 @@ export default function TeamLeaderClaimPage() {
             />
           </div>
           <div>
-            <Label htmlFor="phone">Telefon (valfritt)</Label>
+            <Label htmlFor="phone">{t.phone}</Label>
             <Input
               id="phone"
               type="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               autoComplete="tel"
-              placeholder="0701234567"
+              placeholder={t.phonePlaceholder}
             />
           </div>
           <div>
-            <Label htmlFor="password">Välj lösenord</Label>
+            <Label htmlFor="password">{t.password}</Label>
             <Input
               id="password"
               type="password"
@@ -239,7 +246,7 @@ export default function TeamLeaderClaimPage() {
               required
               minLength={8}
               autoComplete="new-password"
-              placeholder="Minst 8 tecken"
+              placeholder={t.passwordPlaceholder}
             />
           </div>
 
@@ -251,12 +258,11 @@ export default function TeamLeaderClaimPage() {
 
           <Button type="submit" className="w-full" disabled={submitting}>
             {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Skapa lagansvarig-konto
+            {t.submit}
           </Button>
 
           <p className="text-center text-xs text-muted-foreground">
-            Genom att fortsätta godkänner du Roots användarvillkor och
-            personuppgiftspolicy.
+            {t.legalNote}
           </p>
         </form>
       </CardContent>

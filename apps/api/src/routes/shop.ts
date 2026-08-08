@@ -14,6 +14,8 @@ import {
 } from "@roots/db/schema";
 import { childLogger } from "../lib/logger";
 import { resolveCampaignCatalog, catalogToList } from "../lib/campaign-catalog";
+import { resolveUiLocale, uiError } from "../lib/ui-locale";
+import { localizedProductName } from "../lib/product-i18n";
 
 const log = childLogger("shop");
 
@@ -55,6 +57,7 @@ shop.get("/sitemap-shops", async (c) => {
 
 shop.get("/by-slug/:slug", async (c) => {
   const slug = c.req.param("slug");
+  const locale = resolveUiLocale(c);
 
   try {
     const [seller] = await db
@@ -64,13 +67,13 @@ shop.get("/by-slug/:slug", async (c) => {
       .limit(1);
 
     if (!seller) {
-      return c.json({ error: "Shop hittades inte." }, 404);
+      return c.json({ error: uiError(locale, "shopNotFound") }, 404);
     }
 
     // Inaktiverad/avslutad säljare ska inte längre exponera sin shop —
     // spegla checkout (410) och sitemap som redan filtrerar på ACTIVE.
     if (seller.status !== "ACTIVE") {
-      return c.json({ error: "Shop hittades inte." }, 404);
+      return c.json({ error: uiError(locale, "shopNotFound") }, 404);
     }
 
     const [team] = await db
@@ -178,11 +181,12 @@ shop.get("/by-slug/:slug", async (c) => {
     });
   } catch (err) {
     log.error({ err }, "Failed to fetch shop by slug");
-    return c.json({ error: "Något gick fel." }, 500);
+    return c.json({ error: uiError(locale, "somethingWrong") }, 500);
   }
 });
 
 shop.get("/products", async (c) => {
+  const locale = resolveUiLocale(c);
   try {
     const productList = await db
       .select()
@@ -191,7 +195,17 @@ shop.get("/products", async (c) => {
 
     const bundleList = await db.select().from(bundles);
 
-    return c.json({ products: productList, bundles: bundleList });
+    return c.json({
+      products: productList.map((p) => ({
+        ...p,
+        name: localizedProductName(locale, {
+          slug: p.slug,
+          sku: p.sku,
+          fallback: p.name,
+        }),
+      })),
+      bundles: bundleList,
+    });
   } catch {
     return c.json({ products: [], bundles: [] });
   }

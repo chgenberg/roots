@@ -87,14 +87,17 @@ def build() -> Deck:
     slides.append(Slide(
         number=next(n), layout="team", kicker="ROOTS",
         title="Teamet",
-        subtitle="Föreningsliv, teknik och produkt — samma mål.",
+        subtitle="Roots är byggt av människor som kan föreningslivet.",
         items=[name for name, _ in TEAM],
         images=[path for _, path in TEAM],
-        caption="Vi bygger det vi själva hade velat ha som förening.",
+        caption="Decennier av erfarenhet från föreningsförsäljning, produkt, "
+                "varumärke, teknik och AI — personliga möten och lokal närvaro.",
         notes="Kort presentation — namn och gemenskap, ingen CV-runda.\n\n"
               "Poängen: det här är människor som känner kedjan från laget "
               "till kassan, och som byggt produkten och plattformen för att "
-              "den kedjan ska bli enklare.",
+              "den kedjan ska bli enklare.\n\n"
+              "[Internt] Matilda: lägg till när porträtt finns. "
+              "Branding: behåll footer «Roots · Säljpresentation».",
     ))
 
     # ── 03 · Vision / tre pelare (MS-001) ──────────────────────────────
@@ -109,7 +112,9 @@ def build() -> Deck:
     right = S["MS-002"].under("Slide-innehåll", "Höger sida")
     left_items = list(left[1:])
     if "Lotter" not in left_items:
-        left_items.append("Lotter")
+        left_items.insert(0, "Lotter")
+    elif left_items[0] != "Lotter":
+        left_items = ["Lotter"] + [x for x in left_items if x != "Lotter"]
     slides.append(_slide(
         next(n), "columns", "MS-002",
         left=Column(heading=left[0], items=left_items),
@@ -148,7 +153,8 @@ def build() -> Deck:
         next(n), "flywheel", "MS-007",
         items=flow[:6],
         columns=["ROOTS", ""],
-        caption=S["MS-007"].under("Slide-innehåll", "Nederst")[0],
+        caption="Vår unika kompetens: föreningsliv + premiumprodukt + plattform — "
+                "i samma erbjudande. Vi bygger relationer, inte bara kampanjer.",
     ))
 
     # ── 09 · Tre produkter översikt (MS-008) ───────────────────────────
@@ -166,13 +172,13 @@ def build() -> Deck:
 
     # ── 10–12 · Produktpitchar ─────────────────────────────────────────
     slides.append(Slide(
-        number=next(n), layout="pitch", kicker="PRODUKT 01 · 149 KR · 250 ML",
+        number=next(n), layout="pitch", kicker="PRODUKT 01 · 199 KR · 250 ML",
         title="Roots Schampoo",
         left=Column(heading="Fakta", items=[
             "SyriCalm® lugnar hårbotten",
             "Sockerbaserade, sulfatsnåla tvättämnen",
             "Reder ut och ger glans",
-            "Utan sulfater, silikoner, parabener",
+            "Utan silikoner och parabener",
         ]),
         right=Column(heading="Känsla", items=[
             "»Hår som andas — utan att strama«",
@@ -187,7 +193,7 @@ def build() -> Deck:
     ))
 
     slides.append(Slide(
-        number=next(n), layout="pitch", kicker="PRODUKT 02 · 149 KR · 250 ML",
+        number=next(n), layout="pitch", kicker="PRODUKT 02 · 199 KR · 250 ML",
         title="Roots Conditioner",
         left=Column(heading="Fakta", items=[
             "Pro-Vitamin B5 — närande utan att tynga",
@@ -206,7 +212,7 @@ def build() -> Deck:
     ))
 
     slides.append(Slide(
-        number=next(n), layout="pitch", kicker="PRODUKT 03 · 129 KR · 250 ML",
+        number=next(n), layout="pitch", kicker="PRODUKT 03 · 179 KR · 250 ML",
         title="Roots Body Wash",
         left=Column(heading="Fakta", items=[
             "Mild tvättduo, sulfatsnål",
@@ -221,7 +227,7 @@ def build() -> Deck:
         ]),
         images=["images/sport-pres-body-wash.jpg"],
         caption="Lägst tröskel av de tre — perfekt sista knuff.",
-        notes="Enklaste merförsäljningen. 129 kr — 20 kr under de andra två.",
+        notes="Enklaste merförsäljningen. 179 kr — 20 kr under de andra två.",
     ))
 
     # ── 13 · Premium – inte premiumpris (MS-009) ───────────────────────
@@ -234,21 +240,38 @@ def build() -> Deck:
     slides.append(Slide(
         number=next(n), layout="cards", kicker="ERBJUDANDET",
         title="Pris som fungerar i föreningen",
-        subtitle="Styckpriser mot komplettpaketet — och marknadens nivå.",
+        subtitle="Styckpriser mot Premiumpaketet — och marknadens nivå.",
         items=[
-            "Schampoo · 149 kr | 250 ml · 60 kr/100 ml",
-            "Conditioner · 149 kr | 250 ml · 60 kr/100 ml",
-            "Body Wash · 129 kr | 250 ml · 52 kr/100 ml",
-            "Komplett paket · 399 kr | 3 × 250 ml · spara 28 kr mot 427 kr",
+            "Schampoo · 199 kr | 250 ml · 80 kr/100 ml",
+            "Conditioner · 199 kr | 250 ml · 80 kr/100 ml",
+            "Body Wash · 179 kr | 250 ml · 72 kr/100 ml",
+            "Premiumpaket* · 399 kr | 3 × 250 ml · spara 178 kr mot 577 kr",
         ],
-        caption="Maria Nila, Sachajuan och Davines ligger typiskt 90–140 kr/100 ml.",
-        notes="Visa paketet först. Styckpriserna finns för den som frågar.\n\n"
-              "Jämförelsen mot marknaden: samma nivå som i "
-              "Roots_Prisjamforelse_Marknaden.pdf — premiumkvalitet utan "
-              "premiumprislappen.",
+        caption="Premiumkvalitet – cirka 40 % lägre än ledande premiumvarumärken "
+                "(typiskt 90–140 kr/100 ml). *Premiumpaketet = hela rutinen.",
+        notes="Visa Premiumpaketet först. Styckpriserna finns för den som frågar.\n\n"
+              "Samma siffror som i Roots_Prisjamforelse_Marknaden.pdf "
+              "(199 / 199 / 179 → 577; Premium 399 sparar 178).",
     ))
 
-    # ── 15 · Varför priset håller ──────────────────────────────────────
+    # ── 15 · 35 % tillbaka (säljpunch) ─────────────────────────────────
+    slides.append(Slide(
+        number=next(n), layout="impact", kicker="FÖRENINGEN",
+        title="35 %",
+        subtitle="tillbaka till föreningen",
+        items=[
+            "Av varje såld krona — utan förhandling.",
+            "Låst i avtalet från dag ett.",
+            "Inga uppstartsavgifter. Inga dolda avdrag.",
+        ],
+        caption="Det är därför medlemmarna säljer med stolthet.",
+        notes="Stanna på den här sliden. Låt siffran landa innan du går vidare.\n\n"
+              "Marginalen är LOCKED_MARGIN_PERCENT = 35 % — säg det som ett "
+              "löfte, inte som ett erbjudande man kan pruta på.\n\n"
+              "Peka inte på demoskärmar som fortfarande visar 30 %.",
+    ))
+
+    # ── 16 · Varför priset håller ──────────────────────────────────────
     slides.append(Slide(
         number=next(n), layout="cards", kicker="PRISLOGIK",
         title="Varför priset håller",
@@ -284,11 +307,29 @@ def build() -> Deck:
         notes=notes_for("MS-011"),
     ))
 
-    # ── 18 · Flöde start → mål ─────────────────────────────────────────
+    # ── 18 · Flöde ─────────────────────────────────────────────────────
+    slides.append(Slide(
+        number=next(n), layout="cards", kicker="GENOMFÖRANDE",
+        title="Från uppstart till leverans",
+        subtitle="Hela kedjan synlig i plattformen — utan onödig administration.",
+        items=[
+            "Uppstart med föreningen | Kontakt, bankkonto, säljperiod, "
+            "medlemmar och mål",
+            "Försäljning igång | Tre vyer: klubbledning, lagledare och medlem",
+            "Avslutad säljperiod | Omsättning, överskott, paket och styck",
+            "Ekonomi | Avräkning och fördelning per lag",
+            "Kommunikation | Tydlig feedback när kampanjen lyckats",
+            "Utleverans | Hämtinstruktioner och listor per medlem",
+        ],
+        notes="Gå igenom stegen snabbt. Detaljerna sitter i plattformen — "
+              "öppna gärna dashboarden eller räknesnurran i samma andetag.",
+    ))
+
+    # ── 19 · Tidslinje (kort form) ─────────────────────────────────────
     slides.append(Slide(
         number=next(n), layout="timeline", kicker="GENOMFÖRANDE",
         title="Från start till utbetalning",
-        subtitle="Hela kedjan — utan onödig administration.",
+        subtitle="Samma kedja som i flödet — utan onödig administration.",
         items=[
             "Uppstart",
             "Aktivering",
@@ -297,11 +338,50 @@ def build() -> Deck:
             "Leverans",
             "Utbetalning",
         ],
-        notes="Gå igenom stegen snabbt. Detaljerna sitter i plattformen — "
-              "öppna gärna dashboarden eller räknesnurran i samma andetag.",
     ))
 
-    # ── 19 · Roller / ekonomi / support (MS-012–014 samlade) ───────────
+    # ── 20–23 · Rollvyer (skärmbilder) ────────────────────────────────
+    slides.append(Slide(
+        number=next(n), layout="phones", kicker="KÖPAREN",
+        title="Köparen behöver ingen app",
+        subtitle="En länk. En shop. Klar på en minut.",
+        items=["Shoppen", "Kassan"],
+        images=["shop-start.png", "shop-kassa.png"],
+        caption="Man köper inte schampo — man köper lagets cup.",
+        notes="Ingen inloggning, inget konto. Länken i ett sms räcker.\n\n"
+              "Demoskärmar kan visa äldre pris/marginal — peka på flödet.",
+    ))
+    slides.append(Slide(
+        number=next(n), layout="phones", kicker="SÄLJAREN",
+        title="Hela världen i fickan",
+        subtitle="Sålt, mål och nästa nivå — utan Excel och utan krångel.",
+        items=["Min shop", "Min statistik"],
+        images=["minshop-start.png", "minshop-statistik.png"],
+        caption="Samma logik som spelen de redan spelar.",
+        notes="Här avgörs utfallet. Nivåerna peppar vidare — "
+              "»Registrera order« finns för kontantköp.",
+    ))
+    slides.append(Slide(
+        number=next(n), layout="desktops", kicker="FÖRENINGSANSVARIG",
+        title="Full kontroll. Noll administration.",
+        subtitle="Översikt och avräkning i samma system — samma dag ordern läggs.",
+        items=["Översikt", "Avräkning"],
+        images=["forening-oversikt.png", "forening-avrakning.png"],
+        caption="Styrelsen ser helheten utan att jaga listor.",
+        notes="Visa att ekonomi och status sitter i samma yta. "
+              "Ingen exporterar Excel mitt i kampanjen.",
+    ))
+    slides.append(Slide(
+        number=next(n), layout="desktops", kicker="LAGLEDAREN",
+        title="Peppa laget — inte administrera det",
+        subtitle="Lagets tavla och säljarna på en skärm. En länk till chatten.",
+        items=["Lagets översikt", "Säljarna"],
+        images=["lag-oversikt.png", "lag-saljare.png"],
+        caption="Tröskeln för en ideell tränare måste vara noll.",
+        notes="Lagledarens jobb: kopiera länken och klistra in i lagchatten.",
+    ))
+
+    # ── 20 · Roller / ekonomi / support (MS-012–014 samlade) ───────────
     slides.append(Slide(
         number=next(n), layout="cards", kicker="PLATTFORMEN",
         title="Roller, ekonomi och support",

@@ -1,5 +1,11 @@
 "use client";
 
+import { useLocale } from "@/i18n/locale-context";
+import { fundraisingPages } from "@/i18n/dictionaries/fundraising-pages";
+import { tFill } from "@/i18n/format";
+import { appCommon } from "@/i18n/dictionaries/app-common";
+import { LocaleLink } from "@/components/locale-link";
+
 /**
  * /installningar — shared settings surface for the three fundraising
  * roles (ASSOCIATION_ADMIN, TEAM_LEADER, SELLER).
@@ -46,7 +52,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, rootsFetch } from "@/lib/api";
 import { getBrowserApiBase } from "@/lib/api-base";
 
 const API_URL = getBrowserApiBase();
@@ -59,13 +65,14 @@ interface MeUser {
   orgName: string;
 }
 
-const ROLE_LABEL: Record<string, string> = {
-  ASSOCIATION_ADMIN: "Föreningsadministratör",
-  TEAM_LEADER: "Lagansvarig",
-  SELLER: "Säljare",
-};
+
 
 export default function InstallningarPage() {
+  const { locale, href } = useLocale();
+  const t = fundraisingPages.settings[locale];
+  const c = fundraisingPages.common[locale];
+  const dateLocale = appCommon[locale].dateLocale;
+
   const { toast } = useToast();
 
   const [me, setMe] = useState<MeUser | null>(null);
@@ -95,9 +102,7 @@ export default function InstallningarPage() {
     let cancelled = false;
     async function load() {
       try {
-        const meRes = await fetch(`${API_URL}/v1/auth/me`, {
-          credentials: "include",
-        });
+        const meRes = await rootsFetch(`${API_URL}/v1/auth/me`);
         if (!meRes.ok) {
           if (!cancelled) setMeLoading(false);
           return;
@@ -107,9 +112,7 @@ export default function InstallningarPage() {
         setMe(meData.user ?? null);
 
         if (meData.user?.role === "SELLER") {
-          const shopRes = await fetch(`${API_URL}/v1/dashboard/seller`, {
-            credentials: "include",
-          });
+          const shopRes = await rootsFetch(`${API_URL}/v1/dashboard/seller`);
           if (shopRes.ok) {
             const shopData = await shopRes.json();
             if (!cancelled) setSellerShopSlug(shopData?.seller?.shopSlug ?? null);
@@ -169,12 +172,12 @@ export default function InstallningarPage() {
         }
       );
       if (res.ok) {
-        toast("Föreningsuppgifterna är sparade.", "success");
+        toast(t.orgSaved, "success");
       } else {
-        toast(res.data?.error || "Kunde inte spara.", "error");
+        toast(res.data?.error || t.orgSaveFailed, "error");
       }
     } catch {
-      toast("Ett nätverksfel uppstod. Försök igen.", "error");
+      toast(c.networkError, "error");
     } finally {
       setOrgSaving(false);
     }
@@ -187,19 +190,19 @@ export default function InstallningarPage() {
     // Client-side mirrors the API rules in apps/api/src/routes/auth.ts
     // so the user gets immediate feedback instead of a round-trip.
     if (!currentPassword || !newPassword) {
-      toast("Båda fälten krävs.", "error");
+      toast(t.bothRequired, "error");
       return;
     }
     if (newPassword.length < 8) {
-      toast("Nytt lösenord måste vara minst 8 tecken.", "error");
+      toast(t.passwordMin, "error");
       return;
     }
     if (newPassword !== confirmPassword) {
-      toast("Bekräftelsen matchar inte det nya lösenordet.", "error");
+      toast(t.passwordMismatch, "error");
       return;
     }
     if (newPassword === currentPassword) {
-      toast("Nytt lösenord får inte vara samma som det gamla.", "error");
+      toast(t.passwordSame, "error");
       return;
     }
 
@@ -213,18 +216,18 @@ export default function InstallningarPage() {
         }
       );
       if (res.ok && res.data?.ok) {
-        toast("Lösenordet är uppdaterat.", "success");
+        toast(t.passwordUpdated, "success");
         setCurrentPassword("");
         setNewPassword("");
         setConfirmPassword("");
       } else {
         toast(
-          res.data?.error || "Kunde inte byta lösenord. Försök igen.",
+          res.data?.error || t.passwordFailed,
           "error"
         );
       }
     } catch {
-      toast("Ett nätverksfel uppstod. Försök igen.", "error");
+      toast(c.networkError, "error");
     } finally {
       setPwSubmitting(false);
     }
@@ -237,7 +240,7 @@ export default function InstallningarPage() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast("Kunde inte kopiera länken. Kopiera den manuellt.", "error");
+      toast(c.copyLinkFailed, "error");
     }
   }
 
@@ -254,21 +257,28 @@ export default function InstallningarPage() {
       <div className="flex flex-col items-center gap-3 py-20">
         <Shield className="h-10 w-10 text-muted-foreground" />
         <p className="text-sm text-muted-foreground">
-          Kunde inte hämta dina kontouppgifter.
+          {t.loadFailed}
         </p>
       </div>
     );
   }
 
-  const roleLabel = ROLE_LABEL[me.role] ?? me.role;
+  const roleLabel =
+    me.role === "ASSOCIATION_ADMIN"
+      ? t.roleAssociationAdmin
+      : me.role === "TEAM_LEADER"
+        ? t.roleTeamLeader
+        : me.role === "SELLER"
+          ? t.roleSeller
+          : me.role;
   const shopUrl = sellerShopSlug ? `${SITE_URL}/shop/${sellerShopSlug}` : null;
 
   return (
     <div className="page-enter mx-auto max-w-3xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Inställningar</h1>
+        <h1 className="text-2xl font-bold">{t.title}</h1>
         <p className="text-sm text-muted-foreground">
-          Hantera ditt konto, säkerhet och notifikationer.
+          {t.subtitle}
         </p>
       </div>
 
@@ -277,18 +287,17 @@ export default function InstallningarPage() {
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <User className="h-4 w-4" />
-            Min profil
+            {t.profile}
           </CardTitle>
           <CardDescription>
-            Kontouppgifter som föreningen ser. Vill du ändra något — kontakta
-            din lagansvarige eller föreningens administratör.
+            {t.profileDesc}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <Label className="text-xs uppercase tracking-wide text-muted-foreground">
-                Namn
+                {t.name}
               </Label>
               <p className="mt-1 flex items-center gap-2 text-sm font-medium">
                 <User className="h-4 w-4 text-muted-foreground" />
@@ -297,7 +306,7 @@ export default function InstallningarPage() {
             </div>
             <div>
               <Label className="text-xs uppercase tracking-wide text-muted-foreground">
-                E-post
+                {t.email}
               </Label>
               <p className="mt-1 flex items-center gap-2 text-sm font-medium">
                 <Mail className="h-4 w-4 text-muted-foreground" />
@@ -306,7 +315,7 @@ export default function InstallningarPage() {
             </div>
             <div>
               <Label className="text-xs uppercase tracking-wide text-muted-foreground">
-                Roll
+                {t.role}
               </Label>
               <p className="mt-1 flex items-center gap-2 text-sm">
                 <Badge className="bg-brand-100 text-brand-700">
@@ -316,7 +325,7 @@ export default function InstallningarPage() {
             </div>
             <div>
               <Label className="text-xs uppercase tracking-wide text-muted-foreground">
-                Organisation
+                {t.organisation}
               </Label>
               <p className="mt-1 flex items-center gap-2 text-sm font-medium">
                 <Building2 className="h-4 w-4 text-muted-foreground" />
@@ -333,20 +342,18 @@ export default function InstallningarPage() {
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <Building2 className="h-4 w-4" />
-              Föreningens uppgifter
+              {t.orgDetails}
             </CardTitle>
             <CardDescription>
-              Organisationsnummer behövs för fakturering och utbetalning.
-              {orgVerified
-                ? " Föreningen är godkänd för publik försäljning."
-                : " Vi granskar föreningen innan butiken kan ta emot betalningar."}
+              {t.orgDescBase}
+              {orgVerified ? t.orgVerified : t.orgPending}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSaveOrg} className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="sm:col-span-2">
-                  <Label htmlFor="orgNumber">Organisationsnummer *</Label>
+                  <Label htmlFor="orgNumber">{t.orgNumber}</Label>
                   <Input
                     id="orgNumber"
                     value={orgNumber}
@@ -356,25 +363,25 @@ export default function InstallningarPage() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="sportType">Idrott / verksamhet</Label>
+                  <Label htmlFor="sportType">{t.sportType}</Label>
                   <Input
                     id="sportType"
                     value={sportType}
                     onChange={(e) => setSportType(e.target.value)}
-                    placeholder="Fotboll"
+                    placeholder={t.sportPlaceholder}
                   />
                 </div>
                 <div>
-                  <Label htmlFor="nationalFederation">Riksförbund</Label>
+                  <Label htmlFor="nationalFederation">{t.federation}</Label>
                   <Input
                     id="nationalFederation"
                     value={nationalFederation}
                     onChange={(e) => setNationalFederation(e.target.value)}
-                    placeholder="t.ex. Svenska Fotbollförbundet"
+                    placeholder={t.federationPlaceholder}
                   />
                 </div>
                 <div>
-                  <Label htmlFor="postalCode">Postnummer</Label>
+                  <Label htmlFor="postalCode">{t.postalCode}</Label>
                   <Input
                     id="postalCode"
                     value={postalCode}
@@ -384,12 +391,12 @@ export default function InstallningarPage() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="municipality">Ort</Label>
+                  <Label htmlFor="municipality">{t.municipality}</Label>
                   <Input
                     id="municipality"
                     value={municipality}
                     onChange={(e) => setMunicipality(e.target.value)}
-                    placeholder="Stockholm"
+                    placeholder={t.municipalityPlaceholder}
                   />
                 </div>
               </div>
@@ -398,7 +405,7 @@ export default function InstallningarPage() {
                   {orgSaving && (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   )}
-                  Spara uppgifter
+                  {t.saveOrg}
                 </Button>
               </div>
             </form>
@@ -412,11 +419,10 @@ export default function InstallningarPage() {
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <ExternalLink className="h-4 w-4" />
-              Din shop
+              {t.yourShop}
             </CardTitle>
             <CardDescription>
-              Den publika länken till just din shop. Dela den med familj,
-              vänner och i sociala medier.
+              {t.yourShopDesc}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -426,7 +432,7 @@ export default function InstallningarPage() {
                 size="sm"
                 variant="outline"
                 onClick={copyShopLink}
-                aria-label="Kopiera shop-länk"
+                aria-label={t.copyShopLink}
               >
                 {copied ? (
                   <CheckCircle2 className="h-4 w-4 text-success" />
@@ -449,17 +455,16 @@ export default function InstallningarPage() {
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Lock className="h-4 w-4" />
-            Byt lösenord
+            {t.changePassword}
           </CardTitle>
           <CardDescription>
-            Minst 8 tecken. Använd ett unikt lösenord som du inte använt
-            någon annanstans.
+            {t.passwordDesc}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleChangePassword} className="space-y-4">
             <div>
-              <Label htmlFor="currentPassword">Nuvarande lösenord</Label>
+              <Label htmlFor="currentPassword">{t.currentPassword}</Label>
               <Input
                 id="currentPassword"
                 type="password"
@@ -471,7 +476,7 @@ export default function InstallningarPage() {
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <Label htmlFor="newPassword">Nytt lösenord</Label>
+                <Label htmlFor="newPassword">{t.newPassword}</Label>
                 <Input
                   id="newPassword"
                   type="password"
@@ -483,7 +488,7 @@ export default function InstallningarPage() {
                 />
               </div>
               <div>
-                <Label htmlFor="confirmPassword">Bekräfta nytt lösenord</Label>
+                <Label htmlFor="confirmPassword">{t.confirmPassword}</Label>
                 <Input
                   id="confirmPassword"
                   type="password"
@@ -506,13 +511,13 @@ export default function InstallningarPage() {
                 }}
                 disabled={pwSubmitting}
               >
-                Rensa
+                {c.clear}
               </Button>
               <Button type="submit" disabled={pwSubmitting}>
                 {pwSubmitting && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
-                Uppdatera lösenord
+                {t.updatePassword}
               </Button>
             </div>
           </form>
@@ -524,18 +529,15 @@ export default function InstallningarPage() {
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Bell className="h-4 w-4" />
-            Notifikationer
+            {t.notifications}
           </CardTitle>
           <CardDescription>
-            E-post- och push-notiser för nya beställningar, mål-uppdateringar
-            och tävlingar. Kommer i nästa version.
+{t.notificationsDesc}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">
-            Just nu skickas notifieringar automatiskt vid större händelser
-            (avslutad kampanj, nytt mål nått). Inställbara preferenser
-            släpps i nästa uppdatering.
+            {t.notificationsBody}
           </p>
         </CardContent>
       </Card>

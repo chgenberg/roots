@@ -22,6 +22,7 @@ import {
   getPreviewToken,
   isPreviewGateDisabled,
 } from "../lib/preview-gate";
+import { resolveUiLocale, uiError } from "../lib/ui-locale";
 
 const log = childLogger("preview-gate");
 
@@ -41,19 +42,23 @@ preview.post("/unlock", async (c) => {
   // när SITE_PREVIEW_PASSWORD saknas ska vi fail:a tydligt 503
   // istället för att jämföra mot ett tomt strängvärde.
   if (isPreviewGateDisabled()) {
-    return c.json({ error: "Gaten är inaktiverad." }, 410);
+    return c.json(
+      { error: uiError(resolveUiLocale(c), "gateDisabled") },
+      410
+    );
   }
 
-  let body: { password?: unknown };
+  let body: { password?: unknown; locale?: unknown };
   try {
     body = await c.req.json();
   } catch {
-    return c.json({ error: "Ogiltigt format" }, 400);
+    return c.json({ error: uiError(resolveUiLocale(c), "invalidFormat") }, 400);
   }
 
+  const locale = resolveUiLocale(c, body.locale);
   const password = typeof body.password === "string" ? body.password : "";
   if (!password) {
-    return c.json({ error: "Ange lösenord." }, 400);
+    return c.json({ error: uiError(locale, "enterPassword") }, 400);
   }
 
   // Brute-force budget: 20 attempts per IP per hour. Generous enough
@@ -62,7 +67,7 @@ preview.post("/unlock", async (c) => {
   const ip = getClientIp(c);
   const rl = await checkRateLimit(`preview-unlock:${ip}`, 20, 3600);
   if (!rl.allowed) {
-    return c.json({ error: "För många försök. Försök igen om en stund." }, 429);
+    return c.json({ error: uiError(locale, "rateLimitedShort") }, 429);
   }
 
   let expectedPassword: string;
@@ -75,12 +80,12 @@ preview.post("/unlock", async (c) => {
       { err: err instanceof Error ? err.message : String(err) },
       "preview-gate: misconfigured — refusing unlock"
     );
-    return c.json({ error: "Förhandsvisningen är felkonfigurerad." }, 503);
+    return c.json({ error: uiError(locale, "previewMisconfigured") }, 503);
   }
 
   if (password !== expectedPassword) {
     log.info({ ip }, "preview-gate: failed unlock attempt");
-    return c.json({ error: "Fel lösenord." }, 401);
+    return c.json({ error: uiError(locale, "wrongPassword") }, 401);
   }
 
   // Set the gate cookie. HttpOnly so client JS can't read it (less
@@ -97,24 +102,25 @@ preview.post("/unlock", async (c) => {
 });
 
 preview.post("/waitlist", async (c) => {
-  let body: { email?: unknown; name?: unknown };
+  let body: { email?: unknown; name?: unknown; locale?: unknown };
   try {
     body = await c.req.json();
   } catch {
-    return c.json({ error: "Ogiltigt format" }, 400);
+    return c.json({ error: uiError(resolveUiLocale(c), "invalidFormat") }, 400);
   }
 
+  const locale = resolveUiLocale(c, body.locale);
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
   const name = typeof body.name === "string" ? body.name.trim().slice(0, 255) : null;
 
   if (!email || !EMAIL_RE.test(email) || email.length > 254) {
-    return c.json({ error: "Ange en giltig e-postadress." }, 400);
+    return c.json({ error: uiError(locale, "enterValidEmail") }, 400);
   }
 
   const ip = getClientIp(c);
   const rl = await checkRateLimit(`preview-waitlist:${ip}`, 10, 3600);
   if (!rl.allowed) {
-    return c.json({ error: "För många försök. Försök igen om en stund." }, 429);
+    return c.json({ error: uiError(locale, "rateLimitedShort") }, 429);
   }
 
   try {
@@ -150,6 +156,6 @@ preview.post("/waitlist", async (c) => {
     return c.json({ ok: true, alreadyRegistered: false });
   } catch (err) {
     log.error({ err }, "preview-gate: waitlist insert failed");
-    return c.json({ error: "Kunde inte spara just nu. Försök igen." }, 500);
+    return c.json({ error: uiError(locale, "couldNotSave") }, 500);
   }
 });

@@ -18,13 +18,10 @@ import { LoadError } from "@/components/load-error";
 import { quotesListResponseSchema } from "@roots/contracts";
 import { formatKr } from "@/lib/format";
 import { NyOffertDialog } from "@/components/ny-offert-dialog";
+import { useLocale } from "@/i18n/locale-context";
+import { portalPages, portalShared } from "@/i18n/dictionaries/portal-pages";
 
-const QUOTE_STATUS_LABELS: Record<string, string> = {
-  DRAFT: "Utkast",
-  SENT: "Skickad",
-  ACCEPTED: "Accepterad",
-  REJECTED: "Nekad",
-};
+type QuoteStatus = keyof (typeof portalShared)["sv"]["quoteStatus"];
 
 function formatDate(value: string | Date | null | undefined): string {
   if (!value) return "—";
@@ -39,27 +36,39 @@ interface QuoteRow {
   client: string;
   contact: string;
   totalOre: number;
-  status: string;
+  status: QuoteStatus;
   date: string;
   validUntil: string;
 }
 
-function statusBadge(status: string) {
+function statusBadge(
+  status: QuoteStatus,
+  label: string
+) {
   switch (status) {
-    case "Accepterad":
-      return <Badge variant="success">{status}</Badge>;
-    case "Skickad":
-      return <Badge variant="secondary" className="bg-brand-50 text-brand-600">{status}</Badge>;
-    case "Utkast":
-      return <Badge variant="outline">{status}</Badge>;
-    case "Nekad":
-      return <Badge variant="destructive">{status}</Badge>;
+    case "ACCEPTED":
+      return <Badge variant="success">{label}</Badge>;
+    case "SENT":
+      return (
+        <Badge variant="secondary" className="bg-brand-50 text-brand-600">
+          {label}
+        </Badge>
+      );
+    case "DRAFT":
+      return <Badge variant="outline">{label}</Badge>;
+    case "REJECTED":
+      return <Badge variant="destructive">{label}</Badge>;
     default:
-      return <Badge variant="secondary">{status}</Badge>;
+      return <Badge variant="secondary">{label}</Badge>;
   }
 }
 
 export default function OfferterPage() {
+  const { locale } = useLocale();
+  const t = portalPages.offerter[locale];
+  const shared = portalShared[locale];
+  const quoteLabels = shared.quoteStatus;
+
   const [quotes, setQuotes] = useState<QuoteRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -77,41 +86,39 @@ export default function OfferterPage() {
             client: q.orgName ?? "—",
             contact: "",
             totalOre: q.totalOre,
-            status: QUOTE_STATUS_LABELS[q.status] ?? q.status,
+            status: q.status as QuoteStatus,
             date: formatDate(q.createdAt),
             validUntil: formatDate(q.validUntil ?? null),
           }))
         );
       })
       .catch(() => {
-        setError("Kunde inte hämta offerterna.");
+        setError(t.loadError);
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [t.loadError]);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  const totalSent = quotes.filter((q) => q.status === "Skickad").length;
-  const totalAccepted = quotes.filter((q) => q.status === "Accepterad").length;
+  const totalSent = quotes.filter((q) => q.status === "SENT").length;
+  const totalAccepted = quotes.filter((q) => q.status === "ACCEPTED").length;
   const openTotalOre = quotes
-    .filter((q) => q.status === "Utkast" || q.status === "Skickad")
+    .filter((q) => q.status === "DRAFT" || q.status === "SENT")
     .reduce((sum, q) => sum + q.totalOre, 0);
-  const totalValue = formatKr(openTotalOre);
+  const totalValue = formatKr(openTotalOre, locale);
 
   return (
     <div className="page-enter space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Offerter</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Skapa och hantera offerter till föreningar.
-          </p>
+          <h1 className="text-2xl font-bold tracking-tight">{t.title}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t.subtitle}</p>
         </div>
         <Button onClick={() => setDialogOpen(true)}>
           <Plus className="h-4 w-4" />
-          Ny offert
+          {t.newQuote}
         </Button>
       </div>
 
@@ -128,7 +135,7 @@ export default function OfferterPage() {
               client: q.orgName ?? "—",
               contact: "",
               totalOre: q.totalOre,
-              status: QUOTE_STATUS_LABELS[q.status] ?? q.status,
+              status: q.status as QuoteStatus,
               date: formatDate(q.createdAt),
               validUntil: formatDate(q.validUntil ?? null),
             },
@@ -144,7 +151,7 @@ export default function OfferterPage() {
               <Send className="h-5 w-5 shrink-0 text-brand-400" />
               <div>
                 <p className="text-2xl font-bold">{totalSent}</p>
-                <p className="text-xs text-muted-foreground">Skickade</p>
+                <p className="text-xs text-muted-foreground">{t.sent}</p>
               </div>
             </div>
           </CardContent>
@@ -155,7 +162,7 @@ export default function OfferterPage() {
               <CheckCircle2 className="h-5 w-5 shrink-0 text-brand-400" />
               <div>
                 <p className="text-2xl font-bold">{totalAccepted}</p>
-                <p className="text-xs text-muted-foreground">Accepterade</p>
+                <p className="text-xs text-muted-foreground">{t.accepted}</p>
               </div>
             </div>
           </CardContent>
@@ -166,7 +173,7 @@ export default function OfferterPage() {
               <FileText className="h-5 w-5 shrink-0 text-brand-400" />
               <div>
                 <p className="text-2xl font-bold">{totalValue}</p>
-                <p className="text-xs text-muted-foreground">Totalvärde</p>
+                <p className="text-xs text-muted-foreground">{t.totalValue}</p>
               </div>
             </div>
           </CardContent>
@@ -178,13 +185,13 @@ export default function OfferterPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Offert-ID</TableHead>
-                <TableHead>Kund</TableHead>
-                <TableHead>Kontaktperson</TableHead>
-                <TableHead>Belopp</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Datum</TableHead>
-                <TableHead className="text-right">Giltig t.o.m.</TableHead>
+                <TableHead>{t.colId}</TableHead>
+                <TableHead>{t.colClient}</TableHead>
+                <TableHead>{t.colContact}</TableHead>
+                <TableHead>{t.colAmount}</TableHead>
+                <TableHead>{t.colStatus}</TableHead>
+                <TableHead>{t.colDate}</TableHead>
+                <TableHead className="text-right">{t.colValidUntil}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -193,8 +200,12 @@ export default function OfferterPage() {
                   <TableCell className="font-mono text-xs">{q.shortId}</TableCell>
                   <TableCell className="font-medium">{q.client}</TableCell>
                   <TableCell className="text-muted-foreground">{q.contact || "—"}</TableCell>
-                  <TableCell className="font-medium">{formatKr(q.totalOre)}</TableCell>
-                  <TableCell>{statusBadge(q.status)}</TableCell>
+                  <TableCell className="font-medium">
+                    {formatKr(q.totalOre, locale)}
+                  </TableCell>
+                  <TableCell>
+                    {statusBadge(q.status, quoteLabels[q.status])}
+                  </TableCell>
                   <TableCell className="text-muted-foreground">{q.date}</TableCell>
                   <TableCell className="text-right text-muted-foreground">{q.validUntil}</TableCell>
                 </TableRow>
@@ -202,14 +213,14 @@ export default function OfferterPage() {
               {!loading && quotes.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
-                    Inga offerter ännu. Klicka på "Ny offert" för att skapa den första.
+                    {t.empty}
                   </TableCell>
                 </TableRow>
               )}
               {loading && (
                 <TableRow>
                   <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
-                    Hämtar offerter…
+                    {t.loading}
                   </TableCell>
                 </TableRow>
               )}

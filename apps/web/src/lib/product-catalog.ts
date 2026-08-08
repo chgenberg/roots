@@ -67,7 +67,14 @@ export type ApiProductRow = {
   priceOre: number;
 };
 
-function typeFromSlug(slug: string): string {
+function typeFromSlug(slug: string, locale: "sv" | "en" = "sv"): string {
+  if (locale === "en") {
+    if (isBundleSlug(slug)) return "Pack — all three";
+    if (slug.includes("shampoo")) return "Shampoo";
+    if (slug.includes("conditioner")) return "Conditioner";
+    if (slug.includes("body")) return "Body Wash";
+    return "Product";
+  }
   if (isBundleSlug(slug)) return "Paket — alla tre";
   if (slug.includes("shampoo")) return "Schampo";
   if (slug.includes("conditioner")) return "Balsam";
@@ -76,13 +83,17 @@ function typeFromSlug(slug: string): string {
 }
 
 /** Normaliserar en DB/API-produkt till vad portalens produktkort vill ha. */
-export function toPortalProductCard(p: ApiProductRow): PortalProductCard {
+export function toPortalProductCard(
+  p: ApiProductRow,
+  locale: "sv" | "en" = "sv",
+  overlay?: { name?: string; desc?: string }
+): PortalProductCard {
   return {
     sku: p.sku,
     slug: p.slug,
-    name: p.name,
-    type: typeFromSlug(p.slug),
-    desc: p.description?.trim() || "",
+    name: overlay?.name ?? p.name,
+    type: typeFromSlug(p.slug, locale),
+    desc: overlay?.desc ?? (p.description?.trim() || ""),
     price: Math.round((p.priceOre ?? 0) / 100),
     image: productImage(p.slug),
     isBundle: isBundleSlug(p.slug),

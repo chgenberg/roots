@@ -1,6 +1,10 @@
+"use client";
+
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { ComponentType } from "react";
+import { useLocale } from "@/i18n/locale-context";
+import { fundraisingPages } from "@/i18n/dictionaries/fundraising-pages";
 
 interface StatCardProps {
   label: string;
@@ -18,6 +22,8 @@ export function StatCard({
   changePercent = null,
   hint,
 }: StatCardProps) {
+  const { locale } = useLocale();
+  const vsPrevious = fundraisingPages.stats[locale].vsPrevious;
   const positive = (changePercent ?? 0) >= 0;
   return (
     <Card>
@@ -36,7 +42,7 @@ export function StatCard({
               {positive ? "+" : ""}
               {changePercent.toFixed(1)} %
             </Badge>
-            <span className="text-xs text-muted-foreground">vs förra perioden</span>
+            <span className="text-xs text-muted-foreground">{vsPrevious}</span>
           </div>
         )}
         {changePercent === null && hint && (

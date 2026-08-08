@@ -1,4 +1,8 @@
 import type { Metadata } from "next";
+import { getShop } from "@/i18n/get-dictionary";
+import { tFill } from "@/i18n/format";
+import { getRequestLocale, LOCALE_HEADER } from "@/i18n/request-locale";
+import { withLocale } from "@/i18n/paths";
 
 /**
  * MASTERPLAN_01 KC7.2: per-shop OG/canonical-metadata.
@@ -23,7 +27,10 @@ interface ShopMetaData {
   campaign?: { name?: string; description?: string } | null;
 }
 
-async function fetchShop(slug: string): Promise<ShopMetaData | null> {
+async function fetchShop(
+  slug: string,
+  locale: Awaited<ReturnType<typeof getRequestLocale>>
+): Promise<ShopMetaData | null> {
   const base =
     process.env.API_BACKEND_URL ||
     process.env.API_URL ||
@@ -34,6 +41,7 @@ async function fetchShop(slug: string): Promise<ShopMetaData | null> {
       // får aldrig blocka shop-besöket. revalidate=300 är en
       // medelväg mellan färskhet och latency.
       next: { revalidate: 300 },
+      headers: { [LOCALE_HEADER]: locale },
     });
     if (!res.ok) return null;
     return (await res.json()) as ShopMetaData;
@@ -48,15 +56,16 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const data = await fetchShop(slug);
+  const locale = await getRequestLocale();
+  const t = getShop("meta", locale);
+  const data = await fetchShop(slug, locale);
 
-  const canonical = `/shop/${slug}`;
+  const canonical = withLocale(`/shop/${slug}`, locale);
 
   if (!data?.seller?.displayName) {
     return {
-      title: "Personlig Roots-shop",
-      description:
-        "Köp Roots naturliga hårvård direkt från säljarens personliga shop. Del av vinsten går till föreningslivet.",
+      title: t.fallbackTitle,
+      description: t.fallbackDescription,
       alternates: { canonical },
       robots: { index: false, follow: false },
     };
@@ -66,11 +75,17 @@ export async function generateMetadata({
   const orgName = data.organization?.name ?? null;
   const campaignName = data.campaign?.name ?? null;
 
-  const title = `${displayName} säljer Roots${orgName ? ` för ${orgName}` : ""}`;
+  const title =
+    tFill(t.title, { name: displayName }) +
+    (orgName ? tFill(t.titleForOrg, { org: orgName }) : "");
 
   const description = campaignName
-    ? `Stötta ${displayName} och ${orgName ?? "föreningen"} — köp naturlig hårvård och bidra till "${campaignName}".`
-    : "Köp Roots naturliga hårvård direkt från säljarens personliga shop. Del av vinsten går till föreningslivet.";
+    ? tFill(t.descriptionWithCampaign, {
+        name: displayName,
+        org: orgName ?? t.orgFallback,
+        campaign: campaignName,
+      })
+    : t.fallbackDescription;
 
   return {
     title,

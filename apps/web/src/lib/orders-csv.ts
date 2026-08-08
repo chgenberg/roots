@@ -1,12 +1,14 @@
 /**
  * Sprint E12: tiny CSV-export helpers so /lag/bestallningar and
- * /portal/bestallningar can give the user a one-click "Exportera CSV"
+ * /portal/bestallningar can give the user a one-click "Export CSV"
  * button without pulling a CSV dependency.
  *
  * Excel on Swedish locales reads the semicolon dialect natively, so we
  * emit `;`-separated fields. We also prepend a UTF-8 BOM so åäö don't
  * become mojibake when the file is opened in Excel on Windows.
  */
+
+import type { Locale } from "@/i18n/config";
 
 function escapeCell(value: unknown): string {
   if (value == null) return "";
@@ -42,6 +44,10 @@ function formatDateForFilename(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+function dateLocale(locale: Locale): string {
+  return locale === "en" ? "en-GB" : "sv-SE";
+}
+
 export interface CustomerOrderCsvRow {
   id: string;
   createdAt: string | Date;
@@ -54,25 +60,39 @@ export interface CustomerOrderCsvRow {
   totalOre: number;
 }
 
-const CUSTOMER_HEADERS = [
-  "Order-ID",
-  "Datum",
-  "Kund",
-  "E-post",
-  "Säljare",
-  "Status",
-  "Betalsätt",
-  "Leverans",
-  "Belopp (kr)",
-];
+const CUSTOMER_HEADERS: Record<Locale, string[]> = {
+  sv: [
+    "Order-ID",
+    "Datum",
+    "Kund",
+    "E-post",
+    "Säljare",
+    "Status",
+    "Betalsätt",
+    "Leverans",
+    "Belopp (kr)",
+  ],
+  en: [
+    "Order ID",
+    "Date",
+    "Customer",
+    "Email",
+    "Seller",
+    "Status",
+    "Payment method",
+    "Delivery",
+    "Amount (SEK)",
+  ],
+};
 
 export function downloadCustomerOrdersCsv(
   filenamePrefix: string,
-  rows: CustomerOrderCsvRow[]
+  rows: CustomerOrderCsvRow[],
+  locale: Locale = "sv"
 ) {
   const body = rows.map((o) => [
     o.id,
-    new Date(o.createdAt).toLocaleDateString("sv-SE"),
+    new Date(o.createdAt).toLocaleDateString(dateLocale(locale)),
     o.customerName,
     o.customerEmail ?? "",
     o.sellerName ?? "",
@@ -81,7 +101,7 @@ export function downloadCustomerOrdersCsv(
     o.deliveryType ?? "",
     String(Math.round(o.totalOre / 100)),
   ]);
-  const csv = buildCsv(CUSTOMER_HEADERS, body);
+  const csv = buildCsv(CUSTOMER_HEADERS[locale], body);
   triggerDownload(
     `${filenamePrefix}-${formatDateForFilename(new Date())}.csv`,
     csv
@@ -98,30 +118,42 @@ export interface PortalOrderCsvRow {
   totalOre: number;
 }
 
-const PORTAL_HEADERS = [
-  "Order-ID",
-  "Datum",
-  "Klubb",
-  "Status",
-  "Faktura",
-  "Fortnox-ID",
-  "Belopp (kr)",
-];
+const PORTAL_HEADERS: Record<Locale, string[]> = {
+  sv: [
+    "Order-ID",
+    "Datum",
+    "Klubb",
+    "Status",
+    "Faktura",
+    "Fortnox-ID",
+    "Belopp (kr)",
+  ],
+  en: [
+    "Order ID",
+    "Date",
+    "Club",
+    "Status",
+    "Invoice",
+    "Fortnox ID",
+    "Amount (SEK)",
+  ],
+};
 
 export function downloadPortalOrdersCsv(
   filenamePrefix: string,
-  rows: PortalOrderCsvRow[]
+  rows: PortalOrderCsvRow[],
+  locale: Locale = "sv"
 ) {
   const body = rows.map((o) => [
     o.id,
-    new Date(o.createdAt).toLocaleDateString("sv-SE"),
+    new Date(o.createdAt).toLocaleDateString(dateLocale(locale)),
     o.orgName ?? "",
     o.status,
     o.invoiceStatus ?? "",
     o.fortnoxInvoiceId ?? "",
     String(Math.round(o.totalOre / 100)),
   ]);
-  const csv = buildCsv(PORTAL_HEADERS, body);
+  const csv = buildCsv(PORTAL_HEADERS[locale], body);
   triggerDownload(
     `${filenamePrefix}-${formatDateForFilename(new Date())}.csv`,
     csv

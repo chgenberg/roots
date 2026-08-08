@@ -155,29 +155,91 @@ export interface HairAnalysisResult {
   usage?: { promptTokens: number; completionTokens: number };
 }
 
-function buildBranchingContext(answers: HairAnswers): string {
+function buildBranchingContext(answers: HairAnswers, locale: "sv" | "en"): string {
   const hints: string[] = [];
+  const en = locale === "en";
 
   if (answers.hairType === "torrt" || answers.notes?.toLowerCase().includes("torrt")) {
-    hints.push("Användaren rapporterar torrt hår — prioritera fukt och mild rengöring i rekommendationer.");
+    hints.push(
+      en
+        ? "The user reports dry hair — prioritise moisture and gentle cleansing in recommendations."
+        : "Användaren rapporterar torrt hår — prioritera fukt och mild rengöring i rekommendationer."
+    );
   }
   if (answers.scalpCondition === "kliar" || answers.scalpCondition === "flagnar") {
-    hints.push("Användaren har hårbottenbesvär — inkludera att söka legitimerad hudläkare vid ihållande symtom.");
+    hints.push(
+      en
+        ? "The user has scalp concerns — include seeing a qualified dermatologist if symptoms persist."
+        : "Användaren har hårbottenbesvär — inkludera att söka legitimerad hudläkare vid ihållande symtom."
+    );
   }
   if (answers.chemicalTreatment === "blek" || answers.chemicalTreatment === "annat") {
-    hints.push("Kemiskt belastat hår — betona reparerande och skyddande vård.");
+    hints.push(
+      en
+        ? "Chemically treated hair — emphasise repairing and protective care."
+        : "Kemiskt belastat hår — betona reparerande och skyddande vård."
+    );
   }
   if (Number(answers.stressSleep) >= 4) {
-    hints.push("Hög stressnivå — nämn samband stress/hår och allmänna råd om sömn.");
+    hints.push(
+      en
+        ? "High stress level — mention the stress/hair link and general sleep advice."
+        : "Hög stressnivå — nämn samband stress/hår och allmänna råd om sömn."
+    );
   }
   if (answers.swimFrequency === "regelbundet" || answers.swimFrequency === "dagligen") {
-    hints.push("Frekvent exponering för klor/salt — rekommendera mild rengöring och återfuktning efter simning.");
+    hints.push(
+      en
+        ? "Frequent chlorine/salt exposure — recommend gentle cleansing and moisturising after swimming."
+        : "Frekvent exponering för klor/salt — rekommendera mild rengöring och återfuktning efter simning."
+    );
   }
 
-  return hints.length > 0 ? "\n\nBRANCHING-KONTEXT (prioritera dessa i svaret):\n" + hints.join("\n") : "";
+  if (hints.length === 0) return "";
+  return en
+    ? "\n\nBRANCHING CONTEXT (prioritise these in the reply):\n" + hints.join("\n")
+    : "\n\nBRANCHING-KONTEXT (prioritera dessa i svaret):\n" + hints.join("\n");
 }
 
-function buildUserPrompt(answers: HairAnswers): string {
+function buildUserPrompt(answers: HairAnswers, locale: "sv" | "en"): string {
+  if (locale === "en") {
+    return [
+      "You receive two user photos: hair from behind and hair from above.",
+      "",
+      "STEP 1 — IMAGE VALIDATION:",
+      "First check that the images show hair/head. If not, reply with:",
+      '{"imageValidationFailed": true, "message": "We could not identify hair in the photos. Please upload new photos that clearly show your hair."}',
+      "",
+      "STEP 2 — ANALYSIS (if the images show hair):",
+      "Clearly separate OBSERVATION (what you actually see) and HYPOTHESIS (a reasonable interpretation).",
+      "Make NO medical diagnoses (e.g. alopecia, psoriasis). Instead phrase: 'may suggest … see a qualified dermatologist if concerns persist.'",
+      "",
+      "STEP 3 — PRODUCT MAPPING:",
+      "Map to ONE of three Roots packs based on the analysis:",
+      "- 'Roots Maintenance' — for normal hair without major concerns. Roots Schampoo (shampoo with SyriCalm® + low-sulphate surfactants) + Roots Conditioner (with SyriCalm®, Pro-Vitamin B5 and vitamin E) + Roots Body Wash (with SyriCalm® and panthenol)",
+      "- 'Roots Extra Moisture' — for dry, chemically treated or stressed hair. Emphasise Pro-Vitamin B5 (panthenol) in Roots Conditioner and Beta Vulgaris betaine (deep moisture, elasticity) plus vitamin E/antioxidants for protection",
+      "- 'Roots Balanced Routine' — for combination/oily hair or active people who swim/train often. Emphasise SyriCalm® (Phragmites Communis + Poria Cocos) which soothes and balances the scalp and Polyquaternium in Roots Schampoo which detangles without weighing hair down",
+      "",
+      "Reply strictly as JSON with these keys:",
+      `{
+  "summary": "string (3 sentences in professional British English)",
+  "observationsFromImages": ["string (start each with OBSERVATION: or HYPOTHESIS:)"],
+  "hairProfile": { "texture": "string", "shine": "string", "scalpNotes": "string" },
+  "lifestyleTips": ["string"],
+  "nutritionGeneralTips": ["string (general health advice, not individual dietitian assessment)"],
+  "rootsProductRecommendation": {
+    "packageName": "Roots Maintenance | Roots Extra Moisture | Roots Balanced Routine",
+    "description": "string (why this pack fits, linked to shampoo/conditioner/body wash)"
+  },
+  "disclaimer": "string (short: indicative, does not replace professional care)"
+}`,
+      "",
+      "Questionnaire answers (context):",
+      JSON.stringify(answers, null, 0),
+      buildBranchingContext(answers, "en"),
+    ].join("\n");
+  }
+
   return [
     "Du får två användarbilder: hår bakifrån och hår uppifrån.",
     "",
@@ -211,7 +273,7 @@ function buildUserPrompt(answers: HairAnswers): string {
     "",
     "Frågesvar (kontext):",
     JSON.stringify(answers, null, 0),
-    buildBranchingContext(answers),
+    buildBranchingContext(answers, "sv"),
   ].join("\n");
 }
 
@@ -219,10 +281,13 @@ export async function runHairAnalysisVision(input: {
   backDataUrl: string;
   topDataUrl: string;
   answers: HairAnswers;
+  locale?: "sv" | "en";
 }): Promise<HairAnalysisResult> {
   if (!isAiConfigured()) {
     throw new Error("OpenAI is not configured");
   }
+
+  const locale = input.locale === "en" ? "en" : "sv";
 
   // Scout fix 2026-05-26 (AI-CRIT-03): strippa EXIF/metadata innan
   // bilden skickas vidare till OpenAI. stripImageMetadata är fail-soft
@@ -234,19 +299,27 @@ export async function runHairAnalysisVision(input: {
     | { type: "text"; text: string }
     | { type: "image_url"; image_url: { url: string } }
   > = [
-    { type: "text", text: buildUserPrompt(input.answers) },
+    { type: "text", text: buildUserPrompt(input.answers, locale) },
     { type: "image_url", image_url: { url: cleanBack } },
     { type: "image_url", image_url: { url: cleanTop } },
   ];
 
   const system =
-    "Du är en erfaren hår- och hårbottenrådgivare för konsumenter i Norden. " +
-    "Du gör OBSERVATIONER baserat på bilderna och kombinerar dessa med användarens rapporterade vanor. " +
-    "Du skiljer alltid tydligt på vad du SER (observation) och vad du TOLKAR (hypotes). " +
-    "Du ställer ALDRIG medicinska diagnoser — vid misstänkt dermatologiskt tillstånd hänvisar du till legitimerad hudläkare. " +
-    "Du rekommenderar alltid ett av de tre Roots-paketen (Underhåll, Extra Fukt, Balanserad Rutin). " +
-    "Alla kosttips är allmänna hälsoråd, inte individuell dietistbedömning. " +
-    "Svara alltid på svenska. Svara ENDAST med giltig JSON — ingen text utanför JSON-objektet.";
+    locale === "en"
+      ? "You are an experienced hair and scalp adviser for consumers in the Nordics. " +
+        "You make OBSERVATIONS based on the photos and combine them with the user's reported habits. " +
+        "You always clearly separate what you SEE (observation) from what you INTERPRET (hypothesis). " +
+        "You NEVER make medical diagnoses — if a dermatological condition is suspected, refer to a qualified dermatologist. " +
+        "You always recommend one of the three Roots packs (Maintenance, Extra Moisture, Balanced Routine). " +
+        "All nutrition tips are general health advice, not individual dietitian assessment. " +
+        "ALWAYS reply in professional British English. Reply ONLY with valid JSON — no text outside the JSON object."
+      : "Du är en erfaren hår- och hårbottenrådgivare för konsumenter i Norden. " +
+        "Du gör OBSERVATIONER baserat på bilderna och kombinerar dessa med användarens rapporterade vanor. " +
+        "Du skiljer alltid tydligt på vad du SER (observation) och vad du TOLKAR (hypotes). " +
+        "Du ställer ALDRIG medicinska diagnoser — vid misstänkt dermatologiskt tillstånd hänvisar du till legitimerad hudläkare. " +
+        "Du rekommenderar alltid ett av de tre Roots-paketen (Underhåll, Extra Fukt, Balanserad Rutin). " +
+        "Alla kosttips är allmänna hälsoråd, inte individuell dietistbedömning. " +
+        "Svara alltid på svenska. Svara ENDAST med giltig JSON — ingen text utanför JSON-objektet.";
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);

@@ -1,45 +1,49 @@
 import { BreadcrumbJsonLd, FaqJsonLd, WebPageJsonLd } from "@/components/json-ld";
-import { HELP_PUBLIC_FAQS } from "@/lib/help-faqs";
 import { pageMetadata } from "@/lib/seo";
+import { getPage } from "@/i18n/get-dictionary";
+import { getRequestLocale } from "@/i18n/request-locale";
+import { withLocale } from "@/i18n/paths";
+import type { Metadata } from "next";
 
-/**
- * MASTERPLAN_01 KC7.4: page.tsx är "use client" och kan därför inte
- * själv exportera metadata. Vi lägger den i en server-side layout
- * istället. Layouten gör inget annat än att rendera children — Next
- * mergar metadata från layout+page automatiskt.
- *
- * FaqJsonLd / WebPageJsonLd bor här av samma skäl: JSON-LD måste
- * renderas server-side.
- */
-const PAGE_TITLE = "Hjälp & vanliga frågor";
-const PAGE_DESCRIPTION =
-  "Snabba svar för supportrar, säljare, lagledare och föreningar — eller kontakta vårt team direkt.";
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getRequestLocale();
+  const t = getPage("hjalp", locale);
+  return pageMetadata({
+    title: t.title,
+    description: t.heroBody,
+    path: "/hjalp",
+    locale,
+  });
+}
 
-export const metadata = pageMetadata({
-  title: PAGE_TITLE,
-  description: PAGE_DESCRIPTION,
-  path: "/hjalp",
-});
-
-export default function HjalpLayout({
+export default async function HjalpLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const locale = await getRequestLocale();
+  const t = getPage("hjalp", locale);
+  const homeLabel = getPage("produkter", locale).breadcrumbHome;
+  const generalFaqs =
+    t.sections
+      .find((s) => s.id === "general")
+      ?.items.map((item) => ({ question: item.q, answer: item.a })) ?? [];
+
   return (
     <>
       <BreadcrumbJsonLd
         items={[
-          { name: "Hem", url: "/" },
-          { name: "Hjälp", url: "/hjalp" },
+          { name: homeLabel, url: withLocale("/", locale) },
+          { name: t.title, url: withLocale("/hjalp", locale) },
         ]}
       />
       <WebPageJsonLd
-        name={PAGE_TITLE}
-        description={PAGE_DESCRIPTION}
-        url="/hjalp"
+        name={t.title}
+        description={t.heroBody}
+        url={withLocale("/hjalp", locale)}
+        locale={locale}
       />
-      <FaqJsonLd faqs={HELP_PUBLIC_FAQS} />
+      <FaqJsonLd faqs={generalFaqs} />
       {children}
     </>
   );

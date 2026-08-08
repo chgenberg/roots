@@ -7,13 +7,20 @@ import { Input } from "@/components/ui/input";
 import { Target, Loader2, Check, X, Pencil } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import type { AssociationDashboard, Campaign, Team } from "@/types/fundraising";
-
 import { getBrowserApiBase } from "@/lib/api-base";
-import { formatKrValue } from "@/lib/format";
+import { apiFetch, rootsFetch } from "@/lib/api";
+import { formatKr } from "@/lib/format";
+import { useLocale } from "@/i18n/locale-context";
+import { fundraisingPages } from "@/i18n/dictionaries/fundraising-pages";
+import { appCommon } from "@/i18n/dictionaries/app-common";
 
 const API_URL = getBrowserApiBase();
 
 export default function GoalsPage() {
+  const { locale } = useLocale();
+  const t = fundraisingPages.goals[locale];
+  const c = fundraisingPages.common[locale];
+  const dateLocale = appCommon[locale].dateLocale;
   const [data, setData] = useState<AssociationDashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -25,16 +32,14 @@ export default function GoalsPage() {
   async function load() {
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/v1/dashboard/association`, {
-        credentials: "include",
-      });
+      const res = await rootsFetch(`${API_URL}/v1/dashboard/association`);
       if (res.ok) {
         setData(await res.json());
       } else {
-        setError("Kunde inte hämta måldata. Försök igen.");
+        setError(t.loadFailed);
       }
     } catch {
-      setError("Ett nätverksfel uppstod. Försök igen.");
+      setError(c.networkError);
     } finally {
       setLoading(false);
     }
@@ -42,9 +47,10 @@ export default function GoalsPage() {
 
   useEffect(() => {
     void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const campaign = data?.campaigns?.find((c: Campaign) => c.status === "ACTIVE");
+  const campaign = data?.campaigns?.find((camp: Campaign) => camp.status === "ACTIVE");
   const teams = data?.teams || [];
 
   function startEdit(team: Team) {
@@ -59,38 +65,38 @@ export default function GoalsPage() {
 
   async function saveGoal(teamId: string) {
     if (!campaign) {
-      toast("Ingen aktiv kampanj — kan inte spara mål.", "error");
+      toast(t.noActiveCampaign, "error");
       return;
     }
     const parsed = Math.floor(Number(editValue));
     if (!Number.isFinite(parsed) || parsed < 0) {
-      toast("Målet måste vara ett positivt tal.", "error");
+      toast(t.goalPositive, "error");
       return;
     }
     setSavingTeamId(teamId);
     try {
-      const res = await fetch(`${API_URL}/v1/dashboard/association/team-goals`, {
-        method: "PATCH",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          teamId,
-          campaignId: campaign.id,
-          goalValue: parsed,
-          goalType: campaign.goalType,
-        }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        toast(body?.error || "Kunde inte spara målet.", "error");
+      const { ok, data } = await apiFetch<{ error?: string }>(
+        "/v1/dashboard/association/team-goals",
+        {
+          method: "PATCH",
+          body: {
+            teamId,
+            campaignId: campaign.id,
+            goalValue: parsed,
+            goalType: campaign.goalType,
+          },
+        }
+      );
+      if (!ok) {
+        toast(data?.error || t.saveFailed, "error");
         return;
       }
-      toast("Målet är uppdaterat.", "success");
+      toast(t.saved, "success");
       setEditingTeamId(null);
       setEditValue("");
       await load();
     } catch {
-      toast("Ett nätverksfel uppstod. Försök igen.", "error");
+      toast(c.networkError, "error");
     } finally {
       setSavingTeamId(null);
     }
@@ -109,16 +115,16 @@ export default function GoalsPage() {
       <div className="flex flex-col items-center justify-center gap-3 py-20">
         <p className="text-sm text-destructive">{error}</p>
         <Button variant="outline" onClick={() => void load()}>
-          Försök igen
+          {c.retry}
         </Button>
       </div>
     );
   }
 
   const isPackageGoal = campaign?.goalType === "PACKAGES";
-  const goalUnit = isPackageGoal ? "paket" : "kr";
+  const goalUnit = isPackageGoal ? c.packages : c.kr;
   const totalDistributed = teams.reduce(
-    (sum: number, t: Team) => sum + (t.goalValue || 0),
+    (sum: number, team: Team) => sum + (team.goalValue || 0),
     0
   );
   const campaignGoal = campaign?.goalValue ?? 0;
@@ -128,11 +134,8 @@ export default function GoalsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Mål och fördelning</h1>
-        <p className="text-sm text-muted-foreground">
-          Fördela försäljningsmål mellan lag. Klicka på pennan för att
-          justera ett lags mål — det sparas direkt.
-        </p>
+        <h1 className="text-2xl font-bold">{t.title}</h1>
+        <p className="text-sm text-muted-foreground">{t.subtitle}</p>
       </div>
 
       {campaign && (
@@ -146,33 +149,36 @@ export default function GoalsPage() {
           <CardContent>
             <div className="grid gap-4 sm:grid-cols-4">
               <div>
-                <p className="text-sm text-muted-foreground">Totalt mål</p>
+                <p className="text-sm text-muted-foreground">{t.totalGoal}</p>
                 <p className="text-xl font-bold">
                   {campaign.goalValue != null
                     ? isPackageGoal
-                      ? `${campaign.goalValue} paket`
-                      : `${campaign.goalValue.toLocaleString("sv-SE")} kr`
+                      ? `${campaign.goalValue} ${c.packages}`
+                      : `${campaign.goalValue.toLocaleString(dateLocale)} ${c.kr}`
                     : "–"}
                 </p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Fördelat</p>
+                <p className="text-sm text-muted-foreground">{t.distributed}</p>
                 <p className="text-xl font-bold">
-                  {totalDistributed.toLocaleString("sv-SE")} {goalUnit}
+                  {totalDistributed.toLocaleString(dateLocale)} {goalUnit}
                 </p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">
-                  {overshoot > 0 ? "Över mål" : "Kvar att fördela"}
+                  {overshoot > 0 ? t.overGoal : t.remaining}
                 </p>
                 <p
                   className={`text-xl font-bold ${overshoot > 0 ? "text-warning-strong" : ""}`}
                 >
-                  {(overshoot > 0 ? overshoot : remaining).toLocaleString("sv-SE")} {goalUnit}
+                  {(overshoot > 0 ? overshoot : remaining).toLocaleString(
+                    dateLocale
+                  )}{" "}
+                  {goalUnit}
                 </p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Antal lag</p>
+                <p className="text-sm text-muted-foreground">{t.teamCount}</p>
                 <p className="text-xl font-bold">{teams.length}</p>
               </div>
             </div>
@@ -205,12 +211,13 @@ export default function GoalsPage() {
                   <div className="flex items-center gap-2">
                     <p className="text-sm text-muted-foreground">
                       {isPackageGoal
-                        ? `${team.orderCount || 0} paket`
-                        : `${formatKrValue(team.totalSalesOre)} kr`}
-                      {!isEditing && team.goalValue > 0 &&
+                        ? `${team.orderCount || 0} ${c.packages}`
+                        : formatKr(team.totalSalesOre, locale)}
+                      {!isEditing &&
+                        team.goalValue > 0 &&
                         (isPackageGoal
-                          ? ` / ${team.goalValue} paket`
-                          : ` / ${team.goalValue.toLocaleString("sv-SE")} kr`)}
+                          ? ` / ${team.goalValue} ${c.packages}`
+                          : ` / ${team.goalValue.toLocaleString(dateLocale)} ${c.kr}`)}
                     </p>
                     {!campaign ? null : isEditing ? (
                       <div className="flex items-center gap-1">
@@ -230,7 +237,7 @@ export default function GoalsPage() {
                           variant="ghost"
                           onClick={() => void saveGoal(team.id)}
                           disabled={isSaving}
-                          aria-label="Spara"
+                          aria-label={t.saveAria}
                           className="h-7 w-7 p-0"
                         >
                           {isSaving ? (
@@ -244,7 +251,7 @@ export default function GoalsPage() {
                           variant="ghost"
                           onClick={cancelEdit}
                           disabled={isSaving}
-                          aria-label="Avbryt"
+                          aria-label={t.cancelAria}
                           className="h-7 w-7 p-0"
                         >
                           <X className="h-3.5 w-3.5" />
@@ -255,7 +262,7 @@ export default function GoalsPage() {
                         size="sm"
                         variant="ghost"
                         onClick={() => startEdit(team)}
-                        aria-label="Ändra mål"
+                        aria-label={t.editGoal}
                         className="h-7 w-7 p-0"
                       >
                         <Pencil className="h-3.5 w-3.5" />
@@ -276,7 +283,7 @@ export default function GoalsPage() {
         {teams.length === 0 && (
           <Card>
             <CardContent className="p-8 text-center text-sm text-muted-foreground">
-              Inga lag att fördela mål till ännu.
+              {t.empty}
             </CardContent>
           </Card>
         )}

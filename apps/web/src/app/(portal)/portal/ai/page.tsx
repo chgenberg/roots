@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Send, Loader2, Sparkles, Bot, User, RotateCcw, Square } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
@@ -8,6 +8,10 @@ import { Button } from "@/components/ui/button";
 import { usePortalUser } from "@/lib/portal-context";
 import { getBrowserApiBase } from "@/lib/api-base";
 import { getCsrfToken } from "@/lib/api";
+import { useLocale } from "@/i18n/locale-context";
+import { portalPages } from "@/i18n/dictionaries/portal-pages";
+import { tFill } from "@/i18n/format";
+import type { Locale } from "@/i18n/config";
 
 interface Message {
   id: string;
@@ -15,55 +19,86 @@ interface Message {
   content: string;
 }
 
-// MASTERPLAN_01 KC5 (Scout 19 P1): tidigare pekade portal-AI:n på
-// /v1/ai/public-chat — samma endpoint som anonym chat-widget. Det
-// betydde att alla role-aware system-prompts vi byggde i Batch 1
-// (buildSystemPrompt + role-specific guidance) ALDRIG kördes för
-// inloggade användare. Nu pratar vi med /v1/ai/chat som läser sessionen
-// och bygger rätt system-prompt per roll.
 const API_URL = `${getBrowserApiBase()}/v1/ai/chat`;
 
-function getWelcomeMessage(role: string, name: string): string {
+type AiDict = (typeof portalPages)["ai"][Locale];
+
+function getWelcomeMessage(
+  role: string,
+  name: string,
+  t: AiDict
+): string {
   switch (role) {
     case "CLUB_ADMIN":
     case "CLUB_MEMBER":
-      return `Hej ${name}! Jag kan hjälpa dig med beställningar, leveranser och hur föreningen får del av intäkten. Vad funderar du på?`;
+      return tFill(t.welcomeClub, { name });
     case "SALES_REP":
     case "SALES_ADMIN":
-      return `Hej ${name}! Jag kan hjälpa med pitch, invändningshantering och hur portalens pipeline-flöde fungerar. Vad vill du veta?`;
+      return tFill(t.welcomeSales, { name });
     case "ASSOCIATION_ADMIN":
-      return `Hej ${name}! Jag kan hjälpa dig sätta upp kampanjen, bjuda in lagledare och säljare, och förklara hur insamlingen fungerar. Var vill du börja?`;
+      return tFill(t.welcomeAssociation, { name });
     case "TEAM_LEADER":
-      return `Hej ${name}! Jag kan hjälpa dig att motivera laget, bjuda in säljare och förklara vilka sidor som visar resultat. Vad ska vi ta tag i?`;
+      return tFill(t.welcomeTeamLeader, { name });
     case "SELLER":
-      return `Hej ${name}! Jag kan ge dig tips för att dela din shop och skriva till vänner och familj. Vad behöver du hjälp med?`;
+      return tFill(t.welcomeSeller, { name });
     case "INTERNAL_ADMIN":
-      return `Hej ${name}! Jag kan guida dig i /portal/* — system, säljare, offerter, pipeline och statistik. Vad vill du titta på?`;
+      return tFill(t.welcomeAdmin, { name });
     default:
-      return `Hej ${name}! Fråga mig om allt kring Roots. Vad funderar du på?`;
+      return tFill(t.welcomeDefault, { name });
   }
 }
 
-function buildWelcome(role: string, name: string): Message {
+function buildWelcome(role: string, name: string, t: AiDict): Message {
   return {
     id: "welcome",
     role: "assistant",
-    content: getWelcomeMessage(role, name),
+    content: getWelcomeMessage(role, name, t),
   };
+}
+
+function getSuggestions(role: string, t: AiDict): readonly string[] {
+  switch (role) {
+    case "CLUB_ADMIN":
+    case "CLUB_MEMBER":
+      return t.suggestionsClub;
+    case "SALES_REP":
+    case "SALES_ADMIN":
+      return t.suggestionsSales;
+    case "ASSOCIATION_ADMIN":
+      return t.suggestionsAssociation;
+    case "TEAM_LEADER":
+      return t.suggestionsTeamLeader;
+    case "SELLER":
+      return t.suggestionsSeller;
+    case "INTERNAL_ADMIN":
+    default:
+      return t.suggestionsAdmin;
+  }
 }
 
 export default function AIPage() {
   const user = usePortalUser();
+  const { locale } = useLocale();
+  const t = portalPages.ai[locale];
   const firstName = user.name.split(" ")[0];
 
   const [messages, setMessages] = useState<Message[]>(() => [
-    buildWelcome(user.role, firstName),
+    buildWelcome(user.role, firstName, t),
   ]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  const suggestions = useMemo(
+    () => getSuggestions(user.role, t),
+    [user.role, t]
+  );
+
+  useEffect(() => {
+    setMessages([buildWelcome(user.role, firstName, t)]);
+  }, [locale, user.role, firstName, t]);
 
   const stop = useCallback(() => {
     abortRef.current?.abort();
@@ -95,7 +130,7 @@ export default function AIPage() {
   }, []);
 
   function newConversation() {
-    setMessages([buildWelcome(user.role, firstName)]);
+    setMessages([buildWelcome(user.role, firstName, t)]);
     setInput("");
   }
 
@@ -132,12 +167,14 @@ export default function AIPage() {
         headers: {
           "Content-Type": "application/json",
           "x-csrf-token": csrf,
+          "x-roots-locale": locale,
         },
         credentials: "include",
         signal: controller.signal,
         body: JSON.stringify({
           message: text,
           stream: true,
+          locale,
           history: history.slice(-10).map(({ role, content }) => ({ role, content })),
         }),
       });
@@ -145,12 +182,12 @@ export default function AIPage() {
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(
-          (err as { error?: string }).error || "Något gick fel."
+          (err as { error?: string }).error || t.genericError
         );
       }
 
       const reader = res.body?.getReader();
-      if (!reader) throw new Error("Ingen respons.");
+      if (!reader) throw new Error(t.noResponse);
 
       const decoder = new TextDecoder();
       let buffer = "";
@@ -171,8 +208,6 @@ export default function AIPage() {
             try {
               const parsed = JSON.parse(data);
               if (parsed.content) {
-                // replace:true = servern har stoppat svaret och skickar en
-                // ersättningstext i stället för att lägga till.
                 accumulated =
                   parsed.replace === true
                     ? parsed.content
@@ -205,15 +240,13 @@ export default function AIPage() {
           const idx = updated.findIndex((m) => m.id === assistantId);
           if (idx === -1) return prev;
           if (!updated[idx].content) {
-            updated[idx] = { ...updated[idx], content: "Avbrutet." };
+            updated[idx] = { ...updated[idx], content: t.aborted };
           }
           return updated;
         });
       } else {
         const errorMessage =
-          err instanceof Error
-            ? err.message
-            : "Något gick fel. Försök igen eller kontakta hej@roots.se.";
+          err instanceof Error ? err.message : t.fallbackError;
 
         setMessages((prev) => {
           const updated = [...prev];
@@ -239,55 +272,6 @@ export default function AIPage() {
     }
   }
 
-  // MASTERPLAN_01 KC5 (Scout 19 P1.2): per-roll-chips matchade tidigare
-  // bara CLUB + SALES — alla fundraising-roller föll igenom till
-  // admin-defaults ("Systemstatus — kort sammanfattning") vilket var
-  // förvirrande för en sellare eller lagledare. Nu har varje roll en
-  // chip-uppsättning som speglar deras faktiska jobb.
-  const suggestions = (() => {
-    switch (user.role) {
-      case "CLUB_ADMIN":
-      case "CLUB_MEMBER":
-        return [
-          "Hur fungerar utbetalning till föreningen?",
-          "Vilka produkter ingår i paketet?",
-          "Tips för att öka försäljningen",
-        ];
-      case "SALES_REP":
-      case "SALES_ADMIN":
-        return [
-          "Sammanfatta min pipeline",
-          "Hur pitchar jag Roots till en ny klubb?",
-          "Vad ska jag följa upp först?",
-        ];
-      case "ASSOCIATION_ADMIN":
-        return [
-          "Hur startar jag en ny kampanj?",
-          "Hur bjuder jag in lagledare?",
-          "När får föreningen sin utbetalning?",
-        ];
-      case "TEAM_LEADER":
-        return [
-          "Hur bjuder jag in mina säljare?",
-          "Tips för att motivera laget den första veckan",
-          "Var ser jag lagets resultat?",
-        ];
-      case "SELLER":
-        return [
-          "Hur delar jag min shop på bästa sätt?",
-          "Skriv ett peppigt meddelande till mina kontakter",
-          "Hur fungerar leveransen för köparen?",
-        ];
-      case "INTERNAL_ADMIN":
-      default:
-        return [
-          "Vilka KPI:er ska jag titta på idag?",
-          "Systemstatus — kort sammanfattning",
-          "Trender i håranalyskonvertering",
-        ];
-    }
-  })();
-
   return (
     <div className="page-enter flex h-[calc(100vh-8rem)] flex-col">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -296,10 +280,8 @@ export default function AIPage() {
             <Sparkles className="h-5 w-5 text-inverse-on-surface" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Roots AI-assistent</h1>
-            <p className="text-sm text-muted-foreground">
-              Fråga om vad som helst relaterat till Roots
-            </p>
+            <h1 className="text-2xl font-bold tracking-tight">{t.title}</h1>
+            <p className="text-sm text-muted-foreground">{t.subtitle}</p>
           </div>
         </div>
         <Button
@@ -311,7 +293,7 @@ export default function AIPage() {
           disabled={streaming || messages.length <= 1}
         >
           <RotateCcw className="h-3.5 w-3.5" />
-          Ny konversation
+          {t.newConversation}
         </Button>
       </div>
 
@@ -333,15 +315,13 @@ export default function AIPage() {
       </div>
 
       <Card className="flex flex-1 flex-col overflow-hidden">
-        {/* MASTERPLAN_01 KC6.9: aria-live="polite" + role="log" så
-            VoiceOver/NVDA läser nya AI-svar utan att avbryta. */}
         <div
           ref={scrollRef}
           className="flex-1 space-y-4 overflow-y-auto px-5 py-5"
           role="log"
           aria-live="polite"
           aria-atomic="false"
-          aria-label="Konversation med Roots AI"
+          aria-label={t.conversationAria}
         >
           {messages.map((msg) => (
             <div
@@ -370,7 +350,7 @@ export default function AIPage() {
                   msg.role === "assistant" ? (
                     <span className="inline-flex items-center gap-1.5 text-muted-foreground">
                       <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
-                      <span>Tänker...</span>
+                      <span>{t.thinking}</span>
                     </span>
                   ) : null)}
               </div>
@@ -390,7 +370,7 @@ export default function AIPage() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Skriv ditt meddelande..."
+              placeholder={t.placeholder}
               rows={1}
               className="max-h-32 min-h-[44px] flex-1 resize-none rounded-xl border border-input bg-background px-4 py-3 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               disabled={streaming}
@@ -400,7 +380,7 @@ export default function AIPage() {
                 type="button"
                 onClick={stop}
                 className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-inverse-surface text-inverse-on-surface transition-all duration-200 hover:bg-inverse-surface-hover"
-                aria-label="Stoppa generering"
+                aria-label={t.stopAria}
               >
                 <Square className="h-4 w-4" fill="currentColor" />
               </button>
@@ -410,14 +390,14 @@ export default function AIPage() {
                 onClick={() => handleSend()}
                 disabled={!input.trim()}
                 className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-inverse-surface text-inverse-on-surface transition-all duration-200 hover:bg-inverse-surface-hover disabled:opacity-40"
-                aria-label="Skicka meddelande"
+                aria-label={t.sendAria}
               >
                 <Send className="h-4 w-4" />
               </button>
             )}
           </div>
           <p className="mt-2 text-center text-[10px] text-muted-foreground/60">
-            AI-genererat svar — verifiera viktig information
+            {t.disclaimer}
           </p>
         </div>
       </Card>

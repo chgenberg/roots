@@ -1,5 +1,12 @@
 "use client";
 
+import { useLocale } from "@/i18n/locale-context";
+import { fundraisingPages } from "@/i18n/dictionaries/fundraising-pages";
+import { tFill } from "@/i18n/format";
+import { milestoneLabel, milestoneRemaining } from "@/i18n/milestones";
+import { appCommon } from "@/i18n/dictionaries/app-common";
+import { LocaleLink } from "@/components/locale-link";
+
 import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,13 +34,19 @@ import type { SellerDashboard as SellerDashboardData, Milestone } from "@/types/
 import QRCode from "qrcode";
 
 import { getBrowserApiBase } from "@/lib/api-base";
-import { formatKrValue } from "@/lib/format";
+import { rootsFetch } from "@/lib/api";
+import { formatKr, formatKrValue } from "@/lib/format";
 import { orderStatusColor, orderStatusLabel } from "@/lib/order-status";
 
 const API_URL = getBrowserApiBase();
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
 export default function SellerDashboard() {
+  const { locale, href } = useLocale();
+  const t = fundraisingPages.myShop[locale];
+  const c = fundraisingPages.common[locale];
+  const dateLocale = appCommon[locale].dateLocale;
+
   const [data, setData] = useState<SellerDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -46,9 +59,7 @@ export default function SellerDashboard() {
 
   const load = useCallback(async (silent = false) => {
     try {
-      const res = await fetch(`${API_URL}/v1/dashboard/seller`, {
-        credentials: "include",
-      });
+      const res = await rootsFetch(`${API_URL}/v1/dashboard/seller`);
       if (res.ok) {
         const d = await res.json();
         setData(d);
@@ -63,10 +74,10 @@ export default function SellerDashboard() {
           setQrDataUrl(dataUrl);
         }
       } else if (!silent) {
-        setError("Kunde inte hämta data. Försök igen.");
+        setError(t.loadFailed);
       }
     } catch {
-      if (!silent) setError("Ett nätverksfel uppstod. Försök igen.");
+      if (!silent) setError(c.networkError);
     } finally {
       setLoading(false);
     }
@@ -87,7 +98,7 @@ export default function SellerDashboard() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast("Kunde inte kopiera länken. Kopiera den manuellt.", "error");
+      toast(c.copyLinkFailed, "error");
     }
   }
 
@@ -97,8 +108,8 @@ export default function SellerDashboard() {
     try {
       if (navigator.share) {
         navigator.share({
-          title: `Köp av ${data.seller.displayName} - Roots`,
-          text: data.campaign?.story || "Stöd oss genom att köpa Roots-produkter!",
+          title: tFill(t.shareTitle, { name: data.seller.displayName }),
+          text: data.campaign?.story || t.shareText,
           url,
         });
       } else {
@@ -122,7 +133,7 @@ export default function SellerDashboard() {
       <div className="flex flex-col items-center justify-center gap-3 py-20">
         <p className="text-sm text-destructive">{error}</p>
         <Button variant="outline" onClick={() => window.location.reload()}>
-          Försök igen
+          {c.retry}
         </Button>
       </div>
     );
@@ -133,7 +144,7 @@ export default function SellerDashboard() {
       <div className="flex flex-col items-center gap-3 py-20">
         <ShoppingBag className="h-10 w-10 text-muted-foreground" />
         <p className="text-sm text-muted-foreground">
-          Ingen säljar-profil hittad
+          {t.noProfile}
         </p>
       </div>
     );
@@ -154,7 +165,7 @@ export default function SellerDashboard() {
     <div className="page-enter space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Min shop</h1>
+          <h1 className="text-2xl font-bold">{t.title}</h1>
           <p className="text-sm text-muted-foreground">
             {data.team?.name}
             {data.campaign ? ` · ${data.campaign.name}` : ""}
@@ -162,22 +173,22 @@ export default function SellerDashboard() {
         </div>
         <Button onClick={() => setManualOpen(true)}>
           <PlusCircle className="mr-2 h-4 w-4" />
-          Registrera order
+          {t.registerOrder}
         </Button>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <Card>
           <CardContent className="p-4 sm:p-5">
-            <p className="text-xs text-muted-foreground sm:text-sm">Sålt</p>
+            <p className="text-xs text-muted-foreground sm:text-sm">{t.sold}</p>
             <p className="mt-1 text-xl font-bold sm:text-2xl">
-              {formatKrValue(totalSales)} kr
+              {formatKr(totalSales, locale)}
             </p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 sm:p-5">
-            <p className="text-xs text-muted-foreground sm:text-sm">Beställningar</p>
+            <p className="text-xs text-muted-foreground sm:text-sm">{c.orders}</p>
             <p className="mt-1 text-xl font-bold sm:text-2xl">{orderCount}</p>
           </CardContent>
         </Card>
@@ -185,14 +196,14 @@ export default function SellerDashboard() {
           <CardContent className="p-4 sm:p-5">
             <div className="flex items-center gap-1.5">
               <TrendingUp className="h-3.5 w-3.5 shrink-0 text-brand-400" />
-              <p className="text-xs text-muted-foreground sm:text-sm">Din uppskattade förtjänst</p>
+              <p className="text-xs text-muted-foreground sm:text-sm">{t.estimatedEarnings}</p>
             </div>
             <p className="mt-1 text-xl font-bold text-brand-700 sm:text-2xl">
-              {formatKrValue(estimatedEarnings)} kr
+              {formatKr(estimatedEarnings, locale)}
             </p>
             {data.campaign?.marginPercent && (
               <p className="text-xs text-muted-foreground mt-0.5">
-                {data.campaign.marginPercent}% marginal
+                {tFill(c.percentMargin, { n: data.campaign.marginPercent })}
               </p>
             )}
           </CardContent>
@@ -200,7 +211,7 @@ export default function SellerDashboard() {
         {progress !== null && (
           <Card>
             <CardContent className="p-4 sm:p-5">
-              <p className="text-xs text-muted-foreground sm:text-sm">Mål</p>
+              <p className="text-xs text-muted-foreground sm:text-sm">{t.goal}</p>
               <p className="mt-1 text-xl font-bold sm:text-2xl">{progress}%</p>
             </CardContent>
           </Card>
@@ -218,9 +229,9 @@ export default function SellerDashboard() {
               <div className="flex items-center gap-4">
                 <GradeBadge grade={data.grade} size="lg" />
                 <div>
-                  <p className="text-sm font-medium">Din nivå</p>
+                  <p className="text-sm font-medium">{t.yourLevel}</p>
                   <p className="text-xs text-muted-foreground">
-                    Baserat på total försäljning
+                    {t.levelHint}
                   </p>
                 </div>
               </div>
@@ -235,9 +246,12 @@ export default function SellerDashboard() {
         <Card>
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-medium">Ditt mål</p>
+              <p className="text-sm font-medium">{t.yourGoal}</p>
               <p className="text-sm text-muted-foreground">
-                {formatKrValue(totalSales)} / {goal.toLocaleString("sv-SE")} kr
+                {formatKr(totalSales, locale)} /{" "}
+                {locale === "en"
+                  ? `SEK ${goal.toLocaleString(dateLocale)}`
+                  : `${goal.toLocaleString(dateLocale)} kr`}
               </p>
             </div>
             <div className="h-3 overflow-hidden rounded-full bg-brand-100">
@@ -248,7 +262,7 @@ export default function SellerDashboard() {
             </div>
             {progress >= 100 && (
               <p className="mt-2 text-sm font-medium text-success">
-                Mål uppnått! Fantastiskt!
+                {t.goalReached}
               </p>
             )}
           </CardContent>
@@ -261,7 +275,7 @@ export default function SellerDashboard() {
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <Award className="h-4 w-4 text-brand-500" />
-              Milstolpar
+              {c.milestones}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -269,8 +283,8 @@ export default function SellerDashboard() {
               <div className="rounded-lg bg-brand-50 p-3 flex items-center gap-3">
                 <Star className="h-5 w-5 text-brand-500 shrink-0" />
                 <div>
-                  <p className="text-sm font-medium">Nästa: {milestones.next.label}</p>
-                  <p className="text-xs text-muted-foreground">{milestones.next.remaining}</p>
+                  <p className="text-sm font-medium">{tFill(c.nextMilestone, { label: milestoneLabel(milestones.next.label, locale) })}</p>
+                  <p className="text-xs text-muted-foreground">{milestoneRemaining(milestones.next.remaining, locale)}</p>
                 </div>
               </div>
             )}
@@ -282,7 +296,7 @@ export default function SellerDashboard() {
                     className="bg-brand-100 text-brand-700 text-xs py-1"
                   >
                     <Award className="h-3 w-3 mr-1" />
-                    {m.label}
+                    {milestoneLabel(m.id, locale, m.label)}
                   </Badge>
                 ))}
               </div>
@@ -296,7 +310,7 @@ export default function SellerDashboard() {
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Share2 className="h-4 w-4" />
-            Dela din shop
+            {t.shareShop}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -318,7 +332,7 @@ export default function SellerDashboard() {
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={qrDataUrl}
-                  alt="QR-kod till din shop"
+                  alt={t.qrAlt}
                   className="h-40 w-40"
                 />
               </div>
@@ -326,12 +340,12 @@ export default function SellerDashboard() {
             <div className="flex flex-col gap-2">
               <Button onClick={share}>
                 <Share2 className="mr-2 h-4 w-4" />
-                Dela via SMS/sociala medier
+                {t.shareSocial}
               </Button>
               <Button variant="outline" asChild>
                 <a href={shopUrl} target="_blank" rel="noopener noreferrer">
                   <ExternalLink className="mr-2 h-4 w-4" />
-                  Öppna min shop
+                  {t.openShop}
                 </a>
               </Button>
             </div>
@@ -345,28 +359,28 @@ export default function SellerDashboard() {
       <ShareTemplates
         displayName={data.seller.displayName}
         shopUrl={shopUrl}
-        campaignName={data.campaign?.name ?? "vårt lag"}
-        teamName={data.team?.name ?? "vårt lag"}
+        campaignName={data.campaign?.name ?? c.ourTeam}
+        teamName={data.team?.name ?? c.ourTeam}
       />
 
 
       {/* Recent orders */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base">Senaste beställningar</CardTitle>
+          <CardTitle className="text-base">{c.recentOrders}</CardTitle>
           {/* Sprint E10 — full archive lives on its own page so the
               "min-shop"-dashboard stays focused on the latest activity. */}
-          <a
+          <LocaleLink
             href="/min-shop/bestallningar"
             className="text-xs font-medium text-brand-600 hover:text-brand-800"
           >
-            Visa alla →
-          </a>
+            {t.viewAll}
+          </LocaleLink>
         </CardHeader>
         <CardContent>
           {!data.orders || data.orders.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Inga beställningar ännu. Dela din länk för att komma igång!
+              {t.noOrdersHint}
             </p>
           ) : (
             <div className="space-y-2">
@@ -379,7 +393,7 @@ export default function SellerDashboard() {
                     setDetailOpen(true);
                   }}
                   className="flex w-full items-center justify-between rounded-lg border p-3 text-left transition-colors hover:bg-brand-50/60"
-                  aria-label={`Visa detaljer för order från ${order.customerName}`}
+                  aria-label={tFill(c.viewOrderDetails, { name: order.customerName })}
                 >
                   <div>
                     <p className="text-sm font-medium">{order.customerName}</p>
@@ -387,11 +401,11 @@ export default function SellerDashboard() {
                       variant="secondary"
                       className={`text-xs ${orderStatusColor(order.status)}`}
                     >
-                      {orderStatusLabel(order.status)}
+                      {orderStatusLabel(order.status, locale)}
                     </Badge>
                   </div>
                   <p className="text-sm font-semibold">
-                    {formatKrValue(order.totalOre)} kr
+                    {formatKr(order.totalOre, locale)}
                   </p>
                 </button>
               ))}

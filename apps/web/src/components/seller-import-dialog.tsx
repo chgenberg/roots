@@ -12,6 +12,9 @@ import { Badge } from "@/components/ui/badge";
 import { Upload, Loader2, Copy, CheckCircle2, AlertCircle } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { useToast } from "@/components/ui/toast";
+import { useLocale } from "@/i18n/locale-context";
+import { fundraisingPages } from "@/i18n/dictionaries/fundraising-pages";
+import { tFill } from "@/i18n/format";
 
 interface ImportRow {
   displayName: string;
@@ -26,13 +29,6 @@ interface ResultRow {
   tempPassword?: string;
 }
 
-/**
- * Parsar en CSV-text till rader { displayName, email }.
- *
- * Stödjer komma, semikolon eller tab som avgränsare och en valfri
- * rubrikrad. Kolumnen som innehåller "@" tolkas som e-post, den andra
- * som namn — så ordningen på kolumnerna spelar ingen roll.
- */
 function parseCsv(text: string): ImportRow[] {
   const lines = text
     .split(/\r?\n/)
@@ -45,7 +41,7 @@ function parseCsv(text: string): ImportRow[] {
       .map((c) => c.trim().replace(/^"|"$/g, ""));
     if (cols.length < 2) continue;
     const emailCol = cols.find((c) => c.includes("@"));
-    if (!emailCol) continue; // troligen rubrikrad
+    if (!emailCol) continue;
     const nameCol = cols.find((c) => c !== emailCol && c.length > 0) ?? "";
     rows.push({ displayName: nameCol, email: emailCol.toLowerCase() });
   }
@@ -63,6 +59,8 @@ export function SellerImportDialog({
   teamId: string;
   onImported?: () => void;
 }) {
+  const { locale } = useLocale();
+  const t = fundraisingPages.sellerImport[locale];
   const [rows, setRows] = useState<ImportRow[]>([]);
   const [results, setResults] = useState<ResultRow[] | null>(null);
   const [importing, setImporting] = useState(false);
@@ -79,7 +77,7 @@ export function SellerImportDialog({
       setRows(parsed);
       setResults(null);
       if (parsed.length === 0) {
-        toast("Hittade inga giltiga rader. Kontrollera filen.", "error");
+        toast(t.noValidRows, "error");
       }
     };
     reader.readAsText(file);
@@ -100,10 +98,13 @@ export function SellerImportDialog({
     if (ok && data?.results) {
       setResults(data.results);
       const created = data.summary?.created ?? 0;
-      toast(`${created} konton skapades.`, created > 0 ? "success" : "default");
+      toast(
+        tFill(t.createdToast, { n: created }),
+        created > 0 ? "success" : "default"
+      );
       onImported?.();
     } else {
-      toast(data?.error || "Importen misslyckades.", "error");
+      toast(data?.error || t.failed, "error");
     }
   }
 
@@ -114,12 +115,12 @@ export function SellerImportDialog({
       .map((r) => `${r.displayName}\t${r.email}\t${r.tempPassword}`)
       .join("\n");
     navigator.clipboard
-      .writeText(`Namn\tE-post\tTillfälligt lösenord\n${text}`)
+      .writeText(`${t.credentialsHeader}\n${text}`)
       .then(() => {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       })
-      .catch(() => toast("Kunde inte kopiera.", "error"));
+      .catch(() => toast(t.copyFailed, "error"));
   }
 
   function reset() {
@@ -138,15 +139,13 @@ export function SellerImportDialog({
     >
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Importera säljare från fil</DialogTitle>
+          <DialogTitle>{t.title}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 px-6 pb-6 pt-2">
           {!results && (
             <>
               <div className="rounded-lg bg-brand-50 p-3 text-sm text-muted-foreground">
-                Spara din Excel-lista som <strong>CSV</strong> (Arkiv → Spara
-                som → CSV) med en kolumn för namn och en för e-post. Rubrikrad
-                är valfri.
+                {t.hint}
               </div>
 
               <input
@@ -162,13 +161,13 @@ export function SellerImportDialog({
                 onClick={() => fileRef.current?.click()}
               >
                 <Upload className="mr-2 h-4 w-4" />
-                Välj CSV-fil
+                {t.chooseFile}
               </Button>
 
               {rows.length > 0 && (
                 <div className="space-y-2">
                   <p className="text-sm font-medium">
-                    {rows.length} rader inlästa
+                    {tFill(t.rowsLoaded, { n: rows.length })}
                   </p>
                   <div className="max-h-48 space-y-1 overflow-y-auto rounded-lg border p-2">
                     {rows.slice(0, 50).map((r, i) => (
@@ -178,7 +177,9 @@ export function SellerImportDialog({
                       >
                         <span className="truncate font-medium">
                           {r.displayName || (
-                            <span className="text-destructive">(namn saknas)</span>
+                            <span className="text-destructive">
+                              {t.nameMissing}
+                            </span>
                           )}
                         </span>
                         <span className="truncate text-muted-foreground">
@@ -188,7 +189,7 @@ export function SellerImportDialog({
                     ))}
                     {rows.length > 50 && (
                       <p className="pt-1 text-xs text-muted-foreground">
-                        …och {rows.length - 50} till
+                        {tFill(t.andMore, { n: rows.length - 50 })}
                       </p>
                     )}
                   </div>
@@ -200,7 +201,7 @@ export function SellerImportDialog({
                     {importing && (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     )}
-                    Skapa {rows.length} konton
+                    {tFill(t.createAccounts, { n: rows.length })}
                   </Button>
                 </div>
               )}
@@ -211,15 +212,20 @@ export function SellerImportDialog({
             <div className="space-y-3">
               <div className="flex flex-wrap gap-2">
                 <Badge className="bg-brand-100 text-brand-700">
-                  {results.filter((r) => r.status === "created").length} skapade
+                  {tFill(t.createdCount, {
+                    n: results.filter((r) => r.status === "created").length,
+                  })}
                 </Badge>
                 <Badge variant="secondary">
-                  {results.filter((r) => r.status === "skipped").length}{" "}
-                  hoppade över
+                  {tFill(t.skippedCount, {
+                    n: results.filter((r) => r.status === "skipped").length,
+                  })}
                 </Badge>
                 {results.some((r) => r.status === "error") && (
                   <Badge className="bg-destructive/10 text-destructive">
-                    {results.filter((r) => r.status === "error").length} fel
+                    {tFill(t.errorCount, {
+                      n: results.filter((r) => r.status === "error").length,
+                    })}
                   </Badge>
                 )}
               </div>
@@ -227,19 +233,18 @@ export function SellerImportDialog({
               {results.some((r) => r.status === "created") && (
                 <div className="rounded-lg border p-3">
                   <div className="mb-2 flex items-center justify-between">
-                    <p className="text-sm font-medium">Inloggningsuppgifter</p>
+                    <p className="text-sm font-medium">{t.credentials}</p>
                     <Button size="sm" variant="outline" onClick={copyCredentials}>
                       {copied ? (
                         <CheckCircle2 className="mr-1 h-3.5 w-3.5 text-success" />
                       ) : (
                         <Copy className="mr-1 h-3.5 w-3.5" />
                       )}
-                      Kopiera alla
+                      {t.copyAll}
                     </Button>
                   </div>
                   <p className="mb-2 text-xs text-muted-foreground">
-                    Dela ut de tillfälliga lösenorden. Säljarna kan byta
-                    lösenord efter första inloggningen.
+                    {t.credentialsHint}
                   </p>
                   <div className="max-h-56 space-y-1 overflow-y-auto">
                     {results
@@ -274,7 +279,9 @@ export function SellerImportDialog({
                         className="flex items-center gap-2 text-xs text-muted-foreground"
                       >
                         <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                        <span className="truncate">{r.email || "(tom rad)"}</span>
+                        <span className="truncate">
+                          {r.email || t.emptyRow}
+                        </span>
                         <span>— {r.reason}</span>
                       </div>
                     ))}
@@ -288,7 +295,7 @@ export function SellerImportDialog({
                   reset();
                 }}
               >
-                Importera fler
+                {t.importMore}
               </Button>
             </div>
           )}

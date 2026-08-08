@@ -3,21 +3,13 @@
 /**
  * Felläge när en sida inte kunde hämta sin data.
  *
- * Fanns tidigare inklistrat ordagrant i ett halvdussin sidor, medan ett
- * annat halvdussin svalde felet med `.catch(() => {})` och renderade en tom
- * lista. Det senare är det farliga: en intäktssida som visar 0 kr när
- * anropet misslyckats ser ut som ett svar, inte som ett fel, och det finns
- * inget i gränssnittet som avslöjar skillnaden.
- *
  *   {error && <LoadError message={error} onRetry={load} />}
- *
- * Utan `onRetry` laddas sidan om, vilket är rätt när hämtningen sker i en
- * effekt som inte går att anropa igen utifrån. Med `onRetry` behåller vi
- * filter och annat sidtillstånd, så föredra den varianten.
  */
 
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { appCommon } from "@/i18n/dictionaries/app-common";
+import { useLocale } from "@/i18n/locale-context";
 
 interface Props {
   message: string;
@@ -27,6 +19,8 @@ interface Props {
 }
 
 export function LoadError({ message, onRetry, inline = false }: Props) {
+  const { locale } = useLocale();
+  const retryLabel = appCommon[locale].retry;
   const retry = onRetry ?? (() => window.location.reload());
 
   if (inline) {
@@ -40,7 +34,7 @@ export function LoadError({ message, onRetry, inline = false }: Props) {
           <p className="text-sm text-destructive">{message}</p>
         </div>
         <Button variant="outline" size="sm" onClick={retry}>
-          Försök igen
+          {retryLabel}
         </Button>
       </div>
     );
@@ -54,7 +48,7 @@ export function LoadError({ message, onRetry, inline = false }: Props) {
       <AlertTriangle className="h-8 w-8 text-destructive" />
       <p className="max-w-md text-center text-sm text-destructive">{message}</p>
       <Button variant="outline" onClick={retry}>
-        Försök igen
+        {retryLabel}
       </Button>
     </div>
   );

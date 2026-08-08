@@ -1,18 +1,23 @@
 import type { Metadata } from "next";
+import { cancelDeletion } from "@/i18n/dictionaries/errors";
+import { LocaleProvider } from "@/i18n/locale-context";
+import { getRequestLocale } from "@/i18n/request-locale";
 
-// P3.75 (audit 2026-05-26): page.tsx är "use client" så vi kan inte
-// sätta metadata där. Layout-fil ger tab-titel + noindex (sidan är
-// GDPR-kritisk och länkad via mail — ska aldrig indexeras).
-export const metadata: Metadata = {
-  title: "Avbryt radering — Roots",
-  description: "Avbryt pågående radering av ditt Roots-konto.",
-  robots: { index: false, follow: false },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getRequestLocale();
+  const t = cancelDeletion[locale];
+  return {
+    title: t.metaTitle,
+    description: t.metaDescription,
+    robots: { index: false, follow: false },
+  };
+}
 
-export default function CancelDeletionLayout({
+export default async function CancelDeletionLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return children;
+  const locale = await getRequestLocale();
+  return <LocaleProvider locale={locale}>{children}</LocaleProvider>;
 }

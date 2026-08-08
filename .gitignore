@@ -2,6 +2,7 @@ node_modules/
 .next/
 dist/
 .turbo/
+.tmp/
 .env
 .env.*
 !.env.example
@@ -11,6 +12,9 @@ dist/
 .venv/
 __pycache__/
 *.pyc
+
+# Lokala personfoto / oprocessat material — inte webbassets.
+public/Personal/
 
 # Genererad output — inte källkod.
 scripts/roots-shots/out/

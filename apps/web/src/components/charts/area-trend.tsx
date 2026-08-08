@@ -2,6 +2,8 @@
 
 import { useId, useRef, useState } from "react";
 import { CHART } from "./theme";
+import { useLocale } from "@/i18n/locale-context";
+import { fundraisingPages } from "@/i18n/dictionaries/fundraising-pages";
 
 export interface TrendPoint {
   label: string;
@@ -29,6 +31,8 @@ export function AreaTrend({
   color = CHART.primary,
   reference = null,
 }: AreaTrendProps) {
+  const { locale } = useLocale();
+  const chartAria = fundraisingPages.stats[locale].chartTrendAria;
   const gid = useId().replace(/:/g, "");
   const wrapRef = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<number | null>(null);
@@ -75,7 +79,7 @@ export function AreaTrend({
         height={height}
         preserveAspectRatio="none"
         role="img"
-        aria-label="Försäljningstrend"
+        aria-label={chartAria}
         onMouseMove={handleMove}
         onMouseLeave={() => setHover(null)}
       >

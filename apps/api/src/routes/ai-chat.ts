@@ -15,20 +15,58 @@ import {
   checkMedicalClaims,
   createClaimsStreamFilter,
   CLAIMS_BLOCKED_REPLY,
+  CLAIMS_BLOCKED_REPLY_EN,
 } from "../lib/ai/claims-guard";
 import { childLogger } from "../lib/logger";
 import { flags } from "../lib/flags";
+import { resolveUiLocale, type UiLocale } from "../lib/ui-locale";
 
 const log = childLogger("ai-chat");
 
 export const aiChat = new Hono();
 
-const FALLBACK_RESPONSES = [
-  "Just nu är AI-assistenten inte tillgänglig. Kontakta oss på hej@roots.se så hjälper vi dig.",
-  "Vår AI-assistent är tillfälligt nedstängd. Du hittar vanliga frågor på vår hemsida, eller maila hej@roots.se.",
-];
+const COPY = {
+  sv: {
+    fallbacks: [
+      "Just nu är AI-assistenten inte tillgänglig. Kontakta oss på hej@roots.se så hjälper vi dig.",
+      "Vår AI-assistent är tillfälligt nedstängd. Du hittar vanliga frågor på vår hemsida, eller maila hej@roots.se.",
+    ],
+    disclaimer: "AI-genererat svar — verifiera viktig information",
+    notLoggedIn: "Inte inloggad.",
+    sessionError: "Sessionsfel.",
+    sessionExpired: "Sessionen har gått ut.",
+    rateLimited:
+      "Du har skickat för många meddelanden. Försök igen om en stund.",
+    dailyCap:
+      "AI-assistenten har nått dagens kapacitetstak. Försök igen efter midnatt.",
+    invalidMessage: "Ogiltigt meddelande.",
+    messageMissingOrTooLong: "Meddelandet saknas eller är för långt.",
+    streamUnavailable: "AI tillfälligt otillgänglig.",
+    claimsBlocked: CLAIMS_BLOCKED_REPLY,
+  },
+  en: {
+    fallbacks: [
+      "The AI assistant is unavailable right now. Contact us at hej@roots.se and we will help you.",
+      "Our AI assistant is temporarily offline. You can find common questions on our website, or email hej@roots.se.",
+    ],
+    disclaimer: "AI-generated reply — please verify important information",
+    notLoggedIn: "Not signed in.",
+    sessionError: "Session error.",
+    sessionExpired: "Your session has expired.",
+    rateLimited:
+      "You have sent too many messages. Please try again in a moment.",
+    dailyCap:
+      "The AI assistant has reached today's capacity. Please try again after midnight.",
+    invalidMessage: "Invalid message.",
+    messageMissingOrTooLong: "The message is missing or too long.",
+    streamUnavailable: "AI temporarily unavailable.",
+    claimsBlocked: CLAIMS_BLOCKED_REPLY_EN,
+  },
+} as const;
 
-const DISCLAIMER = "AI-genererat svar — verifiera viktig information";
+function chatCopy(locale: UiLocale) {
+  return COPY[locale];
+}
 
 function parseCookies(header: string): Record<string, string> {
   const cookies: Record<string, string> = {};
@@ -65,19 +103,21 @@ function sanitizeHistory(
   return clean;
 }
 
-function pickFallback(): string {
-  return FALLBACK_RESPONSES[
-    Math.floor(Math.random() * FALLBACK_RESPONSES.length)
-  ];
+function pickFallback(locale: UiLocale): string {
+  const fallbacks = COPY[locale].fallbacks;
+  return fallbacks[Math.floor(Math.random() * fallbacks.length)];
 }
 
 aiChat.post("/chat", async (c) => {
+  let locale = resolveUiLocale(c);
+  let copy = chatCopy(locale);
+
   const cookieHeader = c.req.header("cookie") || "";
   const cookies = parseCookies(cookieHeader);
   const sessionId = cookies[SESSION_COOKIE_NAME];
 
   if (!sessionId) {
-    return c.json({ error: "Inte inloggad." }, 401);
+    return c.json({ error: copy.notLoggedIn }, 401);
   }
 
   let session;
@@ -85,10 +125,10 @@ aiChat.post("/chat", async (c) => {
     session = await getSession(sessionId);
   } catch (err) {
     log.error({ err }, "Session lookup failed");
-    return c.json({ error: "Sessionsfel." }, 500);
+    return c.json({ error: copy.sessionError }, 500);
   }
   if (!session) {
-    return c.json({ error: "Sessionen har gått ut." }, 401);
+    return c.json({ error: copy.sessionExpired }, 401);
   }
 
   const rateCheck = await aiRateLimit(session.userId);
@@ -101,7 +141,7 @@ aiChat.post("/chat", async (c) => {
     });
     return c.json(
       {
-        error: "Du har skickat för många meddelanden. Försök igen om en stund.",
+        error: copy.rateLimited,
         retryAfter: rateCheck.resetInSeconds,
       },
       429
@@ -122,27 +162,34 @@ aiChat.post("/chat", async (c) => {
     });
     return c.json(
       {
-        error:
-          "AI-assistenten har nått dagens kapacitetstak. Försök igen efter midnatt.",
+        error: copy.dailyCap,
         retryAfter: globalCap.resetInSeconds,
       },
       429
     );
   }
 
-  let body: { message: string; stream?: boolean; history?: ChatMessage[] };
+  let body: {
+    message: string;
+    stream?: boolean;
+    history?: ChatMessage[];
+    locale?: string;
+  };
   try {
     body = await c.req.json();
   } catch {
-    return c.json({ error: "Ogiltigt meddelande." }, 400);
+    return c.json({ error: copy.invalidMessage }, 400);
   }
+
+  locale = resolveUiLocale(c, body.locale);
+  copy = chatCopy(locale);
 
   if (
     !body.message ||
     typeof body.message !== "string" ||
     body.message.length > 2000
   ) {
-    return c.json({ error: "Meddelandet saknas eller är för långt." }, 400);
+    return c.json({ error: copy.messageMissingOrTooLong }, 400);
   }
 
   // Master AI kill switch. Returns a deterministic fallback immediately so
@@ -156,7 +203,7 @@ aiChat.post("/chat", async (c) => {
       orgId: session.orgId,
       meta: { reason: !flags.aiEnabled() ? "kill_switch" : "not_configured" },
     });
-    const fallback = pickFallback();
+    const fallback = pickFallback(locale);
     if (body.stream) {
       return streamSSE(c, async (stream) => {
         await stream.writeSSE({
@@ -165,12 +212,17 @@ aiChat.post("/chat", async (c) => {
         await stream.writeSSE({ data: "[DONE]" });
       });
     }
-    return c.json({ reply: fallback, disclaimer: DISCLAIMER, fallback: true });
+    return c.json({
+      reply: fallback,
+      disclaimer: copy.disclaimer,
+      fallback: true,
+    });
   }
 
   const systemPrompt = buildSystemPrompt(
     session.role,
-    session.demoProfile?.name
+    session.demoProfile?.name,
+    locale
   );
   const sanitizedHistory = sanitizeHistory(body.history);
 
@@ -239,7 +291,10 @@ aiChat.post("/chat", async (c) => {
         }
         if (blocked) {
           await stream.writeSSE({
-            data: JSON.stringify({ content: CLAIMS_BLOCKED_REPLY, replace: true }),
+            data: JSON.stringify({
+              content: copy.claimsBlocked,
+              replace: true,
+            }),
           });
         }
         if (!upstreamSignal.aborted) {
@@ -250,7 +305,7 @@ aiChat.post("/chat", async (c) => {
         log.error({ err }, "Streaming error");
         await stream.writeSSE({
           data: JSON.stringify({
-            error: "AI tillfälligt otillgänglig.",
+            error: copy.streamUnavailable,
             fallback: true,
           }),
         });
@@ -278,11 +333,14 @@ aiChat.post("/chat", async (c) => {
         orgId: session.orgId,
         meta: { matched: claims.matched ?? null },
       });
-      return c.json({ reply: CLAIMS_BLOCKED_REPLY, disclaimer: DISCLAIMER });
+      return c.json({
+        reply: copy.claimsBlocked,
+        disclaimer: copy.disclaimer,
+      });
     }
     return c.json({
       reply: response.content,
-      disclaimer: DISCLAIMER,
+      disclaimer: copy.disclaimer,
       model: response.model,
     });
   } catch (err) {
@@ -296,8 +354,8 @@ aiChat.post("/chat", async (c) => {
       meta: { message: (err as Error)?.message },
     });
     return c.json({
-      reply: pickFallback(),
-      disclaimer: DISCLAIMER,
+      reply: pickFallback(locale),
+      disclaimer: copy.disclaimer,
       fallback: true,
     });
   }

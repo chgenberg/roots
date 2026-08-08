@@ -7,6 +7,7 @@ import {
   ADMIN_ROLES,
   FUNDRAISING_ROLES,
 } from "@roots/contracts";
+import { uiError } from "../../lib/ui-locale";
 
 export const isAuthenticated = middleware(async ({ ctx, next }) => {
   if (!ctx.userId) {
@@ -104,7 +105,7 @@ export const notDemo = middleware(async ({ ctx, next }) => {
   if (ctx.isDemo) {
     throw new TRPCError({
       code: "FORBIDDEN",
-      message: "Demo-konton kan inte utföra denna åtgärd.",
+      message: uiError(ctx.locale, "demoCannotPerformAction"),
     });
   }
   return next();

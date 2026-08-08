@@ -55,9 +55,13 @@ import {
 } from "lucide-react";
 import { countsAsRevenue } from "@roots/contracts";
 import { getBrowserApiBase } from "@/lib/api-base";
-import { apiFetch } from "@/lib/api";
-import { formatKrValue } from "@/lib/format";
+import { apiFetch, rootsFetch } from "@/lib/api";
 import { orderStatusColor, orderStatusLabel } from "@/lib/order-status";
+import { useLocale } from "@/i18n/locale-context";
+import { fundraisingPages } from "@/i18n/dictionaries/fundraising-pages";
+import { formatKr } from "@/lib/format";
+import { appCommon } from "@/i18n/dictionaries/app-common";
+import { tFill } from "@/i18n/format";
 
 const API_URL = getBrowserApiBase();
 
@@ -109,24 +113,15 @@ export interface OrderDetail {
   }>;
 }
 
-const PAYMENT_LABELS: Record<string, string> = {
-  KLARNA: "Klarna",
-  DIRECT_TO_LEADER: "Direkt till lagansvarig",
-};
-const DELIVERY_LABELS: Record<string, string> = {
-  BULK: "Samleverans till laget",
-  DIRECT: "Direkt till kund",
-};
-
-function formatSek(ore: number): string {
-  return `${(ore / 100).toLocaleString("sv-SE", {
+function formatSek(ore: number, dateLocale: string, currencyLabel: string): string {
+  return `${(ore / 100).toLocaleString(dateLocale, {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
-  })} kr`;
+  })} ${currencyLabel}`;
 }
-function formatDateTime(iso: string): string {
+function formatDateTime(iso: string, dateLocale: string): string {
   try {
-    return new Date(iso).toLocaleString("sv-SE", {
+    return new Date(iso).toLocaleString(dateLocale, {
       year: "numeric",
       month: "short",
       day: "numeric",
@@ -157,16 +152,6 @@ interface Props {
 }
 
 /** Stegen en order rör sig genom när den blivit betald. */
-const FULFILLMENT_STEPS: Array<{
-  status: "PAID" | "SHIPPED" | "DELIVERED";
-  label: string;
-  action: string;
-}> = [
-  { status: "PAID", label: "Betald", action: "Ångra leverans" },
-  { status: "SHIPPED", label: "Skickad", action: "Markera skickad" },
-  { status: "DELIVERED", label: "Levererad", action: "Markera levererad" },
-];
-
 const CLOSED_STATUSES = ["CANCELLED", "REFUNDED", "FAILED"];
 
 export function OrderDetailDialog({
@@ -176,6 +161,23 @@ export function OrderDetailDialog({
   onVerificationChange,
   onStatusChange,
 }: Props) {
+  const { locale } = useLocale();
+  const t = fundraisingPages.orderDetail[locale];
+  const c = fundraisingPages.common[locale];
+  const dateLocale = appCommon[locale].dateLocale;
+  const paymentLabels: Record<string, string> = {
+    KLARNA: "Klarna",
+    DIRECT_TO_LEADER: t.paymentDirectToLeader,
+  };
+  const deliveryLabels: Record<string, string> = {
+    BULK: t.deliveryBulkTeam,
+    DIRECT: t.deliveryDirectCustomer,
+  };
+  const fulfillmentSteps = [
+    { status: "PAID" as const, label: fundraisingPages.orderStatus[locale].PAID, action: t.undoDelivery },
+    { status: "SHIPPED" as const, label: fundraisingPages.orderStatus[locale].SHIPPED, action: t.markShipped },
+    { status: "DELIVERED" as const, label: fundraisingPages.orderStatus[locale].DELIVERED, action: t.markDelivered },
+  ];
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<OrderDetail | null>(null);
@@ -200,23 +202,20 @@ export function OrderDetailDialog({
     setLoading(true);
     (async () => {
       try {
-        const res = await fetch(
-          `${API_URL}/v1/dashboard/seller/orders/${orderId}`,
-          { credentials: "include" }
-        );
+        const res = await rootsFetch(`${API_URL}/v1/dashboard/seller/orders/${orderId}`);
         if (!res.ok) {
           const j = (await res.json().catch(() => ({}))) as {
             error?: string;
           };
           if (!cancelled) {
-            setError(j?.error ?? "Kunde inte hämta order.");
+            setError(j?.error ?? t.loadFailed);
           }
           return;
         }
         const json = (await res.json()) as OrderDetail;
         if (!cancelled) setDetail(json);
       } catch {
-        if (!cancelled) setError("Nätverksfel. Försök igen.");
+        if (!cancelled) setError(t.networkError);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -240,7 +239,7 @@ export function OrderDetailDialog({
     setConfirming(false);
 
     if (!ok) {
-      toast(data?.error || "Kunde inte uppdatera bekräftelsen.", "error");
+      toast(data?.error || t.confirmFailed, "error");
       return;
     }
 
@@ -259,8 +258,8 @@ export function OrderDetailDialog({
     );
     toast(
       verified
-        ? "Ordern är bekräftad och räknas nu med i avräkningen."
-        : "Bekräftelsen är återtagen. Ordern räknas inte i avräkningen.",
+        ? t.confirmOk
+        : t.unconfirmOk,
       "success"
     );
     onVerificationChange?.(orderId, verified);
@@ -283,7 +282,7 @@ export function OrderDetailDialog({
     setSavingStatus(false);
 
     if (!ok || !data?.order) {
-      toast(data?.error || "Kunde inte uppdatera leveransstatus.", "error");
+      toast(data?.error || t.fulfillmentFailed, "error");
       return;
     }
 
@@ -303,8 +302,10 @@ export function OrderDetailDialog({
     );
     toast(
       status === "PAID"
-        ? "Leveransmarkeringen är borttagen."
-        : `Ordern är markerad som ${status === "SHIPPED" ? "skickad" : "levererad"}.`,
+        ? t.deliveryRemoved
+        : status === "SHIPPED"
+          ? t.markedShipped
+          : t.markedDelivered,
       "success"
     );
     onStatusChange?.(orderId, next.status);
@@ -330,12 +331,12 @@ export function OrderDetailDialog({
       // så vi visar vad det innebär och låter användaren bekräfta igen.
       if (data?.requiresForce) {
         const proceed = window.confirm(
-          `${data.error}\n\nVill du avboka ordern ändå? Den försvinner ur underlaget men det redan utbetalda beloppet ändras inte.`
+          tFill(t.forceCancelConfirm, { error: data.error || "" })
         );
         if (proceed) await cancelOrder(true);
         return;
       }
-      toast(data?.error || "Kunde inte avboka ordern.", "error");
+      toast(data?.error || t.cancelFailed, "error");
       return;
     }
 
@@ -355,10 +356,10 @@ export function OrderDetailDialog({
     setCancelOpen(false);
     toast(
       data.manualStepRequired
-        ? `Ordern är markerad som återbetald. ${data.manualStepRequired}`
+        ? tFill(t.refundedWithManual, { manual: data.manualStepRequired })
         : cancelKind === "REFUNDED"
-          ? "Ordern är markerad som återbetald och räknas inte längre som intäkt."
-          : "Ordern är avbokad och räknas inte längre som intäkt.",
+          ? t.refundOk
+          : t.cancelOk,
       "success"
     );
     onStatusChange?.(orderId, data.order.status);
@@ -376,22 +377,25 @@ export function OrderDetailDialog({
   const isClosed = !!detail && CLOSED_STATUSES.includes(detail.order.status);
   const isRevenue = !!detail && countsAsRevenue(detail.order.status);
   const stepIndex = detail
-    ? FULFILLMENT_STEPS.findIndex((s) => s.status === detail.order.status)
+    ? fulfillmentSteps.findIndex((s) => s.status === detail.order.status)
     : -1;
   // CONFIRMED ligger mellan PAID och SHIPPED men har inget eget steg, så den
   // behandlas som betald.
   const currentStep = stepIndex === -1 ? 0 : stepIndex;
-  const nextStep = FULFILLMENT_STEPS[currentStep + 1];
+  const nextStep = fulfillmentSteps[currentStep + 1];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Orderdetaljer</DialogTitle>
+          <DialogTitle>{t.title}</DialogTitle>
           <DialogDescription>
             {detail
-              ? `Order #${detail.order.id.slice(0, 8)} · ${formatDateTime(detail.order.createdAt)}`
-              : "Hämtar information…"}
+              ? tFill(t.orderRef, {
+                  id: detail.order.id.slice(0, 8),
+                  datetime: formatDateTime(detail.order.createdAt, dateLocale),
+                })
+              : t.loading}
           </DialogDescription>
         </DialogHeader>
 
@@ -411,16 +415,16 @@ export function OrderDetailDialog({
                   variant="outline"
                   className={`text-[10px] uppercase tracking-wide ${statusClass}`}
                 >
-                  {orderStatusLabel(detail.order.status)}
+                  {orderStatusLabel(detail.order.status, locale)}
                 </Badge>
                 <Badge variant="outline" className="text-xs">
                   <CreditCard className="mr-1 h-3 w-3" />
-                  {PAYMENT_LABELS[detail.order.paymentMethod] ||
+                  {paymentLabels[detail.order.paymentMethod] ||
                     detail.order.paymentMethod}
                 </Badge>
                 <Badge variant="outline" className="text-xs">
                   <Truck className="mr-1 h-3 w-3" />
-                  {DELIVERY_LABELS[detail.order.deliveryType] ||
+                  {deliveryLabels[detail.order.deliveryType] ||
                     detail.order.deliveryType}
                 </Badge>
                 {detail.order.klarnaOrderId && (
@@ -443,8 +447,8 @@ export function OrderDetailDialog({
                       <Clock className="mr-1 h-3 w-3" />
                     )}
                     {detail.order.verifiedAt
-                      ? "Bekräftad"
-                      : "Väntar på bekräftelse"}
+                      ? t.confirmed
+                      : t.awaitingConfirmation}
                   </Badge>
                 )}
               </div>
@@ -467,14 +471,18 @@ export function OrderDetailDialog({
                     ) : (
                       <Clock className="h-4 w-4 text-warning-strong" />
                     )}
-                    Manuell betalning
+                    {t.manualPayment}
                   </h3>
 
                   {detail.order.verifiedAt ? (
                     <>
                       <p className="mt-1.5 text-sm text-muted-foreground">
-                        Bekräftad {formatDateTime(detail.order.verifiedAt)}.
-                        Summan räknas med i lagets avräkning.
+                        {tFill(t.confirmedCounts, {
+                          datetime: formatDateTime(
+                            detail.order.verifiedAt,
+                            dateLocale
+                          ),
+                        })}
                       </p>
                       {detail.order.canVerify && (
                         <Button
@@ -487,25 +495,21 @@ export function OrderDetailDialog({
                           {verifying && (
                             <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
                           )}
-                          Ta tillbaka bekräftelsen
+                          {t.undoConfirmBtn}
                         </Button>
                       )}
                     </>
                   ) : (
                     <>
                       <p className="mt-1.5 text-sm text-muted-foreground">
-                        {formatKrValue(detail.order.totalOre)} kr är registrerat
-                        som mottaget av säljaren, men räknas inte med i
-                        avräkningen förrän någon annan bekräftat att pengarna
-                        finns.
+                        {tFill(t.registeredAwaiting, { amount: formatKr(detail.order.totalOre, locale) })}
                       </p>
 
                       {detail.order.canVerify ? (
                         confirming ? (
                           <div className="mt-3 space-y-2">
                             <p className="text-sm font-medium">
-                              Har du fått {formatKrValue(detail.order.totalOre)}{" "}
-                              kr för den här ordern?
+                              {tFill(t.gotAmount, { amount: formatKr(detail.order.totalOre, locale) })}
                             </p>
                             <div className="flex flex-wrap gap-2">
                               <Button
@@ -516,7 +520,7 @@ export function OrderDetailDialog({
                                 {verifying && (
                                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                 )}
-                                Ja, bekräfta
+                                {t.yesConfirm}
                               </Button>
                               <Button
                                 size="sm"
@@ -524,7 +528,7 @@ export function OrderDetailDialog({
                                 disabled={verifying}
                                 onClick={() => setConfirming(false)}
                               >
-                                Avbryt
+                                {t.cancel}
                               </Button>
                             </div>
                           </div>
@@ -535,14 +539,12 @@ export function OrderDetailDialog({
                             onClick={() => setConfirming(true)}
                           >
                             <BadgeCheck className="mr-2 h-4 w-4" />
-                            Bekräfta betalningen
+                            {t.confirmPayment}
                           </Button>
                         )
                       ) : (
                         <p className="mt-2 text-xs text-muted-foreground">
-                          En lagledare eller föreningens admin behöver bekräfta
-                          ordern. Den som registrerat den kan inte bekräfta den
-                          själv.
+                          {t.cannotSelfConfirm}
                         </p>
                       )}
                     </>
@@ -558,22 +560,21 @@ export function OrderDetailDialog({
                   <h3 className="flex items-center gap-2 text-sm font-semibold text-destructive">
                     <Ban className="h-4 w-4" />
                     {detail.order.status === "REFUNDED"
-                      ? "Återbetald"
+                      ? t.refunded
                       : detail.order.status === "FAILED"
-                        ? "Betalningen gick inte igenom"
-                        : "Avbokad"}
+                        ? t.paymentFailed
+                        : t.cancelled}
                     {detail.order.cancelledAt &&
-                      ` ${formatDateTime(detail.order.cancelledAt)}`}
+                      ` ${formatDateTime(detail.order.cancelledAt, dateLocale)}`}
                   </h3>
                   {detail.order.cancelReason && (
                     <p className="mt-1.5 text-sm">
-                      <span className="text-muted-foreground">Skäl: </span>
+                      <span className="text-muted-foreground">{t.reasonLabel}: </span>
                       {detail.order.cancelReason}
                     </p>
                   )}
                   <p className="mt-1.5 text-xs text-muted-foreground">
-                    Summan räknas inte som intäkt och ingår inte i lagets
-                    avräkning.
+                    {t.closedHint}
                   </p>
                 </section>
               )}
@@ -583,11 +584,11 @@ export function OrderDetailDialog({
               {!isClosed && isRevenue && detail.order.canManageFulfillment && (
                 <section>
                   <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Leverans
+                    {t.delivery}
                   </h3>
                   <div className="rounded-lg border p-4">
                     <ol className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-                      {FULFILLMENT_STEPS.map((step, i) => {
+                      {fulfillmentSteps.map((step, i) => {
                         const reached = currentStep >= i;
                         return (
                           <li
@@ -641,16 +642,30 @@ export function OrderDetailDialog({
                           disabled={savingStatus}
                           onClick={() => setFulfillment("PAID")}
                         >
-                          Ångra leveransmarkering
+                          {t.undoDeliveryMark}
                         </Button>
                       )}
                     </div>
 
                     {detail.order.shippedAt && (
                       <p className="mt-2 text-xs text-muted-foreground">
-                        Skickad {formatDateTime(detail.order.shippedAt)}
-                        {detail.order.deliveredAt &&
-                          ` · levererad ${formatDateTime(detail.order.deliveredAt)}`}
+                        {detail.order.deliveredAt
+                          ? tFill(t.shippedAndDelivered, {
+                              shipped: formatDateTime(
+                                detail.order.shippedAt,
+                                dateLocale
+                              ),
+                              delivered: formatDateTime(
+                                detail.order.deliveredAt,
+                                dateLocale
+                              ),
+                            })
+                          : tFill(t.shippedAt, {
+                              datetime: formatDateTime(
+                                detail.order.shippedAt,
+                                dateLocale
+                              ),
+                            })}
                       </p>
                     )}
                   </div>
@@ -666,12 +681,11 @@ export function OrderDetailDialog({
                       <div>
                         <h3 className="text-sm font-semibold">
                           {isRevenue
-                            ? "Återbetala eller avboka ordern"
-                            : "Avboka ordern"}
+                            ? t.cancelTitle
+                            : t.cancelOrder}
                         </h3>
                         <p className="mt-1 text-xs text-muted-foreground">
-                          Summan tas ur lagets förtjänst och ur underlaget för
-                          utbetalning. Det går inte att ångra.
+                          {t.cancelImpact}
                         </p>
                       </div>
 
@@ -683,11 +697,11 @@ export function OrderDetailDialog({
                             [
                               {
                                 kind: "REFUNDED" as const,
-                                label: "Pengarna går tillbaka till kunden",
+                                label: t.refundOption,
                               },
                               {
                                 kind: "CANCELLED" as const,
-                                label: "Inga pengar kom in",
+                                label: t.noMoneyCameIn,
                               },
                             ] as const
                           ).map((opt) => {
@@ -715,14 +729,14 @@ export function OrderDetailDialog({
                       )}
 
                       <div className="grid gap-1.5">
-                        <Label htmlFor="cancel-reason">Skäl</Label>
+                        <Label htmlFor="cancel-reason">{t.reasonLabel}</Label>
                         <textarea
                           id="cancel-reason"
                           rows={2}
                           value={cancelReason}
                           maxLength={500}
                           onChange={(e) => setCancelReason(e.target.value)}
-                          placeholder="T.ex. kunden ångrade köpet, eller fel belopp registrerat"
+                          placeholder={t.reasonPlaceholder}
                           className="flex w-full rounded-lg border border-border bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         />
                       </div>
@@ -740,8 +754,8 @@ export function OrderDetailDialog({
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                           )}
                           {cancelKind === "REFUNDED"
-                            ? "Markera som återbetald"
-                            : "Avboka ordern"}
+                            ? t.markRefunded
+                            : t.cancelOrder}
                         </Button>
                         <Button
                           size="sm"
@@ -749,7 +763,7 @@ export function OrderDetailDialog({
                           disabled={savingStatus}
                           onClick={() => setCancelOpen(false)}
                         >
-                          Avbryt
+                          {t.cancel}
                         </Button>
                       </div>
                     </div>
@@ -766,7 +780,7 @@ export function OrderDetailDialog({
                       }}
                     >
                       <Ban className="mr-1.5 h-3 w-3" />
-                      {isRevenue ? "Återbetala eller avboka" : "Avboka ordern"}
+                      {isRevenue ? t.cancelOrRefund : t.cancelOrder}
                     </Button>
                   )}
                 </section>
@@ -774,7 +788,7 @@ export function OrderDetailDialog({
 
               <section>
                 <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Kund
+                  {t.customer}
                 </h3>
                 <div className="rounded-lg border bg-brand-50/40 p-4 text-sm">
                   <p className="font-medium">{detail.order.customer.name}</p>
@@ -825,23 +839,23 @@ export function OrderDetailDialog({
 
               <section>
                 <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Produkter
+                  {t.products}
                 </h3>
                 <div className="overflow-hidden rounded-lg border">
                   <table className="w-full text-sm">
                     <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
                       <tr>
                         <th className="px-3 py-2 text-left font-medium">
-                          Produkt
+                          {t.product}
                         </th>
                         <th className="px-3 py-2 text-right font-medium">
-                          Antal
+                          {t.qty}
                         </th>
                         <th className="px-3 py-2 text-right font-medium">
-                          á-pris
+                          {t.unitPrice}
                         </th>
                         <th className="px-3 py-2 text-right font-medium">
-                          Summa
+                          {t.lineSum}
                         </th>
                       </tr>
                     </thead>
@@ -852,7 +866,7 @@ export function OrderDetailDialog({
                             colSpan={4}
                             className="px-3 py-4 text-center text-xs text-muted-foreground"
                           >
-                            Inga rader registrerade på denna order.
+                            {t.noLines}
                           </td>
                         </tr>
                       ) : (
@@ -877,10 +891,10 @@ export function OrderDetailDialog({
                               {l.qty}
                             </td>
                             <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
-                              {formatSek(l.unitPriceOre)}
+                              {formatSek(l.unitPriceOre, dateLocale, c.kr)}
                             </td>
                             <td className="px-3 py-2 text-right font-medium tabular-nums">
-                              {formatSek(l.lineTotalOre)}
+                              {formatSek(l.lineTotalOre, dateLocale, c.kr)}
                             </td>
                           </tr>
                         ))
@@ -891,23 +905,23 @@ export function OrderDetailDialog({
 
                 <div className="mt-3 space-y-1 text-sm">
                   <div className="flex justify-between text-muted-foreground">
-                    <span>Delsumma</span>
+                    <span>{t.subtotal}</span>
                     <span className="tabular-nums">
-                      {formatSek(subtotalOre)}
+                      {formatSek(subtotalOre, dateLocale, c.kr)}
                     </span>
                   </div>
                   {detail.order.shippingOre > 0 && (
                     <div className="flex justify-between text-muted-foreground">
-                      <span>Frakt</span>
+                      <span>{t.shipping}</span>
                       <span className="tabular-nums">
-                        {formatSek(detail.order.shippingOre)}
+                        {formatSek(detail.order.shippingOre, dateLocale, c.kr)}
                       </span>
                     </div>
                   )}
                   <div className="flex justify-between border-t pt-2 text-base font-semibold">
-                    <span>Totalt</span>
+                    <span>{t.total}</span>
                     <span className="tabular-nums">
-                      {formatSek(detail.order.totalOre)}
+                      {formatSek(detail.order.totalOre, dateLocale, c.kr)}
                     </span>
                   </div>
                 </div>
@@ -916,7 +930,7 @@ export function OrderDetailDialog({
               {detail.order.note && (
                 <section>
                   <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Meddelande från kund
+                    {t.customerMessage}
                   </h3>
                   <div className="flex items-start gap-2 rounded-lg border bg-brand-50/40 p-4 text-sm">
                     <FileText className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />

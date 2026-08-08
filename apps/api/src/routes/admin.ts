@@ -23,6 +23,7 @@ import type { SessionData } from "../lib/session";
 import { requireSession } from "../lib/http-session";
 import { childLogger } from "../lib/logger";
 import { auditLog, requestContext } from "../lib/audit";
+import { resolveUiLocale, uiError } from "../lib/ui-locale";
 
 const log = childLogger("admin");
 
@@ -33,10 +34,11 @@ type GuardResult =
   | { ok: false; status: 401 | 403; error: string };
 
 async function requireInternalAdmin(c: Context): Promise<GuardResult> {
+  const locale = resolveUiLocale(c);
   const session = await requireSession(c);
-  if (!session) return { ok: false, status: 401, error: "Ej inloggad" };
+  if (!session) return { ok: false, status: 401, error: uiError(locale, "notLoggedIn") };
   if (session.role !== "INTERNAL_ADMIN") {
-    return { ok: false, status: 403, error: "Behörighet saknas" };
+    return { ok: false, status: 403, error: uiError(locale, "permissionDenied") };
   }
   return { ok: true, session };
 }
@@ -125,7 +127,7 @@ admin.get("/audit-log", async (c) => {
     });
   } catch (err) {
     log.error({ err }, "audit-log list failed");
-    return c.json({ error: "Kunde inte hämta audit-log" }, 500);
+    return c.json({ error: uiError(resolveUiLocale(c), "couldNotFetchAuditLog") }, 500);
   }
 });
 
@@ -156,7 +158,7 @@ admin.get("/audit-log/actions", async (c) => {
     });
   } catch (err) {
     log.error({ err }, "audit-log actions failed");
-    return c.json({ error: "Kunde inte hämta åtgärds-lista" }, 500);
+    return c.json({ error: uiError(resolveUiLocale(c), "couldNotFetchActionList") }, 500);
   }
 });
 
@@ -221,7 +223,7 @@ admin.get("/organizations/pending", async (c) => {
     return c.json({ organizations: rows });
   } catch (err) {
     log.error({ err }, "pending organizations failed");
-    return c.json({ error: "Kunde inte hämta föreningar att granska" }, 500);
+    return c.json({ error: uiError(resolveUiLocale(c), "couldNotFetchOrgsToReview") }, 500);
   }
 });
 
@@ -229,9 +231,10 @@ admin.post("/organizations/:orgId/approve", async (c) => {
   const guard = await requireInternalAdmin(c);
   if (!guard.ok) return c.json({ error: guard.error }, guard.status);
 
+  const locale = resolveUiLocale(c);
   const orgId = c.req.param("orgId");
   if (!/^[0-9a-f-]{36}$/i.test(orgId)) {
-    return c.json({ error: "Ogiltigt organisations-id." }, 400);
+    return c.json({ error: uiError(locale, "invalidOrgId") }, 400);
   }
 
   let body: { approved?: boolean } = {};
@@ -255,7 +258,7 @@ admin.post("/organizations/:orgId/approve", async (c) => {
       .returning();
 
     if (!updated) {
-      return c.json({ error: "Föreningen hittades inte." }, 404);
+      return c.json({ error: uiError(locale, "associationNotFoundPeriod") }, 404);
     }
 
     void auditLog({
@@ -282,7 +285,7 @@ admin.post("/organizations/:orgId/approve", async (c) => {
     });
   } catch (err) {
     log.error({ err, orgId }, "organization approval failed");
-    return c.json({ error: "Kunde inte uppdatera föreningen" }, 500);
+    return c.json({ error: uiError(locale, "couldNotUpdateAssociation") }, 500);
   }
 });
 

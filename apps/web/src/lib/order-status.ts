@@ -8,16 +8,12 @@
  * customerOrderStatusEnum i packages/db.
  */
 
+import type { Locale } from "@/i18n/config";
+import { fundraisingPages } from "@/i18n/dictionaries/fundraising-pages";
+
+/** @deprecated Prefer orderStatusLabel(status, locale). Kept for SV defaults. */
 export const ORDER_STATUS_LABELS: Record<string, string> = {
-  DRAFT: "Utkast",
-  PENDING: "Väntar på betalning",
-  PAID: "Betald",
-  CONFIRMED: "Bekräftad",
-  SHIPPED: "Skickad",
-  DELIVERED: "Levererad",
-  CANCELLED: "Avbruten",
-  REFUNDED: "Återbetald",
-  FAILED: "Misslyckad",
+  ...fundraisingPages.orderStatus.sv,
 };
 
 export const ORDER_STATUS_COLORS: Record<string, string> = {
@@ -32,9 +28,13 @@ export const ORDER_STATUS_COLORS: Record<string, string> = {
   FAILED: "bg-destructive/10 text-destructive border-destructive/30",
 };
 
-export function orderStatusLabel(status: string | null | undefined): string {
+export function orderStatusLabel(
+  status: string | null | undefined,
+  locale: Locale = "sv"
+): string {
   if (!status) return "—";
-  return ORDER_STATUS_LABELS[status] ?? status;
+  const labels = fundraisingPages.orderStatus[locale] as Record<string, string>;
+  return labels[status] ?? status;
 }
 
 export function orderStatusColor(status: string | null | undefined): string {

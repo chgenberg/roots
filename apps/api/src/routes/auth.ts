@@ -30,6 +30,7 @@ import {
   deletionCancelledEmail,
   passwordResetEmail,
   guardianConsentNoticeEmail,
+  withLocalePath,
 } from "../lib/email/templates";
 import {
   issueDeletionCancelToken,
@@ -67,6 +68,11 @@ import {
   GUARDIAN_CONSENT_AGE,
   GUARDIAN_CONSENT_VERSION,
 } from "@roots/contracts";
+import {
+  resolveUiLocale,
+  uiError,
+  type UiLocale,
+} from "../lib/ui-locale";
 import { childLogger } from "../lib/logger";
 import { auditLog, requestContext } from "../lib/audit";
 import { scheduleOrgNormalize } from "../lib/jobs/schedule-org-normalize";
@@ -113,17 +119,20 @@ const ARGON2_OPTIONS = {
 
 // P3.16 (audit 2026-05-26): registration endpoints accepted arbitrarily
 // weak passwords. Strategy doc + change-password lean toward ≥12 chars.
-// Returns null on success, error message otherwise.
+// Returns null on success, localised error message otherwise.
 const MIN_PASSWORD_LENGTH = 12;
 const MAX_PASSWORD_LENGTH = 128;
-export function validatePassword(pw: unknown): string | null {
-  if (typeof pw !== "string") return "Lösenord saknas.";
+export function validatePassword(
+  pw: unknown,
+  locale: UiLocale = "sv"
+): string | null {
+  if (typeof pw !== "string") return uiError(locale, "passwordMissing");
   const trimmed = pw;
   if (trimmed.length < MIN_PASSWORD_LENGTH) {
-    return `Lösenordet måste vara minst ${MIN_PASSWORD_LENGTH} tecken.`;
+    return uiError(locale, "passwordTooShort");
   }
   if (trimmed.length > MAX_PASSWORD_LENGTH) {
-    return "Lösenordet är för långt (max 128 tecken).";
+    return uiError(locale, "passwordTooLong");
   }
   return null;
 }
@@ -210,7 +219,10 @@ async function completeLogin(c: Context, user: typeof users.$inferSelect) {
     sessionId = await createSession(sessionData);
   } catch (err) {
     log.error({ err, userId: user.id }, "createSession failed during DB login");
-    return c.json({ error: "Sessionshantering otillgänglig." }, 503);
+    return c.json(
+      { error: uiError(resolveUiLocale(c), "sessionUnavailable") },
+      503
+    );
   }
   setCookie(c, SESSION_COOKIE_NAME, sessionId, SESSION_COOKIE_OPTIONS);
 
@@ -244,15 +256,17 @@ async function completeLogin(c: Context, user: typeof users.$inferSelect) {
 }
 
 auth.post("/login", async (c) => {
-  let body: { email: string; password: string };
+  let body: { email: string; password: string; locale?: string };
   try {
-    body = await c.req.json<{ email: string; password: string }>();
+    body = await c.req.json<{ email: string; password: string; locale?: string }>();
   } catch {
-    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+    return c.json({ error: uiError(resolveUiLocale(c), "invalidJson") }, 400);
   }
 
+  const locale = resolveUiLocale(c, body.locale);
+
   if (!body.email || !body.password) {
-    return c.json({ error: "E-post och lösenord krävs." }, 400);
+    return c.json({ error: uiError(locale, "emailPasswordRequired") }, 400);
   }
 
   const email = body.email.toLowerCase().trim();
@@ -263,7 +277,7 @@ auth.post("/login", async (c) => {
   const rl = await loginRateLimit(ip, email);
   if (!rl.allowed) {
     return c.json(
-      { error: "För många inloggningsförsök. Försök igen senare." },
+      { error: uiError(locale, "loginRateLimited") },
       429
     );
   }
@@ -292,7 +306,7 @@ auth.post("/login", async (c) => {
           action: "auth.login.failed",
           meta: { ...requestContext((n) => c.req.header(n)), reason: "deleted_account" },
         });
-        return c.json({ error: "Felaktig e-post eller lösenord." }, 401);
+        return c.json({ error: uiError(locale, "badCredentials") }, 401);
       }
 
       const valid = await verify(user.passwordHash, password);
@@ -302,7 +316,7 @@ auth.post("/login", async (c) => {
           action: "auth.login.failed",
           meta: { ...requestContext((n) => c.req.header(n)), reason: "bad_password" },
         });
-        return c.json({ error: "Felaktig e-post eller lösenord." }, 401);
+        return c.json({ error: uiError(locale, "badCredentials") }, 401);
       }
 
       // Andra faktorn. Sessionen får inte skapas här — då hade lösenordet
@@ -334,7 +348,7 @@ auth.post("/login", async (c) => {
       "DB user lookup failed during login"
     );
     if (IS_PRODUCTION) {
-      return c.json({ error: "Inloggning är tillfälligt otillgänglig." }, 503);
+      return c.json({ error: uiError(locale, "loginUnavailable") }, 503);
     }
     log.warn("faller tillbaka på demo-konton (icke-produktion)");
   }
@@ -359,7 +373,7 @@ auth.post("/login", async (c) => {
       const sessionId = await createSession(sessionData);
       setCookie(c, SESSION_COOKIE_NAME, sessionId, SESSION_COOKIE_OPTIONS);
     } catch {
-      return c.json({ error: "Sessionshantering otillgänglig." }, 503);
+      return c.json({ error: uiError(locale, "sessionUnavailable") }, 503);
     }
 
     return c.json({
@@ -368,7 +382,7 @@ auth.post("/login", async (c) => {
     });
   }
 
-  return c.json({ error: "Felaktig e-post eller lösenord." }, 401);
+  return c.json({ error: uiError(locale, "badCredentials") }, 401);
 });
 
 /**
@@ -381,23 +395,25 @@ auth.post("/login", async (c) => {
  * som en session om den läcker.
  */
 auth.post("/login/mfa", async (c) => {
-  let body: { challenge?: string; code?: string };
+  let body: { challenge?: string; code?: string; locale?: string };
   try {
     body = await c.req.json();
   } catch {
-    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+    return c.json({ error: uiError(resolveUiLocale(c), "invalidJson") }, 400);
   }
+
+  const locale = resolveUiLocale(c, body.locale);
 
   const userId = verifyMfaChallenge(body.challenge);
   if (!userId) {
     return c.json(
-      { error: "Inloggningen har gått ut. Börja om från början." },
+      { error: uiError(locale, "loginExpired") },
       401
     );
   }
 
   const code = (body.code ?? "").trim();
-  if (!code) return c.json({ error: "Ange koden från din app." }, 400);
+  if (!code) return c.json({ error: uiError(locale, "enterAppCode") }, 400);
 
   // Sex siffror är gissningsbart i tillräckligt många försök, så det här är
   // den enda spärren som gör andra faktorn värd något.
@@ -411,7 +427,7 @@ auth.post("/login/mfa", async (c) => {
       meta: requestContext((n) => c.req.header(n)),
     });
     return c.json(
-      { error: "För många försök. Vänta en stund och försök igen." },
+      { error: uiError(locale, "rateLimitedShort") },
       429
     );
   }
@@ -421,11 +437,11 @@ auth.post("/login/mfa", async (c) => {
     [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
   } catch (err) {
     log.error({ err, userId }, "DB lookup failed during MFA verification");
-    return c.json({ error: "Inloggning är tillfälligt otillgänglig." }, 503);
+    return c.json({ error: uiError(locale, "loginUnavailable") }, 503);
   }
 
   if (!user || user.deletedAt || !user.mfaEnabledAt || !user.mfaSecret) {
-    return c.json({ error: "Tvåfaktor är inte aktiverad för kontot." }, 400);
+    return c.json({ error: uiError(locale, "mfaNotEnabled") }, 400);
   }
 
   if (verifyMfaToken(user.mfaSecret, code)) {
@@ -443,7 +459,7 @@ auth.post("/login/mfa", async (c) => {
         .where(eq(users.id, user.id));
     } catch (err) {
       log.error({ err, userId }, "failed to consume MFA backup code");
-      return c.json({ error: "Inloggning är tillfälligt otillgänglig." }, 503);
+      return c.json({ error: uiError(locale, "loginUnavailable") }, 503);
     }
     void auditLog({
       userId: user.id,
@@ -461,7 +477,7 @@ auth.post("/login/mfa", async (c) => {
     action: "auth.login.mfa_failed",
     meta: requestContext((n) => c.req.header(n)),
   });
-  return c.json({ error: "Koden stämmer inte. Försök igen." }, 401);
+  return c.json({ error: uiError(locale, "mfaInvalid") }, 401);
 });
 
 /**
@@ -470,12 +486,13 @@ auth.post("/login/mfa", async (c) => {
  *   GET /v1/auth/mfa
  */
 auth.get("/mfa", async (c) => {
+  const locale = resolveUiLocale(c);
   const session = await getSession(
     (c.req.header("cookie") || "").match(
       new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`)
     )?.[1] ?? ""
   );
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
   if (isDemoSession(session)) {
     return c.json({
       enabled: false,
@@ -490,7 +507,7 @@ auth.get("/mfa", async (c) => {
     .from(users)
     .where(eq(users.id, session.userId))
     .limit(1);
-  if (!user) return c.json({ error: "Användare hittades inte" }, 404);
+  if (!user) return c.json({ error: uiError(locale, "userNotFound") }, 404);
 
   return c.json({
     enabled: !!user.mfaEnabledAt,
@@ -516,24 +533,30 @@ auth.post("/mfa/setup", async (c) => {
       new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`)
     )?.[1] ?? "";
   const session = await getSession(currentSessionId);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  if (!session) {
+    return c.json({ error: uiError(resolveUiLocale(c), "notLoggedIn") }, 401);
+  }
   if (isDemoSession(session)) {
-    return c.json({ error: "Demoläget kan inte ändra tvåfaktor." }, 403);
+    return c.json(
+      { error: uiError(resolveUiLocale(c), "demoCannotChangeMfa") },
+      403
+    );
   }
 
-  let body: { password?: string; code?: string };
+  let body: { password?: string; code?: string; locale?: string };
   try {
     body = await c.req.json();
   } catch {
-    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+    return c.json({ error: uiError(resolveUiLocale(c), "invalidJson") }, 400);
   }
+  const locale = resolveUiLocale(c, body.locale);
   if (!body.password) {
-    return c.json({ error: "Ange ditt lösenord." }, 400);
+    return c.json({ error: uiError(locale, "enterYourPassword") }, 400);
   }
 
   const rl = await changePasswordRateLimit(session.userId);
   if (!rl.allowed) {
-    return c.json({ error: "För många försök. Försök igen senare." }, 429);
+    return c.json({ error: uiError(locale, "rateLimited") }, 429);
   }
 
   const [user] = await db
@@ -541,7 +564,7 @@ auth.post("/mfa/setup", async (c) => {
     .from(users)
     .where(eq(users.id, session.userId))
     .limit(1);
-  if (!user) return c.json({ error: "Användare hittades inte" }, 404);
+  if (!user) return c.json({ error: uiError(locale, "userNotFound") }, 404);
 
   if (!(await verify(user.passwordHash, body.password.trim()))) {
     void auditLog({
@@ -549,7 +572,7 @@ auth.post("/mfa/setup", async (c) => {
       action: "auth.mfa.setup_bad_password",
       meta: requestContext((n) => c.req.header(n)),
     });
-    return c.json({ error: "Fel lösenord." }, 401);
+    return c.json({ error: uiError(locale, "wrongPassword") }, 401);
   }
 
   // Byta till en ny app på ett konto som redan har tvåfaktor kräver båda
@@ -578,8 +601,8 @@ auth.post("/mfa/setup", async (c) => {
       return c.json(
         {
           error: code
-            ? "Koden stämmer inte."
-            : "Ange en kod från din nuvarande app för att byta till en ny.",
+            ? uiError(locale, "mfaCodeIncorrect")
+            : uiError(locale, "mfaRebindNeedsCode"),
         },
         401
       );
@@ -648,23 +671,29 @@ auth.post("/mfa/enable", async (c) => {
       new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`)
     )?.[1] ?? "";
   const session = await getSession(currentSessionId);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  if (!session) {
+    return c.json({ error: uiError(resolveUiLocale(c), "notLoggedIn") }, 401);
+  }
   if (isDemoSession(session)) {
-    return c.json({ error: "Demoläget kan inte ändra tvåfaktor." }, 403);
+    return c.json(
+      { error: uiError(resolveUiLocale(c), "demoCannotChangeMfa") },
+      403
+    );
   }
 
-  let body: { code?: string };
+  let body: { code?: string; locale?: string };
   try {
     body = await c.req.json();
   } catch {
-    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+    return c.json({ error: uiError(resolveUiLocale(c), "invalidJson") }, 400);
   }
+  const locale = resolveUiLocale(c, body.locale);
 
   const ip =
     c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
   const rl = await mfaAttemptRateLimit(ip, session.userId);
   if (!rl.allowed) {
-    return c.json({ error: "För många försök. Vänta en stund." }, 429);
+    return c.json({ error: uiError(locale, "rateLimitedWait") }, 429);
   }
 
   const [user] = await db
@@ -672,15 +701,15 @@ auth.post("/mfa/enable", async (c) => {
     .from(users)
     .where(eq(users.id, session.userId))
     .limit(1);
-  if (!user) return c.json({ error: "Användare hittades inte" }, 404);
+  if (!user) return c.json({ error: uiError(locale, "userNotFound") }, 404);
   if (!user.mfaSecret) {
-    return c.json({ error: "Börja med att skanna QR-koden." }, 400);
+    return c.json({ error: uiError(locale, "mfaScanQrFirst") }, 400);
   }
   if (user.mfaEnabledAt) {
-    return c.json({ error: "Tvåfaktor är redan aktiverad." }, 400);
+    return c.json({ error: uiError(locale, "mfaAlreadyEnabled") }, 400);
   }
   if (!verifyMfaToken(user.mfaSecret, (body.code ?? "").trim())) {
-    return c.json({ error: "Koden stämmer inte. Försök igen." }, 401);
+    return c.json({ error: uiError(locale, "mfaInvalid") }, 401);
   }
 
   const codes = generateBackupCodes();
@@ -741,23 +770,29 @@ auth.post("/mfa/disable", async (c) => {
       new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`)
     )?.[1] ?? ""
   );
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  if (!session) {
+    return c.json({ error: uiError(resolveUiLocale(c), "notLoggedIn") }, 401);
+  }
   if (isDemoSession(session)) {
-    return c.json({ error: "Demoläget kan inte ändra tvåfaktor." }, 403);
+    return c.json(
+      { error: uiError(resolveUiLocale(c), "demoCannotChangeMfa") },
+      403
+    );
   }
 
-  let body: { password?: string; code?: string };
+  let body: { password?: string; code?: string; locale?: string };
   try {
     body = await c.req.json();
   } catch {
-    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+    return c.json({ error: uiError(resolveUiLocale(c), "invalidJson") }, 400);
   }
+  const locale = resolveUiLocale(c, body.locale);
 
   const ip =
     c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
   const rl = await mfaAttemptRateLimit(ip, session.userId);
   if (!rl.allowed) {
-    return c.json({ error: "För många försök. Vänta en stund." }, 429);
+    return c.json({ error: uiError(locale, "rateLimitedWait") }, 429);
   }
 
   const [user] = await db
@@ -765,32 +800,25 @@ auth.post("/mfa/disable", async (c) => {
     .from(users)
     .where(eq(users.id, session.userId))
     .limit(1);
-  if (!user) return c.json({ error: "Användare hittades inte" }, 404);
+  if (!user) return c.json({ error: uiError(locale, "userNotFound") }, 404);
   if (!user.mfaEnabledAt || !user.mfaSecret) {
-    return c.json({ error: "Tvåfaktor är inte aktiverad." }, 400);
+    return c.json({ error: uiError(locale, "mfaNotEnabledShort") }, 400);
   }
   if (!body.password || !(await verify(user.passwordHash, body.password.trim()))) {
-    return c.json({ error: "Fel lösenord." }, 401);
+    return c.json({ error: uiError(locale, "wrongPassword") }, 401);
   }
   const code = (body.code ?? "").trim();
   const validCode =
     verifyMfaToken(user.mfaSecret, code) ||
     consumeBackupCode(user.mfaBackupCodes, code).ok;
   if (!validCode) {
-    return c.json({ error: "Koden stämmer inte." }, 401);
+    return c.json({ error: uiError(locale, "mfaCodeIncorrect") }, 401);
   }
 
   // Rollen kräver MFA: att stänga av den skulle bara flytta kontot till
   // "måste registrera igen", vilket är mer förvirrande än att neka.
   if (mfaRequiredForRole(user.role)) {
-    return c.json(
-      {
-        error:
-          "Din roll kräver tvåfaktor. Byt till en ny app istället — det gör " +
-          "du under Tvåfaktor i portalen, med lösenord och en kod härifrån.",
-      },
-      400
-    );
+    return c.json({ error: uiError(locale, "mfaRoleRequires") }, 400);
   }
 
   await db
@@ -850,16 +878,20 @@ auth.post("/logout", async (c) => {
 auth.post("/change-password", async (c) => {
   const cookie = c.req.header("cookie") || "";
   const match = cookie.match(new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`));
-  if (!match) return c.json({ error: "Ej inloggad" }, 401);
+  if (!match) {
+    return c.json({ error: uiError(resolveUiLocale(c), "notLoggedIn") }, 401);
+  }
 
   const currentSessionId = match[1];
   let session: SessionData | null = null;
   try {
     session = await getSession(currentSessionId);
   } catch {
-    return c.json({ error: "Ej inloggad" }, 401);
+    return c.json({ error: uiError(resolveUiLocale(c), "notLoggedIn") }, 401);
   }
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  if (!session) {
+    return c.json({ error: uiError(resolveUiLocale(c), "notLoggedIn") }, 401);
+  }
 
   // Demo sessions don't have a DB row — their password lives in code,
   // so we can't rotate it. Reject explicitly so the UI can show a
@@ -868,40 +900,39 @@ auth.post("/change-password", async (c) => {
   // täcker DB-seedade demo-konton (P3.28), inte bara in-memory.
   if (!session.userId || isDemoSession(session)) {
     return c.json(
-      { error: "Demo-konton kan inte byta lösenord. Skapa ett riktigt konto." },
+      { error: uiError(resolveUiLocale(c), "demoCannotChangePassword") },
       400
     );
   }
 
-  type Body = { currentPassword?: string; newPassword?: string };
+  type Body = {
+    currentPassword?: string;
+    newPassword?: string;
+    locale?: string;
+  };
   let body: Body;
   try {
     body = await c.req.json<Body>();
   } catch {
-    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+    return c.json({ error: uiError(resolveUiLocale(c), "invalidJson") }, 400);
   }
+  const locale = resolveUiLocale(c, body.locale);
 
   const current = (body.currentPassword ?? "").trim();
   const next = (body.newPassword ?? "").trim();
 
   if (!current || !next) {
-    return c.json({ error: "Båda fälten krävs." }, 400);
+    return c.json({ error: uiError(locale, "bothFieldsRequired") }, 400);
   }
 
   const chpwRl = await changePasswordRateLimit(session.userId);
   if (!chpwRl.allowed) {
-    return c.json(
-      { error: "För många försök. Försök igen om en stund." },
-      429
-    );
+    return c.json({ error: uiError(locale, "rateLimitedShort") }, 429);
   }
-  const pwErr = validatePassword(next);
+  const pwErr = validatePassword(next, locale);
   if (pwErr) return c.json({ error: pwErr }, 400);
   if (next === current) {
-    return c.json(
-      { error: "Nytt lösenord får inte vara samma som det gamla." },
-      400
-    );
+    return c.json({ error: uiError(locale, "passwordSameAsOld") }, 400);
   }
 
   try {
@@ -910,7 +941,7 @@ auth.post("/change-password", async (c) => {
       .from(users)
       .where(eq(users.id, session.userId))
       .limit(1);
-    if (!user) return c.json({ error: "Ej inloggad" }, 401);
+    if (!user) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
 
     // verify() throws if the stored hash isn't a valid argon2 string.
     // Invited members have a `invite-pending-…`-prefixed sentinel that
@@ -920,10 +951,7 @@ auth.post("/change-password", async (c) => {
     try {
       valid = await verify(user.passwordHash, current);
     } catch {
-      return c.json(
-        { error: "Lösenordet kan inte verifieras för det här kontot." },
-        400
-      );
+      return c.json({ error: uiError(locale, "passwordCannotVerify") }, 400);
     }
     if (!valid) {
       void auditLog({
@@ -931,7 +959,7 @@ auth.post("/change-password", async (c) => {
         action: "auth.change_password.failed",
         meta: { ...requestContext((n) => c.req.header(n)), reason: "bad_current" },
       });
-      return c.json({ error: "Fel nuvarande lösenord." }, 401);
+      return c.json({ error: uiError(locale, "wrongCurrentPassword") }, 401);
     }
 
     const newHash = await hash(next, ARGON2_OPTIONS);
@@ -962,7 +990,7 @@ auth.post("/change-password", async (c) => {
     return c.json({ ok: true, revokedOtherSessions: revokedCount });
   } catch (err) {
     log.error({ err, userId: session.userId }, "change-password failed");
-    return c.json({ error: "Kunde inte byta lösenord just nu." }, 500);
+    return c.json({ error: uiError(locale, "changePasswordFailed") }, 500);
   }
 });
 
@@ -980,26 +1008,24 @@ const SITE_BASE_URL =
   process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || "https://roots.se";
 
 auth.post("/forgot-password", async (c) => {
-  let body: { email?: string };
+  let body: { email?: string; locale?: string };
   try {
-    body = await c.req.json<{ email?: string }>();
+    body = await c.req.json<{ email?: string; locale?: string }>();
   } catch {
-    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+    return c.json({ error: uiError(resolveUiLocale(c), "invalidJson") }, 400);
   }
+  const locale = resolveUiLocale(c, body.locale);
 
   const email = (body.email ?? "").toLowerCase().trim();
   if (!email || !email.includes("@")) {
-    return c.json({ error: "Ange en giltig e-postadress." }, 400);
+    return c.json({ error: uiError(locale, "enterValidEmail") }, 400);
   }
 
   const ip =
     c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
   const rl = await passwordResetRequestRateLimit(ip, email);
   if (!rl.allowed) {
-    return c.json(
-      { error: "För många försök. Försök igen om en stund." },
-      429
-    );
+    return c.json({ error: uiError(locale, "rateLimitedShort") }, 429);
   }
 
   const genericOk = { ok: true } as const;
@@ -1020,7 +1046,7 @@ auth.post("/forgot-password", async (c) => {
     }
 
     const token = issuePasswordResetToken(user.id, user.passwordHash);
-    const resetUrl = `${SITE_BASE_URL}/aterstall-losenord?token=${encodeURIComponent(token)}`;
+    const resetUrl = `${SITE_BASE_URL}${withLocalePath("/aterstall-losenord", locale)}?token=${encodeURIComponent(token)}`;
 
     void auditLog({
       userId: user.id,
@@ -1033,9 +1059,12 @@ auth.post("/forgot-password", async (c) => {
         to: user.email,
         ...passwordResetEmail({
           name:
-            user.contactName?.split(" ")[0] || user.email.split("@")[0] || "där",
+            user.contactName?.split(" ")[0] ||
+            user.email.split("@")[0] ||
+            (locale === "en" ? "there" : "där"),
           resetUrl,
           expiresInMinutes: Math.round(PASSWORD_RESET_TTL_S / 60),
+          locale,
         }),
       })
       .catch((err) =>
@@ -1050,29 +1079,33 @@ auth.post("/forgot-password", async (c) => {
 });
 
 auth.post("/reset-password", async (c) => {
-  let body: { token?: string; newPassword?: string };
+  let body: { token?: string; newPassword?: string; locale?: string };
   try {
-    body = await c.req.json<{ token?: string; newPassword?: string }>();
+    body = await c.req.json<{
+      token?: string;
+      newPassword?: string;
+      locale?: string;
+    }>();
   } catch {
-    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+    return c.json({ error: uiError(resolveUiLocale(c), "invalidJson") }, 400);
   }
+  const locale = resolveUiLocale(c, body.locale);
 
   const ip =
     c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
   const rl = await passwordResetConfirmRateLimit(ip);
   if (!rl.allowed) {
-    return c.json(
-      { error: "För många försök. Försök igen om en stund." },
-      429
-    );
+    return c.json({ error: uiError(locale, "rateLimitedShort") }, 429);
   }
 
   const newPassword = (body.newPassword ?? "").trim();
-  const pwErr = validatePassword(newPassword);
+  const pwErr = validatePassword(newPassword, locale);
   if (pwErr) return c.json({ error: pwErr }, 400);
 
   const parsed = parsePasswordResetToken(body.token);
-  const invalid = { error: "Länken är ogiltig eller har gått ut." } as const;
+  const invalid = {
+    error: uiError(locale, "linkInvalidOrExpired"),
+  } as const;
   if (!parsed) return c.json(invalid, 400);
 
   try {
@@ -1124,7 +1157,7 @@ auth.post("/reset-password", async (c) => {
     return c.json({ ok: true });
   } catch (err) {
     log.error({ err }, "reset-password failed");
-    return c.json({ error: "Kunde inte återställa lösenordet just nu." }, 500);
+    return c.json({ error: uiError(locale, "resetPasswordFailed") }, 500);
   }
 });
 
@@ -1146,22 +1179,26 @@ const DELETION_COOLDOWN_MS = DELETION_COOLDOWN_DAYS * 24 * 60 * 60 * 1000;
 auth.post("/delete-account", async (c) => {
   const cookie = c.req.header("cookie") || "";
   const match = cookie.match(new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`));
-  if (!match) return c.json({ error: "Ej inloggad" }, 401);
+  if (!match) {
+    return c.json({ error: uiError(resolveUiLocale(c), "notLoggedIn") }, 401);
+  }
 
   const currentSessionId = match[1];
   let session: SessionData | null = null;
   try {
     session = await getSession(currentSessionId);
   } catch {
-    return c.json({ error: "Ej inloggad" }, 401);
+    return c.json({ error: uiError(resolveUiLocale(c), "notLoggedIn") }, 401);
   }
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  if (!session) {
+    return c.json({ error: uiError(resolveUiLocale(c), "notLoggedIn") }, 401);
+  }
 
   // Demo-sessions har ingen DB-rad; ingen att radera.
   // Pre-push fix 2026-05-26: täck även DB-seedade demo-konton (P3.28).
   if (!session.userId || isDemoSession(session)) {
     return c.json(
-      { error: "Demo-konton kan inte raderas — de saknar persistent data." },
+      { error: uiError(resolveUiLocale(c), "demoCannotDelete") },
       400
     );
   }
@@ -1174,30 +1211,32 @@ auth.post("/delete-account", async (c) => {
   if (!rl.allowed) {
     c.header("Retry-After", String(rl.resetInSeconds));
     return c.json(
-      { error: "För många försök. Försök igen om en stund." },
+      { error: uiError(resolveUiLocale(c), "rateLimitedShort") },
       429
     );
   }
 
-  type Body = { password?: string; confirm?: string };
+  type Body = { password?: string; confirm?: string; locale?: string };
   let body: Body;
   try {
     body = await c.req.json<Body>();
   } catch {
-    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+    return c.json({ error: uiError(resolveUiLocale(c), "invalidJson") }, 400);
   }
+  const locale = resolveUiLocale(c, body.locale);
 
   const password = (body.password ?? "").trim();
   // Klient skickar "RADERA" som extra friction-step — minskar risken
   // för 1-click-deletion när användaren testar UI:t.
   const confirm = (body.confirm ?? "").trim();
 
-  if (!password) return c.json({ error: "Lösenord krävs." }, 400);
-  if (confirm !== "RADERA") {
-    return c.json(
-      { error: 'Bekräftelse-fältet måste innehålla ordet "RADERA".' },
-      400
-    );
+  if (!password) {
+    return c.json({ error: uiError(locale, "passwordRequired") }, 400);
+  }
+  // EN UI asks for DELETE; SV UI asks for RADERA — accept both.
+  const confirmNorm = String(confirm ?? "").trim().toUpperCase();
+  if (confirmNorm !== "RADERA" && confirmNorm !== "DELETE") {
+    return c.json({ error: uiError(locale, "confirmDeleteWord") }, 400);
   }
 
   try {
@@ -1206,7 +1245,7 @@ auth.post("/delete-account", async (c) => {
       .from(users)
       .where(eq(users.id, session.userId))
       .limit(1);
-    if (!user) return c.json({ error: "Ej inloggad" }, 401);
+    if (!user) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
 
     // Redan begärt: returnera idempotent OK med scheduledAt. Användaren
     // ska inte få ett 409 som ser ut som en bugg.
@@ -1220,17 +1259,14 @@ auth.post("/delete-account", async (c) => {
 
     // Redan raderat: 410 Gone.
     if (user.deletedAt) {
-      return c.json({ error: "Kontot är redan raderat." }, 410);
+      return c.json({ error: uiError(locale, "accountAlreadyDeleted") }, 410);
     }
 
     let valid: boolean;
     try {
       valid = await verify(user.passwordHash, password);
     } catch {
-      return c.json(
-        { error: "Lösenordet kan inte verifieras för det här kontot." },
-        400
-      );
+      return c.json({ error: uiError(locale, "passwordCannotVerify") }, 400);
     }
     if (!valid) {
       void auditLog({
@@ -1241,7 +1277,7 @@ auth.post("/delete-account", async (c) => {
           reason: "bad_password",
         },
       });
-      return c.json({ error: "Fel lösenord." }, 401);
+      return c.json({ error: uiError(locale, "wrongPassword") }, 401);
     }
 
     const now = new Date();
@@ -1286,16 +1322,17 @@ auth.post("/delete-account", async (c) => {
           process.env.NEXT_PUBLIC_SITE_URL ||
           process.env.SITE_URL ||
           "https://roots.se";
-        const cancelUrl = `${siteUrl}/konto/avbryt-radering?token=${encodeURIComponent(token)}`;
+        const cancelUrl = `${siteUrl}${withLocalePath("/konto/avbryt-radering", locale)}?token=${encodeURIComponent(token)}`;
         await getEmailSender().sendEmail({
           to: user.email,
           ...deletionRequestEmail({
             name:
               user.contactName?.split(" ")[0] ||
               user.email.split("@")[0] ||
-              "där",
+              (locale === "en" ? "there" : "där"),
             scheduledDeletionAt: scheduledAt,
             cancelUrl,
+            locale,
           }),
         });
       } catch (err) {
@@ -1310,7 +1347,7 @@ auth.post("/delete-account", async (c) => {
     });
   } catch (err) {
     log.error({ err, userId: session.userId }, "delete-account failed");
-    return c.json({ error: "Kunde inte registrera begäran just nu." }, 500);
+    return c.json({ error: uiError(locale, "deletionRequestFailed") }, 500);
   }
 });
 
@@ -1370,18 +1407,19 @@ auth.post("/cancel-deletion", async (c) => {
   if (!rl.allowed) {
     c.header("Retry-After", String(rl.resetInSeconds));
     return c.json(
-      { error: "För många försök. Vänta några minuter och försök igen." },
+      { error: uiError(resolveUiLocale(c), "rateLimitedWaitMinutes") },
       429
     );
   }
 
-  type Body = { token?: string };
+  type Body = { token?: string; locale?: string };
   let body: Body = {};
   try {
     body = await c.req.json<Body>();
   } catch {
     // OK — tom body är giltigt när man försöker via session.
   }
+  const locale = resolveUiLocale(c, body.locale);
 
   let targetUserId: string | null = null;
   let viaToken = false;
@@ -1389,24 +1427,30 @@ auth.post("/cancel-deletion", async (c) => {
   if (body.token) {
     const verified = verifyDeletionCancelToken(body.token);
     if (!verified) {
-      return c.json({ error: "Ogiltig eller utgången länk." }, 400);
+      return c.json({ error: uiError(locale, "invalidOrExpiredLink") }, 400);
     }
     targetUserId = verified.userId;
     viaToken = true;
   } else {
     const cookie = c.req.header("cookie") || "";
     const match = cookie.match(new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`));
-    if (!match) return c.json({ error: "Ej inloggad." }, 401);
+    if (!match) {
+      return c.json({ error: uiError(locale, "notLoggedInPeriod") }, 401);
+    }
     try {
       const session = await getSession(match[1]);
-      if (!session?.userId) return c.json({ error: "Ej inloggad." }, 401);
+      if (!session?.userId) {
+        return c.json({ error: uiError(locale, "notLoggedInPeriod") }, 401);
+      }
       targetUserId = session.userId;
     } catch {
-      return c.json({ error: "Ej inloggad." }, 401);
+      return c.json({ error: uiError(locale, "notLoggedInPeriod") }, 401);
     }
   }
 
-  if (!targetUserId) return c.json({ error: "Ej inloggad." }, 401);
+  if (!targetUserId) {
+    return c.json({ error: uiError(locale, "notLoggedInPeriod") }, 401);
+  }
 
   try {
     const [user] = await db
@@ -1414,9 +1458,14 @@ auth.post("/cancel-deletion", async (c) => {
       .from(users)
       .where(eq(users.id, targetUserId))
       .limit(1);
-    if (!user) return c.json({ error: "Användare hittades inte." }, 404);
+    if (!user) {
+      return c.json({ error: uiError(locale, "userNotFoundPeriod") }, 404);
+    }
     if (user.deletedAt) {
-      return c.json({ error: "Kontot är redan raderat och kan inte återställas." }, 410);
+      return c.json(
+        { error: uiError(locale, "accountAlreadyDeletedGone") },
+        410
+      );
     }
     if (!user.scheduledDeletionAt) {
       // Idempotent: redan ångrat / aldrig begärt.
@@ -1449,7 +1498,8 @@ auth.post("/cancel-deletion", async (c) => {
             name:
               user.contactName?.split(" ")[0] ||
               user.email.split("@")[0] ||
-              "där",
+              (locale === "en" ? "there" : "där"),
+            locale,
           }),
         });
       } catch (err) {
@@ -1460,7 +1510,7 @@ auth.post("/cancel-deletion", async (c) => {
     return c.json({ ok: true });
   } catch (err) {
     log.error({ err, userId: targetUserId }, "cancel-deletion failed");
-    return c.json({ error: "Kunde inte avbryta raderingen just nu." }, 500);
+    return c.json({ error: uiError(locale, "cancelDeletionFailed") }, 500);
   }
 });
 
@@ -1553,7 +1603,7 @@ auth.post("/register/association", async (c) => {
   if (!rl.allowed) {
     c.header("Retry-After", String(rl.resetInSeconds));
     return c.json(
-      { error: "För många registreringar från denna IP. Försök igen senare." },
+      { error: uiError(resolveUiLocale(c), "registrationRateLimited") },
       429
     );
   }
@@ -1562,8 +1612,9 @@ auth.post("/register/association", async (c) => {
   try {
     body = await c.req.json();
   } catch {
-    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+    return c.json({ error: uiError(resolveUiLocale(c), "invalidJson") }, 400);
   }
+  const locale = resolveUiLocale(c, body?.locale);
 
   const {
     orgName,
@@ -1580,10 +1631,10 @@ auth.post("/register/association", async (c) => {
   } = body;
 
   if (!orgName || !email || !password || !contactName) {
-    return c.json({ error: "Alla obligatoriska fält måste fyllas i." }, 400);
+    return c.json({ error: uiError(locale, "requiredFieldsMustFill") }, 400);
   }
 
-  const pwErr = validatePassword(password);
+  const pwErr = validatePassword(password, locale);
   if (pwErr) return c.json({ error: pwErr }, 400);
 
   try {
@@ -1594,7 +1645,7 @@ auth.post("/register/association", async (c) => {
       .limit(1);
 
     if (existing) {
-      return c.json({ error: "E-postadressen är redan registrerad." }, 409);
+      return c.json({ error: uiError(locale, "emailAlreadyRegistered") }, 409);
     }
 
     const passwordHash = await hash(password, ARGON2_OPTIONS);
@@ -1655,7 +1706,7 @@ auth.post("/register/association", async (c) => {
     getEmailSender()
       .sendEmail({
         to: user.email,
-        ...welcomeEmail(contactName, "ASSOCIATION_ADMIN"),
+        ...welcomeEmail(contactName, "ASSOCIATION_ADMIN", locale),
       })
       .catch((e) => log.error({ err: e }, "Registration email failed"));
 
@@ -1672,7 +1723,7 @@ auth.post("/register/association", async (c) => {
     });
   } catch (err) {
     log.error({ err }, "Association registration failed");
-    return c.json({ error: "Registreringen misslyckades." }, 500);
+    return c.json({ error: uiError(locale, "registrationFailed") }, 500);
   }
 });
 
@@ -1684,7 +1735,7 @@ auth.post("/register/team-leader", async (c) => {
   if (!rl.allowed) {
     c.header("Retry-After", String(rl.resetInSeconds));
     return c.json(
-      { error: "För många registreringar från denna IP. Försök igen senare." },
+      { error: uiError(resolveUiLocale(c), "registrationRateLimited") },
       429
     );
   }
@@ -1693,8 +1744,9 @@ auth.post("/register/team-leader", async (c) => {
   try {
     body = await c.req.json();
   } catch {
-    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+    return c.json({ error: uiError(resolveUiLocale(c), "invalidJson") }, 400);
   }
+  const locale = resolveUiLocale(c, body?.locale);
 
   const {
     teamName,
@@ -1710,10 +1762,10 @@ auth.post("/register/team-leader", async (c) => {
   } = body;
 
   if (!teamName || !email || !password || !contactName) {
-    return c.json({ error: "Alla obligatoriska fält måste fyllas i." }, 400);
+    return c.json({ error: uiError(locale, "requiredFieldsMustFill") }, 400);
   }
 
-  const pwErr = validatePassword(password);
+  const pwErr = validatePassword(password, locale);
   if (pwErr) return c.json({ error: pwErr }, 400);
 
   // P2.5 (audit 2026-05-26): tidigare lät endpointen vem som helst
@@ -1725,13 +1777,7 @@ auth.post("/register/team-leader", async (c) => {
   // Vi avvisar därför `existingOrgId` här explicit; klienten ska
   // använda invite-flödet i stället.
   if (existingOrgId !== undefined && existingOrgId !== null && existingOrgId !== "") {
-    return c.json(
-      {
-        error:
-          "För att gå med i en befintlig förening, använd ett team-invite från föreningens admin.",
-      },
-      400
-    );
+    return c.json({ error: uiError(locale, "useTeamInvite") }, 400);
   }
 
   try {
@@ -1742,7 +1788,7 @@ auth.post("/register/team-leader", async (c) => {
       .limit(1);
 
     if (existing) {
-      return c.json({ error: "E-postadressen är redan registrerad." }, 409);
+      return c.json({ error: uiError(locale, "emailAlreadyRegistered") }, 409);
     }
 
     const passwordHash = await hash(password, ARGON2_OPTIONS);
@@ -1844,7 +1890,7 @@ auth.post("/register/team-leader", async (c) => {
     getEmailSender()
       .sendEmail({
         to: txResult.user.email,
-        ...welcomeEmail(contactName, "TEAM_LEADER"),
+        ...welcomeEmail(contactName, "TEAM_LEADER", locale),
       })
       .catch((e) => log.error({ err: e }, "Team leader registration email failed"));
 
@@ -1863,7 +1909,7 @@ auth.post("/register/team-leader", async (c) => {
     });
   } catch (err) {
     log.error({ err }, "Team leader registration failed");
-    return c.json({ error: "Registreringen misslyckades." }, 500);
+    return c.json({ error: uiError(locale, "registrationFailed") }, 500);
   }
 });
 
@@ -1877,7 +1923,7 @@ auth.post("/register/seller", async (c) => {
   if (!rl.allowed) {
     c.header("Retry-After", String(rl.resetInSeconds));
     return c.json(
-      { error: "För många registreringar från denna IP. Försök igen senare." },
+      { error: uiError(resolveUiLocale(c), "registrationRateLimited") },
       429
     );
   }
@@ -1886,8 +1932,9 @@ auth.post("/register/seller", async (c) => {
   try {
     body = await c.req.json();
   } catch {
-    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+    return c.json({ error: uiError(resolveUiLocale(c), "invalidJson") }, 400);
   }
+  const locale = resolveUiLocale(c, body?.locale);
 
   const {
     inviteToken,
@@ -1902,10 +1949,10 @@ auth.post("/register/seller", async (c) => {
   } = body;
 
   if (!inviteToken || !email || !password || !displayName) {
-    return c.json({ error: "Alla obligatoriska fält måste fyllas i." }, 400);
+    return c.json({ error: uiError(locale, "requiredFieldsMustFill") }, 400);
   }
 
-  const pwErr = validatePassword(password);
+  const pwErr = validatePassword(password, locale);
   if (pwErr) return c.json({ error: pwErr }, 400);
 
   // Målsmanssamtycke. Kolumnerna har funnits sedan 0001 men samlades aldrig
@@ -1920,7 +1967,7 @@ auth.post("/register/seller", async (c) => {
     parsedBirthYear < currentYear - 100 ||
     parsedBirthYear > currentYear
   ) {
-    return c.json({ error: "Ange ditt födelseår." }, 400);
+    return c.json({ error: uiError(locale, "enterBirthYear") }, 400);
   }
   // Konservativt: vi jämför bara årtal, så den som fyller år senare i år
   // räknas som yngre. Det gör att gränsfallen hamnar på den säkra sidan.
@@ -1936,8 +1983,7 @@ auth.post("/register/seller", async (c) => {
     if (guardianConsent !== true) {
       return c.json(
         {
-          error:
-            "Är du under 18 år måste en vårdnadshavare godkänna att du säljer.",
+          error: uiError(locale, "guardianConsentRequired"),
           requiresGuardianConsent: true,
         },
         400
@@ -1945,7 +1991,10 @@ auth.post("/register/seller", async (c) => {
     }
     if (guardianNameTrimmed.length < 2) {
       return c.json(
-        { error: "Ange vårdnadshavarens namn.", requiresGuardianConsent: true },
+        {
+          error: uiError(locale, "enterGuardianName"),
+          requiresGuardianConsent: true,
+        },
         400
       );
     }
@@ -1955,7 +2004,7 @@ auth.post("/register/seller", async (c) => {
     ) {
       return c.json(
         {
-          error: "Ange vårdnadshavarens e-postadress.",
+          error: uiError(locale, "enterGuardianEmail"),
           requiresGuardianConsent: true,
         },
         400
@@ -1964,8 +2013,7 @@ auth.post("/register/seller", async (c) => {
     if (guardianEmailTrimmed === String(email).toLowerCase().trim()) {
       return c.json(
         {
-          error:
-            "Vårdnadshavarens e-post måste vara en annan än säljarens egen.",
+          error: uiError(locale, "guardianEmailMustDiffer"),
           requiresGuardianConsent: true,
         },
         400
@@ -1981,7 +2029,7 @@ auth.post("/register/seller", async (c) => {
       .limit(1);
 
     if (!team) {
-      return c.json({ error: "Ogiltig inbjudningslänk." }, 404);
+      return c.json({ error: uiError(locale, "invalidInviteLink") }, 404);
     }
 
     // MASTERPLAN_01 KC3.4: token-rotation. Existerande rader har
@@ -1992,19 +2040,13 @@ auth.post("/register/seller", async (c) => {
       team.inviteTokenExpiresAt &&
       team.inviteTokenExpiresAt.getTime() < Date.now()
     ) {
-      return c.json(
-        { error: "Inbjudningslänken har gått ut. Be lagledaren skapa en ny." },
-        410
-      );
+      return c.json({ error: uiError(locale, "inviteLinkExpired") }, 410);
     }
     if (
       team.inviteTokenMaxUses !== null &&
       team.inviteTokenUseCount >= team.inviteTokenMaxUses
     ) {
-      return c.json(
-        { error: "Inbjudningslänken är förbrukad. Be lagledaren skapa en ny." },
-        410
-      );
+      return c.json({ error: uiError(locale, "inviteLinkExhausted") }, 410);
     }
 
     const [existing] = await db
@@ -2014,7 +2056,7 @@ auth.post("/register/seller", async (c) => {
       .limit(1);
 
     if (existing) {
-      return c.json({ error: "E-postadressen är redan registrerad." }, 409);
+      return c.json({ error: uiError(locale, "emailAlreadyRegistered") }, 409);
     }
 
     const passwordHash = await hash(password, ARGON2_OPTIONS);
@@ -2093,10 +2135,7 @@ auth.post("/register/seller", async (c) => {
     }
 
     if (!result.ok) {
-      return c.json(
-        { error: "Inbjudningslänken är förbrukad. Be lagledaren skapa en ny." },
-        410
-      );
+      return c.json({ error: uiError(locale, "inviteLinkExhausted") }, 410);
     }
     const user = result.user;
 
@@ -2128,7 +2167,7 @@ auth.post("/register/seller", async (c) => {
     getEmailSender()
       .sendEmail({
         to: user.email,
-        ...welcomeEmail(displayName, "SELLER"),
+        ...welcomeEmail(displayName, "SELLER", locale),
       })
       .catch((e) => log.error({ err: e }, "Seller registration email failed"));
 
@@ -2143,10 +2182,14 @@ auth.post("/register/seller", async (c) => {
           await getEmailSender().sendEmail({
             to: guardianEmailTrimmed,
             ...guardianConsentNoticeEmail({
-              guardianName: guardianNameTrimmed.split(" ")[0] || "där",
+              guardianName:
+                guardianNameTrimmed.split(" ")[0] ||
+                (locale === "en" ? "there" : "där"),
               sellerName: displayName,
               teamName: team.name,
-              associationName: org?.name ?? "föreningen",
+              associationName:
+                org?.name ?? (locale === "en" ? "the club" : "föreningen"),
+              locale,
             }),
           });
         } catch (err) {
@@ -2167,21 +2210,22 @@ auth.post("/register/seller", async (c) => {
     });
   } catch (err) {
     log.error({ err }, "Seller registration failed");
-    return c.json({ error: "Registreringen misslyckades." }, 500);
+    return c.json({ error: uiError(locale, "registrationFailed") }, 500);
   }
 });
 
 auth.get("/organizations/search", async (c) => {
+  const locale = resolveUiLocale(c);
   const cookie = c.req.header("cookie") || "";
   const match = cookie.match(new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`));
   const sessionId = match ? match[1] : null;
-  if (!sessionId) return c.json({ error: "Ej inloggad" }, 401);
+  if (!sessionId) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
 
   let session: SessionData | null = null;
   try {
     session = await getSession(sessionId);
   } catch {}
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
 
   // P2.6 (audit 2026-05-26): tidigare exponerade endpointen ett
   // cross-tenant-directory över alla organisationer för vilken
@@ -2197,7 +2241,7 @@ auth.get("/organizations/search", async (c) => {
     "TEAM_LEADER",
   ]);
   if (!ALLOWED_ROLES.has(session.role)) {
-    return c.json({ error: "Behörighet saknas" }, 403);
+    return c.json({ error: uiError(locale, "permissionDenied") }, 403);
   }
 
   const query = c.req.query("q") || "";

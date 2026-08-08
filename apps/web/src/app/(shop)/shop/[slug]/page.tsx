@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Image from "next/image";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -22,15 +21,22 @@ import {
 } from "lucide-react";
 
 import { getBrowserApiBase } from "@/lib/api-base";
+import { rootsFetch } from "@/lib/api";
 import { useCart } from "@/lib/use-cart";
 import { BreadcrumbJsonLd, ProductJsonLd } from "@/components/json-ld";
-import { formatKrValue } from "@/lib/format";
+import { LocaleLink } from "@/components/locale-link";
+import { formatKr } from "@/lib/format";
 import {
   productImage,
   byCatalogOrder,
   isBundleSlug,
   BUNDLE_SLUG,
 } from "@/lib/product-catalog";
+import { shop } from "@/i18n/dictionaries/shop";
+import { products, type ProductCopy } from "@/i18n/dictionaries/products";
+import { tFill } from "@/i18n/format";
+import { useLocale } from "@/i18n/locale-context";
+import type { ProductSlug } from "@/i18n/get-dictionary";
 
 const API_URL = getBrowserApiBase();
 
@@ -41,6 +47,14 @@ const MARKETING_PRODUCT_SLUGS = new Set([
   "body-wash",
   BUNDLE_SLUG,
 ]);
+
+function localizedCatalogCopy(
+  slug: string,
+  locale: "sv" | "en"
+): ProductCopy | null {
+  if (!(slug in products)) return null;
+  return products[slug as ProductSlug][locale];
+}
 
 function productSeoUrl(productSlug: string, shopSlug: string): string {
   if (MARKETING_PRODUCT_SLUGS.has(productSlug)) {
@@ -90,8 +104,10 @@ interface ShopData {
 export default function SellerShopPage() {
   const params = useParams();
   const slug = params.slug as string;
+  const { locale, href } = useLocale();
+  const t = shop.storefront[locale];
 
-  const [shop, setShop] = useState<ShopData | null>(null);
+  const [shopData, setShopData] = useState<ShopData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const { cart, update: updateCart, totalItems, toQueryString } = useCart(slug);
@@ -99,25 +115,25 @@ export default function SellerShopPage() {
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch(`${API_URL}/v1/shop/by-slug/${slug}`);
+        const res = await rootsFetch(`${API_URL}/v1/shop/by-slug/${slug}`);
         if (!res.ok) {
-          setError("Denna shop finns inte.");
+          setError(t.notFound);
           return;
         }
         const data = await res.json();
-        setShop(data);
+        setShopData(data);
       } catch {
-        setError("Kunde inte ladda shoppen.");
+        setError(t.loadFailed);
       } finally {
         setLoading(false);
       }
     }
     load();
-  }, [slug]);
+  }, [slug, t.notFound, t.loadFailed]);
 
-  const totalOre = shop
+  const totalOre = shopData
     ? Object.entries(cart).reduce((sum, [id, qty]) => {
-        const p = shop.products.find((p) => p.id === id);
+        const p = shopData.products.find((p) => p.id === id);
         return sum + (p ? p.priceOre * qty : 0);
       }, 0)
     : 0;
@@ -125,8 +141,8 @@ export default function SellerShopPage() {
   // API:et sorterar på namn; paketet hör sist så supportern ser de enskilda
   // produkterna först.
   const sortedProducts = useMemo(
-    () => [...(shop?.products ?? [])].sort(byCatalogOrder),
-    [shop?.products]
+    () => [...(shopData?.products ?? [])].sort(byCatalogOrder),
+    [shopData?.products]
   );
 
   // Vad paketet sparar jämfört med att köpa delarna var för sig. Räknas ur
@@ -144,15 +160,16 @@ export default function SellerShopPage() {
   // campaign card and products is fine in any status so supporters can
   // learn about the cause, but the CTA must be gated to prevent a failed
   // checkout surfacing only at payment time.
-  const campaignStatus = shop?.campaign?.status ?? null;
+  const campaignStatus = shopData?.campaign?.status ?? null;
   const campaignAcceptsOrders = campaignStatus === "ACTIVE";
 
   const goalProgress =
-    shop?.seller.individualGoal && shop.seller.individualGoal > 0
+    shopData?.seller.individualGoal && shopData.seller.individualGoal > 0
       ? Math.min(
           100,
           Math.round(
-            (shop.stats.totalSoldOre / (shop.seller.individualGoal * 100)) *
+            (shopData.stats.totalSoldOre /
+              (shopData.seller.individualGoal * 100)) *
               100
           )
         )
@@ -166,14 +183,14 @@ export default function SellerShopPage() {
     );
   }
 
-  if (error || !shop) {
+  if (error || !shopData) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4">
         <Package className="h-12 w-12 text-muted-foreground" />
-        <h1 className="text-xl font-semibold">{error || "Shop hittades inte"}</h1>
-        <p className="text-sm text-muted-foreground">
-          Kontrollera att länken stämmer
-        </p>
+        <h1 className="text-xl font-semibold">
+          {error || t.notFoundFallback}
+        </h1>
+        <p className="text-sm text-muted-foreground">{t.checkLink}</p>
       </div>
     );
   }
@@ -182,39 +199,42 @@ export default function SellerShopPage() {
     <div className="min-h-screen bg-brand-50/30">
       <BreadcrumbJsonLd
         items={[
-          { name: "Hem", url: "/" },
-          { name: "Shop", url: `/shop/${slug}` },
+          { name: t.breadcrumbHome, url: href("/") },
+          { name: t.breadcrumbShop, url: href(`/shop/${slug}`) },
           {
-            name: shop.seller.displayName || slug,
-            url: `/shop/${slug}`,
+            name: shopData.seller.displayName || slug,
+            url: href(`/shop/${slug}`),
           },
         ]}
       />
       {/* P3.54 (audit 2026-05-26): emit Product JSON-LD per produkt så
           shop-sidor får samma rich-result-stöd som marketing/produkter.
           URL pekar på marknadsproduktsidan när den finns, annars shoppen. */}
-      {shop.products.map((p) => (
-        <ProductJsonLd
-          key={p.id}
-          name={p.name}
-          description={p.description}
-          sku={p.sku}
-          price={p.priceOre}
-          currency={p.currency || "SEK"}
-          image={productImage(p.slug)}
-          url={productSeoUrl(p.slug, slug)}
-        />
-      ))}
+      {shopData.products.map((p) => {
+        const copy = localizedCatalogCopy(p.slug, locale);
+        return (
+          <ProductJsonLd
+            key={p.id}
+            name={copy?.name ?? p.name}
+            description={copy?.description ?? p.description}
+            sku={p.sku}
+            price={p.priceOre}
+            currency={p.currency || "SEK"}
+            image={productImage(p.slug)}
+            url={productSeoUrl(p.slug, slug)}
+          />
+        );
+      })}
       {/* Header */}
       <header className="border-b bg-background">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4">
           <div>
             <p className="text-sm text-muted-foreground">
-              {shop.team?.name}
-              {shop.organization ? ` · ${shop.organization.name}` : ""}
+              {shopData.team?.name}
+              {shopData.organization ? ` · ${shopData.organization.name}` : ""}
             </p>
             <h1 className="text-lg font-semibold">
-              Köp av {shop.seller.displayName}
+              {tFill(t.buyFrom, { name: shopData.seller.displayName })}
             </h1>
           </div>
           <Badge variant="secondary" className="text-xs">
@@ -226,7 +246,7 @@ export default function SellerShopPage() {
       <main className="mx-auto max-w-3xl px-4 py-8">
         {/* Campaign status banner — shown when the campaign is not accepting
             orders so supporters see this up-front rather than at checkout. */}
-        {shop.campaign && !campaignAcceptsOrders && (
+        {shopData.campaign && !campaignAcceptsOrders && (
           <div
             role="status"
             className="mb-6 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50/70 p-4 text-sm text-amber-900 dark:border-amber-400/40 dark:bg-amber-400/10 dark:text-amber-100"
@@ -235,28 +255,26 @@ export default function SellerShopPage() {
             <div>
               <p className="font-medium">
                 {campaignStatus === "ENDED" || campaignStatus === "SETTLED"
-                  ? "Säljperioden är avslutad"
-                  : "Säljperioden har inte startat ännu"}
+                  ? t.campaignEnded
+                  : t.campaignNotStarted}
               </p>
               <p className="mt-1 text-amber-900/80 dark:text-amber-100/80">
-                Du kan läsa om föreningens projekt, men det går inte att lägga
-                en beställning just nu. Kontakta laget eller föreningen för
-                nästa steg.
+                {t.campaignInactiveBody}
               </p>
             </div>
           </div>
         )}
 
         {/* Campaign story */}
-        {shop.campaign?.story && (
+        {shopData.campaign?.story && (
           <Card className="mb-6 overflow-hidden">
             <CardContent className="p-5">
               <div className="flex items-start gap-3">
                 <Heart className="mt-0.5 h-5 w-5 shrink-0 text-brand-500" />
                 <div>
-                  <p className="font-medium">{shop.campaign.name}</p>
+                  <p className="font-medium">{shopData.campaign.name}</p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    {shop.campaign.story}
+                    {shopData.campaign.story}
                   </p>
                 </div>
               </div>
@@ -269,7 +287,7 @@ export default function SellerShopPage() {
           <div className="mb-6">
             <div className="mb-2 flex items-center justify-between text-sm">
               <span className="text-muted-foreground">
-                Framsteg mot målet
+                {t.progressTowardsGoal}
               </span>
               <span className="font-medium">{goalProgress}%</span>
             </div>
@@ -280,18 +298,22 @@ export default function SellerShopPage() {
               />
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              {shop.stats.orderCount} beställningar hittills
+              {tFill(t.ordersSoFar, { count: shopData.stats.orderCount })}
             </p>
           </div>
         )}
 
         {/* Products */}
-        <h2 className="mb-4 text-lg font-semibold">Produkter</h2>
+        <h2 className="mb-4 text-lg font-semibold">{t.productsHeading}</h2>
         <div className="grid gap-4">
           {sortedProducts.map((product) => {
             const qty = cart[product.id] || 0;
             const imgSrc = productImage(product.slug);
             const isBundle = isBundleSlug(product.slug);
+            const copy = localizedCatalogCopy(product.slug, locale);
+            const displayName = copy?.name ?? product.name;
+            const displayDescription =
+              copy?.description ?? product.description;
 
             return (
               <Card key={product.id} className="overflow-hidden">
@@ -299,7 +321,7 @@ export default function SellerShopPage() {
                   <div className="relative h-32 w-32 shrink-0 bg-brand-50 sm:h-40 sm:w-40">
                     <Image
                       src={imgSrc}
-                      alt={product.name}
+                      alt={displayName}
                       fill
                       className="object-cover"
                     />
@@ -307,20 +329,25 @@ export default function SellerShopPage() {
                   <CardContent className="flex flex-1 flex-col justify-between p-4">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="font-semibold">{product.name}</h3>
+                        <h3 className="font-semibold">{displayName}</h3>
                         {isBundle && bundleSavingOre > 0 && (
-                          <Badge variant="secondary" className="bg-brand-100 text-brand-800">
-                            Spara {formatKrValue(bundleSavingOre)} kr
+                          <Badge
+                            variant="secondary"
+                            className="bg-brand-100 text-brand-800"
+                          >
+                            {tFill(t.saveAmount, {
+                              amount: formatKr(bundleSavingOre, locale),
+                            })}
                           </Badge>
                         )}
                       </div>
                       <p className="mt-1 text-sm text-muted-foreground line-clamp-2">
-                        {product.description}
+                        {displayDescription}
                       </p>
                     </div>
                     <div className="mt-3 flex items-center justify-between">
                       <p className="text-lg font-semibold">
-                        {formatKrValue(product.priceOre)} kr
+                        {formatKr(product.priceOre, locale)}
                       </p>
                       {/* MASTERPLAN_01 KC6.1: qty-steppers behöver 44x44
                           så supportern (oftast på mobil) inte trycker
@@ -333,7 +360,9 @@ export default function SellerShopPage() {
                             className="h-11 w-11"
                             onClick={() => updateCart(product.id, -1)}
                             disabled={!campaignAcceptsOrders}
-                            aria-label={`Ta bort en ${product.name}`}
+                            aria-label={tFill(t.removeOne, {
+                              name: displayName,
+                            })}
                           >
                             <Minus className="h-4 w-4" />
                           </Button>
@@ -355,8 +384,8 @@ export default function SellerShopPage() {
                           disabled={!campaignAcceptsOrders}
                           aria-label={
                             campaignAcceptsOrders
-                              ? `Lägg till ${product.name}`
-                              : "Säljperioden är inte aktiv"
+                              ? tFill(t.addOne, { name: displayName })
+                              : t.campaignInactiveAria
                           }
                         >
                           <Plus className="h-4 w-4" />
@@ -374,15 +403,20 @@ export default function SellerShopPage() {
         <div className="mt-6 flex items-start gap-3 rounded-xl border bg-background p-4">
           <Truck className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
           <div className="text-sm">
-            <p className="font-medium">Leveransinformation</p>
+            <p className="font-medium">{t.deliveryHeading}</p>
             <p className="text-muted-foreground">
-              {shop.campaign?.deliveryType === "BULK"
-                ? "Produkterna samlas ihop och levereras till lagansvarig efter säljperioden."
-                : shop.campaign?.deliveryType === "DIRECT"
-                ? "Produkterna skickas direkt hem till dig."
-                : "Du kan välja hemleverans eller samleverans i kassan."}
-              {shop.campaign?.shippingThresholdOre
-                ? ` Fri frakt över ${formatKrValue(shop.campaign.shippingThresholdOre)} kr.`
+              {shopData.campaign?.deliveryType === "BULK"
+                ? t.deliveryBulk
+                : shopData.campaign?.deliveryType === "DIRECT"
+                  ? t.deliveryDirect
+                  : t.deliveryChoice}
+              {shopData.campaign?.shippingThresholdOre
+                ? tFill(t.freeShippingOver, {
+                    amount: formatKr(
+                      shopData.campaign.shippingThresholdOre,
+                      locale
+                    ),
+                  })
                 : ""}
             </p>
           </div>
@@ -398,17 +432,19 @@ export default function SellerShopPage() {
           <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
             <div>
               <p className="text-sm text-muted-foreground">
-                {totalItems} {totalItems === 1 ? "produkt" : "produkter"}
+                {tFill(totalItems === 1 ? t.productOne : t.productMany, {
+                  count: totalItems,
+                })}
               </p>
               <p className="text-lg font-semibold">
-                {formatKrValue(totalOre)} kr
+                {formatKr(totalOre, locale)}
               </p>
             </div>
             <Button size="lg" asChild>
-              <Link href={`/shop/${slug}/kassa?${toQueryString()}`}>
+              <LocaleLink href={`/shop/${slug}/kassa?${toQueryString()}`}>
                 <ShoppingBag className="mr-2 h-4 w-4" />
-                Till kassan
-              </Link>
+                {t.checkout}
+              </LocaleLink>
             </Button>
           </div>
         </div>

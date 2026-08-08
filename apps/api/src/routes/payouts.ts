@@ -40,7 +40,11 @@ import { requireSession } from "../lib/http-session";
 import { childLogger } from "../lib/logger";
 import { auditLog, requestContext } from "../lib/audit";
 import { getEmailSender } from "../lib/email";
-import { payoutPaidEmail } from "../lib/email/templates";
+import {
+  payoutPaidEmail,
+  withLocalePath,
+} from "../lib/email/templates";
+import { resolveUiLocale, uiError } from "../lib/ui-locale";
 
 const log = childLogger("payouts");
 
@@ -66,9 +70,10 @@ const SITE_URL = (
 // ────────────────────────────────────────────────────────────────────
 payoutsRoute.get("/", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
   if (session.role !== "INTERNAL_ADMIN") {
-    return c.json({ error: "Behörighet saknas" }, 403);
+    return c.json({ error: uiError(locale, "permissionDenied") }, 403);
   }
 
   try {
@@ -99,7 +104,7 @@ payoutsRoute.get("/", async (c) => {
     return c.json({ payouts: rows });
   } catch (err) {
     log.error({ err }, "list payouts failed");
-    return c.json({ error: "Kunde inte hämta utbetalningar." }, 500);
+    return c.json({ error: uiError(locale, "couldNotFetchPayouts") }, 500);
   }
 });
 
@@ -108,15 +113,16 @@ payoutsRoute.get("/", async (c) => {
 // ────────────────────────────────────────────────────────────────────
 payoutsRoute.get("/mine", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
   if (
     session.role !== "ASSOCIATION_ADMIN" &&
     session.role !== "INTERNAL_ADMIN"
   ) {
-    return c.json({ error: "Behörighet saknas" }, 403);
+    return c.json({ error: uiError(locale, "permissionDenied") }, 403);
   }
   if (!session.orgId) {
-    return c.json({ error: "Ingen organisation kopplad till sessionen." }, 422);
+    return c.json({ error: uiError(locale, "noOrganisationOnSession") }, 422);
   }
 
   try {
@@ -144,7 +150,7 @@ payoutsRoute.get("/mine", async (c) => {
     return c.json({ payouts: rows });
   } catch (err) {
     log.error({ err }, "list mine payouts failed");
-    return c.json({ error: "Kunde inte hämta utbetalningar." }, 500);
+    return c.json({ error: uiError(locale, "couldNotFetchPayouts") }, 500);
   }
 });
 
@@ -157,31 +163,33 @@ type TargetStatus = (typeof ALLOWED_TARGET_STATUSES)[number];
 
 payoutsRoute.patch("/:id/status", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
 
   // Strikt admin-only. ASSOCIATION_ADMIN får inte själv flippa PAID
   // (skulle göra det enkelt att kvittera utan att Roots transferade).
   if (session.role !== "INTERNAL_ADMIN") {
-    return c.json({ error: "Behörighet saknas" }, 403);
+    return c.json({ error: uiError(locale, "permissionDenied") }, 403);
   }
 
   const id = c.req.param("id");
   if (!/^[0-9a-f-]{36}$/i.test(id)) {
-    return c.json({ error: "Ogiltigt ID." }, 400);
+    return c.json({ error: uiError(locale, "invalidId") }, 400);
   }
 
   let body: { status?: TargetStatus; paymentReference?: string } = {};
   try {
     body = await c.req.json();
   } catch {
-    return c.json({ error: "Ogiltig JSON." }, 400);
+    return c.json({ error: uiError(locale, "invalidJsonShort") }, 400);
   }
+  locale = resolveUiLocale(c, (body as { locale?: unknown }).locale);
 
   const targetStatus = body.status;
   if (!targetStatus || !ALLOWED_TARGET_STATUSES.includes(targetStatus)) {
     return c.json(
       {
-        error: `status måste vara en av: ${ALLOWED_TARGET_STATUSES.join(", ")}`,
+        error: uiError(locale, "statusMustBeOneOfPrefix") + ALLOWED_TARGET_STATUSES.join(", "),
       },
       400
     );
@@ -189,7 +197,7 @@ payoutsRoute.patch("/:id/status", async (c) => {
 
   const paymentReference = body.paymentReference?.trim() || null;
   if (paymentReference && paymentReference.length > 64) {
-    return c.json({ error: "Referens får vara max 64 tecken." }, 400);
+    return c.json({ error: uiError(locale, "referenceMax64") }, 400);
   }
 
   // Seeded admin@roots.se is flagged as demo, but is also the prod ops
@@ -199,7 +207,7 @@ payoutsRoute.patch("/:id/status", async (c) => {
     const allowOpsPaid = targetStatus === "PAID" && !!paymentReference;
     if (!allowOpsPaid) {
       return c.json(
-        { error: "Demoläget kan inte ändra riktiga utbetalningar." },
+        { error: uiError(locale, "demoCannotChangePayouts") },
         403
       );
     }
@@ -213,7 +221,7 @@ payoutsRoute.patch("/:id/status", async (c) => {
       .limit(1);
 
     if (!payout) {
-      return c.json({ error: "Utbetalning hittades inte." }, 404);
+      return c.json({ error: uiError(locale, "payoutNotFoundPeriod") }, 404);
     }
 
     // State-machine gates: kan bara gå PENDING→INVOICED och
@@ -223,7 +231,10 @@ payoutsRoute.patch("/:id/status", async (c) => {
     if (targetStatus === "INVOICED" && payout.status !== "PENDING") {
       return c.json(
         {
-          error: `Kan bara markera INVOICED från PENDING (är: ${payout.status}).`,
+          error:
+            uiError(locale, "payoutMarkInvoicedFromPendingPrefix") +
+            payout.status +
+            ").",
         },
         409
       );
@@ -237,8 +248,7 @@ payoutsRoute.patch("/:id/status", async (c) => {
     if (targetStatus === "INVOICED") {
       return c.json(
         {
-          error:
-            "Använd POST /v1/settlement/create-invoice/:payoutId för att markera INVOICED — manuell PATCH stänger ute Fortnox-fakturan.",
+          error: uiError(locale, "useSettlementCreateInvoice"),
         },
         409
       );
@@ -264,8 +274,7 @@ payoutsRoute.patch("/:id/status", async (c) => {
       if (targetStatus === "PAID" && !payout.fortnoxInvoiceId) {
         return c.json(
           {
-            error:
-              "Utbetalningen saknar Fortnox-fakturanummer och kan inte markeras PAID. Kör create-invoice först.",
+            error: uiError(locale, "payoutMissingFortnoxPaid"),
           },
           409
         );
@@ -273,7 +282,10 @@ payoutsRoute.patch("/:id/status", async (c) => {
       if (targetStatus === "PAID" && payout.status !== "INVOICED") {
         return c.json(
           {
-            error: `Utbetalning måste vara INVOICED innan den kan markeras PAID (är: ${payout.status}).`,
+            error:
+              uiError(locale, "payoutMustBeInvoicedBeforePaidPrefix") +
+              payout.status +
+              ").",
           },
           409
         );
@@ -282,7 +294,10 @@ payoutsRoute.patch("/:id/status", async (c) => {
       if (payout.status !== "PENDING" && payout.status !== "INVOICED") {
         return c.json(
           {
-            error: `Kan bara markera PAID från PENDING/INVOICED (är: ${payout.status}).`,
+            error:
+              uiError(locale, "payoutMarkPaidFromPrefix") +
+              payout.status +
+              ").",
           },
           409
         );
@@ -290,8 +305,7 @@ payoutsRoute.patch("/:id/status", async (c) => {
       if (!paymentReference) {
         return c.json(
           {
-            error:
-              "Ange betalningsreferens (t.ex. banköverföringens OCR/meddelande) när Fortnox inte är aktiverat.",
+            error: uiError(locale, "enterPaymentReference"),
           },
           400
         );
@@ -384,13 +398,19 @@ payoutsRoute.patch("/:id/status", async (c) => {
               adminName:
                 admin.contactName?.split(" ")[0] ||
                 admin.email.split("@")[0] ||
-                "där",
-              orgName: org?.displayName ?? org?.name ?? "er förening",
-              campaignName: campaign?.name ?? "kampanjen",
+                (locale === "en" ? "there" : "där"),
+              orgName:
+                org?.displayName ??
+                org?.name ??
+                (locale === "en" ? "your club" : "er förening"),
+              campaignName:
+                campaign?.name ??
+                (locale === "en" ? "the campaign" : "kampanjen"),
               amountOre: payout.teamShareOre,
               paidAt: now,
               paymentReference,
-              payoutsUrl: `${SITE_URL}/forening/avrakning`,
+              payoutsUrl: `${SITE_URL}${withLocalePath("/forening/avrakning", locale)}`,
+              locale,
             }),
           });
         } catch (err) {
@@ -411,6 +431,6 @@ payoutsRoute.patch("/:id/status", async (c) => {
     });
   } catch (err) {
     log.error({ err, payoutId: id }, "payout status patch failed");
-    return c.json({ error: "Kunde inte uppdatera utbetalningen." }, 500);
+    return c.json({ error: uiError(locale, "couldNotUpdatePayout") }, 500);
   }
 });

@@ -2,6 +2,8 @@ import { vatOfGrossOre } from "@roots/contracts";
 
 const BRAND_COLOR = "#1C1410";
 
+export type EmailLocale = "sv" | "en";
+
 function siteUrl(): string {
   return (
     process.env.NEXT_PUBLIC_SITE_URL ||
@@ -18,7 +20,32 @@ function siteHost(): string {
   }
 }
 
-function wrap(content: string): string {
+/** Prefix path with `/en` for English; Swedish stays unprefixed. */
+export function withLocalePath(path: string, locale: EmailLocale): string {
+  const bare = path.startsWith("/") ? path : `/${path}`;
+  if (locale === "en") {
+    return bare === "/" ? "/en" : `/en${bare}`;
+  }
+  return bare;
+}
+
+function fmtMoney(ore: number, locale: EmailLocale): string {
+  const amount = ore / 100;
+  if (locale === "en") {
+    return `${amount.toLocaleString("en-GB")} SEK`;
+  }
+  return `${amount.toLocaleString("sv-SE")} kr`;
+}
+
+function fmtDate(date: Date, locale: EmailLocale): string {
+  return date.toLocaleDateString(locale === "en" ? "en-GB" : "sv-SE", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function wrap(content: string, locale: EmailLocale = "sv"): string {
   const url = siteUrl();
   const host = siteHost();
   // MASTERPLAN_01 KC7: e-postfötter måste innehålla full legal-identity
@@ -26,7 +53,7 @@ function wrap(content: string): string {
   // medvetet för att matcha legal-identity-block.tsx — det är publik
   // information och får aldrig variera mellan miljöer.
   return `<!DOCTYPE html>
-<html lang="sv">
+<html lang="${locale}">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:0;background:#f9f7f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9f7f5;padding:32px 16px">
@@ -39,7 +66,11 @@ function wrap(content: string): string {
 <tr><td style="padding:16px 32px 24px;text-align:center;color:#999;font-size:12px;line-height:1.6">
   <strong style="color:#666">Roots Nordic AB</strong><br>
   Storgatan 1, 111 51 Stockholm<br>
-  Org.nr 559517-3210 · Momsreg.nr SE559517321001<br>
+  ${
+    locale === "en"
+      ? "Company no. 559517-3210 · VAT no. SE559517321001"
+      : "Org.nr 559517-3210 · Momsreg.nr SE559517321001"
+  }<br>
   <a href="${url}" style="color:#999">${host}</a> · <a href="mailto:hej@roots.se" style="color:#999">hej@roots.se</a>
 </td></tr>
 </table>
@@ -48,18 +79,58 @@ function wrap(content: string): string {
 </body></html>`;
 }
 
-export function welcomeEmail(name: string, role: string): { subject: string; html: string } {
+export function welcomeEmail(
+  name: string,
+  role: string,
+  locale: EmailLocale = "sv"
+): { subject: string; html: string } {
+  const loginUrl = `${siteUrl()}${withLocalePath("/login", locale)}`;
+
+  if (locale === "en") {
+    const roleLabel =
+      role === "ASSOCIATION_ADMIN"
+        ? "club administrator"
+        : role === "TEAM_LEADER"
+          ? "team leader"
+          : "seller";
+    const sellerShortcut =
+      role === "SELLER"
+        ? `<p style="color:#444;line-height:1.6;margin:16px 0 0;font-size:13px">
+             You can open your personal shop directly at
+             <a href="${siteUrl()}${withLocalePath("/min-shop", locale)}" style="color:${BRAND_COLOR}">My shop</a>.
+           </p>`
+        : "";
+    return {
+      subject: `Welcome to Roots, ${name}!`,
+      html: wrap(
+        `
+      <h2 style="margin:0 0 16px;color:${BRAND_COLOR};font-size:22px">Welcome, ${name}!</h2>
+      <p style="color:#444;line-height:1.6;margin:0 0 16px">
+        You are now registered as a <strong>${roleLabel}</strong> with Roots.
+      </p>
+      <p style="color:#444;line-height:1.6;margin:0 0 24px">
+        Sign in to the platform to get started. If you have any questions, you are always welcome to contact us.
+      </p>
+      <a href="${loginUrl}" style="display:inline-block;background:${BRAND_COLOR};color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">
+        Sign in
+      </a>
+      ${sellerShortcut}
+    `,
+        locale
+      ),
+    };
+  }
+
   const roleLabel =
     role === "ASSOCIATION_ADMIN"
       ? "föreningsadministratör"
       : role === "TEAM_LEADER"
-      ? "lagansvarig"
-      : "säljare";
+        ? "lagansvarig"
+        : "säljare";
 
   // MASTERPLAN_01 KC3.2: /logga-in routar 404 i Next-appen. Den enda
   // login-route som finns är /login. Sellers får dessutom en
   // shortcut till sin nya butik så de inte behöver navigera manuellt.
-  const loginUrl = `${siteUrl()}/login`;
   const sellerShortcut =
     role === "SELLER"
       ? `<p style="color:#444;line-height:1.6;margin:16px 0 0;font-size:13px">
@@ -97,27 +168,90 @@ export function orderConfirmationEmail(params: {
    * länken till just den här kunden. Utan token är endpointen 401:ad.
    */
   viewToken: string;
+  locale?: EmailLocale;
 }): { subject: string; html: string } {
+  const locale = params.locale ?? "sv";
+  const orderShortId = params.orderId.slice(0, 8);
+  const vatOre = vatOfGrossOre(params.totalOre);
+  const totalExVatOre = params.totalOre - vatOre;
+  const url = siteUrl();
+  const orderPath = withLocalePath(
+    `/shop/${params.shopSlug}/order/${params.orderId}`,
+    locale
+  );
+  const orderUrl = `${url}${orderPath}?t=${encodeURIComponent(params.viewToken)}`;
+  const termsPath = withLocalePath("/villkor", locale);
+
+  if (locale === "en") {
+    const itemRows = params.items
+      .map(
+        (item) =>
+          `<tr>
+          <td style="padding:8px 0;border-bottom:1px solid #eee;color:#444;font-size:14px">${item.name}</td>
+          <td style="padding:8px 0;border-bottom:1px solid #eee;color:#444;font-size:14px;text-align:center">${item.qty}</td>
+          <td style="padding:8px 0;border-bottom:1px solid #eee;color:#444;font-size:14px;text-align:right">${fmtMoney(item.unitPriceOre * item.qty, locale)}</td>
+        </tr>`
+      )
+      .join("");
+
+    return {
+      subject: `Order confirmation — ${orderShortId}`,
+      html: wrap(
+        `
+      <h2 style="margin:0 0 16px;color:${BRAND_COLOR};font-size:22px">Thank you for your order, ${params.customerName}!</h2>
+      <p style="color:#444;line-height:1.6;margin:0 0 8px">
+        Order number: <strong>${orderShortId}</strong>
+      </p>
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0">
+        <tr style="border-bottom:2px solid #eee">
+          <th style="text-align:left;padding:8px 0;font-size:13px;color:#888">Product</th>
+          <th style="text-align:center;padding:8px 0;font-size:13px;color:#888">Qty</th>
+          <th style="text-align:right;padding:8px 0;font-size:13px;color:#888">Total</th>
+        </tr>
+        ${itemRows}
+      </table>
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 16px">
+        <tr>
+          <td style="padding:4px 0;color:#666;font-size:13px">Subtotal excl. VAT</td>
+          <td style="padding:4px 0;text-align:right;color:#666;font-size:13px">${fmtMoney(totalExVatOre, locale)}</td>
+        </tr>
+        <tr>
+          <td style="padding:4px 0;color:#666;font-size:13px">VAT (25%)</td>
+          <td style="padding:4px 0;text-align:right;color:#666;font-size:13px">${fmtMoney(vatOre, locale)}</td>
+        </tr>
+        <tr style="border-top:1px solid #eee">
+          <td style="padding:10px 0 0;color:${BRAND_COLOR};font-size:16px;font-weight:700">Total to pay</td>
+          <td style="padding:10px 0 0;text-align:right;color:${BRAND_COLOR};font-size:16px;font-weight:700">${fmtMoney(params.totalOre, locale)}</td>
+        </tr>
+      </table>
+      <a href="${orderUrl}" style="display:inline-block;background:${BRAND_COLOR};color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">
+        View order status
+      </a>
+      <p style="color:#888;font-size:12px;line-height:1.6;margin:24px 0 0">
+        You have a 14-day right of withdrawal under the Distance Contracts Act,
+        with an exception for opened hygiene packaging. More information at
+        <a href="${url}${termsPath}" style="color:#888">${url.replace(/^https?:\/\//, "")}${termsPath}</a>.
+      </p>
+    `,
+        locale
+      ),
+    };
+  }
+
+  // MASTERPLAN_01 KC4: visa explicit moms-rad enligt köplag. Roots
+  // använder svensk standardmoms 25% på hudvård/hårvård. Beloppen
+  // visas både exkl. och inkl. så att supportern ser exakt vad som
+  // går till skatten.
   const itemRows = params.items
     .map(
       (item) =>
         `<tr>
           <td style="padding:8px 0;border-bottom:1px solid #eee;color:#444;font-size:14px">${item.name}</td>
           <td style="padding:8px 0;border-bottom:1px solid #eee;color:#444;font-size:14px;text-align:center">${item.qty}</td>
-          <td style="padding:8px 0;border-bottom:1px solid #eee;color:#444;font-size:14px;text-align:right">${((item.unitPriceOre * item.qty) / 100).toLocaleString("sv-SE")} kr</td>
+          <td style="padding:8px 0;border-bottom:1px solid #eee;color:#444;font-size:14px;text-align:right">${fmtMoney(item.unitPriceOre * item.qty, locale)}</td>
         </tr>`
     )
     .join("");
-
-  const url = siteUrl();
-  // MASTERPLAN_01 KC4: visa explicit moms-rad enligt köplag. Roots
-  // använder svensk standardmoms 25% på hudvård/hårvård. Beloppen
-  // visas både exkl. och inkl. så att supportern ser exakt vad som
-  // går till skatten.
-  const vatOre = vatOfGrossOre(params.totalOre);
-  const totalExVatOre = params.totalOre - vatOre;
-  const fmt = (ore: number) => `${(ore / 100).toLocaleString("sv-SE")} kr`;
-  const orderShortId = params.orderId.slice(0, 8);
 
   return {
     subject: `Orderbekräftelse — ${orderShortId}`,
@@ -137,24 +271,24 @@ export function orderConfirmationEmail(params: {
       <table width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 16px">
         <tr>
           <td style="padding:4px 0;color:#666;font-size:13px">Summa exkl. moms</td>
-          <td style="padding:4px 0;text-align:right;color:#666;font-size:13px">${fmt(totalExVatOre)}</td>
+          <td style="padding:4px 0;text-align:right;color:#666;font-size:13px">${fmtMoney(totalExVatOre, locale)}</td>
         </tr>
         <tr>
           <td style="padding:4px 0;color:#666;font-size:13px">Moms (25 %)</td>
-          <td style="padding:4px 0;text-align:right;color:#666;font-size:13px">${fmt(vatOre)}</td>
+          <td style="padding:4px 0;text-align:right;color:#666;font-size:13px">${fmtMoney(vatOre, locale)}</td>
         </tr>
         <tr style="border-top:1px solid #eee">
           <td style="padding:10px 0 0;color:${BRAND_COLOR};font-size:16px;font-weight:700">Totalt att betala</td>
-          <td style="padding:10px 0 0;text-align:right;color:${BRAND_COLOR};font-size:16px;font-weight:700">${fmt(params.totalOre)}</td>
+          <td style="padding:10px 0 0;text-align:right;color:${BRAND_COLOR};font-size:16px;font-weight:700">${fmtMoney(params.totalOre, locale)}</td>
         </tr>
       </table>
-      <a href="${url}/shop/${params.shopSlug}/order/${params.orderId}?t=${encodeURIComponent(params.viewToken)}" style="display:inline-block;background:${BRAND_COLOR};color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">
+      <a href="${orderUrl}" style="display:inline-block;background:${BRAND_COLOR};color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">
         Se orderstatus
       </a>
       <p style="color:#888;font-size:12px;line-height:1.6;margin:24px 0 0">
         Du har 14 dagars ångerrätt enligt distansavtalslagen, med undantag för
         öppnade hygienförpackningar. Mer info på
-        <a href="${url}/villkor" style="color:#888">${url.replace(/^https?:\/\//, "")}/villkor</a>.
+        <a href="${url}${termsPath}" style="color:#888">${url.replace(/^https?:\/\//, "")}${termsPath}</a>.
       </p>
     `),
   };
@@ -176,12 +310,41 @@ export function teamLeaderInviteEmail(params: {
   teamName: string;
   inviteUrl: string;
   expiresAt: Date;
+  locale?: EmailLocale;
 }): { subject: string; html: string } {
-  const dateFmt = params.expiresAt.toLocaleDateString("sv-SE", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
+  const locale = params.locale ?? "sv";
+  const dateFmt = fmtDate(params.expiresAt, locale);
+
+  if (locale === "en") {
+    return {
+      subject: `You are invited to lead ${params.teamName} — ${params.orgName}`,
+      html: wrap(
+        `
+      <h2 style="margin:0 0 16px;color:${BRAND_COLOR};font-size:22px">
+        You are invited to lead ${params.teamName}
+      </h2>
+      <p style="color:#444;line-height:1.6;margin:0 0 16px">
+        ${params.inviterName} from <strong>${params.orgName}</strong> has invited
+        you to be team leader for the campaign
+        <strong>${params.campaignName}</strong>.
+      </p>
+      <p style="color:#444;line-height:1.6;margin:0 0 24px">
+        As team leader you invite sellers to your team, track results and
+        support the team throughout the campaign. It takes about two minutes
+        to get started.
+      </p>
+      <a href="${params.inviteUrl}" style="display:inline-block;background:${BRAND_COLOR};color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">
+        Create account and get started
+      </a>
+      <p style="color:#888;font-size:13px;line-height:1.6;margin:24px 0 0">
+        The link is valid until ${dateFmt}. If you do not want the role,
+        ignore this email — no action is required.
+      </p>
+    `,
+        locale
+      ),
+    };
+  }
 
   return {
     subject: `Du är inbjuden att leda ${params.teamName} — ${params.orgName}`,
@@ -222,7 +385,36 @@ export function teamLeaderClaimedEmail(params: {
   teamName: string;
   campaignName: string;
   teamUrl: string;
+  locale?: EmailLocale;
 }): { subject: string; html: string } {
+  const locale = params.locale ?? "sv";
+
+  if (locale === "en") {
+    return {
+      subject: `${params.leaderName} has accepted and now leads ${params.teamName}`,
+      html: wrap(
+        `
+      <h2 style="margin:0 0 16px;color:${BRAND_COLOR};font-size:22px">
+        Done! ${params.teamName} has a team leader.
+      </h2>
+      <p style="color:#444;line-height:1.6;margin:0 0 16px">
+        Hello ${params.adminName}, <strong>${params.leaderName}</strong>
+        (${params.leaderEmail}) has accepted your invitation for the
+        campaign <strong>${params.campaignName}</strong>.
+      </p>
+      <p style="color:#444;line-height:1.6;margin:0 0 24px">
+        Next step: the team can start inviting sellers. You can follow
+        progress from the club admin view.
+      </p>
+      <a href="${params.teamUrl}" style="display:inline-block;background:${BRAND_COLOR};color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">
+        View team
+      </a>
+    `,
+        locale
+      ),
+    };
+  }
+
   return {
     subject: `${params.leaderName} har accepterat och leder nu ${params.teamName}`,
     html: wrap(`
@@ -264,16 +456,62 @@ export function payoutPaidEmail(params: {
   paidAt: Date;
   paymentReference?: string | null;
   payoutsUrl: string;
+  locale?: EmailLocale;
 }): { subject: string; html: string } {
-  const amountSek = (params.amountOre / 100).toLocaleString("sv-SE", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  });
-  const dateFmt = params.paidAt.toLocaleDateString("sv-SE", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
+  const locale = params.locale ?? "sv";
+  const amountSek = (params.amountOre / 100).toLocaleString(
+    locale === "en" ? "en-GB" : "sv-SE",
+    {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }
+  );
+  const amountLabel = locale === "en" ? `${amountSek} SEK` : `${amountSek} kr`;
+  const dateFmt = fmtDate(params.paidAt, locale);
+
+  if (locale === "en") {
+    return {
+      subject: `Payout of ${amountLabel} from Roots — ${params.campaignName}`,
+      html: wrap(
+        `
+      <h2 style="margin:0 0 16px;color:${BRAND_COLOR};font-size:22px">
+        ${amountLabel} is on its way to ${params.orgName}
+      </h2>
+      <p style="color:#444;line-height:1.6;margin:0 0 16px">
+        Hello ${params.adminName}, today (${dateFmt}) we paid out your share
+        for the campaign <strong>${params.campaignName}</strong>.
+      </p>
+      <table style="width:100%;border-collapse:collapse;margin:0 0 24px;background:#f9f7f5;border-radius:8px">
+        <tr>
+          <td style="padding:12px 16px;color:#666;font-size:13px">Amount</td>
+          <td style="padding:12px 16px;text-align:right;font-weight:600">${amountLabel}</td>
+        </tr>
+        <tr>
+          <td style="padding:12px 16px;color:#666;font-size:13px;border-top:1px solid #eee">Date</td>
+          <td style="padding:12px 16px;text-align:right;border-top:1px solid #eee">${dateFmt}</td>
+        </tr>
+        ${
+          params.paymentReference
+            ? `<tr>
+                 <td style="padding:12px 16px;color:#666;font-size:13px;border-top:1px solid #eee">Reference</td>
+                 <td style="padding:12px 16px;text-align:right;border-top:1px solid #eee;font-family:monospace">${params.paymentReference}</td>
+               </tr>`
+            : ""
+        }
+      </table>
+      <p style="color:#444;line-height:1.6;margin:0 0 24px">
+        The funds have been transferred to the account you provided at
+        registration. Depending on your bank, it may take 1–2 working days
+        before the amount appears.
+      </p>
+      <a href="${params.payoutsUrl}" style="display:inline-block;background:${BRAND_COLOR};color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">
+        View all payouts
+      </a>
+    `,
+        locale
+      ),
+    };
+  }
 
   return {
     subject: `Utbetalning ${amountSek} kr från Roots — ${params.campaignName}`,
@@ -330,12 +568,46 @@ export function deletionRequestEmail(params: {
   name: string;
   scheduledDeletionAt: Date;
   cancelUrl: string;
+  locale?: EmailLocale;
 }): { subject: string; html: string } {
-  const dateFmt = params.scheduledDeletionAt.toLocaleDateString("sv-SE", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
+  const locale = params.locale ?? "sv";
+  const dateFmt = fmtDate(params.scheduledDeletionAt, locale);
+
+  if (locale === "en") {
+    return {
+      subject: "Your request to delete your Roots account",
+      html: wrap(
+        `
+      <h2 style="margin:0 0 16px;color:${BRAND_COLOR};font-size:22px">
+        We have received your request
+      </h2>
+      <p style="color:#444;line-height:1.6;margin:0 0 16px">
+        Hello ${params.name}, we have registered that you want to delete your
+        Roots account. We will delete the account on <strong>${dateFmt}</strong>.
+      </p>
+      <p style="color:#444;line-height:1.6;margin:0 0 16px">
+        Until then you can sign in as usual and cancel the deletion if you
+        want to keep the account.
+      </p>
+      <p style="color:#444;line-height:1.6;margin:0 0 24px">
+        You can cancel directly via the button below — you do not need to
+        sign in.
+      </p>
+      <a href="${params.cancelUrl}" style="display:inline-block;background:${BRAND_COLOR};color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">
+        Cancel deletion
+      </a>
+      <p style="color:#999;line-height:1.6;margin:24px 0 0;font-size:12px">
+        After the account is deleted, all personal data is anonymised.
+        Orders and invoices are retained in anonymised form for 7 years as
+        required by the Swedish Bookkeeping Act. You may request an extract
+        or a correction of your data at any time by replying to this email.
+      </p>
+    `,
+        locale
+      ),
+    };
+  }
+
   return {
     subject: "Din begäran om att radera ditt Roots-konto",
     html: wrap(`
@@ -375,7 +647,33 @@ export function deletionRequestEmail(params: {
  */
 export function deletionCancelledEmail(params: {
   name: string;
+  locale?: EmailLocale;
 }): { subject: string; html: string } {
+  const locale = params.locale ?? "sv";
+
+  if (locale === "en") {
+    return {
+      subject: "Your account deletion has been cancelled",
+      html: wrap(
+        `
+      <h2 style="margin:0 0 16px;color:${BRAND_COLOR};font-size:22px">
+        Everything is as usual
+      </h2>
+      <p style="color:#444;line-height:1.6;margin:0 0 16px">
+        Hello ${params.name}, we have cancelled the deletion of your
+        Roots account. You can continue using the account as usual.
+      </p>
+      <p style="color:#444;line-height:1.6;margin:0 0 0">
+        If this was not you — contact us straight away at
+        <a href="mailto:hej@roots.se" style="color:${BRAND_COLOR}">hej@roots.se</a>
+        and we will help you.
+      </p>
+    `,
+        locale
+      ),
+    };
+  }
+
   return {
     subject: "Din kontoradering är avbruten",
     html: wrap(`
@@ -396,11 +694,6 @@ export function deletionCancelledEmail(params: {
 }
 
 /**
- * Skickas till vårdnadshavaren när en säljare under 18 registrerat sig med
- * deras samtycke. Poängen är dubbel: föräldern får veta vad som händer, och
- * vi får en spårbar kanal om samtycket inte var äkta.
- */
-/**
  * Inbjudan till en klubbmedlem. Kontot skapas med en icke-inloggningsbar
  * sentinel-hash; det här mejlet är enda vägen in. Utan det fanns kontot men
  * kunde aldrig användas.
@@ -410,7 +703,36 @@ export function memberInviteEmail(params: {
   orgName: string;
   inviteUrl: string;
   expiresInDays: number;
+  locale?: EmailLocale;
 }): { subject: string; html: string } {
+  const locale = params.locale ?? "sv";
+
+  if (locale === "en") {
+    return {
+      subject: `You are invited to ${params.orgName} on Roots`,
+      html: wrap(
+        `
+      <h2 style="margin:0 0 16px;color:${BRAND_COLOR};font-size:22px">
+        Welcome to Roots
+      </h2>
+      <p style="color:#444;line-height:1.6;margin:0 0 16px">
+        Hello ${params.name}, ${params.orgName} has invited you to their
+        Roots portal. Choose a password to get started.
+      </p>
+      <a href="${params.inviteUrl}" style="display:inline-block;background:${BRAND_COLOR};color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">
+        Choose password
+      </a>
+      <p style="color:#999;line-height:1.6;margin:24px 0 0;font-size:12px">
+        The link works for ${params.expiresInDays} days. If it has expired you can
+        use "Forgot password?" on the sign-in page, or ask the person who
+        invited you to send a new one.
+      </p>
+    `,
+        locale
+      ),
+    };
+  }
+
   return {
     subject: `Du är inbjuden till ${params.orgName} på Roots`,
     html: wrap(`
@@ -433,12 +755,55 @@ export function memberInviteEmail(params: {
   };
 }
 
+/**
+ * Skickas till vårdnadshavaren när en säljare under 18 registrerat sig med
+ * deras samtycke. Poängen är dubbel: föräldern får veta vad som händer, och
+ * vi får en spårbar kanal om samtycket inte var äkta.
+ */
 export function guardianConsentNoticeEmail(params: {
   guardianName: string;
   sellerName: string;
   teamName: string;
   associationName: string;
+  locale?: EmailLocale;
 }): { subject: string; html: string } {
+  const locale = params.locale ?? "sv";
+
+  if (locale === "en") {
+    return {
+      subject: `${params.sellerName} has registered as a seller with Roots`,
+      html: wrap(
+        `
+      <h2 style="margin:0 0 16px;color:${BRAND_COLOR};font-size:22px">
+        Consent has been given in your name
+      </h2>
+      <p style="color:#444;line-height:1.6;margin:0 0 16px">
+        Hello ${params.guardianName}, <strong>${params.sellerName}</strong> has
+        registered as a seller in ${params.teamName}
+        (${params.associationName}) and stated that you, as their guardian,
+        approve this.
+      </p>
+      <p style="color:#444;line-height:1.6;margin:0 0 16px">
+        Sales take place via a personal web shop with Roots skin and hair
+        care products. We handle payment and delivery; the team receives its
+        share of the sales.
+      </p>
+      <p style="color:#444;line-height:1.6;margin:0 0 16px">
+        If this was not you — or if you change your mind — reply to this
+        email or write to
+        <a href="mailto:hej@roots.se" style="color:${BRAND_COLOR}">hej@roots.se</a>.
+        We will close the shop and delete the data.
+      </p>
+      <p style="color:#999;line-height:1.6;margin:24px 0 0;font-size:12px">
+        You may at any time request an extract of the data we hold about
+        your child, or that it be corrected or deleted.
+      </p>
+    `,
+        locale
+      ),
+    };
+  }
+
   return {
     subject: `${params.sellerName} har registrerat sig som säljare hos Roots`,
     html: wrap(`
@@ -474,7 +839,36 @@ export function passwordResetEmail(params: {
   name: string;
   resetUrl: string;
   expiresInMinutes: number;
+  locale?: EmailLocale;
 }): { subject: string; html: string } {
+  const locale = params.locale ?? "sv";
+
+  if (locale === "en") {
+    return {
+      subject: "Reset your Roots password",
+      html: wrap(
+        `
+      <h2 style="margin:0 0 16px;color:${BRAND_COLOR};font-size:22px">
+        Reset your password
+      </h2>
+      <p style="color:#444;line-height:1.6;margin:0 0 16px">
+        Hello ${params.name}, someone has requested a password reset for
+        your Roots account. Click the button below to choose a new one.
+      </p>
+      <a href="${params.resetUrl}" style="display:inline-block;background:${BRAND_COLOR};color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">
+        Choose new password
+      </a>
+      <p style="color:#999;line-height:1.6;margin:24px 0 0;font-size:12px">
+        The link works for ${params.expiresInMinutes} minutes and only once.
+        If you did not request it, you do not need to do anything — your
+        current password remains valid.
+      </p>
+    `,
+        locale
+      ),
+    };
+  }
+
   return {
     subject: "Återställ ditt lösenord hos Roots",
     html: wrap(`
@@ -501,7 +895,30 @@ export function milestoneEmail(params: {
   teamName: string;
   milestoneLabel: string;
   totalSales: string;
+  locale?: EmailLocale;
 }): { subject: string; html: string } {
+  const locale = params.locale ?? "sv";
+
+  if (locale === "en") {
+    return {
+      subject: `${params.teamName} — ${params.milestoneLabel}`,
+      html: wrap(
+        `
+      <h2 style="margin:0 0 16px;color:${BRAND_COLOR};font-size:22px">${params.milestoneLabel}</h2>
+      <p style="color:#444;line-height:1.6;margin:0 0 16px">
+        Congratulations <strong>${params.teamName}</strong>! You have reached a new milestone.
+      </p>
+      <div style="background:#f9f7f5;border-radius:8px;padding:16px;text-align:center;margin:0 0 24px">
+        <p style="margin:0;color:#888;font-size:13px">Total sales</p>
+        <p style="margin:4px 0 0;font-size:24px;font-weight:700;color:${BRAND_COLOR}">${params.totalSales}</p>
+      </div>
+      <p style="color:#444;line-height:1.6;margin:0">Keep up the brilliant work!</p>
+    `,
+        locale
+      ),
+    };
+  }
+
   return {
     subject: `${params.teamName} — ${params.milestoneLabel}`,
     html: wrap(`

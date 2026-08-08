@@ -1,7 +1,6 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +16,10 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { LocaleLink } from "@/components/locale-link";
+import { auth } from "@/i18n/dictionaries/auth";
+import { tFill } from "@/i18n/format";
+import { useLocale } from "@/i18n/locale-context";
 
 const MIN_LENGTH = 12;
 
@@ -29,10 +32,12 @@ export default function ResetPasswordPage() {
 }
 
 function Skeleton() {
+  const { locale } = useLocale();
+  const t = auth.reset[locale];
   return (
     <Card className="w-full max-w-md shadow-lg">
       <CardHeader className="text-center">
-        <CardTitle className="text-2xl">Välj nytt lösenord</CardTitle>
+        <CardTitle className="text-2xl">{t.title}</CardTitle>
       </CardHeader>
       <CardContent>
         <div
@@ -47,6 +52,8 @@ function Skeleton() {
 function ResetPasswordInner() {
   const router = useRouter();
   const token = useSearchParams().get("token");
+  const { locale } = useLocale();
+  const t = auth.reset[locale];
   const [password, setPassword] = useState("");
   const [repeat, setRepeat] = useState("");
   const [loading, setLoading] = useState(false);
@@ -58,11 +65,11 @@ function ResetPasswordInner() {
     setError("");
 
     if (password.length < MIN_LENGTH) {
-      setError(`Lösenordet måste vara minst ${MIN_LENGTH} tecken.`);
+      setError(tFill(t.errorTooShort, { minLength: MIN_LENGTH }));
       return;
     }
     if (password !== repeat) {
-      setError("Lösenorden matchar inte.");
+      setError(t.errorMismatch);
       return;
     }
 
@@ -73,13 +80,13 @@ function ResetPasswordInner() {
         { method: "POST", body: { token, newPassword: password } }
       );
       if (!ok) {
-        setError(data.error || "Något gick fel. Försök igen.");
+        setError(data.error || t.errorGeneric);
         return;
       }
       setDone(true);
       setTimeout(() => router.push("/login"), 2500);
     } catch {
-      setError("Kunde inte nå servern. Försök igen.");
+      setError(t.errorServer);
     } finally {
       setLoading(false);
     }
@@ -89,18 +96,16 @@ function ResetPasswordInner() {
     return (
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Länken saknas</CardTitle>
-          <CardDescription>
-            Öppna länken från e-postmeddelandet, eller begär en ny.
-          </CardDescription>
+          <CardTitle className="text-2xl">{t.missingTitle}</CardTitle>
+          <CardDescription>{t.missingDescription}</CardDescription>
         </CardHeader>
         <CardFooter className="justify-center pt-2 text-sm">
-          <Link
+          <LocaleLink
             href="/glomt-losenord"
             className="font-medium text-foreground underline-offset-4 hover:underline"
           >
-            Begär ny länk
-          </Link>
+            {t.requestNewLink}
+          </LocaleLink>
         </CardFooter>
       </Card>
     );
@@ -114,19 +119,16 @@ function ResetPasswordInner() {
             className="mx-auto mb-2 h-8 w-8 text-muted-foreground"
             aria-hidden="true"
           />
-          <CardTitle className="text-2xl">Lösenordet är bytt</CardTitle>
-          <CardDescription>
-            Du loggades ut från alla enheter. Vi skickar dig till
-            inloggningen.
-          </CardDescription>
+          <CardTitle className="text-2xl">{t.doneTitle}</CardTitle>
+          <CardDescription>{t.doneDescription}</CardDescription>
         </CardHeader>
         <CardFooter className="justify-center pt-2 text-sm">
-          <Link
+          <LocaleLink
             href="/login"
             className="font-medium text-foreground underline-offset-4 hover:underline"
           >
-            Logga in nu
-          </Link>
+            {t.loginNow}
+          </LocaleLink>
         </CardFooter>
       </Card>
     );
@@ -135,13 +137,15 @@ function ResetPasswordInner() {
   return (
     <Card className="w-full max-w-md shadow-lg">
       <CardHeader className="text-center">
-        <CardTitle className="text-2xl">Välj nytt lösenord</CardTitle>
-        <CardDescription>Minst {MIN_LENGTH} tecken.</CardDescription>
+        <CardTitle className="text-2xl">{t.title}</CardTitle>
+        <CardDescription>
+          {tFill(t.description, { minLength: MIN_LENGTH })}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="password">Nytt lösenord</Label>
+            <Label htmlFor="password">{t.newPasswordLabel}</Label>
             <Input
               id="password"
               type="password"
@@ -152,7 +156,7 @@ function ResetPasswordInner() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="repeat">Repetera lösenordet</Label>
+            <Label htmlFor="repeat">{t.repeatPasswordLabel}</Label>
             <Input
               id="repeat"
               type="password"
@@ -173,22 +177,22 @@ function ResetPasswordInner() {
             {loading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Sparar...
+                {t.submitting}
               </>
             ) : (
-              "Spara lösenord"
+              t.submit
             )}
           </Button>
         </form>
       </CardContent>
       <Separator />
       <CardFooter className="justify-center pt-6 text-sm">
-        <Link
+        <LocaleLink
           href="/login"
           className="font-medium text-foreground underline-offset-4 hover:underline"
         >
-          Tillbaka till inloggningen
-        </Link>
+          {t.backToLogin}
+        </LocaleLink>
       </CardFooter>
     </Card>
   );

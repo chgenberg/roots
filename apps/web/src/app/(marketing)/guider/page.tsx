@@ -1,25 +1,18 @@
-import Link from "next/link";
 import Image from "next/image";
+import type { Metadata } from "next";
+import { ArrowRight } from "lucide-react";
 import { Breadcrumbs } from "@/components/breadcrumbs";
+import { LocaleLink } from "@/components/locale-link";
 import {
   BreadcrumbJsonLd,
   ItemListJsonLd,
   WebPageJsonLd,
 } from "@/components/json-ld";
-import { pageMetadata } from "@/lib/seo";
-import { guides, GUIDE_CATEGORIES } from "@/content/guides";
+import { getGuides } from "@/content/guides";
 import type { Guide } from "@/content/guides";
-import { ArrowRight } from "lucide-react";
-
-const PAGE_TITLE = "Guider";
-const PAGE_DESCRIPTION =
-  "Guider om föreningsförsäljning, sportlag, ingredienser och hårvård från Roots — premium, föreningsnära och på svenska.";
-
-export const metadata = pageMetadata({
-  title: PAGE_TITLE,
-  description: PAGE_DESCRIPTION,
-  path: "/guider",
-});
+import { getPage } from "@/i18n/get-dictionary";
+import { getRequestLocale } from "@/i18n/request-locale";
+import { pageMetadata } from "@/lib/seo";
 
 const CATEGORY_ORDER: Guide["category"][] = [
   "forening",
@@ -28,27 +21,43 @@ const CATEGORY_ORDER: Guide["category"][] = [
   "harvard",
 ];
 
-function byCategory(category: Guide["category"]) {
-  return guides.filter((g) => g.category === category);
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getRequestLocale();
+  const copy = getPage("guiderIndex", locale);
+  return pageMetadata({
+    title: copy.title,
+    description: copy.description,
+    path: "/guider",
+    locale,
+  });
 }
 
-export default function GuiderIndexPage() {
+export default async function GuiderIndexPage() {
+  const locale = await getRequestLocale();
+  const copy = getPage("guiderIndex", locale);
+  const guides = getGuides(locale);
+
+  function byCategory(category: Guide["category"]) {
+    return guides.filter((g) => g.category === category);
+  }
+
   return (
     <div className="bg-brand-50/20">
       <BreadcrumbJsonLd
         items={[
-          { name: "Hem", url: "/" },
-          { name: "Guider", url: "/guider" },
+          { name: copy.breadcrumbHome, url: "/" },
+          { name: copy.title, url: "/guider" },
         ]}
       />
       <WebPageJsonLd
         type="CollectionPage"
-        name={PAGE_TITLE}
-        description={PAGE_DESCRIPTION}
+        name={copy.title}
+        description={copy.description}
         url="/guider"
+        locale={locale}
       />
       <ItemListJsonLd
-        name="Roots guider"
+        name={copy.itemListName}
         items={guides.map((g) => ({
           name: g.title,
           url: `/guider/${g.slug}`,
@@ -57,14 +66,16 @@ export default function GuiderIndexPage() {
       <section className="border-b border-border/60 bg-brand-50/40">
         <div className="mx-auto max-w-3xl px-6 py-14 md:px-10 md:py-20">
           <Breadcrumbs
-            items={[{ label: "Hem", href: "/" }, { label: "Guider" }]}
+            items={[
+              { label: copy.breadcrumbHome, href: "/" },
+              { label: copy.heroTitle },
+            ]}
           />
           <h1 className="mt-6 text-3xl font-bold tracking-tight md:text-4xl">
-            Guider
+            {copy.heroTitle}
           </h1>
           <p className="mt-4 max-w-2xl text-lg leading-relaxed text-muted-foreground">
-            Kunskap för föreningar, lag och alla som vill förstå Roots
-            hårvård — utan fluff och utan medicinska löften.
+            {copy.heroBody}
           </p>
         </div>
       </section>
@@ -73,7 +84,7 @@ export default function GuiderIndexPage() {
         {CATEGORY_ORDER.map((category) => {
           const items = byCategory(category);
           if (!items.length) return null;
-          const meta = GUIDE_CATEGORIES[category];
+          const meta = copy.categories[category];
           return (
             <section key={category} aria-labelledby={`cat-${category}`}>
               <h2
@@ -88,7 +99,7 @@ export default function GuiderIndexPage() {
               <ul className="mt-6 space-y-3">
                 {items.map((guide) => (
                   <li key={guide.slug}>
-                    <Link
+                    <LocaleLink
                       href={`/guider/${guide.slug}`}
                       className="group flex gap-4 rounded-2xl border border-transparent bg-background/80 p-3 transition-colors hover:border-brand-200/80 hover:bg-brand-50/50 sm:p-4"
                     >
@@ -111,11 +122,11 @@ export default function GuiderIndexPage() {
                           {guide.description}
                         </p>
                         <span className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-brand-600">
-                          Läs guiden
+                          {copy.readGuide}
                           <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
                         </span>
                       </div>
-                    </Link>
+                    </LocaleLink>
                   </li>
                 ))}
               </ul>

@@ -14,7 +14,12 @@ import {
   createCheckoutSession,
   getCheckoutOrder,
   acknowledgeOrder,
+  uiLocaleFromMerchantRef2,
 } from "../lib/payments/klarna";
+import {
+  localizedProductName,
+  shippingLineName,
+} from "../lib/product-i18n";
 import { verifyKlarnaSignature } from "../lib/payments/klarna-webhook";
 import { getEmailSender } from "../lib/email";
 import { orderConfirmationEmail } from "../lib/email/templates";
@@ -34,6 +39,12 @@ import {
 } from "@roots/contracts";
 import { stockholmDateIso } from "../lib/date";
 import { wasWebhookEventSeen, clearWebhookEventSeen } from "../lib/webhook-dedup";
+import {
+  resolveUiLocale,
+  uiError,
+  uiErrorFill,
+  type UiLocale,
+} from "../lib/ui-locale";
 
 const log = childLogger("checkout");
 
@@ -75,7 +86,10 @@ const KLARNA_WEBHOOK_SECRET = process.env.KLARNA_WEBHOOK_SECRET || "";
  * confirmation_email_sent_at IS NULL` och skickar bara mailet om
  * raden ändrades. Det är atomiskt över processer.
  */
-async function sendOrderConfirmationIfNeeded(orderId: string): Promise<void> {
+async function sendOrderConfirmationIfNeeded(
+  orderId: string,
+  locale: UiLocale = "sv"
+): Promise<void> {
   const [order] = await db
     .select()
     .from(customerOrders)
@@ -109,6 +123,8 @@ async function sendOrderConfirmationIfNeeded(orderId: string): Promise<void> {
   const orderLines = await db
     .select({
       name: products.name,
+      slug: products.slug,
+      sku: products.sku,
       qty: customerOrderLines.qty,
       unitPriceOre: customerOrderLines.unitPriceOre,
     })
@@ -129,10 +145,19 @@ async function sendOrderConfirmationIfNeeded(orderId: string): Promise<void> {
         orderId: order.id,
         totalOre: order.totalOre,
         shopSlug: seller?.shopSlug || "",
-        items: orderLines,
+        items: orderLines.map((l) => ({
+          name: localizedProductName(locale, {
+            slug: l.slug,
+            sku: l.sku,
+            fallback: l.name,
+          }),
+          qty: l.qty,
+          unitPriceOre: l.unitPriceOre,
+        })),
         // P1.5: signera order-status-länken så den inte är åtkomlig
         // för någon annan än mailmottagaren.
         viewToken: issueOrderViewToken(order.id),
+        locale,
       }),
     });
     if (!result?.success) {
@@ -172,7 +197,7 @@ checkout.post("/create", async (c) => {
   if (!rl.allowed) {
     c.header("Retry-After", String(rl.resetInSeconds));
     return c.json(
-      { error: "För många kassa-försök från denna IP. Försök igen om en stund." },
+      { error: uiError(resolveUiLocale(c), "checkoutRateLimited") },
       429
     );
   }
@@ -184,8 +209,12 @@ checkout.post("/create", async (c) => {
   try {
     body = JSON.parse(rawBody);
   } catch {
-    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+    return c.json({ error: uiError(resolveUiLocale(c), "invalidJson") }, 400);
   }
+
+  const locale = resolveUiLocale(c, body?.locale);
+  const localePrefix = locale === "en" ? "/en" : "";
+
 
   // P2.13 (audit 2026-05-26): klient-skickad Idempotency-Key (RFC-stil)
   // eller fallback till hash av request body. Två POST /create från
@@ -202,7 +231,7 @@ checkout.post("/create", async (c) => {
   const sellerSlugRaw = typeof body?.sellerSlug === "string" ? body.sellerSlug : "";
   const sellerSlugLower = sellerSlugRaw.toLowerCase().trim();
   if (!sellerSlugLower) {
-    return c.json({ error: "sellerSlug krävs." }, 400);
+    return c.json({ error: uiError(locale, "sellerSlugRequired") }, 400);
   }
   const bodyFingerprint = createHash("sha256").update(rawBody).digest("hex");
   const headerKey = c.req.header("idempotency-key")?.trim() ?? "";
@@ -236,7 +265,7 @@ checkout.post("/create", async (c) => {
         return c.json(
           {
             error:
-              "Idempotency-Key används redan av en annan request. Använd ett unikt värde.",
+              uiError(locale, "idempotencyConflict"),
           },
           409
         );
@@ -267,7 +296,7 @@ checkout.post("/create", async (c) => {
     } = body;
 
     if (!sellerSlug || !customerName || !customerEmail || !Array.isArray(items) || !items.length) {
-      return c.json({ error: "Alla obligatoriska fält krävs." }, 400);
+      return c.json({ error: uiError(locale, "requiredFields") }, 400);
     }
 
     // Distansavtalslagen kräver ett aktivt godkännande före köp. Kryssrutan
@@ -275,7 +304,7 @@ checkout.post("/create", async (c) => {
     // så vi kunde inte visa vad kunden faktiskt godkände.
     if (body?.acceptTerms !== true) {
       return c.json(
-        { error: "Du måste godkänna köpvillkoren och integritetspolicyn." },
+        { error: uiError(locale, "mustAcceptTerms") },
         400
       );
     }
@@ -285,7 +314,7 @@ checkout.post("/create", async (c) => {
     // mail studsar tyst och supportern får aldrig kvitto.
     const trimmedEmail = String(customerEmail).trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail) || trimmedEmail.length > 254) {
-      return c.json({ error: "Ogiltig e-postadress." }, 400);
+      return c.json({ error: uiError(locale, "invalidEmail") }, 400);
     }
 
     // MASTERPLAN_01 KC4.3: vid DIRECT-leverans MÅSTE adress, postnummer
@@ -293,23 +322,45 @@ checkout.post("/create", async (c) => {
     // Klarna-ordern skapades men varan kunde inte skickas. Vi blockerar
     // INNAN Klarna anropas så ingen fastnar i halv-betalt limbo.
     if (deliveryType === "DIRECT") {
-      const missing: string[] = [];
+      const missingKeys: Array<"fieldAddress" | "fieldCity" | "fieldPostalCode"> =
+        [];
       if (!shippingAddressLine1 || String(shippingAddressLine1).trim().length < 2) {
-        missing.push("adress");
+        missingKeys.push("fieldAddress");
       }
       if (!shippingCity || String(shippingCity).trim().length < 2) {
-        missing.push("ort");
+        missingKeys.push("fieldCity");
       }
       // Svenska postnummer: 5 siffror (med eller utan mellanslag)
       const pc = String(shippingPostalCode || "").replace(/\s+/g, "");
       if (!/^\d{5}$/.test(pc)) {
-        missing.push("postnummer");
+        missingKeys.push("fieldPostalCode");
       }
-      if (missing.length > 0) {
+      if (missingKeys.length > 0) {
+        const fieldLabels = missingKeys.map((k) => uiError(locale, k));
+        const fieldKeys =
+          locale === "en"
+            ? missingKeys.map((k) =>
+                k === "fieldAddress"
+                  ? "address"
+                  : k === "fieldCity"
+                    ? "city"
+                    : "postalCode"
+              )
+            : missingKeys.map((k) =>
+                k === "fieldAddress"
+                  ? "adress"
+                  : k === "fieldCity"
+                    ? "ort"
+                    : "postnummer"
+              );
         return c.json(
           {
-            error: `Vid hemleverans måste ${missing.join(", ")} fyllas i.`,
-            fields: Object.fromEntries(missing.map((f) => [f, "obligatorisk"])),
+            error: uiErrorFill(locale, "homeDeliveryFieldsRequired", {
+              fields: fieldLabels.join(", "),
+            }),
+            fields: Object.fromEntries(
+              fieldKeys.map((f) => [f, uiError(locale, "fieldRequired")])
+            ),
           },
           400
         );
@@ -324,7 +375,7 @@ checkout.post("/create", async (c) => {
         item.qty < 1 ||
         item.qty > 100
       ) {
-        return c.json({ error: "Ogiltig vara: qty måste vara ett heltal mellan 1 och 100." }, 400);
+        return c.json({ error: uiError(locale, "invalidQty") }, 400);
       }
     }
 
@@ -335,7 +386,7 @@ checkout.post("/create", async (c) => {
       .limit(1);
 
     if (!seller) {
-      return c.json({ error: "Säljare hittades inte." }, 404);
+      return c.json({ error: uiError(locale, "sellerNotFound") }, 404);
     }
 
     // P2.12 (audit 2026-05-26): tidigare accepterades order även om
@@ -343,7 +394,7 @@ checkout.post("/create", async (c) => {
     // public seller-profilen som redan döljer shoppen.
     if (seller.status !== "ACTIVE") {
       return c.json(
-        { error: "Säljaren tar inte längre emot beställningar." },
+        { error: uiError(locale, "sellerNotAccepting") },
         410
       );
     }
@@ -355,7 +406,7 @@ checkout.post("/create", async (c) => {
       .limit(1);
 
     if (!team) {
-      return c.json({ error: "Laget kunde inte hittas." }, 404);
+      return c.json({ error: uiError(locale, "teamNotFound") }, 404);
     }
 
     const [campaign] = await db
@@ -365,7 +416,7 @@ checkout.post("/create", async (c) => {
       .limit(1);
 
     if (!campaign || campaign.status !== "ACTIVE") {
-      return c.json({ error: "Kampanjen är inte aktiv." }, 400);
+      return c.json({ error: uiError(locale, "campaignInactive") }, 400);
     }
 
     // Backstop för godkännandet. Aktiveringen är spärrad på vägen in, men
@@ -378,7 +429,7 @@ checkout.post("/create", async (c) => {
         "checkout blockerad: föreningen är inte godkänd för publik försäljning"
       );
       return c.json(
-        { error: "Butiken tar inte emot beställningar just nu." },
+        { error: uiError(locale, "shopNotAccepting") },
         403
       );
     }
@@ -393,10 +444,7 @@ checkout.post("/create", async (c) => {
     if (!withinPeriod && !campaign.allowSalesOutsidePeriod) {
       // Föreningen har stängt försäljning mellan perioderna.
       return c.json(
-        {
-          error:
-            "Försäljningsperioden är inte aktiv just nu. Beställningar tas emot under angiven säljperiod.",
-        },
+        { error: uiError(locale, "salesPeriodInactive") },
         400
       );
     }
@@ -413,10 +461,12 @@ checkout.post("/create", async (c) => {
     ) {
       return c.json(
         {
-          error:
+          error: uiError(
+            locale,
             campaign.deliveryType === "BULK"
-              ? "Den här kampanjen levererar samlat till föreningen — hemleverans är inte tillgänglig."
-              : "Den här kampanjen kräver hemleverans till köparen.",
+              ? "campaignBulkDeliveryOnly"
+              : "campaignDirectDeliveryOnly"
+          ),
         },
         400
       );
@@ -428,7 +478,7 @@ checkout.post("/create", async (c) => {
 
     let totalOre = 0;
     const orderLines: Array<{
-      type: "physical";
+      type: "physical" | "shipping_fee";
       reference: string;
       name: string;
       quantity: number;
@@ -447,7 +497,13 @@ checkout.post("/create", async (c) => {
     for (const item of items) {
       const product = productMap.get(item.productId);
       if (!product) {
-        return c.json({ error: `Produkt hittades inte: ${item.productId}` }, 400);
+        return c.json(
+          {
+            error:
+              uiError(locale, "productNotFoundPrefix") + item.productId,
+          },
+          400
+        );
       }
 
       const qty = item.qty;
@@ -460,7 +516,11 @@ checkout.post("/create", async (c) => {
       orderLines.push({
         type: "physical",
         reference: product.sku,
-        name: product.name,
+        name: localizedProductName(locale, {
+          slug: product.slug,
+          sku: product.sku,
+          fallback: product.name,
+        }),
         quantity: qty,
         unit_price: unitPrice,
         tax_rate: taxRate,
@@ -476,7 +536,7 @@ checkout.post("/create", async (c) => {
     }
 
     if (dbOrderLines.length === 0 || totalOre === 0) {
-      return c.json({ error: "Varukorgen är tom eller innehåller ogiltiga produkter." }, 400);
+      return c.json({ error: uiError(locale, "emptyCart") }, 400);
     }
 
     let shippingOre = 0;
@@ -488,9 +548,9 @@ checkout.post("/create", async (c) => {
       if (totalOre < campaign.shippingThresholdOre) {
         shippingOre = campaign.shippingFeeOre;
         orderLines.push({
-          type: "physical",
+          type: "shipping_fee",
           reference: "SHIPPING",
-          name: "Frakt",
+          name: shippingLineName(locale),
           quantity: 1,
           unit_price: shippingOre,
           tax_rate: VAT_RATE_BASIS_POINTS,
@@ -588,7 +648,7 @@ checkout.post("/create", async (c) => {
             return c.json(
               {
                 error:
-                  "Idempotency-Key används redan av en annan request. Använd ett unikt värde.",
+                  uiError(locale, "idempotencyConflict"),
               },
               409
             );
@@ -610,18 +670,19 @@ checkout.post("/create", async (c) => {
       klarnaSession = await createCheckoutSession({
         purchaseCountry: "SE",
         purchaseCurrency: "SEK",
-        locale: "sv-SE",
+        locale: locale === "en" ? "en-GB" : "sv-SE",
         orderAmount: totalOre,
         orderTaxAmount: totalTax,
         orderLines,
         merchantUrls: {
-          terms: `${SITE_URL}/villkor`,
-          checkout: `${SITE_URL}/shop/${sellerSlug}/kassa`,
-          confirmation: `${SITE_URL}/shop/${sellerSlug}/bekraftelse?order_id=${order.id}`,
+          terms: `${SITE_URL}${localePrefix}/villkor`,
+          checkout: `${SITE_URL}${localePrefix}/shop/${sellerSlug}/kassa`,
+          confirmation: `${SITE_URL}${localePrefix}/shop/${sellerSlug}/bekraftelse?order_id=${order.id}`,
           push: `${process.env.API_URL || "http://localhost:4000"}/v1/checkout/webhook/{checkout.order.id}`,
         },
         merchantReference1: order.id,
-        merchantReference2: seller.id,
+        // Encode UI locale so the Klarna webhook can send the confirmation email in EN.
+        merchantReference2: `${seller.id}|${locale}`,
       });
     } catch (klarnaErr) {
       await db
@@ -645,7 +706,7 @@ checkout.post("/create", async (c) => {
       });
 
       log.error({ err: klarnaErr }, "Klarna session creation failed");
-      return c.json({ error: "Betalningen kunde inte initieras." }, 502);
+      return c.json({ error: uiError(locale, "paymentInitFailed") }, 502);
     }
 
     await db
@@ -689,7 +750,7 @@ checkout.post("/create", async (c) => {
     });
   } catch (err) {
     log.error({ err }, "Checkout creation failed");
-    return c.json({ error: "Något gick fel vid kassan." }, 500);
+    return c.json({ error: uiError(locale, "checkoutFailed") }, 500);
   }
 });
 
@@ -893,7 +954,12 @@ checkout.post("/webhook/:klarnaOrderId", async (c) => {
       });
 
       // Fire-and-forget; helpern är idempotent och loggar internt.
-      sendOrderConfirmationIfNeeded(existingOrder.id).catch(() => {});
+      const emailLocale = uiLocaleFromMerchantRef2(
+        klarnaOrder.merchantReference2
+      );
+      sendOrderConfirmationIfNeeded(existingOrder.id, emailLocale).catch(
+        () => {}
+      );
     }
 
     return c.json({ received: true });
@@ -910,6 +976,7 @@ checkout.post("/webhook/:klarnaOrderId", async (c) => {
 
 checkout.get("/confirm/:orderId", async (c) => {
   const orderId = c.req.param("orderId");
+  const locale = resolveUiLocale(c);
 
   try {
     const [order] = await db
@@ -919,7 +986,7 @@ checkout.get("/confirm/:orderId", async (c) => {
       .limit(1);
 
     if (!order) {
-      return c.json({ error: "Order hittades inte." }, 404);
+      return c.json({ error: uiError(locale, "orderNotFound") }, 404);
     }
 
     if (order.klarnaOrderId && order.status === "PENDING") {
@@ -1024,7 +1091,7 @@ checkout.get("/confirm/:orderId", async (c) => {
     // polling-path (webhook kan ha blockats av nätverk/CSRF/IP-listan).
     // Helpern är idempotent — dubbla mail vid race är förebyggda.
     if (order.status === "PAID" || order.status === "CONFIRMED") {
-      sendOrderConfirmationIfNeeded(order.id).catch(() => {});
+      sendOrderConfirmationIfNeeded(order.id, locale).catch(() => {});
     }
 
     const maskedEmail = order.customerEmail
@@ -1043,12 +1110,13 @@ checkout.get("/confirm/:orderId", async (c) => {
     });
   } catch (err) {
     log.error({ err }, "Order confirmation failed");
-    return c.json({ error: "Kunde inte bekräfta ordern." }, 500);
+    return c.json({ error: uiError(locale, "orderConfirmFailed") }, 500);
   }
 });
 
 checkout.get("/order-status/:orderId", async (c) => {
   const orderId = c.req.param("orderId");
+  const locale = resolveUiLocale(c);
 
   // P1.5 (audit 2026-05-26): endpointen returnerade tidigare full
   // kund-PII till alla som kände till UUID:n. Vi kräver nu en
@@ -1058,7 +1126,7 @@ checkout.get("/order-status/:orderId", async (c) => {
   const token = c.req.query("t");
   if (!verifyOrderViewToken(orderId, token)) {
     log.warn({ orderId, hasToken: Boolean(token) }, "order-status rejected: invalid token");
-    return c.json({ error: "Ogiltig eller utgången länk." }, 401);
+    return c.json({ error: uiError(locale, "invalidOrExpiredLink") }, 401);
   }
 
   try {
@@ -1069,12 +1137,14 @@ checkout.get("/order-status/:orderId", async (c) => {
       .limit(1);
 
     if (!order) {
-      return c.json({ error: "Order hittades inte." }, 404);
+      return c.json({ error: uiError(locale, "orderNotFound") }, 404);
     }
 
     const lines = await db
       .select({
         name: products.name,
+        slug: products.slug,
+        sku: products.sku,
         qty: customerOrderLines.qty,
         unitPriceOre: customerOrderLines.unitPriceOre,
       })
@@ -1100,10 +1170,18 @@ checkout.get("/order-status/:orderId", async (c) => {
       createdAt: order.createdAt,
       sellerName: seller?.displayName || null,
       shopSlug: seller?.shopSlug || null,
-      items: lines,
+      items: lines.map((l) => ({
+        name: localizedProductName(locale, {
+          slug: l.slug,
+          sku: l.sku,
+          fallback: l.name,
+        }),
+        qty: l.qty,
+        unitPriceOre: l.unitPriceOre,
+      })),
     });
   } catch (err) {
     log.error({ err }, "Failed to fetch order status");
-    return c.json({ error: "Kunde inte hämta orderstatus." }, 500);
+    return c.json({ error: uiError(locale, "orderStatusFailed") }, 500);
   }
 });

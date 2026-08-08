@@ -7,6 +7,9 @@ import { TrendingUp, Wallet, CalendarDays } from "lucide-react";
 import { portalFetch } from "@/lib/portal-api";
 import { incomeResponseSchema } from "@roots/contracts";
 import { LoadError } from "@/components/load-error";
+import { useLocale } from "@/i18n/locale-context";
+import { portalPages, portalShared } from "@/i18n/dictionaries/portal-pages";
+import { tFill } from "@/i18n/format";
 
 interface MonthRow {
   month: string;
@@ -15,31 +18,23 @@ interface MonthRow {
   payout: boolean;
 }
 
-const MONTH_NAMES = [
-  "Januari",
-  "Februari",
-  "Mars",
-  "April",
-  "Maj",
-  "Juni",
-  "Juli",
-  "Augusti",
-  "September",
-  "Oktober",
-  "November",
-  "December",
-];
-
-function formatMonthKey(key: string): string {
-  // API emits YYYY-MM via `to_char`. Map to "Mars 2026".
+function formatMonthKey(
+  key: string,
+  months: readonly string[]
+): string {
   const m = /^(\d{4})-(\d{2})$/.exec(key);
   if (!m) return key;
   const year = m[1];
   const monthIdx = parseInt(m[2], 10) - 1;
-  return `${MONTH_NAMES[monthIdx] ?? key} ${year}`;
+  return `${months[monthIdx] ?? key} ${year}`;
 }
 
 export default function IntakterPage() {
+  const { locale } = useLocale();
+  const t = portalPages.intakter[locale];
+  const shared = portalShared[locale];
+  const monthNames = shared.months;
+
   const [months, setMonths] = useState<MonthRow[]>([]);
   const [totalEarnedOre, setTotalEarnedOre] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -48,33 +43,25 @@ export default function IntakterPage() {
   const load = useCallback(() => {
     setLoading(true);
     setError(null);
-    // API shape: { months: [{ month, revenueOre, orderCount }], totalEarnedOre }
     portalFetch("/income", { schema: incomeResponseSchema })
       .then((data) => {
         const now = new Date();
         const currentKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
         setMonths(
           (data.months ?? []).map((m) => ({
-            month: formatMonthKey(m.month),
+            month: formatMonthKey(m.month, monthNames),
             revenue: Math.round(m.revenueOre / 100),
             orders: m.orderCount,
-            // "payout" is not tracked by the API yet — treat any month before
-            // the current calendar month as paid-out (operator convention).
             payout: m.month < currentKey,
           }))
         );
         setTotalEarnedOre(data.totalEarnedOre ?? 0);
       })
       .catch(() => {
-        // Tidigare svaldes felet här, och sidan visade 0 kr. En förening som
-        // faktiskt sålt för 40 000 kr fick alltså se noll utan att något
-        // antydde att siffran inte gick att lita på.
-        setError(
-          "Kunde inte hämta era intäkter. Siffrorna nedan visas inte eftersom de skulle bli felaktiga."
-        );
+        setError(t.loadError);
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [monthNames, t.loadError]);
 
   useEffect(() => {
     load();
@@ -85,32 +72,28 @@ export default function IntakterPage() {
       ? Math.round(totalEarnedOre / 100)
       : months.reduce((sum, m) => sum + m.revenue, 0);
 
-  // Current calendar month (Mars 2026 etc.) — find matching row from API.
   const now = new Date();
-  const currentKey = `${MONTH_NAMES[now.getMonth()]} ${now.getFullYear()}`;
+  const currentKey = `${monthNames[now.getMonth()]} ${now.getFullYear()}`;
   const thisMonth = months.find((m) => m.month === currentKey);
   const thisMonthRevenue = thisMonth?.revenue ?? 0;
 
-  // "Next payout" — convention: 15:e i nästa månad. Visa inte ett datum
-  // om vi inte har några pågående intjäningar.
   const hasPending = months.some((m) => !m.payout && m.revenue > 0);
   const nextPayout = (() => {
     if (!hasPending) return "—";
     const d = new Date(now.getFullYear(), now.getMonth() + 1, 15);
-    return d.toLocaleDateString("sv-SE", { day: "numeric", month: "short" });
+    return d.toLocaleDateString(shared.dateLocale, {
+      day: "numeric",
+      month: "short",
+    });
   })();
 
   const header = (
     <div>
-      <h1 className="text-2xl font-bold tracking-tight">Intäkter</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Följ era intäkter från Roots-försäljningen.
-      </p>
+      <h1 className="text-2xl font-bold tracking-tight">{t.title}</h1>
+      <p className="mt-1 text-sm text-muted-foreground">{t.subtitle}</p>
     </div>
   );
 
-  // Vid fel visar vi inga siffror alls. Ett nollställt belopp är värre än
-  // ingen uppgift: det ser ut som ett svar.
   if (error) {
     return (
       <div className="page-enter space-y-6">
@@ -130,8 +113,10 @@ export default function IntakterPage() {
             <div className="flex items-center gap-3">
               <Wallet className="h-5 w-5 text-brand-400" />
               <div>
-                <p className="text-2xl font-bold">{totalEarned.toLocaleString("sv-SE")} kr</p>
-                <p className="text-xs text-muted-foreground">Totalt intjänat</p>
+                <p className="text-2xl font-bold">
+                  {totalEarned.toLocaleString(shared.dateLocale)} {shared.kr}
+                </p>
+                <p className="text-xs text-muted-foreground">{t.totalEarned}</p>
               </div>
             </div>
           </CardContent>
@@ -142,9 +127,11 @@ export default function IntakterPage() {
               <TrendingUp className="h-5 w-5 text-brand-400" />
               <div>
                 <p className="text-2xl font-bold">
-                  {thisMonth ? `${thisMonthRevenue.toLocaleString("sv-SE")} kr` : "—"}
+                  {thisMonth
+                    ? `${thisMonthRevenue.toLocaleString(shared.dateLocale)} ${shared.kr}`
+                    : "—"}
                 </p>
-                <p className="text-xs text-muted-foreground">Denna månad</p>
+                <p className="text-xs text-muted-foreground">{t.thisMonth}</p>
               </div>
             </div>
           </CardContent>
@@ -155,7 +142,7 @@ export default function IntakterPage() {
               <CalendarDays className="h-5 w-5 text-brand-400" />
               <div>
                 <p className="text-2xl font-bold">{nextPayout}</p>
-                <p className="text-xs text-muted-foreground">Nästa utbetalning</p>
+                <p className="text-xs text-muted-foreground">{t.nextPayout}</p>
               </div>
             </div>
           </CardContent>
@@ -164,15 +151,14 @@ export default function IntakterPage() {
 
       <Card>
         <CardContent className="p-5">
-          <h2 className="font-semibold">Månadsöversikt</h2>
+          <h2 className="font-semibold">{t.monthOverview}</h2>
           {loading ? (
             <p className="mt-4 rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
-              Hämtar månadsdata…
+              {t.loadingMonths}
             </p>
           ) : months.length === 0 ? (
             <p className="mt-4 rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
-              Ingen intäktshistorik ännu. Tabellen fylls i automatiskt när er
-              första betalda order registreras.
+              {t.empty}
             </p>
           ) : (
             <div className="mt-4 space-y-4">
@@ -186,18 +172,21 @@ export default function IntakterPage() {
                     <div>
                       <p className="font-medium">{m.month}</p>
                       <p className="text-xs text-muted-foreground">
-                        {m.orders} beställningar
+                        {tFill(t.ordersCount, { count: m.orders })}
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="text-right">
-                      <p className="font-semibold">{m.revenue.toLocaleString("sv-SE")} kr</p>
+                      <p className="font-semibold">
+                        {m.revenue.toLocaleString(shared.dateLocale)}{" "}
+                        {shared.kr}
+                      </p>
                     </div>
                     {m.payout ? (
-                      <Badge variant="success">Utbetald</Badge>
+                      <Badge variant="success">{t.paidOut}</Badge>
                     ) : (
-                      <Badge variant="warning">Väntande</Badge>
+                      <Badge variant="warning">{t.pending}</Badge>
                     )}
                   </div>
                 </div>

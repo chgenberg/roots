@@ -19,6 +19,12 @@ import {
   type CreateQuoteResponse,
 } from "@roots/contracts";
 import { formatKr } from "@/lib/format";
+import { useLocale } from "@/i18n/locale-context";
+import { portalPages } from "@/i18n/dictionaries/portal-pages";
+import { portalShared } from "@/i18n/dictionaries/portal-pages";
+import { displayProductName } from "@/i18n/product-name";
+import { tFill } from "@/i18n/format";
+import { appCommon } from "@/i18n/dictionaries/app-common";
 
 export type CreatedQuote = CreateQuoteResponse["quote"];
 
@@ -30,19 +36,10 @@ interface ClubOption {
 interface ProductOption {
   id: string;
   name: string;
+  slug?: string;
   priceOre: number;
 }
 
-/**
- * "Ny offert"-dialogen. Shared by /portal/offerter (free choice of club)
- * and /portal/pipeline (club is pre-selected — the rep dragged a lead card
- * into a quote stage, so the club is already decided and locking it keeps
- * the drag from silently quoting the wrong org).
- *
- * Everything is validated server-side by POST /v1/portal/quotes; prices in
- * particular are looked up from the catalog there, so the cart totals here
- * are display-only.
- */
 export function NyOffertDialog({
   open,
   onOpenChange,
@@ -56,6 +53,11 @@ export function NyOffertDialog({
   presetOrg?: ClubOption | null;
   initialSendNow?: boolean;
 }) {
+  const { locale } = useLocale();
+  const t = portalPages.nyOffert[locale];
+  const shared = portalShared[locale];
+  const common = appCommon[locale];
+
   const [clubs, setClubs] = useState<ClubOption[]>([]);
   const [search, setSearch] = useState("");
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
@@ -68,9 +70,6 @@ export function NyOffertDialog({
 
   const presetOrgId = presetOrg?.id ?? null;
 
-  // P3.12 + P3.15 (audit 2026-05-26): fetch:arna cancellas via
-  // AbortController vid dialog-stängning och fel visas inline istället för
-  // att lämna dialog:en i tomt state.
   useEffect(() => {
     if (!open) return;
     setSelectedOrgId(presetOrgId);
@@ -83,8 +82,6 @@ export function NyOffertDialog({
     let cancelled = false;
     const controller = new AbortController();
 
-    // With a preset club there is nothing to pick, so we skip the club
-    // request entirely instead of fetching a list we won't render.
     if (!presetOrgId) {
       portalFetch("/clubs", {
         schema: clubsListResponseSchema,
@@ -97,7 +94,7 @@ export function NyOffertDialog({
         .catch((err) => {
           if (cancelled || (err as Error)?.name === "AbortError") return;
           console.error("Failed to load clubs", err);
-          setLoadError("Kunde inte hämta klubbar. Stäng och försök igen.");
+          setLoadError(t.clubsLoadError);
         });
     }
 
@@ -110,6 +107,7 @@ export function NyOffertDialog({
           (data.products ?? []).map((p) => ({
             id: p.id,
             name: p.name,
+            slug: (p as { slug?: string }).slug,
             priceOre: p.priceOre,
           }))
         );
@@ -117,14 +115,14 @@ export function NyOffertDialog({
       .catch((err) => {
         if (cancelled || (err as Error)?.name === "AbortError") return;
         console.error("Failed to load products", err);
-        setLoadError("Kunde inte hämta produkter. Stäng och försök igen.");
+        setLoadError(t.productsLoadError);
       });
 
     return () => {
       cancelled = true;
       controller.abort();
     };
-  }, [open, presetOrgId, initialSendNow]);
+  }, [open, presetOrgId, initialSendNow, t.clubsLoadError, t.productsLoadError]);
 
   const filteredClubs = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -151,11 +149,11 @@ export function NyOffertDialog({
   async function handleSubmit() {
     setError(null);
     if (!selectedOrgId) {
-      setError("Välj en förening.");
+      setError(t.selectClub);
       return;
     }
     if (cartCount === 0) {
-      setError("Lägg till minst en produkt.");
+      setError(t.addProduct);
       return;
     }
     setSubmitting(true);
@@ -176,7 +174,7 @@ export function NyOffertDialog({
       onCreated(created.quote);
       onOpenChange(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Kunde inte skapa offert.");
+      setError(err instanceof Error ? err.message : t.createFail);
     } finally {
       setSubmitting(false);
     }
@@ -187,7 +185,9 @@ export function NyOffertDialog({
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>
-            {presetOrg ? `Ny offert — ${presetOrg.name}` : "Ny offert"}
+            {presetOrg
+              ? tFill(t.titleFor, { name: presetOrg.name })
+              : t.title}
           </DialogTitle>
         </DialogHeader>
 
@@ -203,26 +203,26 @@ export function NyOffertDialog({
 
           {presetOrg ? (
             <div className="rounded-md border bg-muted/30 px-3 py-2">
-              <p className="text-xs text-muted-foreground">Förening</p>
+              <p className="text-xs text-muted-foreground">{t.club}</p>
               <p className="text-sm font-medium">{presetOrg.name}</p>
             </div>
           ) : (
             <div className="space-y-2">
-              <Label htmlFor="club-search">Förening</Label>
+              <Label htmlFor="club-search">{t.club}</Label>
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   id="club-search"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Sök förening…"
+                  placeholder={t.searchPlaceholder}
                   className="pl-9"
                 />
               </div>
               <div className="max-h-40 overflow-y-auto rounded-md border">
                 {filteredClubs.length === 0 ? (
                   <div className="px-3 py-2 text-xs text-muted-foreground">
-                    Inga föreningar hittades.
+                    {t.noClubs}
                   </div>
                 ) : (
                   filteredClubs.map((c) => (
@@ -245,11 +245,11 @@ export function NyOffertDialog({
           )}
 
           <div className="space-y-2">
-            <Label>Produkter</Label>
+            <Label>{t.products}</Label>
             <div className="space-y-2">
               {products.length === 0 && (
                 <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
-                  Hämtar produktkatalog…
+                  {t.loadingProducts}
                 </div>
               )}
               {products.map((p) => {
@@ -259,13 +259,15 @@ export function NyOffertDialog({
                     key={p.id}
                     className="flex items-center justify-between gap-3 rounded-md border p-3"
                   >
-                    {/* Scout fix 2026-05-26: min-w-0 + truncate skyddar
-                        mot långa SKU-namn som annars trycker bort qty-
-                        steppern i smala dialoger. */}
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{p.name}</p>
+                      <p className="truncate text-sm font-medium">
+                        {displayProductName(locale, {
+                          slug: p.slug,
+                          name: p.name,
+                        })}
+                      </p>
                       <p className="text-xs text-muted-foreground">
-                        {formatKr(p.priceOre)} / st
+                        {formatKr(p.priceOre, locale)} {shared.perUnit}
                       </p>
                     </div>
                     <div className="flex flex-shrink-0 items-center gap-2">
@@ -275,7 +277,12 @@ export function NyOffertDialog({
                         variant="outline"
                         onClick={() => updateQty(p.id, -1)}
                         disabled={qty === 0}
-                        aria-label={`Minska ${p.name}`}
+                        aria-label={tFill(t.decreaseAria, {
+                          name: displayProductName(locale, {
+                            slug: p.slug,
+                            name: p.name,
+                          }),
+                        })}
                       >
                         <Minus className="h-4 w-4" />
                       </Button>
@@ -287,7 +294,12 @@ export function NyOffertDialog({
                         size="icon"
                         variant="outline"
                         onClick={() => updateQty(p.id, 1)}
-                        aria-label={`Öka ${p.name}`}
+                        aria-label={tFill(t.increaseAria, {
+                          name: displayProductName(locale, {
+                            slug: p.slug,
+                            name: p.name,
+                          }),
+                        })}
                       >
                         <Plus className="h-4 w-4" />
                       </Button>
@@ -305,13 +317,13 @@ export function NyOffertDialog({
               onChange={(e) => setSendNow(e.target.checked)}
               className="h-4 w-4 rounded border-border"
             />
-            Skicka direkt (annars sparas som utkast)
+            {t.sendNow}
           </label>
 
           <div className="flex items-center justify-between rounded-md bg-muted/30 px-3 py-2">
-            <span className="text-sm text-muted-foreground">Totalsumma</span>
+            <span className="text-sm text-muted-foreground">{t.totalSum}</span>
             <span className="text-base font-semibold">
-              {formatKr(cartTotal)}
+              {formatKr(cartTotal, locale)}
             </span>
           </div>
           {error && (
@@ -327,10 +339,14 @@ export function NyOffertDialog({
             onClick={() => onOpenChange(false)}
             disabled={submitting}
           >
-            Avbryt
+            {common.cancel}
           </Button>
           <Button onClick={handleSubmit} disabled={submitting}>
-            {submitting ? "Skapar…" : sendNow ? "Skicka offert" : "Spara utkast"}
+            {submitting
+              ? t.creating
+              : sendNow
+                ? t.sendQuote
+                : t.saveDraft}
           </Button>
         </DialogFooter>
       </DialogContent>

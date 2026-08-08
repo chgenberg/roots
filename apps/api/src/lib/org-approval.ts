@@ -32,9 +32,6 @@ const log = childLogger("org-approval");
  * pengar). Den andra är den som faktiskt skyddar.
  */
 
-export const ORG_NOT_APPROVED_MESSAGE =
-  "Föreningen är inte godkänd för publik försäljning ännu. Vi hör av oss så snart vi granskat uppgifterna.";
-
 export async function isOrgApprovedForPublicSales(
   orgId: string | null | undefined
 ): Promise<boolean> {

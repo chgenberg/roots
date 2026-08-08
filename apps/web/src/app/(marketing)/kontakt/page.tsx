@@ -8,8 +8,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Mail, MapPin, Send } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { LEGAL_IDENTITY } from "@/lib/legal-identity";
+import { useLocale } from "@/i18n/locale-context";
+import { pages } from "@/i18n/dictionaries/pages";
 
 export default function KontaktPage() {
+  const { locale } = useLocale();
+  const t = pages.kontakt[locale];
   const [sent, setSent] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
@@ -25,6 +29,7 @@ export default function KontaktPage() {
       email: (form.elements.namedItem("email") as HTMLInputElement).value,
       subject: (form.elements.namedItem("subject") as HTMLInputElement).value,
       message: (form.elements.namedItem("message") as HTMLTextAreaElement).value,
+      locale,
     };
 
     try {
@@ -33,11 +38,11 @@ export default function KontaktPage() {
         { method: "POST", body: data }
       );
       if (!ok) {
-        throw new Error(resData?.error || "Något gick fel.");
+        throw new Error(resData?.error || t.errorGeneric);
       }
       setSent(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Kunde inte skicka meddelandet.");
+      setError(err instanceof Error ? err.message : t.errorSendFailed);
     } finally {
       setSending(false);
     }
@@ -49,12 +54,9 @@ export default function KontaktPage() {
         <div className="mx-auto max-w-[1280px] px-6 md:px-10">
           <div className="mx-auto max-w-2xl text-center">
             <h1 className="text-3xl font-bold tracking-tight md:text-4xl">
-              Kontakta oss
+              {t.heroTitle}
             </h1>
-            <p className="mt-4 text-muted-foreground">
-              Har du frågor om våra produkter, ditt föreningssamarbete eller
-              något annat? Hör av dig — vi svarar så snart vi kan.
-            </p>
+            <p className="mt-4 text-muted-foreground">{t.heroBody}</p>
           </div>
         </div>
       </section>
@@ -67,59 +69,65 @@ export default function KontaktPage() {
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-100">
                   <Send className="h-6 w-6 text-foreground" />
                 </div>
-                <h2 className="mt-6 text-xl font-semibold">Tack för ditt meddelande</h2>
+                <h2 className="mt-6 text-xl font-semibold">{t.successTitle}</h2>
                 <p className="mt-2 max-w-sm text-sm text-muted-foreground">
-                  Vi har mottagit ditt meddelande och återkommer så snart vi kan,
-                  vanligtvis inom 1–2 arbetsdagar.
+                  {t.successBody}
                 </p>
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="grid gap-6 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="name">Namn</Label>
-                    <Input id="name" name="name" required placeholder="Ditt namn" />
+                    <Label htmlFor="name">{t.form.name}</Label>
+                    <Input
+                      id="name"
+                      name="name"
+                      required
+                      placeholder={t.form.namePlaceholder}
+                    />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="email">E-post</Label>
+                    <Label htmlFor="email">{t.form.email}</Label>
                     <Input
                       id="email"
                       name="email"
                       type="email"
                       required
-                      placeholder="din@epost.se"
+                      placeholder={t.form.emailPlaceholder}
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="subject">Ämne</Label>
+                  <Label htmlFor="subject">{t.form.subject}</Label>
                   <Input
                     id="subject"
                     name="subject"
                     required
-                    placeholder="Vad gäller ditt ärende?"
+                    placeholder={t.form.subjectPlaceholder}
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="message">Meddelande</Label>
+                  <Label htmlFor="message">{t.form.message}</Label>
                   <textarea
                     id="message"
                     name="message"
                     required
                     rows={5}
-                    placeholder="Beskriv ditt ärende..."
+                    placeholder={t.form.messagePlaceholder}
                     className="flex w-full rounded-xl border border-input bg-background px-4 py-3 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   />
                 </div>
 
                 {error && (
-                  <p role="alert" className="text-sm text-destructive">{error}</p>
+                  <p role="alert" className="text-sm text-destructive">
+                    {error}
+                  </p>
                 )}
 
                 <Button type="submit" size="lg" pulse disabled={sending}>
-                  {sending ? "Skickar..." : "Skicka meddelande"}
+                  {sending ? t.form.submitting : t.form.submit}
                   {!sending && <Send className="ml-2 h-4 w-4" />}
                 </Button>
               </form>
@@ -134,12 +142,12 @@ export default function KontaktPage() {
                     <Mail className="h-5 w-5 text-foreground" />
                   </div>
                   <div>
-                    <h3 className="font-semibold">E-post</h3>
+                    <h3 className="font-semibold">{t.emailLabel}</h3>
                     <a
-                      href="mailto:hej@roots.se"
+                      href={`mailto:${t.email}`}
                       className="mt-1 block text-sm text-muted-foreground transition-colors hover:text-foreground"
                     >
-                      hej@roots.se
+                      {t.email}
                     </a>
                   </div>
                 </div>
@@ -153,18 +161,20 @@ export default function KontaktPage() {
                     <MapPin className="h-5 w-5 text-foreground" />
                   </div>
                   <div>
-                    <h3 className="font-semibold">Adress</h3>
+                    <h3 className="font-semibold">{t.addressLabel}</h3>
                     <address className="mt-1 text-sm not-italic text-muted-foreground">
                       {LEGAL_IDENTITY.legalName}
                       <br />
                       {LEGAL_IDENTITY.address.street}
                       <br />
-                      {LEGAL_IDENTITY.address.postalCode} {LEGAL_IDENTITY.address.city}, {LEGAL_IDENTITY.address.country}
+                      {LEGAL_IDENTITY.address.postalCode}{" "}
+                      {LEGAL_IDENTITY.address.city},{" "}
+                      {LEGAL_IDENTITY.address.country}
                     </address>
                     <p className="mt-2 text-xs text-muted-foreground">
-                      Org.nr {LEGAL_IDENTITY.orgNumber}
+                      {t.orgNumberLabel} {LEGAL_IDENTITY.orgNumber}
                       <br />
-                      Momsreg.nr {LEGAL_IDENTITY.vatId}
+                      {t.vatLabel} {LEGAL_IDENTITY.vatId}
                     </p>
                   </div>
                 </div>
@@ -172,10 +182,9 @@ export default function KontaktPage() {
             </Card>
 
             <div className="rounded-2xl border border-brand-100 bg-brand-50/30 p-6">
-              <h3 className="font-semibold">Svarstid</h3>
+              <h3 className="font-semibold">{t.responseTitle}</h3>
               <p className="mt-2 text-sm text-muted-foreground">
-                Vi besvarar alla meddelanden inom 1–2 arbetsdagar. För akuta
-                ärenden, skriv &quot;Brådskande&quot; i ämnesraden.
+                {t.responseBody}
               </p>
             </div>
           </div>

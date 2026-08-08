@@ -5,6 +5,7 @@ import {
   bankidStartRateLimit,
   bankidCollectRateLimit,
 } from "../lib/rate-limit";
+import { resolveUiLocale, uiError } from "../lib/ui-locale";
 
 const log = childLogger("bankid");
 
@@ -26,7 +27,7 @@ async function enforceBankIdRateLimit(
   if (!rl.allowed) {
     c.header("Retry-After", String(rl.resetInSeconds));
     return c.json(
-      { error: "För många BankID-försök. Försök igen om en stund." },
+      { error: uiError(resolveUiLocale(c), "bankIdRateLimited") },
       429
     );
   }
@@ -44,6 +45,7 @@ bankid.post("/auth/start", async (c) => {
   const limited = await enforceBankIdRateLimit(c, "start");
   if (limited) return limited;
 
+  const locale = resolveUiLocale(c);
   const ip =
     c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "127.0.0.1";
 
@@ -58,7 +60,7 @@ bankid.post("/auth/start", async (c) => {
     });
   } catch (err) {
     log.error({ err }, "auth/start failed");
-    return c.json({ error: "Kunde inte starta BankID-identifiering" }, 500);
+    return c.json({ error: uiError(locale, "bankIdStartFailed") }, 500);
   }
 });
 
@@ -66,15 +68,16 @@ bankid.post("/auth/collect", async (c) => {
   const limited = await enforceBankIdRateLimit(c, "collect");
   if (limited) return limited;
 
-  let body: { orderRef: string };
+  let body: { orderRef: string; locale?: unknown };
   try {
-    body = await c.req.json<{ orderRef: string }>();
+    body = await c.req.json<{ orderRef: string; locale?: unknown }>();
   } catch {
-    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+    return c.json({ error: uiError(resolveUiLocale(c), "invalidJson") }, 400);
   }
 
+  const locale = resolveUiLocale(c, body.locale);
   if (!body.orderRef) {
-    return c.json({ error: "orderRef krävs" }, 400);
+    return c.json({ error: uiError(locale, "orderRefRequired") }, 400);
   }
 
   try {
@@ -84,7 +87,7 @@ bankid.post("/auth/collect", async (c) => {
     return c.json(result);
   } catch (err) {
     log.error({ err }, "auth/collect failed");
-    return c.json({ error: "BankID-identifiering misslyckades" }, 500);
+    return c.json({ error: uiError(locale, "bankIdFailed") }, 500);
   }
 });
 
@@ -92,15 +95,16 @@ bankid.post("/auth/cancel", async (c) => {
   const limited = await enforceBankIdRateLimit(c, "start");
   if (limited) return limited;
 
-  let body: { orderRef: string };
+  let body: { orderRef: string; locale?: unknown };
   try {
-    body = await c.req.json<{ orderRef: string }>();
+    body = await c.req.json<{ orderRef: string; locale?: unknown }>();
   } catch {
-    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+    return c.json({ error: uiError(resolveUiLocale(c), "invalidJson") }, 400);
   }
 
+  const locale = resolveUiLocale(c, body.locale);
   if (!body.orderRef) {
-    return c.json({ error: "orderRef krävs" }, 400);
+    return c.json({ error: uiError(locale, "orderRefRequired") }, 400);
   }
 
   try {
@@ -108,6 +112,6 @@ bankid.post("/auth/cancel", async (c) => {
     await adapter.cancel(body.orderRef);
     return c.json({ ok: true });
   } catch {
-    return c.json({ ok: false, error: "Cancel misslyckades" });
+    return c.json({ ok: false, error: uiError(locale, "bankIdCancelFailed") });
   }
 });

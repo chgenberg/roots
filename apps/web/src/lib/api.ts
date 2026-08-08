@@ -1,10 +1,29 @@
 import { getBrowserApiBase } from "./api-base";
+import { appCommon } from "@/i18n/dictionaries/app-common";
+import { getBrowserLocale, localeHeaders } from "@/i18n/browser-locale";
+
+/**
+ * Browser fetch to the Roots API with credentials + UI locale header.
+ * Prefer this over raw `fetch` so English UI never receives Swedish API copy
+ * when the browser's Accept-Language is Swedish.
+ */
+export function rootsFetch(
+  input: string,
+  init: RequestInit = {}
+): Promise<Response> {
+  const { headers: initHeaders, credentials, ...rest } = init;
+  return fetch(input, {
+    ...rest,
+    credentials: credentials ?? "include",
+    headers: localeHeaders(initHeaders),
+  });
+}
 
 let csrfToken: string | null = null;
 
 export class CsrfTokenError extends Error {
   constructor(readonly status: number) {
-    super("Tjänsten är tillfälligt otillgänglig. Försök igen om en stund.");
+    super(appCommon[getBrowserLocale()].serviceUnavailable);
     this.name = "CsrfTokenError";
   }
 }
@@ -22,7 +41,10 @@ export async function getCsrfToken(): Promise<string> {
   const base = getBrowserApiBase();
   let res: Response;
   try {
-    res = await fetch(`${base}/v1/csrf-token`, { credentials: "include" });
+    res = await fetch(`${base}/v1/csrf-token`, {
+      credentials: "include",
+      headers: { "x-roots-locale": getBrowserLocale() },
+    });
   } catch {
     throw new CsrfTokenError(0);
   }
@@ -43,8 +65,11 @@ export async function apiFetch<T>(
   options: { method?: string; body?: unknown; signal?: AbortSignal } = {}
 ): Promise<{ ok: boolean; status: number; data: T }> {
   const { method = "GET", body, signal } = options;
+  const locale = getBrowserLocale();
 
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = {
+    "x-roots-locale": locale,
+  };
   if (body) headers["Content-Type"] = "application/json";
 
   if (method !== "GET" && method !== "HEAD") {
@@ -58,7 +83,9 @@ export async function apiFetch<T>(
       return {
         ok: false,
         status,
-        data: { error: "Tjänsten är tillfälligt otillgänglig" } as T,
+        data: {
+          error: appCommon[locale].serviceUnavailableShort,
+        } as T,
       };
     }
   }

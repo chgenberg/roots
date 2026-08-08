@@ -16,10 +16,8 @@ import {
   UpdateCampaignSchema,
   SetTeamGoalSchema,
 } from "@roots/contracts";
-import {
-  isOrgApprovedForPublicSales,
-  ORG_NOT_APPROVED_MESSAGE,
-} from "../../lib/org-approval";
+import { isOrgApprovedForPublicSales } from "../../lib/org-approval";
+import { uiError } from "../../lib/ui-locale";
 
 const protectedProcedure = publicProcedure.use(isAuthenticated);
 const teamLeaderProcedure = publicProcedure.use(isTeamLeader);
@@ -47,7 +45,11 @@ function generateToken(): string {
   return crypto.randomUUID().replace(/-/g, "").slice(0, 32);
 }
 
-async function verifyCampaignOwnership(campaignId: string, orgId: string) {
+async function verifyCampaignOwnership(
+  campaignId: string,
+  orgId: string,
+  locale: Parameters<typeof uiError>[0]
+) {
   const [campaign] = await db
     .select()
     .from(campaigns)
@@ -55,17 +57,27 @@ async function verifyCampaignOwnership(campaignId: string, orgId: string) {
     .limit(1);
 
   if (!campaign) {
-    throw new TRPCError({ code: "NOT_FOUND", message: "Kampanj hittades inte" });
+    throw new TRPCError({
+      code: "NOT_FOUND",
+      message: uiError(locale, "campaignNotFound"),
+    });
   }
 
   if (campaign.orgId !== orgId) {
-    throw new TRPCError({ code: "FORBIDDEN", message: "Behörighet saknas för denna kampanj" });
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: uiError(locale, "permissionDeniedForCampaign"),
+    });
   }
 
   return campaign;
 }
 
-async function verifyTeamOwnership(teamId: string, orgId: string) {
+async function verifyTeamOwnership(
+  teamId: string,
+  orgId: string,
+  locale: Parameters<typeof uiError>[0]
+) {
   const [team] = await db
     .select()
     .from(teams)
@@ -73,11 +85,17 @@ async function verifyTeamOwnership(teamId: string, orgId: string) {
     .limit(1);
 
   if (!team) {
-    throw new TRPCError({ code: "NOT_FOUND", message: "Lag hittades inte" });
+    throw new TRPCError({
+      code: "NOT_FOUND",
+      message: uiError(locale, "teamNotFoundShort"),
+    });
   }
 
   if (team.orgId !== orgId) {
-    throw new TRPCError({ code: "FORBIDDEN", message: "Behörighet saknas för detta lag" });
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: uiError(locale, "permissionDeniedForTeam"),
+    });
   }
 
   return team;
@@ -117,7 +135,10 @@ export const campaignsRouter = router({
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       if (!ctx.orgId) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Ingen organisation kopplad till sessionen" });
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: uiError(ctx.locale, "noOrganisationOnSession"),
+        });
       }
 
       const [campaign] = await db
@@ -129,7 +150,10 @@ export const campaignsRouter = router({
       if (!campaign) return null;
 
       if (campaign.orgId !== ctx.orgId) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Behörighet saknas" });
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: uiError(ctx.locale, "permissionDenied"),
+        });
       }
 
       return campaign;
@@ -162,7 +186,7 @@ export const campaignsRouter = router({
       ) {
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: ORG_NOT_APPROVED_MESSAGE,
+          message: uiError(ctx.locale, "orgNotApprovedForPublicSales"),
         });
       }
 
@@ -173,7 +197,10 @@ export const campaignsRouter = router({
         .returning();
 
       if (!updated) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Kampanjen hittades inte" });
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: uiError(ctx.locale, "campaignNotFoundThe"),
+        });
       }
 
       return updated;
@@ -187,7 +214,7 @@ export const campaignsRouter = router({
       if (!(await isOrgApprovedForPublicSales(ctx.orgId))) {
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: ORG_NOT_APPROVED_MESSAGE,
+          message: uiError(ctx.locale, "orgNotApprovedForPublicSales"),
         });
       }
 
@@ -200,7 +227,10 @@ export const campaignsRouter = router({
         .returning();
 
       if (!updated) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Kampanjen hittades inte" });
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: uiError(ctx.locale, "campaignNotFoundThe"),
+        });
       }
 
       return updated;
@@ -216,7 +246,7 @@ export const teamsRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      await verifyCampaignOwnership(input.campaignId, ctx.orgId);
+      await verifyCampaignOwnership(input.campaignId, ctx.orgId, ctx.locale);
 
       const inviteToken = generateToken();
 
@@ -242,7 +272,7 @@ export const teamsRouter = router({
   listByCampaign: teamLeaderProcedure
     .input(z.object({ campaignId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
-      await verifyCampaignOwnership(input.campaignId, ctx.orgId!);
+      await verifyCampaignOwnership(input.campaignId, ctx.orgId!, ctx.locale);
 
       const teamList = await db
         .select({
@@ -297,8 +327,8 @@ export const teamsRouter = router({
   setGoal: associationMutation
     .input(SetTeamGoalSchema)
     .mutation(async ({ ctx, input }) => {
-      await verifyCampaignOwnership(input.campaignId, ctx.orgId);
-      await verifyTeamOwnership(input.teamId, ctx.orgId);
+      await verifyCampaignOwnership(input.campaignId, ctx.orgId, ctx.locale);
+      await verifyTeamOwnership(input.teamId, ctx.orgId, ctx.locale);
 
       const [goal] = await db
         .insert(teamGoals)
@@ -323,7 +353,7 @@ export const teamsRouter = router({
   regenerateInviteToken: teamLeaderMutation
     .input(z.object({ teamId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
-      await verifyTeamOwnership(input.teamId, ctx.orgId);
+      await verifyTeamOwnership(input.teamId, ctx.orgId, ctx.locale);
 
       const newToken = generateToken();
 
@@ -336,7 +366,10 @@ export const teamsRouter = router({
         .returning();
 
       if (!updated) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Laget hittades inte eller saknar behörighet" });
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: uiError(ctx.locale, "teamNotFoundOrNoPermission"),
+        });
       }
 
       return updated;
@@ -347,7 +380,7 @@ export const sellersRouter = router({
   listByTeam: protectedProcedure
     .input(z.object({ teamId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
-      await verifyTeamOwnership(input.teamId, ctx.orgId!);
+      await verifyTeamOwnership(input.teamId, ctx.orgId!, ctx.locale);
 
       const sellerList = await db
         .select({

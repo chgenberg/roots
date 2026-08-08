@@ -162,6 +162,8 @@ export interface KlarnaOrderSnapshot {
    * ordrar i dashboards/avräkning utan en separat Swish-integration.
    */
   selectedPaymentMethod: string | null;
+  /** Encoded as `{sellerId}|{uiLocale}` at session create. */
+  merchantReference2: string | null;
   billingAddress?: {
     given_name?: string;
     family_name?: string;
@@ -207,6 +209,7 @@ export async function getCheckoutOrder(
       orderAmount: null,
       purchaseCurrency: "SEK",
       selectedPaymentMethod: "swish",
+      merchantReference2: null,
       billingAddress: {
         given_name: "Test",
         family_name: "Testsson",
@@ -237,8 +240,21 @@ export async function getCheckoutOrder(
         ? (data.purchase_currency as string).toUpperCase()
         : null,
     selectedPaymentMethod: extractSelectedPaymentMethod(data),
+    merchantReference2:
+      typeof data.merchant_reference2 === "string"
+        ? data.merchant_reference2
+        : null,
     billingAddress: (data.billing_address as KlarnaOrderSnapshot["billingAddress"]) ?? undefined,
   };
+}
+
+/** Parse UI locale from merchant_reference2 (`{sellerId}|en`). */
+export function uiLocaleFromMerchantRef2(
+  ref: string | null | undefined
+): "sv" | "en" {
+  if (!ref) return "sv";
+  const part = ref.split("|")[1]?.trim().toLowerCase();
+  return part === "en" ? "en" : "sv";
 }
 
 export async function acknowledgeOrder(orderId: string) {

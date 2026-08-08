@@ -10,13 +10,16 @@ import {
 import { buildSystemPrompt } from "../../lib/ai/system-prompt";
 import { recordAiUsage, recordAiIncident } from "../../lib/ai/usage";
 import { scrubPiiText } from "../../lib/ai/pii";
-import { checkMedicalClaims, CLAIMS_BLOCKED_REPLY } from "../../lib/ai/claims-guard";
+import {
+  checkMedicalClaims,
+  CLAIMS_BLOCKED_REPLY,
+  CLAIMS_BLOCKED_REPLY_EN,
+} from "../../lib/ai/claims-guard";
 import { aiRateLimit, aiGlobalChatDailyCap } from "../../lib/rate-limit";
 import { flags } from "../../lib/flags";
+import { uiError, uiErrorFill } from "../../lib/ui-locale";
 
 const authedProcedure = publicProcedure.use(isAuthenticated);
-
-const DISCLAIMER = "AI-genererat svar — verifiera viktig information";
 
 export const aiRouter = router({
   chat: authedProcedure
@@ -37,6 +40,8 @@ export const aiRouter = router({
       const userId = session?.userId ?? null;
       const orgId = session?.orgId ?? null;
       const surface = "portal_chat_trpc";
+      const locale = ctx.locale;
+      const disclaimer = uiError(locale, "aiGeneratedDisclaimer");
 
       // Pre-push fix 2026-05-26: REST-rutten /v1/ai/chat har
       // aiRateLimit(userId) (30/min). tRPC-mutationen saknade det
@@ -54,7 +59,9 @@ export const aiRouter = router({
           });
           throw new TRPCError({
             code: "TOO_MANY_REQUESTS",
-            message: `För många frågor på kort tid. Vänta ${rl.resetInSeconds}s.`,
+            message: uiErrorFill(locale, "aiTooManyQuestionsWait", {
+              seconds: String(rl.resetInSeconds),
+            }),
           });
         }
       }
@@ -73,8 +80,7 @@ export const aiRouter = router({
         });
         throw new TRPCError({
           code: "TOO_MANY_REQUESTS",
-          message:
-            "AI-assistenten har nått dagens kapacitetstak. Försök igen efter midnatt.",
+          message: uiError(locale, "aiDailyCapReached"),
         });
       }
 
@@ -87,10 +93,9 @@ export const aiRouter = router({
           meta: { reason: !flags.aiEnabled() ? "kill_switch" : "not_configured" },
         });
         return {
-          reply:
-            "AI-assistenten är inte aktiverad just nu. Kontakta support för hjälp.",
+          reply: uiError(locale, "aiNotActivated"),
           conversationId,
-          disclaimer: DISCLAIMER,
+          disclaimer,
           fallback: true,
         };
       }
@@ -101,7 +106,8 @@ export const aiRouter = router({
             role: "system",
             content: buildSystemPrompt(
               session?.role ?? "GUEST",
-              session?.demoProfile?.name
+              session?.demoProfile?.name,
+              locale
             ),
           },
           // REST-rutterna skrubbade PII innan de skickade vidare till
@@ -129,15 +135,16 @@ export const aiRouter = router({
             meta: { matched: claims.matched ?? null },
           });
           return {
-            reply: CLAIMS_BLOCKED_REPLY,
+            reply:
+              locale === "en" ? CLAIMS_BLOCKED_REPLY_EN : CLAIMS_BLOCKED_REPLY,
             conversationId,
-            disclaimer: DISCLAIMER,
+            disclaimer,
           };
         }
         return {
           reply: response.content,
           conversationId,
-          disclaimer: DISCLAIMER,
+          disclaimer,
           model: response.model,
         };
       } catch (err) {
@@ -150,10 +157,9 @@ export const aiRouter = router({
           meta: { message: (err as Error)?.message },
         });
         return {
-          reply:
-            "AI-assistenten är inte tillgänglig just nu. Försök igen eller maila hej@roots.se.",
+          reply: uiError(locale, "aiUnavailableTryAgain"),
           conversationId,
-          disclaimer: DISCLAIMER,
+          disclaimer,
           fallback: true,
         };
       }

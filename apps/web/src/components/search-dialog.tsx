@@ -13,56 +13,23 @@ import {
   ArrowRight,
   Command,
 } from "lucide-react";
+import { useLocale } from "@/i18n/locale-context";
+import { marketingUi } from "@/i18n/dictionaries/marketing-ui";
+import { getGuides } from "@/lib/guides";
+import { withLocale } from "@/i18n/paths";
 
 interface SearchItem {
   label: string;
   href: string;
   category: "pages" | "products" | "quick";
+  neutral?: boolean;
 }
 
-const ITEMS: SearchItem[] = [
-  { label: "Hem", href: "/", category: "pages" },
-  { label: "Produkter", href: "/produkter", category: "pages" },
-  { label: "Föreningsliv", href: "/foreningsliv", category: "pages" },
-  { label: "Guider", href: "/guider", category: "pages" },
-  { label: "Så fungerar det", href: "/sa-fungerar-det", category: "pages" },
-  { label: "Hjälp", href: "/hjalp", category: "pages" },
-  { label: "Om oss", href: "/om-oss", category: "pages" },
-  { label: "Kontakt", href: "/kontakt", category: "pages" },
-  ...(HAIR_ANALYSIS_ENABLED
-    ? ([{ label: "Håranalys", href: "/haranalys", category: "pages" }] as SearchItem[])
-    : []),
-  { label: "Integritetspolicy", href: "/integritet", category: "pages" },
-  { label: "Köpvillkor", href: "/villkor", category: "pages" },
-  { label: "Vad är föreningsförsäljning", href: "/guider/foreningsforsaljning", category: "pages" },
-  { label: "Så fungerar Roots", href: "/guider/sa-fungerar-roots", category: "pages" },
-  { label: "Hur mycket tjänar föreningen", href: "/guider/hur-mycket-tjanar-foreningen", category: "pages" },
-  { label: "Personlig shop och QR", href: "/guider/personlig-shop", category: "pages" },
-  { label: "Tips till säljare", href: "/guider/tips-till-saljare", category: "pages" },
-  { label: "Godisförsäljning vs Roots", href: "/guider/jamfor-godisforsaljning", category: "pages" },
-  { label: "Roots för fotbollslag", href: "/guider/for-fotbollslag", category: "pages" },
-  { label: "Roots för ishockeylag", href: "/guider/for-ishockeylag", category: "pages" },
-  { label: "SyriCalm", href: "/guider/syricalm", category: "pages" },
-  { label: "MultiMoist", href: "/guider/multimoist", category: "pages" },
-  { label: "Hårbotten i balans", href: "/guider/harbotten", category: "pages" },
-  { label: "Naturlig hårvård i Norden", href: "/guider/naturlig-harvard-norden", category: "pages" },
-  { label: "Sulfatsnålt schampo", href: "/guider/sulfatsnalt-schampo", category: "pages" },
-  { label: "Rutin efter träning", href: "/guider/rutin-efter-traning", category: "pages" },
-  { label: "Roots Schampoo", href: "/produkter/shampoo", category: "products" },
-  { label: "Roots Conditioner", href: "/produkter/conditioner", category: "products" },
-  { label: "Roots Body Wash", href: "/produkter/body-wash", category: "products" },
-  { label: "Roots Komplett paket", href: "/produkter/paket", category: "products" },
-  { label: "Logga in", href: "/login", category: "quick" },
-  ...(HAIR_ANALYSIS_ENABLED
-    ? ([{ label: "Starta håranalys", href: "/haranalys", category: "quick" }] as SearchItem[])
-    : []),
-];
-
-const CATEGORY_META: Record<SearchItem["category"], { label: string; icon: typeof FileText }> = {
-  pages: { label: "Sidor", icon: FileText },
-  products: { label: "Produkter", icon: Package },
-  quick: { label: "Snabblänkar", icon: ArrowRight },
-};
+const CATEGORY_ICONS = {
+  pages: FileText,
+  products: Package,
+  quick: ArrowRight,
+} as const;
 
 export function useSearchOpen() {
   const [open, setOpen] = useState(false);
@@ -70,12 +37,14 @@ export function useSearchOpen() {
 }
 
 export function SearchTrigger() {
+  const { locale } = useLocale();
+  const aria = marketingUi[locale].search.aria;
   return (
     <button
       type="button"
       onClick={() => window.dispatchEvent(new CustomEvent("roots:open-search"))}
       className="flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground transition-colors duration-200 hover:bg-brand-50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-      aria-label="Sök"
+      aria-label={aria}
     >
       <Search className="h-[18px] w-[18px]" />
     </button>
@@ -84,6 +53,8 @@ export function SearchTrigger() {
 
 export function SearchDialog() {
   const [open, setOpen] = useState(false);
+  const { locale } = useLocale();
+  const copy = marketingUi[locale].search;
 
   useEffect(() => {
     function onOpenSearch() { setOpen(true); }
@@ -95,6 +66,23 @@ export function SearchDialog() {
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+
+  const items = useMemo<SearchItem[]>(() => {
+    const base = copy.items
+      .filter((item) => !("hair" in item && item.hair) || HAIR_ANALYSIS_ENABLED)
+      .map((item) => ({
+        label: item.label,
+        href: item.href,
+        category: item.category as SearchItem["category"],
+        neutral: "neutral" in item ? !!item.neutral : false,
+      }));
+    const guides = getGuides(locale).map((g) => ({
+      label: g.title,
+      href: `/guider/${g.slug}`,
+      category: "pages" as const,
+    }));
+    return [...base, ...guides];
+  }, [copy.items, locale]);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -108,14 +96,14 @@ export function SearchDialog() {
   }, []);
 
   const filtered = useMemo(() => {
-    if (!query.trim()) return ITEMS;
+    if (!query.trim()) return items;
     const q = query.toLowerCase();
-    return ITEMS.filter(
+    return items.filter(
       (item) =>
         item.label.toLowerCase().includes(q) ||
         item.href.toLowerCase().includes(q)
     );
-  }, [query]);
+  }, [query, items]);
 
   const grouped = useMemo(() => {
     const map = new Map<SearchItem["category"], SearchItem[]>();
@@ -133,9 +121,10 @@ export function SearchDialog() {
     (item: SearchItem) => {
       setOpen(false);
       setQuery("");
-      router.push(item.href);
+      const href = item.neutral ? item.href : withLocale(item.href, locale);
+      router.push(href);
     },
-    [router]
+    [router, locale]
   );
 
   useEffect(() => {
@@ -178,10 +167,8 @@ export function SearchDialog() {
             skärmläsare. Vi visar inte titeln visuellt (har sökfält
             med aria-label) men lägger den i VisuallyHidden. */}
         <VisuallyHiddenPrimitive.Root>
-          <DialogTitle>Sök på Roots</DialogTitle>
-          <DialogDescription>
-            Sök bland sidor, produkter och hjälpartiklar.
-          </DialogDescription>
+          <DialogTitle>{copy.title}</DialogTitle>
+          <DialogDescription>{copy.placeholder}</DialogDescription>
         </VisuallyHiddenPrimitive.Root>
         <div className="flex items-center gap-3 border-b border-border px-4">
           <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -190,9 +177,9 @@ export function SearchDialog() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Sök sidor, produkter..."
+            placeholder={copy.placeholder}
             className="flex-1 bg-transparent py-3.5 text-sm outline-none placeholder:text-muted-foreground"
-            aria-label="Sök"
+            aria-label={copy.aria}
           />
           <kbd className="hidden shrink-0 items-center gap-0.5 rounded-md border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground sm:flex">
             <Command className="h-2.5 w-2.5" />K
@@ -202,20 +189,20 @@ export function SearchDialog() {
         <div ref={listRef} className="max-h-[min(60vh,400px)] overflow-y-auto p-2">
           {flatList.length === 0 && (
             <p className="px-3 py-8 text-center text-sm text-muted-foreground">
-              Inga resultat för &ldquo;{query}&rdquo;
+              {copy.empty} &ldquo;{query}&rdquo;
             </p>
           )}
 
           {(["pages", "products", "quick"] as const).map((cat) => {
-            const items = grouped.get(cat);
-            if (!items?.length) return null;
-            const meta = CATEGORY_META[cat];
+            const catItems = grouped.get(cat);
+            if (!catItems?.length) return null;
+            const Icon = CATEGORY_ICONS[cat];
             return (
               <div key={cat} className="mb-1">
                 <p className="px-3 py-2 text-xs font-medium text-muted-foreground">
-                  {meta.label}
+                  {copy.categories[cat]}
                 </p>
-                {items.map((item) => {
+                {catItems.map((item) => {
                   flatIndex++;
                   const idx = flatIndex;
                   const isActive = idx === activeIndex;
@@ -232,7 +219,7 @@ export function SearchDialog() {
                           : "text-muted-foreground hover:bg-muted/60"
                       )}
                     >
-                      <meta.icon className="h-4 w-4 shrink-0" />
+                      <Icon className="h-4 w-4 shrink-0" />
                       <span className="flex-1 text-left">{item.label}</span>
                       {isActive && (
                         <ArrowRight className="h-3 w-3 shrink-0 text-muted-foreground" />

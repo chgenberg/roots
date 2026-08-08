@@ -1,109 +1,97 @@
 import Image from "next/image";
-import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArrowUpRight, Leaf, Droplets, Sparkles } from "lucide-react";
 import { BreadcrumbJsonLd, ItemListJsonLd, WebPageJsonLd } from "@/components/json-ld";
+import { LocaleLink } from "@/components/locale-link";
 import { pageMetadata } from "@/lib/seo";
-import { BUNDLE_SLUG } from "@/lib/product-catalog";
+import { BUNDLE_SLUG, productImage } from "@/lib/product-catalog";
+import { getPage, getProduct, getProductListingExtras } from "@/i18n/get-dictionary";
+import { getRequestLocale } from "@/i18n/request-locale";
+import { withLocale } from "@/i18n/paths";
+import type { Metadata } from "next";
 
-const PAGE_TITLE = "Produkter";
-const PAGE_DESCRIPTION =
-  "Tre noggrant formulerade nordiska produkter med SyriCalm® och Pro-Vitamin B5 — var för sig eller som komplett paket. Sulfatsnålt, silikon- och parabenfritt.";
+const VALUE_ICONS = [Leaf, Droplets, Sparkles] as const;
 
-export const metadata = pageMetadata({
-  title: PAGE_TITLE,
-  description: PAGE_DESCRIPTION,
-  path: "/produkter",
-});
+const PRODUCT_SLUGS = ["shampoo", "conditioner", "body-wash", BUNDLE_SLUG] as const;
 
-const PRODUCTS = [
-  {
-    slug: "shampoo",
-    name: "Roots Schampoo",
-    subtitle: "Schampo — 250 ml",
-    tagline: "Ett milt men effektivt schampo som rengör utan att torka ut. SyriCalm® lugnar hårbotten och Polyquaternium reder ut — håret känns rent, lätt och i balans.",
-    image: "/images/sport-schampoo.jpg",
-    price: "149 kr",
-    badge: "Bestseller",
-    highlights: ["Sulfatsnålt", "SyriCalm®", "Reder ut & glans"],
-  },
-  {
-    slug: "conditioner",
-    name: "Roots Conditioner",
-    subtitle: "Balsam — 250 ml",
-    tagline: "Ett närande balsam som gör håret mjukt och följsamt utan att tynga. Pro-Vitamin B5 och antioxidanter ger fukt, lyster och skydd — SyriCalm® lugnar hårbotten.",
-    image: "/images/sport-conditioner.jpg",
-    price: "149 kr",
-    badge: null,
-    highlights: ["SyriCalm® & Panthenol", "E-vitamin", "Närande utan att tynga"],
-  },
-  {
-    slug: "body-wash",
-    name: "Roots Body Wash",
-    subtitle: "Body Wash — 250 ml",
-    tagline: "En skonsam kroppstvätt som rengör utan att torka ut. Milda tvättämnen och SyriCalm® lämnar huden len, återfuktad och i balans.",
-    image: "/images/sport-body-wash.jpg",
-    price: "129 kr",
-    badge: null,
-    highlights: ["Sulfatsnålt", "SyriCalm®", "Panthenol (B5)"],
-  },
-  {
-    slug: BUNDLE_SLUG,
-    name: "Roots Komplett paket",
-    subtitle: "Paket — schampo, balsam & body wash",
-    tagline:
-      "Hela rutinen i ett paket. Samma formuleringar som var för sig, till ett lägre pris — och det som de flesta väljer när de handlar via sin förening.",
-    image: "/images/sport-package.jpg",
-    price: "399 kr",
-    badge: "Spara 28 kr",
-    highlights: ["Alla tre produkterna", "3 × 250 ml", "Lägsta pris per flaska"],
-  },
-];
+function formatPriceSek(priceSek: number, locale: "sv" | "en") {
+  return locale === "en" ? `SEK ${priceSek}` : `${priceSek} kr`;
+}
 
-const VALUES = [
-  { icon: Leaf, label: "Forskningsförankrade aktiver" },
-  { icon: Droplets, label: "Sulfatsnålt & silikonfritt" },
-  { icon: Sparkles, label: "Unisex — för alla" },
-];
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getRequestLocale();
+  const t = getPage("produkter", locale);
+  return pageMetadata({
+    title: t.title,
+    description: t.description,
+    path: "/produkter",
+    locale,
+  });
+}
 
-export default function ProdukterPage() {
+export default async function ProdukterPage() {
+  const locale = await getRequestLocale();
+  const t = getPage("produkter", locale);
+
+  const products = PRODUCT_SLUGS.map((slug) => {
+    const copy = getProduct(slug, locale);
+    const listing = getProductListingExtras(slug, locale);
+    return {
+      slug,
+      name: slug === "shampoo" ? "Roots Schampoo" : copy.name,
+      subtitle: copy.subtitle,
+      tagline: listing.listingTagline,
+      image: productImage(slug),
+      price: formatPriceSek(copy.priceSek, locale),
+      badge: copy.badge,
+      highlights: listing.listingHighlights,
+    };
+  });
+
+  const values = t.values.map((label, i) => ({
+    icon: VALUE_ICONS[i] ?? Leaf,
+    label,
+  }));
+
   return (
     <>
       <BreadcrumbJsonLd
         items={[
-          { name: "Hem", url: "/" },
-          { name: "Produkter", url: "/produkter" },
+          { name: t.breadcrumbHome, url: withLocale("/", locale) },
+          { name: t.title, url: withLocale("/produkter", locale) },
         ]}
       />
       <WebPageJsonLd
         type="CollectionPage"
-        name={PAGE_TITLE}
-        description={PAGE_DESCRIPTION}
-        url="/produkter"
+        name={t.title}
+        description={t.description}
+        url={withLocale("/produkter", locale)}
+        locale={locale}
       />
       <ItemListJsonLd
-        name="Roots produkter"
-        items={PRODUCTS.map((p) => ({
+        name={t.itemListName}
+        items={products.map((p) => ({
           name: p.name,
-          url: `/produkter/${p.slug}`,
+          url: withLocale(`/produkter/${p.slug}`, locale),
         }))}
       />
       <section className="bg-brand-50/40 py-20 md:py-28">
         <div className="mx-auto max-w-[1280px] px-6 md:px-10">
           <div className="mx-auto max-w-2xl text-center">
-            <h1 className="text-[length:var(--font-size-hero)] font-bold tracking-tight">Våra produkter</h1>
-            <p className="mt-4 text-lg text-muted-foreground">
-              Tre noggrant formulerade nordiska produkter med forskningsförankrade
-              aktiver — var för sig eller som komplett paket. Sulfatsnålt,
-              silikon- och parabenfritt.
-            </p>
+            <h1 className="text-[length:var(--font-size-hero)] font-bold tracking-tight">
+              {t.heroTitle}
+            </h1>
+            <p className="mt-4 text-lg text-muted-foreground">{t.heroBody}</p>
           </div>
 
           <div className="mt-12 flex flex-wrap items-center justify-center gap-6">
-            {VALUES.map((v) => (
-              <div key={v.label} className="flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-sm text-card-foreground shadow-sm">
+            {values.map((v) => (
+              <div
+                key={v.label}
+                className="flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-sm text-card-foreground shadow-sm"
+              >
                 <v.icon className="h-4 w-4 text-muted-foreground" />
                 {v.label}
               </div>
@@ -115,15 +103,12 @@ export default function ProdukterPage() {
       <section className="py-20 md:py-28">
         <div className="mx-auto max-w-[1280px] px-6 md:px-10">
           <div className="space-y-24">
-            {PRODUCTS.map((product, idx) => (
+            {products.map((product, idx) => (
               <div
                 key={product.slug}
                 className="grid items-center gap-10 lg:grid-cols-2 lg:gap-16"
               >
-                {/* Varannan rad har bilden till höger. Det görs med `order` och
-                    inte med `direction: rtl` — rtl är textriktning, och bidi
-                    kastade om prisraden så "149 kr" renderades som "kr 149". */}
-                <Link
+                <LocaleLink
                   href={`/produkter/${product.slug}`}
                   className={`group relative ${idx % 2 === 1 ? "lg:order-2" : ""}`}
                 >
@@ -142,26 +127,34 @@ export default function ProdukterPage() {
                       </div>
                     )}
                   </div>
-                </Link>
+                </LocaleLink>
 
                 <div className={idx % 2 === 1 ? "lg:order-1" : ""}>
-                  <p className="text-sm font-medium text-muted-foreground">{product.subtitle}</p>
-                  <h2 className="mt-1 text-2xl font-bold tracking-tight">{product.name}</h2>
-                  <p className="mt-4 text-base leading-relaxed text-muted-foreground">{product.tagline}</p>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    {product.subtitle}
+                  </p>
+                  <h2 className="mt-1 text-2xl font-bold tracking-tight">
+                    {product.name}
+                  </h2>
+                  <p className="mt-4 text-base leading-relaxed text-muted-foreground">
+                    {product.tagline}
+                  </p>
 
                   <div className="mt-6 flex flex-wrap gap-2">
                     {product.highlights.map((h) => (
-                      <Badge key={h} variant="outline">{h}</Badge>
+                      <Badge key={h} variant="outline">
+                        {h}
+                      </Badge>
                     ))}
                   </div>
 
                   <div className="mt-8 flex items-center gap-4">
                     <span className="text-2xl font-bold">{product.price}</span>
                     <Button asChild>
-                      <Link href={`/produkter/${product.slug}`}>
-                        Läs mer
+                      <LocaleLink href={`/produkter/${product.slug}`}>
+                        {t.readMore}
                         <ArrowUpRight className="ml-1 h-4 w-4" />
-                      </Link>
+                      </LocaleLink>
                     </Button>
                   </div>
                 </div>
@@ -174,16 +167,11 @@ export default function ProdukterPage() {
       <section className="border-t border-border bg-brand-50/40 py-16 md:py-20">
         <div className="mx-auto max-w-[1280px] px-6 text-center md:px-10">
           <Card className="mx-auto inline-flex max-w-md items-center gap-6 border-0 p-8 shadow-md">
-            {/* Priset står på paketkortet ovan — här är det bara vägen vidare,
-                så de två inte kan börja visa olika belopp. */}
             <CardContent className="p-0">
-              <p className="text-3xl font-bold">Beställ via din förening</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Roots säljs genom föreningar och klubbar — en del av varje köp går
-                direkt till laget.
-              </p>
+              <p className="text-3xl font-bold">{t.ctaTitle}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{t.ctaBody}</p>
               <Button className="mt-6" asChild>
-                <Link href="/foreningsliv">Så gör din förening</Link>
+                <LocaleLink href="/foreningsliv">{t.ctaButton}</LocaleLink>
               </Button>
             </CardContent>
           </Card>

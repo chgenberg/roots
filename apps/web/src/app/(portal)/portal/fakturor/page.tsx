@@ -33,6 +33,9 @@ import {
 import { useToast } from "@/components/ui/toast";
 import { portalFetch } from "@/lib/portal-api";
 import { PortalOrderDialog } from "@/components/portal-order-dialog";
+import { useLocale } from "@/i18n/locale-context";
+import { portalPages, portalShared } from "@/i18n/dictionaries/portal-pages";
+import { tFill } from "@/i18n/format";
 
 type ApiOrder = {
   id: string;
@@ -43,14 +46,6 @@ type ApiOrder = {
   fortnoxInvoiceId: string | null;
 };
 
-const INVOICE_LABELS: Record<ApiOrder["invoiceStatus"], string> = {
-  NONE: "Ej fakturerad",
-  PENDING: "Köar för fakturering",
-  ISSUED: "Faktura skickad",
-  PAID: "Betald",
-  CANCELLED: "Annullerad",
-};
-
 const INVOICE_BADGE: Record<ApiOrder["invoiceStatus"], string> = {
   NONE: "bg-muted text-muted-foreground border-border",
   PENDING: "bg-warning-surface text-warning-strong border-warning-edge",
@@ -59,16 +54,20 @@ const INVOICE_BADGE: Record<ApiOrder["invoiceStatus"], string> = {
   CANCELLED: "bg-destructive/10 text-destructive border-destructive/30",
 };
 
-function formatSek(ore: number): string {
-  return `${(ore / 100).toLocaleString("sv-SE", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  })} kr`;
+function formatSek(ore: number, locale: "sv" | "en"): string {
+  const amount = (ore / 100).toLocaleString(
+    locale === "en" ? "en-GB" : "sv-SE",
+    {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }
+  );
+  return locale === "en" ? `SEK ${amount}` : `${amount} kr`;
 }
 
-function formatDate(iso: string): string {
+function formatDate(iso: string, dateLocale: string): string {
   try {
-    return new Date(iso).toLocaleDateString("sv-SE", {
+    return new Date(iso).toLocaleDateString(dateLocale, {
       year: "numeric",
       month: "short",
       day: "numeric",
@@ -79,6 +78,11 @@ function formatDate(iso: string): string {
 }
 
 export default function ClubInvoicesPage() {
+  const { locale } = useLocale();
+  const t = portalPages.fakturor[locale];
+  const shared = portalShared[locale];
+  const invoiceLabels = shared.invoiceStatus;
+
   const [orders, setOrders] = useState<ApiOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -95,13 +99,12 @@ export default function ClubInvoicesPage() {
         const data = await portalFetch<{ orders: ApiOrder[] }>("/orders");
         setOrders(data.orders ?? []);
       } catch {
-        // "Försök igen" står på knappen, inte i texten.
-        setError("Kunde inte hämta fakturorna.");
+        setError(t.loadError);
       } finally {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [t.loadError]);
 
   const filtered = useMemo(() => {
     return orders.filter((o) => {
@@ -136,17 +139,18 @@ export default function ClubInvoicesPage() {
 
   function exportCsv() {
     if (sorted.length === 0) {
-      toast("Inga rader att exportera.", "error");
+      toast(t.exportEmpty, "error");
       return;
     }
-    const header =
-      "order_id;datum;status;belopp_kr;fortnox_invoice_id\n";
+    const header = `${t.csvHeader}\n`;
     const rows = sorted
       .map((o) => {
         const day = o.createdAt.slice(0, 10);
-        const kr = (o.totalOre / 100).toFixed(2).replace(".", ",");
+        const amount = (o.totalOre / 100).toFixed(2);
+        const formatted =
+          locale === "en" ? amount : amount.replace(".", ",");
         const fortnox = o.fortnoxInvoiceId || "";
-        return `${o.id};${day};${o.invoiceStatus};${kr};${fortnox}`;
+        return `${o.id};${day};${o.invoiceStatus};${formatted};${fortnox}`;
       })
       .join("\n");
     const blob = new Blob([header + rows], {
@@ -155,7 +159,7 @@ export default function ClubInvoicesPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `fakturor-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `${t.csvFilenamePrefix}-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -169,21 +173,24 @@ export default function ClubInvoicesPage() {
   }
 
   if (error) {
-    return <LoadError message={error} onRetry={() => window.location.reload()} />;
+    return (
+      <LoadError
+        message={error}
+        onRetry={() => window.location.reload()}
+      />
+    );
   }
 
   return (
     <div className="page-enter space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Fakturor</h1>
-          <p className="text-sm text-muted-foreground">
-            Översikt över klubbens fakturor från Roots
-          </p>
+          <h1 className="text-2xl font-bold">{t.title}</h1>
+          <p className="text-sm text-muted-foreground">{t.subtitle}</p>
         </div>
         <Button variant="outline" onClick={exportCsv}>
           <Download className="mr-2 h-4 w-4" />
-          Exportera CSV
+          {shared.exportCsv}
         </Button>
       </div>
 
@@ -192,25 +199,27 @@ export default function ClubInvoicesPage() {
           <CardContent className="p-5">
             <div className="flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4 text-success" />
-              <p className="text-sm text-muted-foreground">Betalt</p>
+              <p className="text-sm text-muted-foreground">{t.paid}</p>
             </div>
-            <p className="mt-1 text-2xl font-bold">{formatSek(totalPaidOre)}</p>
+            <p className="mt-1 text-2xl font-bold">
+              {formatSek(totalPaidOre, locale)}
+            </p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-5">
             <div className="flex items-center gap-2">
               <AlertTriangle className="h-4 w-4 text-brand-600" />
-              <p className="text-sm text-muted-foreground">Skickat (utestående)</p>
+              <p className="text-sm text-muted-foreground">{t.outstanding}</p>
             </div>
             <p className="mt-1 text-2xl font-bold">
-              {formatSek(totalIssuedOre)}
+              {formatSek(totalIssuedOre, locale)}
             </p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">Visade rader</p>
+            <p className="text-sm text-muted-foreground">{t.rowsShown}</p>
             <p className="mt-1 text-2xl font-bold">{sorted.length}</p>
           </CardContent>
         </Card>
@@ -220,27 +229,27 @@ export default function ClubInvoicesPage() {
         <CardContent className="p-5">
           <div className="mb-4 flex items-center gap-2 text-sm font-medium">
             <Filter className="h-4 w-4 text-brand-500" />
-            Filter
+            {shared.filter}
           </div>
           <div className="grid gap-4 sm:grid-cols-3">
             <div>
-              <Label htmlFor="invStatus">Faktura-status</Label>
+              <Label htmlFor="invStatus">{t.statusLabel}</Label>
               <select
                 id="invStatus"
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
-                <option value="ALL">Alla statusar</option>
-                <option value="PAID">Betald</option>
-                <option value="ISSUED">Faktura skickad</option>
-                <option value="PENDING">Köar</option>
-                <option value="CANCELLED">Annullerad</option>
-                <option value="NONE">Ej fakturerad</option>
+                <option value="ALL">{t.allStatuses}</option>
+                <option value="PAID">{invoiceLabels.PAID}</option>
+                <option value="ISSUED">{invoiceLabels.ISSUED}</option>
+                <option value="PENDING">{t.queued}</option>
+                <option value="CANCELLED">{invoiceLabels.CANCELLED}</option>
+                <option value="NONE">{invoiceLabels.NONE}</option>
               </select>
             </div>
             <div>
-              <Label htmlFor="fromDate">Från datum</Label>
+              <Label htmlFor="fromDate">{t.fromDate}</Label>
               <Input
                 id="fromDate"
                 type="date"
@@ -249,7 +258,7 @@ export default function ClubInvoicesPage() {
               />
             </div>
             <div>
-              <Label htmlFor="toDate">Till datum</Label>
+              <Label htmlFor="toDate">{t.toDate}</Label>
               <Input
                 id="toDate"
                 type="date"
@@ -269,7 +278,7 @@ export default function ClubInvoicesPage() {
                 setToDate("");
               }}
             >
-              Rensa filter
+              {shared.clearFilters}
             </Button>
           )}
         </CardContent>
@@ -280,9 +289,7 @@ export default function ClubInvoicesPage() {
           <CardContent className="flex flex-col items-center gap-3 py-12">
             <FileText className="h-10 w-10 text-muted-foreground" />
             <p className="text-sm text-muted-foreground">
-              {orders.length === 0
-                ? "Inga fakturor ännu. När klubben gör en beställning hamnar den här."
-                : "Inga fakturor matchar valda filter."}
+              {orders.length === 0 ? t.empty : t.noMatch}
             </p>
           </CardContent>
         </Card>
@@ -299,35 +306,39 @@ export default function ClubInvoicesPage() {
                     setDetailOpen(true);
                   }}
                   className="flex w-full flex-wrap items-center justify-between gap-3 p-4 text-left transition-colors hover:bg-brand-50/50 focus-visible:outline-none focus-visible:bg-brand-50"
-                  aria-label={`Visa detaljer för order ${o.id.slice(0, 8)}`}
+                  aria-label={tFill(t.viewDetailsAria, {
+                    id: o.id.slice(0, 8),
+                  })}
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-sm font-medium">
-                        Order #{o.id.slice(0, 8)}
+                        {tFill(t.orderLabel, { id: o.id.slice(0, 8) })}
                       </p>
                       <Badge
                         variant="outline"
                         className={`text-[10px] uppercase tracking-wide ${INVOICE_BADGE[o.invoiceStatus]}`}
                       >
-                        {INVOICE_LABELS[o.invoiceStatus]}
+                        {invoiceLabels[o.invoiceStatus]}
                       </Badge>
                     </div>
                     <p className="mt-0.5 text-xs text-muted-foreground">
-                      {formatDate(o.createdAt)}
+                      {formatDate(o.createdAt, shared.dateLocale)}
                       {o.fortnoxInvoiceId && (
                         <>
                           {" · "}
                           <span className="inline-flex items-center gap-1">
                             <ExternalLink className="h-3 w-3" />
-                            Fortnox-fakt. #{o.fortnoxInvoiceId}
+                            {tFill(t.fortnoxInvoice, {
+                              id: o.fortnoxInvoiceId,
+                            })}
                           </span>
                         </>
                       )}
                     </p>
                   </div>
                   <p className="text-sm font-semibold whitespace-nowrap">
-                    {formatSek(o.totalOre)}
+                    {formatSek(o.totalOre, locale)}
                   </p>
                 </button>
               ))}

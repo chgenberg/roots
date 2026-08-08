@@ -2,14 +2,6 @@
 
 /**
  * Portal (B2B) order / invoice detail dialog.
- *
- * Used by /portal/bestallningar and /portal/fakturor — both list the
- * same `orders` table, just with different framings (delivery status
- * vs Fortnox invoice status). One dialog, two entry points.
- *
- * Backed by `GET /v1/portal/orders/:orderId` which is RBAC-locked
- * to portal roles (CLUB_ADMIN/CLUB_MEMBER/SALES_REP/SALES_ADMIN/
- * INTERNAL_ADMIN). Fundraising roles get 403.
  */
 
 import { useEffect, useState } from "react";
@@ -30,6 +22,10 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { getBrowserApiBase } from "@/lib/api-base";
+import { rootsFetch } from "@/lib/api";
+import { useLocale } from "@/i18n/locale-context";
+import { portalPages, portalShared } from "@/i18n/dictionaries/portal-pages";
+import { tFill } from "@/i18n/format";
 
 const API_URL = getBrowserApiBase();
 
@@ -58,22 +54,12 @@ export interface PortalOrderDetail {
   }>;
 }
 
-// Klubbordrar (orders) har en egen statusenum än kundordrar
-// (customer_orders), så den här kartan är avsiktligt separat från
-// lib/order-status.ts.
 const ORDER_STATUS_COLORS: Record<string, string> = {
   PENDING: "bg-warning-surface text-warning-strong border-warning-edge",
   CONFIRMED: "bg-success/15 text-success border-success/40",
   SHIPPED: "bg-success/15 text-success border-success/40",
   DELIVERED: "bg-success/15 text-success border-success/40",
   CANCELLED: "bg-destructive/10 text-destructive border-destructive/30",
-};
-const ORDER_STATUS_LABELS: Record<string, string> = {
-  PENDING: "Väntar",
-  CONFIRMED: "Bekräftad",
-  SHIPPED: "Skickad",
-  DELIVERED: "Levererad",
-  CANCELLED: "Avbruten",
 };
 const INVOICE_STATUS_COLORS: Record<string, string> = {
   NONE: "bg-muted text-muted-foreground border-border",
@@ -82,23 +68,17 @@ const INVOICE_STATUS_COLORS: Record<string, string> = {
   PAID: "bg-success/15 text-success border-success/40",
   CANCELLED: "bg-destructive/10 text-destructive border-destructive/30",
 };
-const INVOICE_STATUS_LABELS: Record<string, string> = {
-  NONE: "Ingen faktura",
-  PENDING: "Förbereds",
-  ISSUED: "Skickad",
-  PAID: "Betald",
-  CANCELLED: "Makulerad",
-};
 
-function formatSek(ore: number): string {
-  return `${(ore / 100).toLocaleString("sv-SE", {
+function formatSek(ore: number, dateLocale: string, kr: string): string {
+  return `${(ore / 100).toLocaleString(dateLocale, {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
-  })} kr`;
+  })} ${kr}`;
 }
-function formatDateTime(iso: string): string {
+
+function formatDateTime(iso: string, dateLocale: string): string {
   try {
-    return new Date(iso).toLocaleString("sv-SE", {
+    return new Date(iso).toLocaleString(dateLocale, {
       year: "numeric",
       month: "short",
       day: "numeric",
@@ -117,6 +97,12 @@ interface Props {
 }
 
 export function PortalOrderDialog({ open, onOpenChange, orderId }: Props) {
+  const { locale } = useLocale();
+  const t = portalPages.orderDialog[locale];
+  const shared = portalShared[locale];
+  const orderLabels = shared.orderStatusApi;
+  const invoiceLabels = shared.invoiceStatusShort;
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<PortalOrderDetail | null>(null);
@@ -129,23 +115,20 @@ export function PortalOrderDialog({ open, onOpenChange, orderId }: Props) {
     setLoading(true);
     (async () => {
       try {
-        const res = await fetch(
-          `${API_URL}/v1/portal/orders/${orderId}`,
-          { credentials: "include" }
-        );
+        const res = await rootsFetch(`${API_URL}/v1/portal/orders/${orderId}`);
         if (!res.ok) {
           const j = (await res.json().catch(() => ({}))) as {
             error?: string;
           };
           if (!cancelled) {
-            setError(j?.error ?? "Kunde inte hämta order.");
+            setError(j?.error ?? t.loadError);
           }
           return;
         }
         const json = (await res.json()) as PortalOrderDetail;
         if (!cancelled) setDetail(json);
       } catch {
-        if (!cancelled) setError("Nätverksfel. Försök igen.");
+        if (!cancelled) setError(t.networkError);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -153,7 +136,7 @@ export function PortalOrderDialog({ open, onOpenChange, orderId }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [open, orderId]);
+  }, [open, orderId, t.loadError, t.networkError]);
 
   const subtotalOre = detail
     ? detail.lines.reduce((sum, l) => sum + l.lineTotalOre, 0)
@@ -163,11 +146,14 @@ export function PortalOrderDialog({ open, onOpenChange, orderId }: Props) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Orderdetaljer</DialogTitle>
+          <DialogTitle>{t.title}</DialogTitle>
           <DialogDescription>
             {detail
-              ? `Order #${detail.order.id.slice(0, 8)} · ${formatDateTime(detail.order.createdAt)}`
-              : "Hämtar information…"}
+              ? tFill(t.orderDesc, {
+                  id: detail.order.id.slice(0, 8),
+                  date: formatDateTime(detail.order.createdAt, shared.dateLocale),
+                })
+              : t.loadingDesc}
           </DialogDescription>
         </DialogHeader>
 
@@ -189,8 +175,7 @@ export function PortalOrderDialog({ open, onOpenChange, orderId }: Props) {
                     ORDER_STATUS_COLORS[detail.order.status] ?? ""
                   }`}
                 >
-                  {ORDER_STATUS_LABELS[detail.order.status] ??
-                    detail.order.status}
+                  {orderLabels[detail.order.status] ?? detail.order.status}
                 </Badge>
                 <Badge
                   variant="outline"
@@ -198,15 +183,15 @@ export function PortalOrderDialog({ open, onOpenChange, orderId }: Props) {
                     INVOICE_STATUS_COLORS[detail.order.invoiceStatus] ?? ""
                   }`}
                 >
-                  Faktura:{" "}
-                  {INVOICE_STATUS_LABELS[detail.order.invoiceStatus] ??
+                  {t.invoicePrefix}{" "}
+                  {invoiceLabels[detail.order.invoiceStatus] ??
                     detail.order.invoiceStatus}
                 </Badge>
                 {detail.order.fortnoxInvoiceId && (
                   <Badge
                     variant="outline"
                     className="font-mono text-[10px]"
-                    title="Fortnox-faktura-ID"
+                    title={t.fortnoxTitle}
                   >
                     Fortnox #{detail.order.fortnoxInvoiceId}
                   </Badge>
@@ -215,9 +200,11 @@ export function PortalOrderDialog({ open, onOpenChange, orderId }: Props) {
                   <Badge
                     variant="outline"
                     className="font-mono text-[10px]"
-                    title="Offert-ID"
+                    title={t.quoteTitle}
                   >
-                    Offert {detail.order.quoteId.slice(0, 8)}
+                    {tFill(t.quoteLabel, {
+                      id: detail.order.quoteId.slice(0, 8),
+                    })}
                   </Badge>
                 )}
               </div>
@@ -225,7 +212,7 @@ export function PortalOrderDialog({ open, onOpenChange, orderId }: Props) {
               {(detail.organization || detail.buyer) && (
                 <section>
                   <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Köpare
+                    {t.buyer}
                   </h3>
                   <div className="rounded-lg border bg-brand-50/40 p-4 text-sm">
                     {detail.organization && (
@@ -258,23 +245,23 @@ export function PortalOrderDialog({ open, onOpenChange, orderId }: Props) {
 
               <section>
                 <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Produkter
+                  {t.products}
                 </h3>
                 <div className="overflow-hidden rounded-lg border">
                   <table className="w-full text-sm">
                     <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
                       <tr>
                         <th className="px-3 py-2 text-left font-medium">
-                          Produkt
+                          {t.product}
                         </th>
                         <th className="px-3 py-2 text-right font-medium">
-                          Antal
+                          {t.qty}
                         </th>
                         <th className="px-3 py-2 text-right font-medium">
-                          á-pris
+                          {t.unitPrice}
                         </th>
                         <th className="px-3 py-2 text-right font-medium">
-                          Summa
+                          {t.sum}
                         </th>
                       </tr>
                     </thead>
@@ -285,7 +272,7 @@ export function PortalOrderDialog({ open, onOpenChange, orderId }: Props) {
                             colSpan={4}
                             className="px-3 py-4 text-center text-xs text-muted-foreground"
                           >
-                            Inga rader registrerade på denna order.
+                            {t.noLines}
                           </td>
                         </tr>
                       ) : (
@@ -310,10 +297,10 @@ export function PortalOrderDialog({ open, onOpenChange, orderId }: Props) {
                               {l.qty}
                             </td>
                             <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
-                              {formatSek(l.unitPriceOre)}
+                              {formatSek(l.unitPriceOre, shared.dateLocale, shared.kr)}
                             </td>
                             <td className="px-3 py-2 text-right font-medium tabular-nums">
-                              {formatSek(l.lineTotalOre)}
+                              {formatSek(l.lineTotalOre, shared.dateLocale, shared.kr)}
                             </td>
                           </tr>
                         ))
@@ -324,15 +311,15 @@ export function PortalOrderDialog({ open, onOpenChange, orderId }: Props) {
 
                 <div className="mt-3 space-y-1 text-sm">
                   <div className="flex justify-between text-muted-foreground">
-                    <span>Delsumma</span>
+                    <span>{t.subtotal}</span>
                     <span className="tabular-nums">
-                      {formatSek(subtotalOre)}
+                      {formatSek(subtotalOre, shared.dateLocale, shared.kr)}
                     </span>
                   </div>
                   <div className="flex justify-between border-t pt-2 text-base font-semibold">
-                    <span>Totalt</span>
+                    <span>{t.total}</span>
                     <span className="tabular-nums">
-                      {formatSek(detail.order.totalOre)}
+                      {formatSek(detail.order.totalOre, shared.dateLocale, shared.kr)}
                     </span>
                   </div>
                 </div>
@@ -341,20 +328,18 @@ export function PortalOrderDialog({ open, onOpenChange, orderId }: Props) {
               {detail.order.fortnoxInvoiceId && (
                 <section>
                   <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Bokföring
+                    {t.accounting}
                   </h3>
                   <div className="flex items-start gap-2 rounded-lg border bg-brand-50/40 p-4 text-sm">
                     <FileText className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                     <div>
                       <p>
-                        Fakturan är synkad till Fortnox med ID{" "}
-                        <span className="font-mono">
-                          {detail.order.fortnoxInvoiceId}
-                        </span>
-                        .
+                        {tFill(t.fortnoxSynced, {
+                          id: detail.order.fortnoxInvoiceId,
+                        })}
                       </p>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        Status och betalning hanteras direkt i Fortnox.
+                        {t.fortnoxNote}
                       </p>
                     </div>
                   </div>
@@ -362,11 +347,15 @@ export function PortalOrderDialog({ open, onOpenChange, orderId }: Props) {
               )}
 
               <p className="text-xs text-muted-foreground">
-                Skapad {formatDateTime(detail.order.createdAt)}
+                {tFill(t.created, {
+                  date: formatDateTime(detail.order.createdAt, shared.dateLocale),
+                })}
                 {detail.order.updatedAt !== detail.order.createdAt && (
                   <>
-                    {" · "}senast uppdaterad{" "}
-                    {formatDateTime(detail.order.updatedAt)}
+                    {" · "}
+                    {tFill(t.updated, {
+                      date: formatDateTime(detail.order.updatedAt, shared.dateLocale),
+                    })}
                   </>
                 )}
               </p>
@@ -378,5 +367,4 @@ export function PortalOrderDialog({ open, onOpenChange, orderId }: Props) {
   );
 }
 
-// Re-export icon used by callers to keep import surface tight.
 export { ExternalLink };

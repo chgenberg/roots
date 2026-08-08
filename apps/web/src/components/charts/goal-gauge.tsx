@@ -1,6 +1,9 @@
 "use client";
 
 import { CHART } from "./theme";
+import { useLocale } from "@/i18n/locale-context";
+import { fundraisingPages } from "@/i18n/dictionaries/fundraising-pages";
+import { tFill } from "@/i18n/format";
 
 interface GoalGaugeProps {
   currentOre: number;
@@ -11,7 +14,7 @@ interface GoalGaugeProps {
 
 const R = 70;
 const STROKE = 18;
-// Halvcirkel: π * r.
+// Semi-circle: π * r.
 const SEMI = Math.PI * R;
 
 export function GoalGauge({
@@ -20,6 +23,8 @@ export function GoalGauge({
   format,
   size = 220,
 }: GoalGaugeProps) {
+  const { locale } = useLocale();
+  const t = fundraisingPages.stats[locale];
   const pct = goalOre > 0 ? Math.min(1, currentOre / goalOre) : 0;
   const pctLabel = goalOre > 0 ? Math.round((currentOre / goalOre) * 100) : 0;
   const dash = pct * SEMI;
@@ -27,8 +32,14 @@ export function GoalGauge({
 
   return (
     <div className="flex flex-col items-center">
-      <svg width={size} height={size / 2 + 16} viewBox="0 0 200 116" role="img" aria-label="Mål-progress">
-        {/* spår */}
+      <svg
+        width={size}
+        height={size / 2 + 16}
+        viewBox="0 0 200 116"
+        role="img"
+        aria-label={t.chartGoalAria}
+      >
+        {/* track */}
         <path
           d={`M 30 100 A ${R} ${R} 0 0 1 170 100`}
           fill="none"
@@ -62,13 +73,15 @@ export function GoalGauge({
           className="fill-muted-foreground"
           style={{ fontSize: 9 }}
         >
-          av målet
+          {t.ofGoal}
         </text>
       </svg>
       <div className="mt-1 text-center">
         <p className="text-lg font-bold">{format(currentOre)}</p>
         <p className="text-xs text-muted-foreground">
-          {goalOre > 0 ? `Mål: ${format(goalOre)}` : "Inget mål satt ännu"}
+          {goalOre > 0
+            ? tFill(t.goalLabel, { amount: format(goalOre) })
+            : t.noGoalYet}
         </p>
       </div>
     </div>

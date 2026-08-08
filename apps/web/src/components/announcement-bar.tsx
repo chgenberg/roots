@@ -1,41 +1,29 @@
+"use client";
+
 import { cn } from "@/lib/utils";
+import { useLocale } from "@/i18n/locale-context";
 
-// Bandet är det första besökaren läser och står på varje sida, så varje
-// löfte måste gälla utan förbehåll. Källan till respektive rad:
-//
-//   35 %      LOCKED_MARGIN_PERCENT i packages/contracts/src/calculator.ts
-//   sulfater  hero.tsx och social-proof.tsx
-//   Norden    "utvecklat i Norden" i layout.tsx och om-oss. Sajten säger
-//             ingenting om var produkterna tillverkas — skriv inte det här.
-//   avgifter  /hjalp: "Roots tar inga uppstartsavgifter"
-//   intäkter  /om-oss: affärsmodellen kanaliserar intäkter tillbaka
-//
-// Fri frakt hör inte hit: gränsen sätts per kampanj via
-// campaign.shippingThresholdOre, så någon global 500-kronorsregel finns
-// inte. Den utfästelsen står kvar på /foreningsliv och i villkoren, där
-// den redan är flaggad för granskning.
-const MESSAGES = [
-  "Föreningen behåller 35 % av försäljningen",
-  "Utan sulfater, silikoner och parabener",
-  "Utvecklat i Norden",
-  "Inga uppstartsavgifter för föreningen",
-  "Intäkterna går tillbaka till föreningslivet",
-];
-
-function MessageRun({ hidden }: { hidden?: boolean }) {
+function MessageRun({
+  messages,
+  hidden,
+}: {
+  messages: string[];
+  hidden?: boolean;
+}) {
   return (
     <ul
       className="flex shrink-0 items-center"
-      // Kopia två finns bara för att loopen ska se sömlös ut. Utan
-      // aria-hidden läser skärmläsaren varje löfte två gånger.
       aria-hidden={hidden || undefined}
     >
-      {MESSAGES.map((message) => (
+      {messages.map((message) => (
         <li key={message} className="flex shrink-0 items-center">
           <span className="whitespace-nowrap px-6 text-[11px] uppercase tracking-[0.14em] text-brand-900/70 dark:text-foreground/70">
             {message}
           </span>
-          <span aria-hidden className="text-[7px] text-brand-900/30 dark:text-foreground/30">
+          <span
+            aria-hidden
+            className="text-[7px] text-brand-900/30 dark:text-foreground/30"
+          >
             ◆
           </span>
         </li>
@@ -45,27 +33,21 @@ function MessageRun({ hidden }: { hidden?: boolean }) {
 }
 
 export function AnnouncementBar({ className }: { className?: string }) {
+  const { t } = useLocale();
+
   return (
     <div
       className={cn(
-        // Ingen kant nedåt: bandet är exakt 36 px och headerns spacer
-        // räknar med det, så en extra pixel skulle knuffa allt innehåll.
-        // Bakgrunden räcker för att bandet ska läsas som en egen remsa.
         "overflow-hidden bg-brand-100/80 backdrop-blur-xl dark:bg-background/80",
-        // Vid reducerad rörelse står bandet still, och då är listan
-        // bredare än skärmen på mobil. Låt den swipas istället för att
-        // klippa bort de sista löftena.
         "motion-reduce:overflow-x-auto",
         className
       )}
+      role="region"
+      aria-label={t.aria.announcement}
     >
-      <div
-        role="region"
-        aria-label="Aktuellt från Roots"
-        className="flex h-9 w-max animate-marquee items-center hover:[animation-play-state:paused] focus-within:[animation-play-state:paused]"
-      >
-        <MessageRun />
-        <MessageRun hidden />
+      <div className="flex h-9 items-center motion-safe:animate-[marquee_40s_linear_infinite] motion-reduce:animate-none">
+        <MessageRun messages={t.announcement} />
+        <MessageRun messages={t.announcement} hidden />
       </div>
     </div>
   );

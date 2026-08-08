@@ -16,6 +16,9 @@ import {
   Clock,
   AlertTriangle,
 } from "lucide-react";
+import { useLocale } from "@/i18n/locale-context";
+import { portalPages } from "@/i18n/dictionaries/portal-pages";
+import { tFill } from "@/i18n/format";
 
 interface ServiceRow {
   name: string;
@@ -55,6 +58,9 @@ const SERVICE_ICON_MAP: Record<string, typeof Server> = {
 };
 
 export default function SystemPage() {
+  const { locale } = useLocale();
+  const t = portalPages.system[locale];
+
   const [services, setServices] = useState<ServiceRow[]>([]);
   const [aiUsage, setAiUsage] = useState<AiUsageRow | null>(null);
   const [rateLimits, setRateLimits] = useState<RateLimitRow[]>([]);
@@ -83,13 +89,10 @@ export default function SystemPage() {
         setRecentEvents(data.recentEvents ?? null);
       })
       .catch(() => {
-        // En driftsida som tiger är särskilt illa: "ingen systemstatus
-        // tillgänglig" lästes som att allt var lugnt, när det i själva
-        // verket var statusanropet som inte gick fram.
-        setError("Kunde inte hämta systemstatus.");
+        setError(t.loadError);
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [t.loadError]);
 
   useEffect(() => {
     load();
@@ -98,15 +101,12 @@ export default function SystemPage() {
   return (
     <div className="page-enter space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">System</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Systemhälsa, AI-användning och driftstatus.
-        </p>
+        <h1 className="text-2xl font-bold tracking-tight">{t.title}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t.subtitle}</p>
       </div>
 
       {error && <LoadError message={error} onRetry={load} inline />}
 
-      {/* Service health */}
       {services.length > 0 ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {services.map((s) => (
@@ -123,11 +123,11 @@ export default function SystemPage() {
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   <div>
-                    <p className="text-[10px] uppercase text-muted-foreground">Uptime</p>
+                    <p className="text-[10px] uppercase text-muted-foreground">{t.uptime}</p>
                     <p className="text-sm font-semibold">{s.uptime}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] uppercase text-muted-foreground">Latens</p>
+                    <p className="text-[10px] uppercase text-muted-foreground">{t.latency}</p>
                     <p className="text-sm font-semibold">{s.latency}</p>
                   </div>
                 </div>
@@ -144,62 +144,60 @@ export default function SystemPage() {
       ) : (
         <Card>
           <CardContent className="p-5 text-sm text-muted-foreground">
-            {loading ? "Hämtar systemstatus…" : "Ingen systemstatus tillgänglig."}
+            {loading ? t.loading : t.unavailable}
           </CardContent>
         </Card>
       )}
 
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* AI token usage */}
         <Card>
           <CardContent className="p-5">
             <div className="flex items-center gap-2">
               <Zap className="h-4 w-4 text-brand-500" />
-              <h2 className="font-semibold">AI-användning</h2>
+              <h2 className="font-semibold">{t.aiUsage}</h2>
             </div>
             <Separator className="my-4" />
             <div className="grid grid-cols-2 gap-4">
               <div className="rounded-xl bg-brand-50/50 p-3">
-                <p className="text-xs text-muted-foreground">Tokens idag</p>
+                <p className="text-xs text-muted-foreground">{t.tokensToday}</p>
                 <p className="mt-1 text-lg font-bold">{aiUsage?.tokensToday ?? "—"}</p>
               </div>
               <div className="rounded-xl bg-brand-50/50 p-3">
-                <p className="text-xs text-muted-foreground">Tokens denna månad</p>
+                <p className="text-xs text-muted-foreground">{t.tokensMonth}</p>
                 <p className="mt-1 text-lg font-bold">{aiUsage?.tokensMonth ?? "—"}</p>
               </div>
               <div className="rounded-xl bg-brand-50/50 p-3">
-                <p className="text-xs text-muted-foreground">Chattsessioner idag</p>
+                <p className="text-xs text-muted-foreground">{t.sessionsToday}</p>
                 <p className="mt-1 text-lg font-bold">{aiUsage?.sessions ?? "—"}</p>
               </div>
               <div className="rounded-xl bg-brand-50/50 p-3">
-                <p className="text-xs text-muted-foreground">Snitt svarstid</p>
+                <p className="text-xs text-muted-foreground">{t.avgResponse}</p>
                 <p className="mt-1 text-lg font-bold">{aiUsage?.avgResponseTime ?? "—"}</p>
               </div>
             </div>
             <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
               <Cpu className="h-3 w-3" />
-              Modell: {aiUsage?.model ?? "—"}
+              {tFill(t.model, { model: aiUsage?.model ?? "—" })}
             </div>
             {!aiUsage?.tokensToday && !loading && (
               <p className="mt-3 text-xs text-muted-foreground/80">
-                Token-mätning aktiveras automatiskt när AI-spårning är på.
+                {t.tokenNote}
               </p>
             )}
           </CardContent>
         </Card>
 
-        {/* Rate limits */}
         <Card>
           <CardContent className="p-5">
             <div className="flex items-center gap-2">
               <Shield className="h-4 w-4 text-brand-400" />
-              <h2 className="font-semibold">Rate Limits</h2>
+              <h2 className="font-semibold">{t.rateLimits}</h2>
             </div>
             <Separator className="my-4" />
             <div className="space-y-3">
               {rateLimits.length === 0 && (
                 <p className="text-xs text-muted-foreground">
-                  Inga rate-limit-mätare aktiva.
+                  {t.noRateLimits}
                 </p>
               )}
               {rateLimits.map((r) => {
@@ -233,17 +231,16 @@ export default function SystemPage() {
         </Card>
       </div>
 
-      {/* Recent events */}
       <Card>
         <CardContent className="p-5">
           <div className="flex items-center gap-2">
             <Clock className="h-4 w-4 text-muted-foreground" />
-            <h2 className="font-semibold">Senaste systemhändelser</h2>
+            <h2 className="font-semibold">{t.recentEvents}</h2>
           </div>
           <div className="mt-4 space-y-3">
             {(recentEvents?.length ?? 0) === 0 ? (
               <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
-                Inga händelser registrerade ännu. Listan fylls på när audit-spåret skrivs till.
+                {t.eventsEmpty}
               </p>
             ) : (
               recentEvents!.map((e, i) => (

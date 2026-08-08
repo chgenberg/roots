@@ -1,5 +1,9 @@
+"use client";
+
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { useLocale } from "@/i18n/locale-context";
+import { fundraisingPages } from "@/i18n/dictionaries/fundraising-pages";
 
 interface ChartCardProps {
   title: string;
@@ -7,7 +11,7 @@ interface ChartCardProps {
   right?: React.ReactNode;
   className?: string;
   children: React.ReactNode;
-  /** Visas centrerat när det inte finns någon data. */
+  /** Shown centred when there is no data. */
   empty?: boolean;
   emptyLabel?: string;
 }
@@ -19,8 +23,12 @@ export function ChartCard({
   className,
   children,
   empty,
-  emptyLabel = "Ingen data ännu. Grafen fylls i automatiskt när ni får era första betalda ordrar.",
+  emptyLabel,
 }: ChartCardProps) {
+  const { locale } = useLocale();
+  const resolvedEmpty =
+    emptyLabel ?? fundraisingPages.stats[locale].chartEmpty;
+
   return (
     <Card className={className}>
       <CardContent className="p-5">
@@ -35,7 +43,7 @@ export function ChartCard({
         </div>
         {empty ? (
           <p className="mt-6 rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-            {emptyLabel}
+            {resolvedEmpty}
           </p>
         ) : (
           <div className={cn("mt-5")}>{children}</div>

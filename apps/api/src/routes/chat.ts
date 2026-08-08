@@ -23,6 +23,7 @@ import { isDemoSession } from "../lib/session";
 import type { SessionData } from "../lib/session";
 import { requireSession } from "../lib/http-session";
 import { childLogger } from "../lib/logger";
+import { resolveUiLocale, uiError } from "../lib/ui-locale";
 
 const log = childLogger("chat");
 
@@ -47,7 +48,8 @@ function leaderHasTeamAccess(
 /** Säljarens egen tråd + broadcasts, äldst först. */
 chat.get("/seller", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
 
   try {
     const [seller] = await db
@@ -55,7 +57,7 @@ chat.get("/seller", async (c) => {
       .from(sellers)
       .where(eq(sellers.userId, session.userId))
       .limit(1);
-    if (!seller) return c.json({ error: "Ingen säljar-profil" }, 404);
+    if (!seller) return c.json({ error: uiError(locale, "noSellerProfile") }, 404);
 
     const msgs = await db
       .select()
@@ -86,28 +88,30 @@ chat.get("/seller", async (c) => {
     });
   } catch (err) {
     log.error({ err }, "seller chat fetch failed");
-    return c.json({ error: "Kunde inte hämta meddelanden" }, 500);
+    return c.json({ error: uiError(locale, "couldNotFetchMessages") }, 500);
   }
 });
 
 /** Säljaren skickar ett meddelande till sin lagledare. */
 chat.post("/seller", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
   if (isDemoSession(session)) {
-    return c.json({ error: "Demoläget kan inte skicka meddelanden." }, 403);
+    return c.json({ error: uiError(locale, "demoCannotSendMessages") }, 403);
   }
 
   let body: { body?: string };
   try {
     body = await c.req.json();
   } catch {
-    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+    return c.json({ error: uiError(locale, "invalidJson") }, 400);
   }
+  locale = resolveUiLocale(c, (body as { locale?: unknown }).locale);
   const text = (body.body ?? "").trim();
-  if (!text) return c.json({ error: "Meddelandet är tomt." }, 400);
+  if (!text) return c.json({ error: uiError(locale, "messageEmpty") }, 400);
   if (text.length > MAX_BODY) {
-    return c.json({ error: "Meddelandet är för långt." }, 400);
+    return c.json({ error: uiError(locale, "messageTooLong") }, 400);
   }
 
   try {
@@ -116,14 +120,14 @@ chat.post("/seller", async (c) => {
       .from(sellers)
       .where(eq(sellers.userId, session.userId))
       .limit(1);
-    if (!seller) return c.json({ error: "Ingen säljar-profil" }, 404);
+    if (!seller) return c.json({ error: uiError(locale, "noSellerProfile") }, 404);
 
     const [team] = await db
       .select()
       .from(teams)
       .where(eq(teams.id, seller.teamId))
       .limit(1);
-    if (!team) return c.json({ error: "Lag hittades inte" }, 404);
+    if (!team) return c.json({ error: uiError(locale, "teamNotFoundShort") }, 404);
 
     const [msg] = await db
       .insert(teamMessages)
@@ -149,21 +153,22 @@ chat.post("/seller", async (c) => {
     });
   } catch (err) {
     log.error({ err }, "seller chat send failed");
-    return c.json({ error: "Kunde inte skicka meddelandet" }, 500);
+    return c.json({ error: uiError(locale, "couldNotSendMessage") }, 500);
   }
 });
 
 /** Säljaren markerar sin tråd som läst. */
 chat.post("/seller/read", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
   try {
     const [seller] = await db
       .select()
       .from(sellers)
       .where(eq(sellers.userId, session.userId))
       .limit(1);
-    if (!seller) return c.json({ error: "Ingen säljar-profil" }, 404);
+    if (!seller) return c.json({ error: uiError(locale, "noSellerProfile") }, 404);
 
     await db
       .update(teamMessages)
@@ -182,7 +187,7 @@ chat.post("/seller/read", async (c) => {
     return c.json({ ok: true });
   } catch (err) {
     log.error({ err }, "seller chat read failed");
-    return c.json({ error: "Kunde inte uppdatera lässtatus" }, 500);
+    return c.json({ error: uiError(locale, "couldNotUpdateReadStatus") }, 500);
   }
 });
 
@@ -191,7 +196,8 @@ chat.post("/seller/read", async (c) => {
 /** Lista alla säljar-trådar i ett lag med oläst-räknare. */
 chat.get("/team/:teamId/threads", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
   const teamId = c.req.param("teamId");
 
   try {
@@ -200,9 +206,9 @@ chat.get("/team/:teamId/threads", async (c) => {
       .from(teams)
       .where(eq(teams.id, teamId))
       .limit(1);
-    if (!team) return c.json({ error: "Lag hittades inte" }, 404);
+    if (!team) return c.json({ error: uiError(locale, "teamNotFoundShort") }, 404);
     if (!leaderHasTeamAccess(session, team)) {
-      return c.json({ error: "Behörighet saknas" }, 403);
+      return c.json({ error: uiError(locale, "permissionDenied") }, 403);
     }
 
     const sellerList = await db
@@ -245,14 +251,15 @@ chat.get("/team/:teamId/threads", async (c) => {
     });
   } catch (err) {
     log.error({ err }, "leader threads fetch failed");
-    return c.json({ error: "Kunde inte hämta trådar" }, 500);
+    return c.json({ error: uiError(locale, "couldNotFetchThreads") }, 500);
   }
 });
 
 /** Meddelanden i en specifik säljar-tråd (för lagledaren). */
 chat.get("/team/:teamId/seller/:sellerId", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
   const teamId = c.req.param("teamId");
   const sellerId = c.req.param("sellerId");
 
@@ -262,9 +269,9 @@ chat.get("/team/:teamId/seller/:sellerId", async (c) => {
       .from(teams)
       .where(eq(teams.id, teamId))
       .limit(1);
-    if (!team) return c.json({ error: "Lag hittades inte" }, 404);
+    if (!team) return c.json({ error: uiError(locale, "teamNotFoundShort") }, 404);
     if (!leaderHasTeamAccess(session, team)) {
-      return c.json({ error: "Behörighet saknas" }, 403);
+      return c.json({ error: uiError(locale, "permissionDenied") }, 403);
     }
 
     const msgs = await db
@@ -293,7 +300,7 @@ chat.get("/team/:teamId/seller/:sellerId", async (c) => {
     });
   } catch (err) {
     log.error({ err }, "leader thread fetch failed");
-    return c.json({ error: "Kunde inte hämta meddelanden" }, 500);
+    return c.json({ error: uiError(locale, "couldNotFetchMessages") }, 500);
   }
 });
 
@@ -304,9 +311,10 @@ chat.get("/team/:teamId/seller/:sellerId", async (c) => {
  */
 chat.post("/team/:teamId", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
   if (isDemoSession(session)) {
-    return c.json({ error: "Demoläget kan inte skicka meddelanden." }, 403);
+    return c.json({ error: uiError(locale, "demoCannotSendMessages") }, 403);
   }
   const teamId = c.req.param("teamId");
 
@@ -314,12 +322,13 @@ chat.post("/team/:teamId", async (c) => {
   try {
     body = await c.req.json();
   } catch {
-    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+    return c.json({ error: uiError(locale, "invalidJson") }, 400);
   }
+  locale = resolveUiLocale(c, (body as { locale?: unknown }).locale);
   const text = (body.body ?? "").trim();
-  if (!text) return c.json({ error: "Meddelandet är tomt." }, 400);
+  if (!text) return c.json({ error: uiError(locale, "messageEmpty") }, 400);
   if (text.length > MAX_BODY) {
-    return c.json({ error: "Meddelandet är för långt." }, 400);
+    return c.json({ error: uiError(locale, "messageTooLong") }, 400);
   }
 
   try {
@@ -328,9 +337,9 @@ chat.post("/team/:teamId", async (c) => {
       .from(teams)
       .where(eq(teams.id, teamId))
       .limit(1);
-    if (!team) return c.json({ error: "Lag hittades inte" }, 404);
+    if (!team) return c.json({ error: uiError(locale, "teamNotFoundShort") }, 404);
     if (!leaderHasTeamAccess(session, team)) {
-      return c.json({ error: "Behörighet saknas" }, 403);
+      return c.json({ error: uiError(locale, "permissionDenied") }, 403);
     }
 
     let recipientSellerId: string | null = null;
@@ -346,7 +355,7 @@ chat.post("/team/:teamId", async (c) => {
         )
         .limit(1);
       if (!recipient) {
-        return c.json({ error: "Mottagaren tillhör inte laget." }, 400);
+        return c.json({ error: uiError(locale, "recipientNotOnTeam") }, 400);
       }
       recipientSellerId = recipient.id;
     }
@@ -375,24 +384,26 @@ chat.post("/team/:teamId", async (c) => {
     });
   } catch (err) {
     log.error({ err }, "leader chat send failed");
-    return c.json({ error: "Kunde inte skicka meddelandet" }, 500);
+    return c.json({ error: uiError(locale, "couldNotSendMessage") }, 500);
   }
 });
 
 /** Lagledaren markerar en säljar-tråd som läst. */
 chat.post("/team/:teamId/read", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
   const teamId = c.req.param("teamId");
 
   let body: { sellerId?: string };
   try {
     body = await c.req.json();
   } catch {
-    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+    return c.json({ error: uiError(locale, "invalidJson") }, 400);
   }
+  locale = resolveUiLocale(c, (body as { locale?: unknown }).locale);
   const sellerId = (body.sellerId ?? "").trim();
-  if (!sellerId) return c.json({ error: "sellerId krävs" }, 400);
+  if (!sellerId) return c.json({ error: uiError(locale, "sellerIdRequired") }, 400);
 
   try {
     const [team] = await db
@@ -400,9 +411,9 @@ chat.post("/team/:teamId/read", async (c) => {
       .from(teams)
       .where(eq(teams.id, teamId))
       .limit(1);
-    if (!team) return c.json({ error: "Lag hittades inte" }, 404);
+    if (!team) return c.json({ error: uiError(locale, "teamNotFoundShort") }, 404);
     if (!leaderHasTeamAccess(session, team)) {
-      return c.json({ error: "Behörighet saknas" }, 403);
+      return c.json({ error: uiError(locale, "permissionDenied") }, 403);
     }
 
     await db
@@ -419,6 +430,6 @@ chat.post("/team/:teamId/read", async (c) => {
     return c.json({ ok: true });
   } catch (err) {
     log.error({ err }, "leader chat read failed");
-    return c.json({ error: "Kunde inte uppdatera lässtatus" }, 500);
+    return c.json({ error: uiError(locale, "couldNotUpdateReadStatus") }, 500);
   }
 });

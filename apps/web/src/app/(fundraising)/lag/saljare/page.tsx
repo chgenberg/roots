@@ -1,5 +1,11 @@
 "use client";
 
+import { useLocale } from "@/i18n/locale-context";
+import { fundraisingPages } from "@/i18n/dictionaries/fundraising-pages";
+import { tFill } from "@/i18n/format";
+import { appCommon } from "@/i18n/dictionaries/app-common";
+import { LocaleLink } from "@/components/locale-link";
+
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,8 +31,8 @@ import { GradeBadge, GradeProgress } from "@/components/seller-grade";
 import { SellerImportDialog } from "@/components/seller-import-dialog";
 import type { TeamDashboard, Seller } from "@/types/fundraising";
 import { getBrowserApiBase } from "@/lib/api-base";
-import { apiFetch } from "@/lib/api";
-import { formatKrValue, pluralSv } from "@/lib/format";
+import { apiFetch, rootsFetch } from "@/lib/api";
+import { formatKr, formatKrValue, pluralSv } from "@/lib/format";
 
 const API_URL = getBrowserApiBase();
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
@@ -34,6 +40,11 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 const PODIUM_ICONS = ["🥇", "🥈", "🥉"];
 
 export default function TeamSellersPage() {
+  const { locale, href } = useLocale();
+  const t = fundraisingPages.teamSellers[locale];
+  const c = fundraisingPages.common[locale];
+  const dateLocale = appCommon[locale].dateLocale;
+
   const [data, setData] = useState<TeamDashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -73,8 +84,8 @@ export default function TeamSellersPage() {
       if (res.ok && res.data?.id) {
         toast(
           next === "INACTIVE"
-            ? `${seller.displayName} är pausad och syns inte i topplistan.`
-            : `${seller.displayName} är aktiv igen.`,
+            ? tFill(t.paused, { name: seller.displayName })
+            : tFill(t.activated, { name: seller.displayName }),
           "success"
         );
         setData((prev) =>
@@ -88,10 +99,10 @@ export default function TeamSellersPage() {
             : prev
         );
       } else {
-        toast(res.data?.error || "Kunde inte uppdatera status.", "error");
+        toast(res.data?.error || t.statusFailed, "error");
       }
     } catch {
-      toast("Ett nätverksfel uppstod. Försök igen.", "error");
+      toast(c.networkError, "error");
     } finally {
       setStatusBusyId(null);
     }
@@ -110,11 +121,11 @@ export default function TeamSellersPage() {
   async function saveGoal(sellerId: string) {
     const parsed = Number.parseInt(editGoalValue, 10);
     if (!Number.isFinite(parsed) || parsed < 0) {
-      toast("Målbeloppet måste vara ett positivt heltal.", "error");
+      toast(t.goalPositive, "error");
       return;
     }
     if (parsed > 10_000_000) {
-      toast("Målbeloppet är orimligt högt.", "error");
+      toast(t.goalTooHigh, "error");
       return;
     }
     setSavingGoalId(sellerId);
@@ -128,7 +139,7 @@ export default function TeamSellersPage() {
         body: { individualGoal: parsed },
       });
       if (res.ok && res.data?.id) {
-        toast("Mål uppdaterat.", "success");
+        toast(t.goalUpdated, "success");
         setData((prev) =>
           prev
             ? {
@@ -143,10 +154,10 @@ export default function TeamSellersPage() {
         );
         cancelEditGoal();
       } else {
-        toast(res.data?.error || "Kunde inte uppdatera mål.", "error");
+        toast(res.data?.error || t.goalUpdateFailed, "error");
       }
     } catch {
-      toast("Ett nätverksfel uppstod. Försök igen.", "error");
+      toast(c.networkError, "error");
     } finally {
       setSavingGoalId(null);
     }
@@ -158,26 +169,21 @@ export default function TeamSellersPage() {
 
   async function load() {
     try {
-      const myTeamRes = await fetch(`${API_URL}/v1/dashboard/my-team`, {
-        credentials: "include",
-      });
+      const myTeamRes = await rootsFetch(`${API_URL}/v1/dashboard/my-team`);
       if (!myTeamRes.ok) {
-        setError("Kunde inte hämta lagdata. Försök igen.");
+        setError(t.loadFailed);
         return;
       }
       const { teamId } = await myTeamRes.json();
 
-      const teamRes = await fetch(
-        `${API_URL}/v1/dashboard/team/${teamId}`,
-        { credentials: "include" }
-      );
+      const teamRes = await rootsFetch(`${API_URL}/v1/dashboard/team/${teamId}`);
       if (teamRes.ok) {
         setData(await teamRes.json());
       } else {
-        setError("Kunde inte hämta lagdata. Försök igen.");
+        setError(t.loadFailed);
       }
     } catch {
-      setError("Ett nätverksfel uppstod. Försök igen.");
+      setError(c.networkError);
     } finally {
       setLoading(false);
     }
@@ -192,7 +198,7 @@ export default function TeamSellersPage() {
       setCopiedInvite(true);
       setTimeout(() => setCopiedInvite(false), 2000);
     } catch {
-      toast("Kunde inte kopiera länken. Kopiera den manuellt.", "error");
+      toast(c.copyLinkFailed, "error");
     }
   }
 
@@ -202,7 +208,7 @@ export default function TeamSellersPage() {
       setCopiedShop(slug);
       setTimeout(() => setCopiedShop(null), 2000);
     } catch {
-      toast("Kunde inte kopiera länken. Kopiera den manuellt.", "error");
+      toast(c.copyLinkFailed, "error");
     }
   }
 
@@ -228,7 +234,7 @@ export default function TeamSellersPage() {
 
       if (res.ok && res.data?.ok && res.data.seller) {
         const newSeller = res.data.seller;
-        toast("Säljare tillagd!", "success");
+        toast(t.created, "success");
         setCreateName("");
         setCreateEmail("");
         setCreatePassword("");
@@ -239,10 +245,10 @@ export default function TeamSellersPage() {
             : prev
         );
       } else {
-        toast(res.data?.error || "Kunde inte skapa säljare.", "error");
+        toast(res.data?.error || t.createFailed, "error");
       }
     } catch {
-      toast("Ett nätverksfel uppstod.", "error");
+      toast(c.networkError, "error");
     } finally {
       setCreating(false);
     }
@@ -261,7 +267,7 @@ export default function TeamSellersPage() {
       <div className="flex flex-col items-center justify-center gap-3 py-20">
         <p className="text-sm text-destructive">{error}</p>
         <Button variant="outline" onClick={() => window.location.reload()}>
-          Försök igen
+          {c.retry}
         </Button>
       </div>
     );
@@ -271,14 +277,14 @@ export default function TeamSellersPage() {
     return (
       <div className="flex flex-col items-center gap-3 py-20">
         <Users className="h-10 w-10 text-muted-foreground" />
-        <p className="text-sm text-muted-foreground">Inget lag hittades</p>
+        <p className="text-sm text-muted-foreground">{c.noTeamFound}</p>
       </div>
     );
   }
 
   const sellers: Seller[] = data.sellers || [];
   // Sprint E12: paused sellers must not appear in the topplistan/ranking
-  // but are still listed below in a dedicated "Pausade säljare" section
+  // but are still listed below in a dedicated Paused sellers section
   // so the team leader can see and reactivate them.
   const activeSellers = sellers.filter((s) => s.status !== "INACTIVE");
   const pausedSellers = sellers.filter((s) => s.status === "INACTIVE");
@@ -292,9 +298,9 @@ export default function TeamSellersPage() {
     <div className="page-enter space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Säljare</h1>
+          <h1 className="text-2xl font-bold">{t.title}</h1>
           <p className="text-sm text-muted-foreground">
-            {sellers.length} säljare i {data.team?.name}
+            {tFill(t.sellersInTeam, { count: sellers.length, team: data.team?.name ?? "" })}
           </p>
         </div>
         <div className="flex gap-2">
@@ -305,7 +311,7 @@ export default function TeamSellersPage() {
             className="gap-1.5"
           >
             <Upload className="h-4 w-4" />
-            Importera
+            {t.importSellers}
           </Button>
           <Button
             size="sm"
@@ -313,7 +319,7 @@ export default function TeamSellersPage() {
             className="gap-1.5"
           >
             <UserPlus className="h-4 w-4" />
-            Lägg till
+            {t.add}
           </Button>
         </div>
       </div>
@@ -333,20 +339,20 @@ export default function TeamSellersPage() {
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <UserPlus className="h-4 w-4 text-brand-500" />
-              Lägg till säljare
+              {t.addSeller}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleCreateSeller} className="space-y-3">
               <Input
-                placeholder="Namn (t.ex. Kalle Svensson)"
+                placeholder={t.namePlaceholder}
                 value={createName}
                 onChange={(e) => setCreateName(e.target.value)}
                 required
               />
               <Input
                 type="email"
-                placeholder="E-post"
+                placeholder={t.email}
                 value={createEmail}
                 onChange={(e) => setCreateEmail(e.target.value)}
                 required
@@ -354,7 +360,7 @@ export default function TeamSellersPage() {
               <div className="relative">
                 <Input
                   type={showPassword ? "text" : "password"}
-                  placeholder="Lösenord"
+                  placeholder={t.password}
                   value={createPassword}
                   onChange={(e) => setCreatePassword(e.target.value)}
                   required
@@ -379,7 +385,7 @@ export default function TeamSellersPage() {
                   ) : (
                     <UserPlus className="mr-2 h-4 w-4" />
                   )}
-                  Skapa konto
+                  {t.createAccount}
                 </Button>
                 <Button
                   type="button"
@@ -387,7 +393,7 @@ export default function TeamSellersPage() {
                   size="sm"
                   onClick={() => setShowCreate(false)}
                 >
-                  Avbryt
+                  {c.cancel}
                 </Button>
               </div>
             </form>
@@ -400,7 +406,7 @@ export default function TeamSellersPage() {
         <Card>
           <CardContent className="p-5">
             <p className="mb-2 text-sm font-medium">
-              Eller dela inbjudningslänken
+              {t.orShareInvite}
             </p>
             <div className="flex gap-2">
               <Input
@@ -426,7 +432,7 @@ export default function TeamSellersPage() {
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-base flex items-center gap-2">
               <Trophy className="h-4 w-4 text-brand-500" />
-              Topplista
+              {t.leaderboard}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -456,7 +462,7 @@ export default function TeamSellersPage() {
                         {seller.displayName}
                       </p>
                       <p className="text-xs font-bold text-brand-700">
-                        {formatKrValue(seller.totalSalesOre)} kr
+                        {formatKr(seller.totalSalesOre, locale)}
                       </p>
                       <GradeBadge grade={seller.grade} size="sm" />
                     </div>
@@ -471,12 +477,12 @@ export default function TeamSellersPage() {
       {/* Full ranking list */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Alla säljare</CardTitle>
+          <CardTitle className="text-base">{t.allSellers}</CardTitle>
         </CardHeader>
         <CardContent>
           {sortedSellers.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-6">
-              Inga säljare har anslutit ännu. Lägg till eller dela inbjudningslänken!
+              {t.empty}
             </p>
           ) : (
             <div className="space-y-3">
@@ -501,11 +507,11 @@ export default function TeamSellersPage() {
                         <GradeBadge grade={seller.grade} size="sm" />
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        {pluralSv(seller.orderCount, "order", "ordrar")}
+                        {pluralSv(seller.orderCount, c.orderSingular, c.orderPlural)}
                       </p>
                     </div>
                     <p className="text-sm font-semibold shrink-0">
-                      {formatKrValue(seller.totalSalesOre)} kr
+                      {formatKr(seller.totalSalesOre, locale)}
                     </p>
                   </div>
 
@@ -513,7 +519,7 @@ export default function TeamSellersPage() {
 
                   {/* Goal section — Sprint E10 added inline edit. The
                       progress bar shows up only when a goal is set; the
-                      "Sätt mål"-link appears otherwise so the leader can
+                      {t.setGoal}-link appears otherwise so the leader can
                       give a brand-new seller a target. */}
                   <div className="ml-9">
                     {editingGoalId === seller.id ? (
@@ -527,7 +533,7 @@ export default function TeamSellersPage() {
                           autoFocus
                         />
                         <span className="text-xs text-muted-foreground">
-                          kr
+                          {c.kr}
                         </span>
                         <Button
                           size="sm"
@@ -537,9 +543,7 @@ export default function TeamSellersPage() {
                         >
                           {savingGoalId === seller.id ? (
                             <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : (
-                            "Spara"
-                          )}
+                          ) : (c.save)}
                         </Button>
                         <Button
                           size="sm"
@@ -571,11 +575,14 @@ export default function TeamSellersPage() {
                         </div>
                         <div className="mt-0.5 flex items-center justify-between">
                           <p className="text-xs text-muted-foreground">
-                            Mål:{" "}
-                            {(seller.totalSalesOre / 100).toLocaleString(
-                              "sv-SE"
-                            )}{" "}
-                            / {seller.individualGoal.toLocaleString("sv-SE")} kr
+                            {tFill(t.goalProgressLabel, {
+                              current: (seller.totalSalesOre / 100).toLocaleString(
+                                dateLocale
+                              ),
+                              goal: seller.individualGoal.toLocaleString(
+                                dateLocale
+                              ),
+                            })}
                           </p>
                           <button
                             type="button"
@@ -583,7 +590,7 @@ export default function TeamSellersPage() {
                             className="inline-flex items-center gap-1 text-xs text-brand-600 hover:text-brand-800"
                           >
                             <Target className="h-3 w-3" />
-                            Ändra
+                            {t.edit}
                           </button>
                         </div>
                       </div>
@@ -594,7 +601,7 @@ export default function TeamSellersPage() {
                         className="inline-flex items-center gap-1 text-xs text-brand-600 hover:text-brand-800"
                       >
                         <Target className="h-3 w-3" />
-                        Sätt mål
+                        {t.setGoal}
                       </button>
                     )}
                   </div>
@@ -613,7 +620,7 @@ export default function TeamSellersPage() {
                           ) : (
                             <Copy className="h-3 w-3 mr-1" />
                           )}
-                          Kopiera shop-länk
+                          {t.copyShopLink}
                         </Button>
                         <Button
                           size="sm"
@@ -627,7 +634,7 @@ export default function TeamSellersPage() {
                             rel="noopener noreferrer"
                           >
                             <ExternalLink className="h-3 w-3 mr-1" />
-                            Öppna shop
+                            {t.openShop}
                           </a>
                         </Button>
                       </>
@@ -644,7 +651,7 @@ export default function TeamSellersPage() {
                       ) : (
                         <Pause className="h-3 w-3 mr-1" />
                       )}
-                      Pausa
+                      {t.pause}
                     </Button>
                   </div>
                 </div>
@@ -660,7 +667,7 @@ export default function TeamSellersPage() {
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <Pause className="h-4 w-4 text-muted-foreground" />
-              Pausade säljare ({pausedSellers.length})
+              {tFill(t.pausedSectionCount, { count: pausedSellers.length })}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -676,7 +683,7 @@ export default function TeamSellersPage() {
                         {seller.displayName}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        Pausad — räknas inte i ranking eller måluppfyllelse.
+                        {t.pausedHint}
                       </p>
                     </div>
                     <Button
@@ -691,7 +698,7 @@ export default function TeamSellersPage() {
                       ) : (
                         <Play className="h-3 w-3 mr-1" />
                       )}
-                      Aktivera
+                      {t.activate}
                     </Button>
                   </div>
                 </div>

@@ -6,28 +6,41 @@ import { Gamification } from "@/components/sections/gamification";
 import { FoundersSection } from "@/components/sections/founders";
 import { WebPageJsonLd } from "@/components/json-ld";
 import { pageMetadata } from "@/lib/seo";
+import { withLocale } from "@/i18n/paths";
+import { getRequestLocale } from "@/i18n/request-locale";
+import type { Metadata } from "next";
 
-const PAGE_TITLE = "Naturlig hårvård för föreningslivet";
-const PAGE_DESCRIPTION =
-  "Roots — naturlig hårvård utvecklad i Norden. Schampo, balsam och body wash som stärker föreningslivet med varje köp.";
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getRequestLocale();
+  const title =
+    locale === "en"
+      ? "Natural hair care for sports clubs"
+      : "Naturlig hårvård för föreningslivet";
+  const description =
+    locale === "en"
+      ? "Roots — natural hair care developed in the Nordics. Shampoo, conditioner and body wash that strengthen club fundraising with every purchase."
+      : "Roots — naturlig hårvård utvecklad i Norden. Schampo, balsam och body wash som stärker föreningslivet med varje köp.";
+  return pageMetadata({ title, description, path: "/", locale });
+}
 
-// MASTERPLAN_01 KC7.4: hemsidan ärver title-template + description från
-// root-layouten men måste ändå ha explicit canonical så Google inte
-// behandlar "?ref=..." / "?utm=..." som duplicate-content. Vi lämnar
-// title undefined → root-default ("Roots — Föreningsnära hårvård").
-export const metadata = pageMetadata({
-  title: PAGE_TITLE,
-  description: PAGE_DESCRIPTION,
-  path: "/",
-});
+export default async function Home() {
+  const locale = await getRequestLocale();
+  const title =
+    locale === "en"
+      ? "Natural hair care for sports clubs"
+      : "Naturlig hårvård för föreningslivet";
+  const description =
+    locale === "en"
+      ? "Roots — natural hair care developed in the Nordics. Shampoo, conditioner and body wash that strengthen club fundraising with every purchase."
+      : "Roots — naturlig hårvård utvecklad i Norden. Schampo, balsam och body wash som stärker föreningslivet med varje köp.";
 
-export default function Home() {
   return (
     <>
       <WebPageJsonLd
-        name={PAGE_TITLE}
-        description={PAGE_DESCRIPTION}
-        url="/"
+        name={title}
+        description={description}
+        url={withLocale("/", locale)}
+        locale={locale}
       />
       <HeroSection />
       <ProductsPreview />

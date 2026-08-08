@@ -28,6 +28,7 @@ import { isDemoSession } from "../lib/session";
 import { requireSession } from "../lib/http-session";
 import { auditLog, requestContext } from "../lib/audit";
 import { childLogger } from "../lib/logger";
+import { resolveUiLocale, uiError } from "../lib/ui-locale";
 
 const log = childLogger("sales");
 
@@ -36,20 +37,21 @@ export const sales = new Hono();
 // ── POST /leads ──────────────────────────────────────────────────
 sales.post("/leads", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
   if (
     session.role !== "SALES_REP" &&
     session.role !== "SALES_ADMIN" &&
     session.role !== "INTERNAL_ADMIN"
   ) {
-    return c.json({ error: "Behörighet saknas" }, 403);
+    return c.json({ error: uiError(locale, "permissionDenied") }, 403);
   }
   // MASTERPLAN_01 KC2.1: demo-säljare ska kunna utforska pipeline-UI:t
   // men inte skapa riktiga prospects som blir kvar i Roots CRM efter
   // demo-sessionen är slut.
   if (isDemoSession(session)) {
     return c.json(
-      { error: "Demoläget kan inte skapa riktiga prospects." },
+      { error: uiError(locale, "demoCannotCreateProspects") },
       403
     );
   }
@@ -68,12 +70,13 @@ sales.post("/leads", async (c) => {
   try {
     body = await c.req.json<Body>();
   } catch {
-    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+    return c.json({ error: uiError(locale, "invalidJson") }, 400);
   }
+  locale = resolveUiLocale(c, (body as { locale?: unknown }).locale);
 
   const name = (body.name ?? "").trim();
   if (!name || name.length < 2 || name.length > 255) {
-    return c.json({ error: "Klubbnamn måste vara 2–255 tecken." }, 400);
+    return c.json({ error: uiError(locale, "clubNameLength") }, 400);
   }
 
   const leadSource = body.leadSource?.trim().toUpperCase() || null;
@@ -87,7 +90,7 @@ sales.post("/leads", async (c) => {
   ]);
   if (leadSource && !allowedSources.has(leadSource)) {
     return c.json(
-      { error: "Ogiltig lead-källa. Tillåtna: " + [...allowedSources].join(", ") },
+      { error: uiError(locale, "invalidLeadSourcePrefix") + [...allowedSources].join(", ") },
       400
     );
   }
@@ -96,14 +99,14 @@ sales.post("/leads", async (c) => {
   if (body.potentialScore !== undefined && body.potentialScore !== null) {
     const n = Math.floor(body.potentialScore);
     if (!Number.isFinite(n) || n < 0 || n > 100) {
-      return c.json({ error: "potentialScore måste vara 0–100." }, 400);
+      return c.json({ error: uiError(locale, "potentialScoreRange") }, 400);
     }
     potentialScore = n;
   }
 
   const orgNumber = body.orgNumber?.trim().replace(/\s+/g, "") || null;
   if (orgNumber && !/^\d{6,12}-?\d{4}$/.test(orgNumber)) {
-    return c.json({ error: "Ogiltigt organisationsnummer." }, 400);
+    return c.json({ error: uiError(locale, "invalidOrgNumber") }, 400);
   }
 
   const municipality = body.municipality?.trim() || null;
@@ -119,7 +122,7 @@ sales.post("/leads", async (c) => {
       if (existing) {
         return c.json(
           {
-            error: "Organisationsnumret finns redan.",
+            error: uiError(locale, "orgNumberExists"),
             existingOrgId: existing.id,
             existingOrgName: existing.name,
           },
@@ -175,7 +178,7 @@ sales.post("/leads", async (c) => {
     );
   } catch (err) {
     log.error({ err }, "lead create failed");
-    return c.json({ error: "Kunde inte skapa lead just nu." }, 500);
+    return c.json({ error: uiError(locale, "couldNotCreateLead") }, 500);
   }
 });
 
@@ -192,13 +195,14 @@ sales.post("/leads", async (c) => {
  */
 sales.get("/calendar", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
   if (
     session.role !== "SALES_REP" &&
     session.role !== "SALES_ADMIN" &&
     session.role !== "INTERNAL_ADMIN"
   ) {
-    return c.json({ error: "Behörighet saknas" }, 403);
+    return c.json({ error: uiError(locale, "permissionDenied") }, 403);
   }
 
   try {
@@ -254,7 +258,7 @@ sales.get("/calendar", async (c) => {
     });
   } catch (err) {
     log.error({ err }, "sales calendar failed");
-    return c.json({ error: "Kunde inte hämta kalendern." }, 500);
+    return c.json({ error: uiError(locale, "couldNotFetchCalendar") }, 500);
   }
 });
 

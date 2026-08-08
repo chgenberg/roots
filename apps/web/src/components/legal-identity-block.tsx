@@ -1,4 +1,7 @@
+"use client";
+
 import { LEGAL_IDENTITY, formatAddressSingleLine } from "@/lib/legal-identity";
+import { useLocale } from "@/i18n/locale-context";
 
 interface LegalIdentityBlockProps {
   /** "compact" = comma-separated inline; "block" = stacked multi-line. */
@@ -18,9 +21,9 @@ export function LegalIdentityBlock({
   className,
   showContact = false,
 }: LegalIdentityBlockProps) {
-  // MASTERPLAN_01 KC7.7: showContact måste ge supportern ett komplett
-  // sätt att nå oss — email + telefon — för att räknas som "lätt att
-  // komma i kontakt" enligt e-handelslagen 8 §.
+  const { locale } = useLocale();
+  const orgLabel = locale === "en" ? "Org no." : "Org.nr";
+  const vatLabel = locale === "en" ? "VAT no." : "Momsreg.nr";
   const phoneDigits = LEGAL_IDENTITY.contact.phone.replace(/\s+/g, "");
 
   if (variant === "block") {
@@ -39,7 +42,8 @@ export function LegalIdentityBlock({
         <br />
         {LEGAL_IDENTITY.address.postalCode} {LEGAL_IDENTITY.address.city}
         <br />
-        Org.nr {LEGAL_IDENTITY.orgNumber} · Momsreg.nr {LEGAL_IDENTITY.vatId}
+        {orgLabel} {LEGAL_IDENTITY.orgNumber} · {vatLabel}{" "}
+        {LEGAL_IDENTITY.vatId}
         {showContact && (
           <>
             <br />
@@ -64,8 +68,8 @@ export function LegalIdentityBlock({
 
   return (
     <span className={className ?? "text-xs text-muted-foreground"}>
-      {LEGAL_IDENTITY.legalName} · {formatAddressSingleLine()} · Org.nr{" "}
-      {LEGAL_IDENTITY.orgNumber} · Momsreg.nr {LEGAL_IDENTITY.vatId}
+      {LEGAL_IDENTITY.legalName} · {formatAddressSingleLine()} · {orgLabel}{" "}
+      {LEGAL_IDENTITY.orgNumber} · {vatLabel} {LEGAL_IDENTITY.vatId}
       {showContact && (
         <>
           {" · "}

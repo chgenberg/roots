@@ -22,6 +22,9 @@ import {
   ShieldAlert,
   Banknote,
 } from "lucide-react";
+import { useLocale } from "@/i18n/locale-context";
+import { portalPages, portalShared } from "@/i18n/dictionaries/portal-pages";
+import { tFill } from "@/i18n/format";
 
 type Payout = {
   id: string;
@@ -40,14 +43,11 @@ type Payout = {
   createdAt: string;
 };
 
-function statusLabel(s: string) {
-  if (s === "PENDING") return "Väntar";
-  if (s === "INVOICED") return "Fakturerad";
-  if (s === "PAID") return "Utbetald";
-  return s;
-}
-
 export default function UtbetalningarPage() {
+  const { locale } = useLocale();
+  const t = portalPages.utbetalningar[locale];
+  const shared = portalShared[locale];
+  const payoutLabels = shared.payoutStatus;
   const { toast } = useToast();
   const [payouts, setPayouts] = useState<Payout[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,19 +65,19 @@ export default function UtbetalningarPage() {
       if (!res.ok) {
         setError(
           res.status === 403
-            ? "Behörighet saknas — kräver INTERNAL_ADMIN."
-            : res.data?.error || "Kunde inte hämta utbetalningar."
+            ? shared.permissionDenied
+            : res.data?.error || t.loadError
         );
         setPayouts([]);
         return;
       }
       setPayouts(res.data.payouts ?? []);
     } catch {
-      setError("Nätverksfel. Kunde inte kontakta servern.");
+      setError(shared.networkServer);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [shared.networkServer, shared.permissionDenied, t.loadError]);
 
   useEffect(() => {
     void load();
@@ -86,7 +86,7 @@ export default function UtbetalningarPage() {
   async function markPaid(id: string) {
     const paymentReference = (refs[id] || "").trim();
     if (!paymentReference) {
-      toast("Ange betalningsreferens först.", "error");
+      toast(t.refRequired, "error");
       return;
     }
     setActingId(id);
@@ -99,10 +99,10 @@ export default function UtbetalningarPage() {
         }
       );
       if (!res.ok) {
-        toast(res.data?.error || "Kunde inte markera som utbetald.", "error");
+        toast(res.data?.error || t.markFail, "error");
         return;
       }
-      toast("Utbetalningen är markerad som betald.", "success");
+      toast(t.markOk, "success");
       await load();
     } finally {
       setActingId(null);
@@ -116,10 +116,8 @@ export default function UtbetalningarPage() {
     <div className="page-enter space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Utbetalningar</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Markera föreningars andelar som utbetalda efter banköverföring.
-          </p>
+          <h1 className="text-2xl font-bold tracking-tight">{t.title}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t.subtitle}</p>
         </div>
         <Button
           type="button"
@@ -133,7 +131,7 @@ export default function UtbetalningarPage() {
           ) : (
             <RefreshCw className="mr-2 h-4 w-4" />
           )}
-          Uppdatera
+          {shared.refresh}
         </Button>
       </div>
 
@@ -150,7 +148,7 @@ export default function UtbetalningarPage() {
       {loading && !payouts.length ? (
         <div className="flex items-center justify-center py-16 text-muted-foreground">
           <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-          Hämtar utbetalningar…
+          {t.loading}
         </div>
       ) : null}
 
@@ -159,10 +157,8 @@ export default function UtbetalningarPage() {
           <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
             <CheckCircle2 className="h-8 w-8 text-brand-500" />
             <div>
-              <p className="font-medium">Inga utbetalningar ännu</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                När en förening genererar avräkning dyker raderna upp här.
-              </p>
+              <p className="font-medium">{t.emptyTitle}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{t.emptyBody}</p>
             </div>
           </CardContent>
         </Card>
@@ -171,7 +167,7 @@ export default function UtbetalningarPage() {
       {open.length > 0 && (
         <div className="space-y-3">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            Att betala ({open.length})
+            {tFill(t.toPay, { count: open.length })}
           </h2>
           {open.map((p) => {
             const busy = actingId === p.id;
@@ -185,26 +181,30 @@ export default function UtbetalningarPage() {
                       </div>
                       <div>
                         <p className="font-semibold">
-                          {p.orgName || "Okänd förening"}
+                          {p.orgName || t.unknownClub}
                         </p>
                         <p className="text-sm text-muted-foreground">
-                          {p.campaignName || "Kampanj"} · Er andel att betala{" "}
+                          {p.campaignName || t.campaign} · {t.shareToPay}{" "}
                           <strong className="text-foreground">
-                            {formatKr(p.teamShareOre)}
+                            {formatKr(p.teamShareOre, locale)}
                           </strong>
                         </p>
                         <p className="mt-1 text-xs text-muted-foreground">
-                          Totalt sålt {formatKr(p.totalSalesOre)} · Roots{" "}
-                          {formatKr(p.rootsShareOre)}
+                          {tFill(t.soldTotal, {
+                            sales: formatKr(p.totalSalesOre, locale),
+                            roots: formatKr(p.rootsShareOre, locale),
+                          })}
                         </p>
                       </div>
                     </div>
-                    <Badge variant="secondary">{statusLabel(p.status)}</Badge>
+                    <Badge variant="secondary">
+                      {payoutLabels[p.status]}
+                    </Badge>
                   </div>
 
                   <div className="flex flex-wrap items-end gap-3">
                     <div className="min-w-[220px] flex-1">
-                      <Label htmlFor={`ref-${p.id}`}>Betalningsreferens</Label>
+                      <Label htmlFor={`ref-${p.id}`}>{t.paymentRef}</Label>
                       <Input
                         id={`ref-${p.id}`}
                         value={refs[p.id] || ""}
@@ -214,7 +214,7 @@ export default function UtbetalningarPage() {
                             [p.id]: e.target.value,
                           }))
                         }
-                        placeholder="t.ex. SEB 2026-08-07 / OCR"
+                        placeholder={t.paymentRefPlaceholder}
                       />
                     </div>
                     <Button
@@ -227,7 +227,7 @@ export default function UtbetalningarPage() {
                       ) : (
                         <CheckCircle2 className="mr-2 h-4 w-4" />
                       )}
-                      Markera utbetald
+                      {t.markPaid}
                     </Button>
                   </div>
                 </CardContent>
@@ -240,7 +240,7 @@ export default function UtbetalningarPage() {
       {paid.length > 0 && (
         <div className="space-y-3">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            Utbetalda ({paid.length})
+            {tFill(t.paidSection, { count: paid.length })}
           </h2>
           {paid.map((p) => (
             <Card key={p.id}>
@@ -248,11 +248,11 @@ export default function UtbetalningarPage() {
                 <div>
                   <p className="font-medium">{p.orgName}</p>
                   <p className="text-sm text-muted-foreground">
-                    {p.campaignName} · {formatKr(p.teamShareOre)}
+                    {p.campaignName} · {formatKr(p.teamShareOre, locale)}
                     {p.paymentReference ? ` · ${p.paymentReference}` : ""}
                   </p>
                 </div>
-                <Badge variant="success">Utbetald</Badge>
+                <Badge variant="success">{t.paidBadge}</Badge>
               </CardContent>
             </Card>
           ))}

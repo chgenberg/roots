@@ -16,7 +16,10 @@ import { requireSession } from "../lib/http-session";
 import { childLogger } from "../lib/logger";
 import { auditLog } from "../lib/audit";
 import { getEmailSender } from "../lib/email";
-import { memberInviteEmail } from "../lib/email/templates";
+import {
+  memberInviteEmail,
+  withLocalePath,
+} from "../lib/email/templates";
 import { issuePasswordResetToken } from "../lib/password-reset-tokens";
 import type {
   DashboardResponse,
@@ -25,6 +28,8 @@ import type {
   IncomeResponse,
   PortalRole,
 } from "@roots/contracts";
+import { resolveUiLocale, uiError } from "../lib/ui-locale";
+import { localizedProductName } from "../lib/product-i18n";
 
 const log = childLogger("portal");
 
@@ -48,28 +53,32 @@ function isPortalRole(role: string): role is PortalRole {
   );
 }
 
-function formatSek(ore: number): string {
-  return `${Math.round(ore / 100).toLocaleString("sv-SE")} kr`;
+function formatSek(ore: number, locale: "sv" | "en" = "sv"): string {
+  const amount = Math.round(ore / 100).toLocaleString(
+    locale === "en" ? "en-GB" : "sv-SE"
+  );
+  return locale === "en" ? `SEK ${amount}` : `${amount} kr`;
 }
 
 // ── Dashboard KPIs (role-based) ─────────────────────────────
 
 portal.get("/dashboard", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
 
   const role = session.role;
   if (!isPortalRole(role)) {
     // Fundraising roles (ASSOCIATION_ADMIN/TEAM_LEADER/SELLER) use the
     // /forening, /lag and /min-shop surfaces — they must not see portal
     // dashboards (which would leak cross-tenant aggregates).
-    return c.json({ error: "Behörighet saknas" }, 403);
+    return c.json({ error: uiError(locale, "permissionDenied") }, 403);
   }
 
   try {
     if (role === "CLUB_ADMIN" || role === "CLUB_MEMBER") {
       if (!session.orgId) {
-        return c.json({ error: "Klubbkontext saknas" }, 400);
+        return c.json({ error: uiError(locale, "clubContextMissing") }, 400);
       }
       const orgId = session.orgId;
 
@@ -104,7 +113,7 @@ portal.get("/dashboard", async (c) => {
           members: membersNum,
           orders: ordersNum,
           revenueOre,
-          revenue: formatSek(revenueOre),
+          revenue: formatSek(revenueOre, locale),
           nextDelivery: null,
         },
       };
@@ -177,7 +186,7 @@ portal.get("/dashboard", async (c) => {
           pipelineValueOre: pipelineOre,
           activeClubs: clubsNum,
           openQuotes: quotesNum,
-          pipelineValue: formatSek(pipelineOre),
+          pipelineValue: formatSek(pipelineOre, locale),
         },
       };
       return c.json(payload);
@@ -233,7 +242,7 @@ portal.get("/dashboard", async (c) => {
           pipelineValueOre: pipelineOre,
           activeClubs: clubsNum,
           openQuotes: quotesNum,
-          pipelineValue: formatSek(pipelineOre),
+          pipelineValue: formatSek(pipelineOre, locale),
         },
       };
       return c.json(payload);
@@ -242,7 +251,7 @@ portal.get("/dashboard", async (c) => {
     // INTERNAL_ADMIN — explicit guard prevents fall-through from any future
     // role that may slip past `isPortalRole`.
     if (role !== "INTERNAL_ADMIN") {
-      return c.json({ error: "Behörighet saknas" }, 403);
+      return c.json({ error: uiError(locale, "permissionDenied") }, 403);
     }
 
     const totalOrders = await db
@@ -270,7 +279,7 @@ portal.get("/dashboard", async (c) => {
         totalOrders: totalOrdersNum,
         totalClubs: totalClubsNum,
         mrrOre,
-        mrr: formatSek(mrrOre),
+        mrr: formatSek(mrrOre, locale),
         activeClubs: totalClubsNum,
         hairConversion: null,
       },
@@ -278,7 +287,7 @@ portal.get("/dashboard", async (c) => {
     return c.json(adminPayload);
   } catch (err) {
     log.error({ err }, "Failed to fetch dashboard");
-    return c.json({ error: "Kunde inte hämta data" }, 500);
+    return c.json({ error: uiError(locale, "couldNotFetchData") }, 500);
   }
 });
 
@@ -286,14 +295,24 @@ portal.get("/dashboard", async (c) => {
 
 portal.get("/products", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
 
   try {
     const productList = await db.select().from(products).orderBy(products.name);
-    return c.json({ products: productList });
+    return c.json({
+      products: productList.map((p) => ({
+        ...p,
+        name: localizedProductName(locale, {
+          slug: p.slug,
+          sku: p.sku,
+          fallback: p.name,
+        }),
+      })),
+    });
   } catch (err) {
     log.error({ err }, "Failed to fetch products");
-    return c.json({ error: "Kunde inte hämta produkter" }, 500);
+    return c.json({ error: uiError(locale, "couldNotFetchProducts") }, 500);
   }
 });
 
@@ -303,14 +322,15 @@ type OrderRow = typeof orders.$inferSelect;
 
 portal.get("/orders", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
 
   // P2.4 (audit 2026-05-26): list-endpointen släppte tidigare alla
   // sessioner med orgId vidare — fundraising-roller (ASSOCIATION_ADMIN
   // /TEAM_LEADER/SELLER) kunde enumerera B2B-orders för sin org.
   // Detail-endpointen ovan gör redan rätt med isPortalRole(); spegla.
   if (!isPortalRole(session.role)) {
-    return c.json({ error: "Behörighet saknas" }, 403);
+    return c.json({ error: uiError(locale, "permissionDenied") }, 403);
   }
 
   try {
@@ -338,7 +358,7 @@ portal.get("/orders", async (c) => {
     return c.json({ orders: orderList });
   } catch (err) {
     log.error({ err }, "Failed to fetch orders");
-    return c.json({ error: "Kunde inte hämta beställningar" }, 500);
+    return c.json({ error: uiError(locale, "couldNotFetchOrders") }, 500);
   }
 });
 
@@ -357,14 +377,15 @@ portal.get("/orders", async (c) => {
  */
 portal.get("/orders/:orderId", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
   if (!isPortalRole(session.role)) {
-    return c.json({ error: "Behörighet saknas" }, 403);
+    return c.json({ error: uiError(locale, "permissionDenied") }, 403);
   }
 
   const orderId = c.req.param("orderId");
   if (!/^[0-9a-f-]{36}$/i.test(orderId)) {
-    return c.json({ error: "Ogiltigt order-ID." }, 400);
+    return c.json({ error: uiError(locale, "invalidOrderId") }, 400);
   }
 
   try {
@@ -373,14 +394,14 @@ portal.get("/orders/:orderId", async (c) => {
       .from(orders)
       .where(eq(orders.id, orderId))
       .limit(1);
-    if (!order) return c.json({ error: "Order hittades inte" }, 404);
+    if (!order) return c.json({ error: uiError(locale, "orderNotFound") }, 404);
 
     const isAdmin =
       session.role === "INTERNAL_ADMIN" || session.role === "SALES_ADMIN";
     const isOrgMember =
       !!session.orgId && session.orgId === order.orgId;
     if (!isAdmin && !isOrgMember) {
-      return c.json({ error: "Behörighet saknas" }, 403);
+      return c.json({ error: uiError(locale, "permissionDenied") }, 403);
     }
 
     const [org] = await db
@@ -429,7 +450,10 @@ portal.get("/orders/:orderId", async (c) => {
       lines: lines.map((l) => ({
         id: l.id,
         productId: l.productId,
-        productName: l.productName ?? "Okänd produkt",
+        productName: localizedProductName(locale, {
+          sku: l.productSku,
+          fallback: l.productName ?? uiError(locale, "unknownProduct"),
+        }),
         productSku: l.productSku ?? null,
         qty: l.qty,
         unitPriceOre: l.unitPriceOre,
@@ -438,24 +462,25 @@ portal.get("/orders/:orderId", async (c) => {
     });
   } catch (err) {
     log.error({ err, orderId }, "Failed to fetch portal order detail");
-    return c.json({ error: "Kunde inte hämta order" }, 500);
+    return c.json({ error: uiError(locale, "couldNotFetchOrder") }, 500);
   }
 });
 
 portal.post("/orders", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
 
   // P2.4 (audit 2026-05-26): create-pathen är gate:ad på orgId men
   // inte på portal-roll — fundraising-roller med orgId kunde skapa
   // B2B-orders. isPortalRole spegar list/detail-endpointens kontroll.
   if (!isPortalRole(session.role)) {
-    return c.json({ error: "Behörighet saknas" }, 403);
+    return c.json({ error: uiError(locale, "permissionDenied") }, 403);
   }
   // Scout fix 2026-05-26 (Auth-C2): saknades isDemoSession-guard,
   // demo-konton kunde lägga riktiga B2B-orders.
   if (isDemoSession(session)) {
-    return c.json({ error: "Demo-konton kan inte skapa ordrar." }, 403);
+    return c.json({ error: uiError(locale, "demoCannotCreateOrders") }, 403);
   }
 
   // The `orders` table requires both org_id and user_id (NOT NULL FKs). A
@@ -464,7 +489,7 @@ portal.post("/orders", async (c) => {
   // (Guest checkout has its own dedicated route — not this portal endpoint.)
   if (!session.orgId) {
     return c.json(
-      { error: "Beställning kräver klubbkontext" },
+      { error: uiError(locale, "orderRequiresClubContext") },
       400
     );
   }
@@ -477,11 +502,12 @@ portal.post("/orders", async (c) => {
     try {
       body = JSON.parse(rawBody);
     } catch {
-      return c.json({ error: "Ogiltig JSON i request body." }, 400);
+      return c.json({ error: uiError(locale, "invalidJson") }, 400);
     }
+    locale = resolveUiLocale(c, (body as { locale?: unknown }).locale);
 
     if (!body.items || body.items.length === 0) {
-      return c.json({ error: "Inga produkter valda" }, 400);
+      return c.json({ error: uiError(locale, "noProductsSelected") }, 400);
     }
 
     const headerKey = c.req.header("idempotency-key")?.trim() ?? "";
@@ -504,7 +530,7 @@ portal.post("/orders", async (c) => {
     // Spegla checkout.ts: max 100 per rad och högst 200 rader per
     // beställning för att hindra DoS-storlek.
     if (body.items.length > 200) {
-      return c.json({ error: "För många rader i beställningen." }, 400);
+      return c.json({ error: uiError(locale, "tooManyOrderLines") }, 400);
     }
     for (const item of body.items) {
       if (
@@ -517,7 +543,7 @@ portal.post("/orders", async (c) => {
         item.qty > 100
       ) {
         return c.json(
-          { error: "Ogiltig rad: productId måste vara UUID och qty 1–100." },
+          { error: uiError(locale, "invalidOrderLineProductQty") },
           400
         );
       }
@@ -541,7 +567,7 @@ portal.post("/orders", async (c) => {
     if (missingIds.length > 0) {
       return c.json(
         {
-          error: `En eller flera produkter hittades inte: ${missingIds.join(", ")}`,
+          error: uiError(locale, "productsNotFoundPrefix") + missingIds.join(", "),
           missingProductIds: missingIds,
         },
         400
@@ -595,7 +621,7 @@ portal.post("/orders", async (c) => {
     return c.json({ ok: true, order });
   } catch (err) {
     log.error({ err }, "Failed to create order");
-    return c.json({ error: "Kunde inte skapa beställning" }, 500);
+    return c.json({ error: uiError(locale, "couldNotCreateOrder") }, 500);
   }
 });
 
@@ -603,7 +629,8 @@ portal.post("/orders", async (c) => {
 
 portal.get("/clubs", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
 
   // /clubs is a discovery surface for sales reps and platform admins.
   // CLUB roles already see their own org via /dashboard and /members,
@@ -613,7 +640,7 @@ portal.get("/clubs", async (c) => {
     session.role !== "SALES_ADMIN" &&
     session.role !== "INTERNAL_ADMIN"
   ) {
-    return c.json({ error: "Behörighet saknas" }, 403);
+    return c.json({ error: uiError(locale, "permissionDenied") }, 403);
   }
 
   const q = c.req.query("q") || "";
@@ -718,7 +745,7 @@ portal.get("/clubs", async (c) => {
     return c.json({ clubs: enriched });
   } catch (err) {
     log.error({ err }, "Failed to fetch clubs");
-    return c.json({ error: "Kunde inte hämta klubbar" }, 500);
+    return c.json({ error: uiError(locale, "couldNotFetchClubs") }, 500);
   }
 });
 
@@ -734,7 +761,8 @@ type MemberRow = {
 
 portal.get("/members", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
 
   try {
     let memberList: MemberRow[];
@@ -774,7 +802,7 @@ portal.get("/members", async (c) => {
     return c.json({ members: memberList });
   } catch (err) {
     log.error({ err }, "Failed to fetch members");
-    return c.json({ error: "Kunde inte hämta medlemmar" }, 500);
+    return c.json({ error: uiError(locale, "couldNotFetchMembers") }, 500);
   }
 });
 
@@ -789,7 +817,8 @@ portal.get("/members", async (c) => {
 // MVP keeps the surface honest while staying minimal.
 portal.post("/members/invite", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
 
   // Only club admins (scoped to their own org) and platform admins.
   // CLUB_MEMBER, SALES_*, fundraising roles must not be able to grow
@@ -798,14 +827,14 @@ portal.post("/members/invite", async (c) => {
     (session.role === "CLUB_ADMIN" && !!session.orgId) ||
     session.role === "INTERNAL_ADMIN";
   if (!canInvite) {
-    return c.json({ error: "Behörighet saknas" }, 403);
+    return c.json({ error: uiError(locale, "permissionDenied") }, 403);
   }
   // MASTERPLAN_01 KC2.1: demo-INTERNAL_ADMIN passerar role-checken men
   // skulle skicka ett RIKTIGT invite-email + lagra DB-rad mot whatever
   // orgId (eller null). Blockera innan något skickas.
   if (isDemoSession(session)) {
     return c.json(
-      { error: "Demoläget kan inte skicka riktiga inbjudningar." },
+      { error: uiError(locale, "demoCannotSendRealInvites") },
       403
     );
   }
@@ -819,8 +848,9 @@ portal.post("/members/invite", async (c) => {
   try {
     body = await c.req.json<InviteBody>();
   } catch {
-    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+    return c.json({ error: uiError(locale, "invalidJson") }, 400);
   }
+  locale = resolveUiLocale(c, (body as { locale?: unknown }).locale);
 
   const email = (body.email ?? "").toLowerCase().trim();
   const contactName = (body.contactName ?? "").trim();
@@ -831,10 +861,10 @@ portal.post("/members/invite", async (c) => {
   // obviously wrong input so the DB constraint isn't the first guard.
   const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!email || !EMAIL_RE.test(email) || email.length > 255) {
-    return c.json({ error: "Ogiltig e-postadress" }, 400);
+    return c.json({ error: uiError(locale, "invalidEmail") }, 400);
   }
   if (contactName.length > 255) {
-    return c.json({ error: "Namnet är för långt" }, 400);
+    return c.json({ error: uiError(locale, "nameTooLong") }, 400);
   }
 
   // CLUB_ADMIN can only invite into their own org. INTERNAL_ADMIN can
@@ -842,7 +872,7 @@ portal.post("/members/invite", async (c) => {
   // but for the demo we keep it simple: use the caller's org.
   const orgId = session.orgId;
   if (!orgId) {
-    return c.json({ error: "Klubbkontext saknas" }, 400);
+    return c.json({ error: uiError(locale, "clubContextMissing") }, 400);
   }
 
   try {
@@ -852,7 +882,7 @@ portal.post("/members/invite", async (c) => {
       .where(eq(users.email, email))
       .limit(1);
     if (existing) {
-      return c.json({ error: "E-postadressen är redan registrerad" }, 409);
+      return c.json({ error: uiError(locale, "emailAlreadyRegistered") }, 409);
     }
 
     // Kontot skapas utan användbart lösenord: sentinel-strängen är inget
@@ -900,10 +930,11 @@ portal.post("/members/invite", async (c) => {
             name:
               created.contactName?.split(" ")[0] ||
               created.email.split("@")[0] ||
-              "där",
-            orgName: org?.name ?? "Din klubb",
-            inviteUrl: `${siteBase}/aterstall-losenord?token=${encodeURIComponent(token)}`,
+              (locale === "en" ? "there" : "där"),
+            orgName: org?.name ?? (locale === "en" ? "Your club" : "Din klubb"),
+            inviteUrl: `${siteBase}${withLocalePath("/aterstall-losenord", locale)}?token=${encodeURIComponent(token)}`,
             expiresInDays: Math.round(INVITE_TTL_S / 86400),
+            locale,
           }),
         });
       } catch (err) {
@@ -928,7 +959,7 @@ portal.post("/members/invite", async (c) => {
     );
   } catch (err) {
     log.error({ err }, "Failed to invite member");
-    return c.json({ error: "Kunde inte bjuda in medlem" }, 500);
+    return c.json({ error: uiError(locale, "couldNotInviteMember") }, 500);
   }
 });
 
@@ -936,13 +967,14 @@ portal.post("/members/invite", async (c) => {
 
 portal.get("/sellers", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
 
   // /sellers exposes internal-staff (SALES_REP/SALES_ADMIN) directory.
   // Only platform admins should see it; previously any logged-in user
   // (including a CLUB_MEMBER on a personal shop) could enumerate it.
   if (session.role !== "INTERNAL_ADMIN" && session.role !== "SALES_ADMIN") {
-    return c.json({ error: "Behörighet saknas" }, 403);
+    return c.json({ error: uiError(locale, "permissionDenied") }, 403);
   }
 
   try {
@@ -1046,7 +1078,7 @@ portal.get("/sellers", async (c) => {
     return c.json({ sellers: enriched, totals });
   } catch (err) {
     log.error({ err }, "Failed to fetch sellers");
-    return c.json({ error: "Kunde inte hämta säljare" }, 500);
+    return c.json({ error: uiError(locale, "couldNotFetchSellers") }, 500);
   }
 });
 
@@ -1054,7 +1086,8 @@ portal.get("/sellers", async (c) => {
 
 portal.get("/quotes", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
 
   // LEFT JOIN organizations so the UI can render the club name in the
   // "Kund"-column. Previously the page fell back to "Klubb <orgId-prefix>"
@@ -1094,7 +1127,7 @@ portal.get("/quotes", async (c) => {
     return c.json({ quotes: quoteList });
   } catch (err) {
     log.error({ err }, "Failed to fetch quotes");
-    return c.json({ error: "Kunde inte hämta offerter" }, 500);
+    return c.json({ error: uiError(locale, "couldNotFetchQuotes") }, 500);
   }
 });
 
@@ -1111,32 +1144,34 @@ portal.get("/quotes", async (c) => {
 // even though `quotes` only keeps the current status.
 portal.patch("/quotes/:id/status", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
 
   if (
     session.role !== "SALES_REP" &&
     session.role !== "SALES_ADMIN" &&
     session.role !== "INTERNAL_ADMIN"
   ) {
-    return c.json({ error: "Behörighet saknas" }, 403);
+    return c.json({ error: uiError(locale, "permissionDenied") }, 403);
   }
   if (isDemoSession(session)) {
-    return c.json({ error: "Demoläget kan inte ändra riktiga offerter." }, 403);
+    return c.json({ error: uiError(locale, "demoCannotChangeQuotes") }, 403);
   }
 
   const quoteId = c.req.param("id");
   const UUID_RE =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if (!UUID_RE.test(quoteId)) {
-    return c.json({ error: "Ogiltigt offert-ID." }, 400);
+    return c.json({ error: uiError(locale, "invalidQuoteId") }, 400);
   }
 
   let body: { status?: string };
   try {
     body = await c.req.json<{ status?: string }>();
   } catch {
-    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+    return c.json({ error: uiError(locale, "invalidJson") }, 400);
   }
+  locale = resolveUiLocale(c, (body as { locale?: unknown }).locale);
 
   // EXPIRED exists in the SQL enum but has no column on the board — it is
   // a lifecycle state we set from `validUntil`, not something a rep drags
@@ -1148,7 +1183,7 @@ portal.patch("/quotes/:id/status", async (c) => {
     | undefined;
   if (!status) {
     return c.json(
-      { error: `status måste vara en av: ${ALLOWED.join(", ")}` },
+      { error: uiError(locale, "statusMustBeOneOfPrefix") + ALLOWED.join(", ") },
       400
     );
   }
@@ -1168,14 +1203,14 @@ portal.patch("/quotes/:id/status", async (c) => {
       .limit(1);
 
     if (!existing) {
-      return c.json({ error: "Offerten hittades inte" }, 404);
+      return c.json({ error: uiError(locale, "quoteNotFound") }, 404);
     }
     // A rep may only move their own quotes. Admins move anyone's.
     if (
       session.role === "SALES_REP" &&
       existing.salesRepId !== session.userId
     ) {
-      return c.json({ error: "Behörighet saknas" }, 403);
+      return c.json({ error: uiError(locale, "permissionDenied") }, 403);
     }
 
     const previousStatus = String(existing.status);
@@ -1271,7 +1306,7 @@ portal.patch("/quotes/:id/status", async (c) => {
     });
   } catch (err) {
     log.error({ err, quoteId }, "Failed to update quote status");
-    return c.json({ error: "Kunde inte flytta offerten" }, 500);
+    return c.json({ error: uiError(locale, "couldNotMoveQuote") }, 500);
   }
 });
 
@@ -1289,21 +1324,22 @@ portal.patch("/quotes/:id/status", async (c) => {
 // failure can't leave us with an orphan quote header.
 portal.post("/quotes", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
 
   if (
     session.role !== "SALES_REP" &&
     session.role !== "SALES_ADMIN" &&
     session.role !== "INTERNAL_ADMIN"
   ) {
-    return c.json({ error: "Behörighet saknas" }, 403);
+    return c.json({ error: uiError(locale, "permissionDenied") }, 403);
   }
   // MASTERPLAN_01 KC2.1: demo-säljaren saknar pipeline-context och
   // skulle annars kunna skapa offerter mot RIKTIGA orgIds (body.orgId
   // är vad som helst supplied by client). Stäng vägen.
   if (isDemoSession(session)) {
     return c.json(
-      { error: "Demoläget kan inte skapa riktiga offerter." },
+      { error: uiError(locale, "demoCannotCreateQuotes") },
       403
     );
   }
@@ -1319,32 +1355,33 @@ portal.post("/quotes", async (c) => {
   try {
     body = await c.req.json<CreateQuoteBody>();
   } catch {
-    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+    return c.json({ error: uiError(locale, "invalidJson") }, 400);
   }
+  locale = resolveUiLocale(c, (body as { locale?: unknown }).locale);
 
   const UUID_RE =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if (!body.orgId || !UUID_RE.test(body.orgId)) {
-    return c.json({ error: "orgId krävs (uuid)" }, 400);
+    return c.json({ error: uiError(locale, "orgIdRequiredUuid") }, 400);
   }
   if (!Array.isArray(body.lines) || body.lines.length === 0) {
-    return c.json({ error: "Minst en rad krävs" }, 400);
+    return c.json({ error: uiError(locale, "atLeastOneLineRequired") }, 400);
   }
   if (body.lines.length > 50) {
-    return c.json({ error: "Max 50 rader per offert" }, 400);
+    return c.json({ error: uiError(locale, "max50LinesPerQuote") }, 400);
   }
 
   const cleanedLines: Array<{ productId: string; qty: number }> = [];
   for (const raw of body.lines) {
     if (!raw || typeof raw !== "object") {
-      return c.json({ error: "Ogiltig rad" }, 400);
+      return c.json({ error: uiError(locale, "invalidLine") }, 400);
     }
     if (!raw.productId || !UUID_RE.test(raw.productId)) {
-      return c.json({ error: "Ogiltigt productId" }, 400);
+      return c.json({ error: uiError(locale, "invalidProductId") }, 400);
     }
     const qty = Number(raw.qty);
     if (!Number.isInteger(qty) || qty <= 0 || qty > 10_000) {
-      return c.json({ error: "qty måste vara 1–10000" }, 400);
+      return c.json({ error: uiError(locale, "qtyMustBe1To10000") }, 400);
     }
     cleanedLines.push({ productId: raw.productId, qty });
   }
@@ -1364,7 +1401,7 @@ portal.post("/quotes", async (c) => {
       .where(eq(organizations.id, body.orgId))
       .limit(1);
     if (!org) {
-      return c.json({ error: "Förening hittades inte" }, 404);
+      return c.json({ error: uiError(locale, "associationNotFound") }, 404);
     }
 
     // Pull canonical prices server-side. Any productId the client sent
@@ -1381,7 +1418,7 @@ portal.post("/quotes", async (c) => {
     const priceById = new Map(productRows.map((p) => [p.id, p.priceOre]));
     for (const l of cleanedLines) {
       if (!priceById.has(l.productId)) {
-        return c.json({ error: `Okänd produkt: ${l.productId}` }, 400);
+        return c.json({ error: uiError(locale, "unknownProductPrefix") + l.productId }, 400);
       }
     }
 
@@ -1441,7 +1478,7 @@ portal.post("/quotes", async (c) => {
     );
   } catch (err) {
     log.error({ err }, "Failed to create quote");
-    return c.json({ error: "Kunde inte skapa offert" }, 500);
+    return c.json({ error: uiError(locale, "couldNotCreateQuote") }, 500);
   }
 });
 
@@ -1449,23 +1486,24 @@ portal.post("/quotes", async (c) => {
 
 portal.get("/statistics", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
 
   const role = session.role;
   if (!isPortalRole(role)) {
-    return c.json({ error: "Behörighet saknas" }, 403);
+    return c.json({ error: uiError(locale, "permissionDenied") }, 403);
   }
 
   // Statistics is order-revenue per month. Sales reps don't own orders,
   // so they get a 403 here (their stats live on /pipeline).
   if (role === "SALES_REP") {
-    return c.json({ error: "Behörighet saknas" }, 403);
+    return c.json({ error: uiError(locale, "permissionDenied") }, 403);
   }
 
   // Club roles must have an orgId; otherwise we'd return platform-wide
   // revenue (the original `1=1` fallback).
   if ((role === "CLUB_ADMIN" || role === "CLUB_MEMBER") && !session.orgId) {
-    return c.json({ error: "Klubbkontext saknas" }, 400);
+    return c.json({ error: uiError(locale, "clubContextMissing") }, 400);
   }
 
   const isPlatformAdmin = role === "INTERNAL_ADMIN" || role === "SALES_ADMIN";
@@ -1492,7 +1530,7 @@ portal.get("/statistics", async (c) => {
     // without bespoke client-side formatting.
     const enriched = monthlyData.map((m) => ({
       ...m,
-      revenue: formatSek(Number(m.revenueOre)),
+      revenue: formatSek(Number(m.revenueOre), locale),
       orders: Number(m.orderCount),
     }));
     const totals = enriched.reduce(
@@ -1573,9 +1611,9 @@ portal.get("/statistics", async (c) => {
 
     const kpis = {
       totalRevenueOre: curr.revenueOre,
-      totalRevenue: formatSek(curr.revenueOre),
+      totalRevenue: formatSek(curr.revenueOre, locale),
       avgOrderValueOre,
-      avgOrderValue: formatSek(avgOrderValueOre),
+      avgOrderValue: formatSek(avgOrderValueOre, locale),
       totalOrders: curr.orderCount,
       newMembersThisPeriod: Number(newMembers30),
       activeMembersThisPeriod: curr.uniqueUsers,
@@ -1615,11 +1653,14 @@ portal.get("/statistics", async (c) => {
         topTotalOre > 0 ? Math.round((revOre / topTotalOre) * 1000) / 10 : 0;
       return {
         productId: String(r.productId),
-        name: String(r.name),
+        name: localizedProductName(locale, {
+          slug: String(r.slug),
+          fallback: String(r.name),
+        }),
         slug: String(r.slug),
         soldUnits: Number(r.soldUnits),
         revenueOre: revOre,
-        revenue: formatSek(revOre),
+        revenue: formatSek(revOre, locale),
         sharePercent: share,
       };
     });
@@ -1636,7 +1677,7 @@ portal.get("/statistics", async (c) => {
       totals: {
         orders: totals.orders,
         revenueOre: totals.revenueOre,
-        revenue: formatSek(totals.revenueOre),
+        revenue: formatSek(totals.revenueOre, locale),
       },
       kpis,
       topProducts,
@@ -1644,7 +1685,7 @@ portal.get("/statistics", async (c) => {
     return c.json(payload);
   } catch (err) {
     log.error({ err }, "Failed to fetch statistics");
-    return c.json({ error: "Kunde inte hämta statistik" }, 500);
+    return c.json({ error: uiError(locale, "couldNotFetchStats") }, 500);
   }
 });
 
@@ -1652,17 +1693,18 @@ portal.get("/statistics", async (c) => {
 
 portal.get("/income", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
 
   const role = session.role;
   if (!isPortalRole(role)) {
-    return c.json({ error: "Behörighet saknas" }, 403);
+    return c.json({ error: uiError(locale, "permissionDenied") }, 403);
   }
   if (role === "SALES_REP") {
-    return c.json({ error: "Behörighet saknas" }, 403);
+    return c.json({ error: uiError(locale, "permissionDenied") }, 403);
   }
   if ((role === "CLUB_ADMIN" || role === "CLUB_MEMBER") && !session.orgId) {
-    return c.json({ error: "Klubbkontext saknas" }, 400);
+    return c.json({ error: uiError(locale, "clubContextMissing") }, 400);
   }
 
   const isPlatformAdmin = role === "INTERNAL_ADMIN" || role === "SALES_ADMIN";
@@ -1702,7 +1744,7 @@ portal.get("/income", async (c) => {
     return c.json(payload);
   } catch (err) {
     log.error({ err }, "Failed to fetch income");
-    return c.json({ error: "Kunde inte hämta intäkter" }, 500);
+    return c.json({ error: uiError(locale, "couldNotFetchRevenue") }, 500);
   }
 });
 
@@ -1710,14 +1752,15 @@ portal.get("/income", async (c) => {
 
 portal.get("/pipeline", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
 
   const role = session.role;
   // Pipeline is a sales-internal view (quotes pre-sale). Club roles and
   // fundraising roles must not see it — that would leak all clubs' quotes
   // platform-wide. Previously this endpoint had NO tenancy filter at all.
   if (role !== "SALES_REP" && role !== "SALES_ADMIN" && role !== "INTERNAL_ADMIN") {
-    return c.json({ error: "Behörighet saknas" }, 403);
+    return c.json({ error: uiError(locale, "permissionDenied") }, 403);
   }
 
   // SALES_REP only sees their own quotes; SALES_ADMIN/INTERNAL_ADMIN see all.
@@ -1872,7 +1915,7 @@ portal.get("/pipeline", async (c) => {
     return c.json(payload);
   } catch (err) {
     log.error({ err }, "Failed to fetch pipeline");
-    return c.json({ error: "Kunde inte hämta pipeline" }, 500);
+    return c.json({ error: uiError(locale, "couldNotFetchPipeline") }, 500);
   }
 });
 
@@ -1885,11 +1928,12 @@ portal.get("/pipeline", async (c) => {
 // open their own quotes and the leads assigned to them.
 portal.get("/pipeline/deals/:kind/:id", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
 
   const role = session.role;
   if (role !== "SALES_REP" && role !== "SALES_ADMIN" && role !== "INTERNAL_ADMIN") {
-    return c.json({ error: "Behörighet saknas" }, 403);
+    return c.json({ error: uiError(locale, "permissionDenied") }, 403);
   }
 
   const kindParam = c.req.param("kind");
@@ -1897,10 +1941,10 @@ portal.get("/pipeline/deals/:kind/:id", async (c) => {
   const UUID_RE =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if (kindParam !== "lead" && kindParam !== "quote") {
-    return c.json({ error: "kind måste vara 'lead' eller 'quote'" }, 400);
+    return c.json({ error: uiError(locale, "kindMustBeLeadOrQuote") }, 400);
   }
   if (!UUID_RE.test(id)) {
-    return c.json({ error: "Ogiltigt ID." }, 400);
+    return c.json({ error: uiError(locale, "invalidId") }, 400);
   }
 
   const iso = (v: Date | string | null | undefined): string | null =>
@@ -1938,9 +1982,9 @@ portal.get("/pipeline/deals/:kind/:id", async (c) => {
         .from(quotes)
         .where(eq(quotes.id, id))
         .limit(1);
-      if (!q) return c.json({ error: "Offerten hittades inte" }, 404);
+      if (!q) return c.json({ error: uiError(locale, "quoteNotFound") }, 404);
       if (role === "SALES_REP" && q.salesRepId !== session.userId) {
-        return c.json({ error: "Behörighet saknas" }, 403);
+        return c.json({ error: uiError(locale, "permissionDenied") }, 403);
       }
       quoteRow = { ...q, status: String(q.status) };
       orgId = q.orgId;
@@ -1965,7 +2009,7 @@ portal.get("/pipeline/deals/:kind/:id", async (c) => {
       .from(organizations)
       .where(eq(organizations.id, orgId))
       .limit(1);
-    if (!org) return c.json({ error: "Föreningen hittades inte" }, 404);
+    if (!org) return c.json({ error: uiError(locale, "associationNotFoundThe") }, 404);
 
     // A rep opening a LEAD card must own it. (For quotes the ownership
     // check above already applies — the club itself may be assigned to a
@@ -1975,7 +2019,7 @@ portal.get("/pipeline/deals/:kind/:id", async (c) => {
       role === "SALES_REP" &&
       org.assignedAsmUserId !== session.userId
     ) {
-      return c.json({ error: "Behörighet saknas" }, 403);
+      return c.json({ error: uiError(locale, "permissionDenied") }, 403);
     }
 
     const [{ membersCount }] = await db
@@ -2056,7 +2100,10 @@ portal.get("/pipeline/deals/:kind/:id", async (c) => {
           membersCount: Number(membersCount || 0),
         },
         lines: lines.map((l) => ({
-          productName: l.productName ?? "Okänd produkt",
+          productName: localizedProductName(locale, {
+            sku: l.sku,
+            fallback: l.productName ?? uiError(locale, "unknownProduct"),
+          }),
           sku: l.sku,
           qty: Number(l.qty),
           unitPriceOre: Number(l.unitPriceOre),
@@ -2074,7 +2121,7 @@ portal.get("/pipeline/deals/:kind/:id", async (c) => {
     });
   } catch (err) {
     log.error({ err, kindParam, id }, "Failed to fetch pipeline deal detail");
-    return c.json({ error: "Kunde inte hämta affären" }, 500);
+    return c.json({ error: uiError(locale, "couldNotFetchDeal") }, 500);
   }
 });
 
@@ -2082,10 +2129,11 @@ portal.get("/pipeline/deals/:kind/:id", async (c) => {
 
 portal.get("/system", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
 
   if (session.role !== "INTERNAL_ADMIN") {
-    return c.json({ error: "Behörighet saknas" }, 403);
+    return c.json({ error: uiError(locale, "permissionDenied") }, 403);
   }
 
   const services: Array<{
@@ -2097,10 +2145,12 @@ portal.get("/system", async (c) => {
     uptime: string;
   }> = [];
 
+  const statusOk = locale === "en" ? "Operational" : "Operativ";
+  const statusDown = locale === "en" ? "Down" : "Nere";
   const pushService = (name: string, ok: boolean, latencyMs: number) => {
     services.push({
       name,
-      status: ok ? "Operativ" : "Nere",
+      status: ok ? statusOk : statusDown,
       ok,
       latencyMs,
       latency: ok ? `${latencyMs} ms` : "—",
@@ -2142,11 +2192,19 @@ portal.get("/system", async (c) => {
   // Vi pingar inte providers (skulle slå mot rate-limits) — bara
   // env-konfiguration.
   const emailConfigured = !!process.env.RESEND_API_KEY;
-  pushService("E-post (Resend)", emailConfigured, 0);
+  pushService(
+    locale === "en" ? "Email (Resend)" : "E-post (Resend)",
+    emailConfigured,
+    0
+  );
 
   const klarnaConfigured =
     !!process.env.KLARNA_USERNAME && !!process.env.KLARNA_PASSWORD;
-  pushService("Betalning (Klarna)", klarnaConfigured, 0);
+  pushService(
+    locale === "en" ? "Payments (Klarna)" : "Betalning (Klarna)",
+    klarnaConfigured,
+    0
+  );
 
   const klarnaWebhookProtected =
     !!process.env.KLARNA_WEBHOOK_SECRET ||
@@ -2158,7 +2216,13 @@ portal.get("/system", async (c) => {
     !fortnoxEnabled ||
     (!!process.env.FORTNOX_TOKEN && !!process.env.FORTNOX_CLIENT_SECRET);
   pushService(
-    fortnoxEnabled ? "Fortnox (aktiv)" : "Fortnox (avstängd)",
+    locale === "en"
+      ? fortnoxEnabled
+        ? "Fortnox (active)"
+        : "Fortnox (disabled)"
+      : fortnoxEnabled
+        ? "Fortnox (aktiv)"
+        : "Fortnox (avstängd)",
     fortnoxConfigured,
     0
   );
@@ -2170,6 +2234,10 @@ portal.get("/system", async (c) => {
     sessions: null,
     avgResponseTime: null,
     model: process.env.OPENAI_DEFAULT_MODEL || "gpt-5.4-mini",
+    publicChatModel:
+      process.env.OPENAI_PUBLIC_CHAT_MODEL ||
+      process.env.OPENAI_DEFAULT_MODEL ||
+      "gpt-5.4-mini",
   };
 
   // Rate limits shape matches the admin System page so it can switch to
@@ -2202,10 +2270,13 @@ portal.get("/system", async (c) => {
     if (rows.length > 0) {
       recentEvents = rows.map((r) => ({
         text: `${r.action}${r.entityType ? ` · ${r.entityType}` : ""}`,
-        time: new Date(r.createdAt).toLocaleTimeString("sv-SE", {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
+        time: new Date(r.createdAt).toLocaleTimeString(
+          locale === "en" ? "en-GB" : "sv-SE",
+          {
+            hour: "2-digit",
+            minute: "2-digit",
+          }
+        ),
         type: "info",
       }));
     }

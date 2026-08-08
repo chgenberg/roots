@@ -1,5 +1,11 @@
 "use client";
 
+import { useLocale } from "@/i18n/locale-context";
+import { fundraisingPages } from "@/i18n/dictionaries/fundraising-pages";
+import { tFill } from "@/i18n/format";
+import { appCommon } from "@/i18n/dictionaries/app-common";
+import { LocaleLink } from "@/components/locale-link";
+
 import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,10 +29,10 @@ import {
   Mail,
 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, rootsFetch } from "@/lib/api";
 
 import { getBrowserApiBase } from "@/lib/api-base";
-import { formatKrValue, pluralSv } from "@/lib/format";
+import { formatKr, pluralSv } from "@/lib/format";
 
 const API_URL = getBrowserApiBase();
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
@@ -54,6 +60,11 @@ interface NewInvite {
 }
 
 export default function TeamsManagementPage() {
+  const { locale, href } = useLocale();
+  const t = fundraisingPages.teams[locale];
+  const c = fundraisingPages.common[locale];
+  const dateLocale = appCommon[locale].dateLocale;
+
   const [teams, setTeams] = useState<Team[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,9 +82,7 @@ export default function TeamsManagementPage() {
 
   async function loadData() {
     try {
-      const res = await fetch(`${API_URL}/v1/dashboard/association`, {
-        credentials: "include",
-      });
+      const res = await rootsFetch(`${API_URL}/v1/dashboard/association`);
       if (res.ok) {
         const data = await res.json();
         setTeams(data.teams || []);
@@ -83,10 +92,10 @@ export default function TeamsManagementPage() {
         );
         if (active && !newCampaignId) setNewCampaignId(active.id);
       } else {
-        setError("Kunde inte hämta lagdata. Försök igen.");
+        setError(t.loadFailed);
       }
     } catch {
-      setError("Ett nätverksfel uppstod. Försök igen.");
+      setError(c.networkError);
     } finally {
       setLoading(false);
     }
@@ -106,24 +115,24 @@ export default function TeamsManagementPage() {
       setCopiedToken(token);
       setTimeout(() => setCopiedToken(null), 2000);
     } catch {
-      toast("Kunde inte kopiera länken. Kopiera den manuellt.", "error");
+      toast(c.copyLinkFailed, "error");
     }
   }
 
   async function handleCreateInvite() {
     if (!newTeamName.trim() || newTeamName.trim().length < 2) {
-      toast("Lagnamn måste vara minst 2 tecken.", "error");
+      toast(t.teamNameMin, "error");
       return;
     }
     if (!newCampaignId) {
-      toast("Välj en kampanj.", "error");
+      toast(t.selectCampaignError, "error");
       return;
     }
     if (
       newInvitedEmail &&
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newInvitedEmail.trim())
     ) {
-      toast("Ogiltig e-postadress.", "error");
+      toast(t.invalidEmail, "error");
       return;
     }
 
@@ -148,12 +157,12 @@ export default function TeamsManagementPage() {
           teamName: res.data.teamName ?? newTeamName.trim(),
           campaignId: res.data.campaignId ?? newCampaignId,
         });
-        toast("Inbjudan skapad.", "success");
+        toast(t.inviteCreated, "success");
       } else {
-        toast(res.data?.error || "Kunde inte skapa inbjudan.", "error");
+        toast(res.data?.error || t.inviteFailed, "error");
       }
     } catch {
-      toast("Ett nätverksfel uppstod. Försök igen.", "error");
+      toast(c.networkError, "error");
     } finally {
       setSubmitting(false);
     }
@@ -171,7 +180,7 @@ export default function TeamsManagementPage() {
       <div className="flex flex-col items-center justify-center gap-3 py-20">
         <p className="text-sm text-destructive">{error}</p>
         <Button variant="outline" onClick={() => window.location.reload()}>
-          Försök igen
+          {c.retry}
         </Button>
       </div>
     );
@@ -185,14 +194,14 @@ export default function TeamsManagementPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Lag</h1>
+          <h1 className="text-2xl font-bold">{t.title}</h1>
           <p className="text-sm text-muted-foreground">
-            Hantera lag och skicka inbjudningar till lagansvariga och säljare
+            {t.subtitle}
           </p>
         </div>
         <Button onClick={() => setDialogOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />
-          Skapa nytt lag
+          {t.createTeam}
         </Button>
       </div>
 
@@ -205,11 +214,11 @@ export default function TeamsManagementPage() {
           <CardContent className="flex flex-col items-center gap-3 py-12">
             <Users className="h-10 w-10 text-muted-foreground" />
             <p className="text-sm text-muted-foreground">
-              Inga lag har skapats ännu
+              {t.empty}
             </p>
             <Button variant="outline" onClick={() => setDialogOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
-              Skapa ert första lag
+              {t.createFirst}
             </Button>
           </CardContent>
         </Card>
@@ -225,14 +234,13 @@ export default function TeamsManagementPage() {
                       <h3 className="font-semibold">{team.name}</h3>
                       <div className="mt-1 flex flex-wrap gap-2">
                         <Badge variant="secondary" className="text-xs">
-                          {team.memberCount} säljare
+                          {tFill(t.sellersCount, { n: team.memberCount })}
                         </Badge>
                         <Badge variant="secondary" className="text-xs">
-                          {pluralSv(team.orderCount, "order", "ordrar")}
+                          {pluralSv(team.orderCount, c.orderSingular, c.orderPlural)}
                         </Badge>
                         <Badge variant="secondary" className="text-xs">
-                          {formatKrValue(team.totalSalesOre)}{" "}
-                          kr
+                          {formatKr(team.totalSalesOre, locale)}
                         </Badge>
                       </div>
                     </div>
@@ -240,7 +248,7 @@ export default function TeamsManagementPage() {
 
                   <div className="mt-4">
                     <p className="mb-2 text-xs font-medium text-muted-foreground">
-                      Inbjudningslänk för säljare
+                      {t.sellerInviteLink}
                     </p>
                     <div className="flex gap-2">
                       <Input
@@ -272,12 +280,12 @@ export default function TeamsManagementPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {createdInvite ? "Inbjudan klar att skickas" : "Skapa nytt lag"}
+              {createdInvite ? t.dialogTitleReady : t.createTeam}
             </DialogTitle>
             <DialogDescription>
               {createdInvite
-                ? "Skicka länken nedan till den lagansvarige. Den fungerar i 14 dagar och kan användas en gång."
-                : "Skapa ett lag och en inbjudningslänk för lagansvarig. Laget skapas automatiskt när lagansvarig registrerar sig."}
+                ? t.dialogDescReady
+                : t.dialogDesc}
             </DialogDescription>
           </DialogHeader>
 
@@ -285,7 +293,7 @@ export default function TeamsManagementPage() {
             <div className="space-y-4 px-6 py-2">
               <div className="rounded-lg border bg-brand-50 p-4">
                 <p className="text-xs font-medium text-muted-foreground">
-                  Lag
+                  {c.team}
                 </p>
                 <p className="mt-1 text-sm font-semibold">
                   {createdInvite.teamName}
@@ -293,7 +301,7 @@ export default function TeamsManagementPage() {
               </div>
               <div>
                 <Label className="text-xs uppercase tracking-wide text-muted-foreground">
-                  Inbjudningslänk
+                  {t.inviteLink}
                 </Label>
                 <div className="mt-1 flex gap-2">
                   <Input
@@ -314,25 +322,24 @@ export default function TeamsManagementPage() {
                   </Button>
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Tips: kopiera länken och skicka via SMS eller mejl till
-                  lagansvarig. Hen sätter eget lösenord när hen klickar.
+                  {t.inviteTip}
                 </p>
               </div>
             </div>
           ) : (
             <div className="space-y-4 px-6 py-2">
               <div>
-                <Label htmlFor="teamName">Lagnamn</Label>
+                <Label htmlFor="teamName">{t.teamName}</Label>
                 <Input
                   id="teamName"
-                  placeholder="t.ex. P14 Blå, Damlag U16, Klass 7B"
+                  placeholder={t.teamNamePlaceholder}
                   value={newTeamName}
                   onChange={(e) => setNewTeamName(e.target.value)}
                   maxLength={255}
                 />
               </div>
               <div>
-                <Label htmlFor="campaignId">Kampanj</Label>
+                <Label htmlFor="campaignId">{t.campaign}</Label>
                 <select
                   id="campaignId"
                   value={newCampaignId}
@@ -340,7 +347,7 @@ export default function TeamsManagementPage() {
                   className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 >
                   <option value="" disabled>
-                    Välj kampanj…
+                    {t.selectCampaign}
                   </option>
                   {campaigns.map((c) => (
                     <option key={c.id} value={c.id}>
@@ -350,8 +357,7 @@ export default function TeamsManagementPage() {
                 </select>
                 {campaigns.length === 0 && (
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Inga kampanjer ännu. Skapa en kampanj på översikten
-                    först.
+                    {t.noCampaigns}
                   </p>
                 )}
               </div>
@@ -359,19 +365,18 @@ export default function TeamsManagementPage() {
                 <Label htmlFor="invitedEmail">
                   <span className="inline-flex items-center gap-1.5">
                     <Mail className="h-3.5 w-3.5" />
-                    E-post till lagansvarig (valfritt)
+                    {t.leaderEmail}
                   </span>
                 </Label>
                 <Input
                   id="invitedEmail"
                   type="email"
-                  placeholder="coach@klubben.se"
+                  placeholder={t.leaderEmailPlaceholder}
                   value={newInvitedEmail}
                   onChange={(e) => setNewInvitedEmail(e.target.value)}
                 />
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Vi sparar adressen men du måste själv skicka länken
-                  manuellt just nu.
+                  {t.leaderEmailHint}
                 </p>
               </div>
             </div>
@@ -385,7 +390,7 @@ export default function TeamsManagementPage() {
                   loadData();
                 }}
               >
-                Klar
+                {c.done}
               </Button>
             ) : (
               <>
@@ -394,7 +399,7 @@ export default function TeamsManagementPage() {
                   onClick={closeDialog}
                   disabled={submitting}
                 >
-                  Avbryt
+                  {c.cancel}
                 </Button>
                 <Button
                   onClick={handleCreateInvite}
@@ -403,7 +408,7 @@ export default function TeamsManagementPage() {
                   {submitting && (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   )}
-                  Skapa inbjudan
+                  {t.createInvite}
                 </Button>
               </>
             )}

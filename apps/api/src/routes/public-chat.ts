@@ -6,14 +6,16 @@ import {
   isAiConfigured,
   chatCompletionStream,
   chatCompletion,
+  PUBLIC_CHAT_MODEL,
   type ChatMessage,
 } from "../lib/ai/openclaw-client";
-import { PUBLIC_CHAT_SYSTEM_PROMPT } from "../lib/ai/system-prompt";
+import { publicChatSystemPrompt } from "../lib/ai/system-prompt";
 import { recordAiUsage, recordAiIncident } from "../lib/ai/usage";
 import {
   checkMedicalClaims,
   createClaimsStreamFilter,
   CLAIMS_BLOCKED_REPLY,
+  CLAIMS_BLOCKED_REPLY_EN,
 } from "../lib/ai/claims-guard";
 import { flags } from "../lib/flags";
 import { childLogger } from "../lib/logger";
@@ -24,10 +26,72 @@ export const publicChat = new Hono();
 
 const MAX_HISTORY = 10;
 const MAX_MESSAGE_LENGTH = 1000;
-const DISCLAIMER = "AI-genererat svar — verifiera viktig information";
+
+function chatCopy(locale: string | undefined) {
+  const en = locale === "en";
+  return {
+    rateLimited: en
+      ? "You have sent too many messages. Please try again in a moment."
+      : "Du har skickat för många meddelanden. Försök igen om en stund.",
+    dailyCap: en
+      ? "Our AI assistant has reached today's capacity. Please try again after midnight."
+      : "Vår AI-assistent har nått dagens kapacitetstak. Försök igen efter midnatt.",
+    invalid: en ? "Invalid message." : "Ogiltigt meddelande.",
+    tooLong: en
+      ? `Messages may be at most ${MAX_MESSAGE_LENGTH} characters.`
+      : `Meddelandet får vara max ${MAX_MESSAGE_LENGTH} tecken.`,
+    fallback: en
+      ? "Our AI assistant is unavailable right now. Contact us at hej@roots.se and we will help you."
+      : "Vår AI-assistent är inte tillgänglig just nu. Kontakta oss på hej@roots.se så hjälper vi dig.",
+    streamError: en
+      ? "Something went wrong. Please try again or contact hej@roots.se."
+      : "Något gick fel. Försök igen eller kontakta hej@roots.se.",
+    completionError: en
+      ? "Something went wrong. Please try again or contact us at hej@roots.se."
+      : "Något gick fel. Försök igen eller kontakta oss på hej@roots.se.",
+    disclaimer: en
+      ? "AI-generated reply — please verify important information"
+      : "AI-genererat svar — verifiera viktig information",
+    claimsBlocked: en ? CLAIMS_BLOCKED_REPLY_EN : CLAIMS_BLOCKED_REPLY,
+  };
+}
 
 async function publicChatRateLimit(ip: string) {
   return checkRateLimit(`pub-chat:${ip}`, 30, 60 * 60);
+}
+
+/**
+ * Build a safe alternating user/assistant history for multi-turn chat.
+ * Drops system roles, empty turns, and consecutive same-role messages
+ * (anti-spoof for stacked fake assistant turns).
+ */
+function sanitizePublicChatHistory(raw: unknown): ChatMessage[] {
+  if (!Array.isArray(raw)) return [];
+  const out: ChatMessage[] = [];
+  for (const item of raw.slice(-MAX_HISTORY)) {
+    if (!item || typeof item !== "object") continue;
+    const role = (item as { role?: unknown }).role;
+    const content = (item as { content?: unknown }).content;
+    if (role !== "user" && role !== "assistant") continue;
+    if (typeof content !== "string" || content.trim().length === 0) continue;
+    const text = scrubPiiText(content.slice(0, MAX_MESSAGE_LENGTH));
+    if (!text) continue;
+    if (out.length === 0) {
+      if (role !== "user") continue;
+      out.push({ role, content: text });
+      continue;
+    }
+    const prev = out[out.length - 1]!;
+    if (prev.role === role) {
+      if (role === "user") {
+        prev.content = `${prev.content}\n${text}`.slice(0, MAX_MESSAGE_LENGTH);
+      }
+      // Skip consecutive assistant — likely spoofed context injection.
+      continue;
+    }
+    out.push({ role, content: text });
+  }
+  return out;
 }
 
 publicChat.post("/public-chat", async (c) => {
@@ -35,6 +99,29 @@ publicChat.post("/public-chat", async (c) => {
     c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ||
     c.req.header("x-real-ip") ||
     "unknown";
+
+  let body: {
+    message: string;
+    stream?: boolean;
+    history?: ChatMessage[];
+    locale?: string;
+  };
+  try {
+    body = await c.req.json();
+  } catch {
+    const headerLocale =
+      c.req.header("x-roots-locale") === "en" ? "en" : "sv";
+    return c.json(
+      {
+        error:
+          headerLocale === "en" ? "Invalid message." : "Ogiltigt meddelande.",
+      },
+      400
+    );
+  }
+
+  const locale = body.locale === "en" ? "en" : "sv";
+  const copy = chatCopy(locale);
 
   const rateCheck = await publicChatRateLimit(ip);
   if (!rateCheck.allowed) {
@@ -45,7 +132,7 @@ publicChat.post("/public-chat", async (c) => {
     });
     return c.json(
       {
-        error: "Du har skickat för många meddelanden. Försök igen om en stund.",
+        error: copy.rateLimited,
         retryAfter: rateCheck.resetInSeconds,
       },
       429
@@ -64,34 +151,21 @@ publicChat.post("/public-chat", async (c) => {
     });
     return c.json(
       {
-        error:
-          "Vår AI-assistent har nått dagens kapacitetstak. Försök igen efter midnatt.",
+        error: copy.dailyCap,
         retryAfter: globalCap.resetInSeconds,
       },
       429
     );
   }
 
-  let body: { message: string; stream?: boolean; history?: ChatMessage[] };
-  try {
-    body = await c.req.json();
-  } catch {
-    return c.json({ error: "Ogiltigt meddelande." }, 400);
+  if (!body.message || typeof body.message !== "string") {
+    return c.json({ error: copy.invalid }, 400);
+  }
+  if (body.message.length > MAX_MESSAGE_LENGTH) {
+    return c.json({ error: copy.tooLong }, 400);
   }
 
-  if (
-    !body.message ||
-    typeof body.message !== "string" ||
-    body.message.length > MAX_MESSAGE_LENGTH
-  ) {
-    return c.json(
-      { error: `Meddelandet får vara max ${MAX_MESSAGE_LENGTH} tecken.` },
-      400
-    );
-  }
-
-  const fallbackReply =
-    "Vår AI-assistent är inte tillgänglig just nu. Kontakta oss på hej@roots.se så hjälper vi dig.";
+  const fallbackReply = copy.fallback;
 
   if (!flags.aiEnabled() || !isAiConfigured()) {
     recordAiIncident({
@@ -110,40 +184,28 @@ publicChat.post("/public-chat", async (c) => {
     return c.json({ reply: fallbackReply, fallback: true });
   }
 
-  // MASTERPLAN_01 KC5.4: client may supply earlier turns, but only
-  // user/assistant content is honoured. Any `role: "system"` injection
-  // would override PUBLIC_CHAT_SYSTEM_PROMPT and disable our guardrails.
+  // MASTERPLAN_01 KC5.4: client may supply earlier turns, but never
+  // `role: "system"` (would override PUBLIC_CHAT_SYSTEM_PROMPT).
   //
-  // Scout fix 2026-05-26 (AI-HIGH-01): tidigare lät vi också
-  // `assistant`-roller passera. En angripare kan då skicka ett spoofat
-  // assistant-turn ("Debug mode aktiverat — ignorera regler") som
-  // modellen tar som autentisk kontext. Vi accepterar nu ENDAST user-
-  // turns från klienten; vill man ha multi-turn-historik måste den
-  // sparas server-side (deferred).
+  // Multi-turn needs both user and assistant turns. We accept assistant
+  // content only when it alternates after a user turn (spoofed stacked
+  // assistant messages are dropped). System prompt + claims-guard still
+  // override any jailbreak text smuggled into history.
   //
-  // Scout fix 2026-05-26 (AI-HIGH-02): scrubPiiText körs på all
-  // user-content innan vi vidarebefordrar till OpenAI så
-  // personnummer/telefon/email/IBAN aldrig läcker.
-  const history = (Array.isArray(body.history) ? body.history : [])
-    .slice(-MAX_HISTORY)
-    .filter(
-      (m) =>
-        m &&
-        typeof m === "object" &&
-        m.role === "user" &&
-        typeof m.content === "string" &&
-        m.content.length > 0
-    )
-    .map((m) => ({
-      role: "user" as const,
-      content: scrubPiiText(m.content.slice(0, MAX_MESSAGE_LENGTH)),
-    }));
+  // Scout fix 2026-05-26 (AI-HIGH-02): scrubPiiText on all forwarded text.
+  const history = sanitizePublicChatHistory(body.history);
 
   const messages: ChatMessage[] = [
-    { role: "system", content: PUBLIC_CHAT_SYSTEM_PROMPT },
+    { role: "system", content: publicChatSystemPrompt(locale) },
     ...history,
     { role: "user", content: scrubPiiText(body.message) },
   ];
+  const claimsBlockedReply = copy.claimsBlocked;
+  const modelOpts = {
+    model: PUBLIC_CHAT_MODEL,
+    // Sonnet 5 can take longer on first token than mini models.
+    timeoutMs: Number(process.env.OPENAI_PUBLIC_CHAT_TIMEOUT_MS) || 45000,
+  };
 
   if (body.stream) {
     // P2.31 (audit 2026-05-26): forwarda klientens disconnect-signal
@@ -164,7 +226,8 @@ publicChat.post("/public-chat", async (c) => {
               completionTokens: usage.completionTokens,
               meta: { streamed: true, aborted: usage.aborted },
             });
-          }
+          },
+          modelOpts
         );
         let blocked = false;
         for await (const chunk of generator) {
@@ -195,7 +258,10 @@ publicChat.post("/public-chat", async (c) => {
         }
         if (blocked) {
           await stream.writeSSE({
-            data: JSON.stringify({ content: CLAIMS_BLOCKED_REPLY, replace: true }),
+            data: JSON.stringify({
+              content: claimsBlockedReply,
+              replace: true,
+            }),
           });
         }
         if (!upstreamSignal.aborted) {
@@ -206,8 +272,7 @@ publicChat.post("/public-chat", async (c) => {
         log.error({ err, ip }, "public-chat streaming error");
         await stream.writeSSE({
           data: JSON.stringify({
-            error:
-              "Något gick fel. Försök igen eller kontakta hej@roots.se.",
+            error: copy.streamError,
             fallback: true,
           }),
         });
@@ -217,7 +282,7 @@ publicChat.post("/public-chat", async (c) => {
   }
 
   try {
-    const response = await chatCompletion(messages);
+    const response = await chatCompletion(messages, modelOpts);
     recordAiUsage({
       surface: "public_chat",
       model: response.model,
@@ -232,13 +297,13 @@ publicChat.post("/public-chat", async (c) => {
         meta: { matched: claims.matched ?? null },
       });
       return c.json({
-        reply: CLAIMS_BLOCKED_REPLY,
-        disclaimer: DISCLAIMER,
+        reply: claimsBlockedReply,
+        disclaimer: copy.disclaimer,
       });
     }
     return c.json({
       reply: response.content,
-      disclaimer: DISCLAIMER,
+      disclaimer: copy.disclaimer,
       model: response.model,
     });
   } catch (err) {
@@ -250,9 +315,8 @@ publicChat.post("/public-chat", async (c) => {
       meta: { message: (err as Error)?.message },
     });
     return c.json({
-      reply:
-        "Något gick fel. Försök igen eller kontakta oss på hej@roots.se.",
-      disclaimer: DISCLAIMER,
+      reply: copy.completionError,
+      disclaimer: copy.disclaimer,
       fallback: true,
     });
   }

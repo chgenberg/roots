@@ -6,8 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CalendarDays, Loader2, Truck, PackageCheck } from "lucide-react";
 import { getBrowserApiBase } from "@/lib/api-base";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, rootsFetch } from "@/lib/api";
 import { useToast } from "@/components/ui/toast";
+import { useLocale } from "@/i18n/locale-context";
+import { fundraisingPages } from "@/i18n/dictionaries/fundraising-pages";
+import { tFill } from "@/i18n/format";
+import { appCommon } from "@/i18n/dictionaries/app-common";
 
 const API_URL = getBrowserApiBase();
 
@@ -21,42 +25,44 @@ interface CampaignRow {
   deliveryType: string;
 }
 
-const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
-  ACTIVE: { label: "Aktiv", cls: "bg-brand-100 text-brand-700" },
-  DRAFT: { label: "Utkast", cls: "bg-brand-50 text-brand-600" },
-  ENDED: { label: "Avslutad", cls: "bg-muted text-muted-foreground" },
-  SETTLED: { label: "Avräknad", cls: "bg-muted text-muted-foreground" },
-};
-
-function fmt(d: string | null): string {
-  if (!d) return "—";
-  try {
-    return new Date(d).toLocaleDateString("sv-SE", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
-  } catch {
-    return d;
-  }
-}
-
 function isActivePeriod(c: CampaignRow): boolean {
   const today = new Date().toISOString().slice(0, 10);
   return c.startDate <= today && today <= c.endDate;
 }
 
 export default function AssociationCalendarPage() {
+  const { locale } = useLocale();
+  const t = fundraisingPages.calendar[locale];
+  const c = fundraisingPages.common[locale];
+  const dateLocale = appCommon[locale].dateLocale;
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [shippingId, setShippingId] = useState<string | null>(null);
   const { toast } = useToast();
 
+  const statusLabel: Record<string, { label: string; cls: string }> = {
+    ACTIVE: { label: c.active, cls: "bg-brand-100 text-brand-700" },
+    DRAFT: { label: c.draft, cls: "bg-brand-50 text-brand-600" },
+    ENDED: { label: c.ended, cls: "bg-muted text-muted-foreground" },
+    SETTLED: { label: c.settled, cls: "bg-muted text-muted-foreground" },
+  };
+
+  function fmt(d: string | null): string {
+    if (!d) return "—";
+    try {
+      return new Date(d).toLocaleDateString(dateLocale, {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      });
+    } catch {
+      return d;
+    }
+  }
+
   const load = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/v1/dashboard/association`, {
-        credentials: "include",
-      });
+      const res = await rootsFetch(`${API_URL}/v1/dashboard/association`);
       if (res.ok) {
         const d = await res.json();
         setCampaigns(d.campaigns || []);
@@ -70,23 +76,18 @@ export default function AssociationCalendarPage() {
     load();
   }, [load]);
 
-  async function shipBulk(c: CampaignRow) {
-    if (
-      !window.confirm(
-        `Markera alla betalda ordrar i "${c.name}" som skickade till klubben?`
-      )
-    )
-      return;
-    setShippingId(c.id);
+  async function shipBulk(campaign: CampaignRow) {
+    if (!window.confirm(tFill(t.confirmShip, { name: campaign.name }))) return;
+    setShippingId(campaign.id);
     const { ok, data } = await apiFetch<{ shipped?: number; error?: string }>(
-      `/v1/dashboard/campaign/${c.id}/ship-bulk`,
+      `/v1/dashboard/campaign/${campaign.id}/ship-bulk`,
       { method: "POST", body: {} }
     );
     setShippingId(null);
     if (ok) {
-      toast(`${data?.shipped ?? 0} ordrar markerade som skickade.`, "success");
+      toast(tFill(t.shippedToast, { n: data?.shipped ?? 0 }), "success");
     } else {
-      toast(data?.error || "Kunde inte markera leverans.", "error");
+      toast(data?.error || t.shipFailed, "error");
     }
   }
 
@@ -102,40 +103,46 @@ export default function AssociationCalendarPage() {
     a.startDate < b.startDate ? 1 : -1
   );
 
+  function deliveryTypeLabel(type: string) {
+    if (type === "BULK") return c.deliveryBulk;
+    if (type === "DIRECT") return c.deliveryDirect;
+    return c.deliveryBoth;
+  }
+
   return (
     <div className="page-enter space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Säljkalender</h1>
-        <p className="text-sm text-muted-foreground">
-          Säljperioder och leveransdatum för dina kampanjer.
-        </p>
+        <h1 className="text-2xl font-bold">{t.title}</h1>
+        <p className="text-sm text-muted-foreground">{t.subtitle}</p>
       </div>
 
       {sorted.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-2 py-12">
             <CalendarDays className="h-8 w-8 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">
-              Inga kampanjer ännu. Starta en kampanj för att se kalendern.
-            </p>
+            <p className="text-sm text-muted-foreground">{t.empty}</p>
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-3">
-          {sorted.map((c) => {
-            const active = isActivePeriod(c) && c.status === "ACTIVE";
-            const status = STATUS_LABEL[c.status] ?? {
-              label: c.status,
+          {sorted.map((campaign) => {
+            const active =
+              isActivePeriod(campaign) && campaign.status === "ACTIVE";
+            const status = statusLabel[campaign.status] ?? {
+              label: campaign.status,
               cls: "bg-muted text-muted-foreground",
             };
             return (
-              <Card key={c.id} className={active ? "ring-1 ring-brand-300" : ""}>
+              <Card
+                key={campaign.id}
+                className={active ? "ring-1 ring-brand-300" : ""}
+              >
                 <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
                   <CardTitle className="flex items-center gap-2 text-base">
-                    {c.name}
+                    {campaign.name}
                     {active && (
                       <Badge className="bg-brand-700 text-primary-foreground">
-                        Pågår nu
+                        {t.ongoing}
                       </Badge>
                     )}
                   </CardTitle>
@@ -144,28 +151,28 @@ export default function AssociationCalendarPage() {
                 <CardContent className="space-y-3">
                   <div className="grid gap-3 sm:grid-cols-3">
                     <div className="rounded-lg bg-brand-50 p-3">
-                      <p className="text-xs text-muted-foreground">Säljperiod</p>
+                      <p className="text-xs text-muted-foreground">
+                        {t.salesPeriod}
+                      </p>
                       <p className="mt-0.5 text-sm font-medium">
-                        {fmt(c.startDate)} – {fmt(c.endDate)}
+                        {fmt(campaign.startDate)} – {fmt(campaign.endDate)}
                       </p>
                     </div>
                     <div className="rounded-lg bg-brand-50 p-3">
                       <p className="flex items-center gap-1 text-xs text-muted-foreground">
                         <Truck className="h-3 w-3" />
-                        Leverans till klubben
+                        {t.deliveryToClub}
                       </p>
                       <p className="mt-0.5 text-sm font-medium">
-                        {fmt(c.deliveryDate)}
+                        {fmt(campaign.deliveryDate)}
                       </p>
                     </div>
                     <div className="rounded-lg bg-brand-50 p-3">
-                      <p className="text-xs text-muted-foreground">Leveranssätt</p>
+                      <p className="text-xs text-muted-foreground">
+                        {t.deliveryType}
+                      </p>
                       <p className="mt-0.5 text-sm font-medium">
-                        {c.deliveryType === "BULK"
-                          ? "Samlat till klubben"
-                          : c.deliveryType === "DIRECT"
-                            ? "Hemleverans"
-                            : "Båda"}
+                        {deliveryTypeLabel(campaign.deliveryType)}
                       </p>
                     </div>
                   </div>
@@ -173,15 +180,15 @@ export default function AssociationCalendarPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => shipBulk(c)}
-                      disabled={shippingId === c.id}
+                      onClick={() => shipBulk(campaign)}
+                      disabled={shippingId === campaign.id}
                     >
-                      {shippingId === c.id ? (
+                      {shippingId === campaign.id ? (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       ) : (
                         <PackageCheck className="mr-2 h-4 w-4" />
                       )}
-                      Markera levererat till klubben
+                      {t.markDelivered}
                     </Button>
                   </div>
                 </CardContent>

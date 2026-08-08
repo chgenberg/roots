@@ -1,52 +1,51 @@
 import { BreadcrumbJsonLd, HowToJsonLd, WebPageJsonLd } from "@/components/json-ld";
 import { pageMetadata } from "@/lib/seo";
+import { getPage } from "@/i18n/get-dictionary";
+import { getRequestLocale } from "@/i18n/request-locale";
+import { withLocale } from "@/i18n/paths";
+import type { Metadata } from "next";
 import { SaFungerarDetClient } from "./sa-fungerar-det-client";
 
-const PAGE_TITLE = "Så fungerar det";
-const PAGE_DESCRIPTION =
-  "Se hur Roots fungerar för föreningar i tre enkla steg — och räkna ut vad försäljningen kan ge er förening. Inga pärmar, inga kontanter.";
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getRequestLocale();
+  const t = getPage("saFungerarDet", locale);
+  return pageMetadata({
+    title: t.title,
+    description: t.description,
+    path: "/sa-fungerar-det",
+    locale,
+  });
+}
 
-export const metadata = pageMetadata({
-  title: PAGE_TITLE,
-  description: PAGE_DESCRIPTION,
-  path: "/sa-fungerar-det",
-});
+export default async function SaFungerarDetPage() {
+  const locale = await getRequestLocale();
+  const t = getPage("saFungerarDet", locale);
+  const homeLabel = getPage("produkter", locale).breadcrumbHome;
 
-/** Speglar de tre STEPS i sa-fungerar-det-client (server-side för JSON-LD). */
-const HOW_TO_STEPS = [
-  {
-    name: "Föreningen kommer igång",
-    text: "Föreningsansvarig loggar in, sätter ett mål och öppnar en säljperiod. Allt syns live i dashboarden — ni ser exakt hur långt ni har kvar.",
-  },
-  {
-    name: "Lagledaren bjuder in laget",
-    text: "Tränaren eller föräldragruppen skickar en registreringslänk till spelarna och peppar laget via topplistan — utan att hålla i någon pärm.",
-  },
-  {
-    name: "Medlemmen säljer",
-    text: "Spelaren får sin egen personliga shop-länk. Hen delar den med släkt och vänner — som handlar med Swish eller kort på några sekunder.",
-  },
-];
+  const howToSteps = t.steps.map((s) => ({
+    name: s.title,
+    text: s.description,
+  }));
 
-export default function SaFungerarDetPage() {
   return (
     <>
       <BreadcrumbJsonLd
         items={[
-          { name: "Hem", url: "/" },
-          { name: "Så fungerar det", url: "/sa-fungerar-det" },
+          { name: homeLabel, url: withLocale("/", locale) },
+          { name: t.title, url: withLocale("/sa-fungerar-det", locale) },
         ]}
       />
       <WebPageJsonLd
-        name={PAGE_TITLE}
-        description={PAGE_DESCRIPTION}
-        url="/sa-fungerar-det"
+        name={t.title}
+        description={t.description}
+        url={withLocale("/sa-fungerar-det", locale)}
+        locale={locale}
       />
       <HowToJsonLd
-        name="Så fungerar Roots"
-        description="Hur Roots fungerar för föreningar i tre enkla steg — från start till försäljning."
-        url="/sa-fungerar-det"
-        steps={HOW_TO_STEPS}
+        name={t.howToName}
+        description={t.howToDescription}
+        url={withLocale("/sa-fungerar-det", locale)}
+        steps={howToSteps}
       />
       <SaFungerarDetClient />
     </>

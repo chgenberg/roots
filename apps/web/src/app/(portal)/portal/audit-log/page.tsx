@@ -2,14 +2,6 @@
 
 /**
  * Internal-admin audit log viewer — Sprint E11.
- *
- * Backed by `GET /v1/admin/audit-log` (INTERNAL_ADMIN-only). The page
- * lets ops/support filter by action prefix, entityType, user-UUID and
- * date range, and offers JSON-meta inspection so the operator can see
- * IP / user-agent / orgId stamped onto every event.
- *
- * Read-only: this surface intentionally has no "delete" action — audit
- * tampering would defeat the entire ISAE/SOC point of the log.
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -27,6 +19,11 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { getBrowserApiBase } from "@/lib/api-base";
+import { rootsFetch } from "@/lib/api";
+import { useLocale } from "@/i18n/locale-context";
+import { portalPages, portalShared } from "@/i18n/dictionaries/portal-pages";
+import { tFill } from "@/i18n/format";
+import { appCommon } from "@/i18n/dictionaries/app-common";
 
 const API_URL = getBrowserApiBase();
 const PAGE_SIZE = 50;
@@ -56,9 +53,9 @@ interface ListResponse {
   hasMore: boolean;
 }
 
-function formatDateTime(iso: string): string {
+function formatDateTime(iso: string, dateLocale: string): string {
   try {
-    return new Date(iso).toLocaleString("sv-SE", {
+    return new Date(iso).toLocaleString(dateLocale, {
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
@@ -82,6 +79,11 @@ function actionTone(action: string): string {
 }
 
 export default function AuditLogPage() {
+  const { locale } = useLocale();
+  const t = portalPages.auditLog[locale];
+  const shared = portalShared[locale];
+  const common = appCommon[locale];
+
   const [data, setData] = useState<ListResponse | null>(null);
   const [actions, setActions] = useState<AuditAction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -95,20 +97,16 @@ export default function AuditLogPage() {
   const [offset, setOffset] = useState(0);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  // Fetch the action dropdown once on mount; it doesn't churn so we
-  // don't want to refire on every filter change.
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch(`${API_URL}/v1/admin/audit-log/actions`, {
-          credentials: "include",
-        });
+        const res = await rootsFetch(`${API_URL}/v1/admin/audit-log/actions`);
         if (res.ok) {
           const j = (await res.json()) as { actions: AuditAction[] };
           setActions(j.actions ?? []);
         }
       } catch {
-        // non-fatal — the dropdown just stays empty.
+        // non-fatal
       }
     })();
   }, []);
@@ -130,15 +128,13 @@ export default function AuditLogPage() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`${API_URL}/v1/admin/audit-log?${query}`, {
-          credentials: "include",
-        });
+        const res = await rootsFetch(`${API_URL}/v1/admin/audit-log?${query}`);
         if (!res.ok) {
           if (!cancelled) {
             setError(
               res.status === 403
-                ? "Behörighet saknas — kräver INTERNAL_ADMIN."
-                : "Kunde inte hämta audit-log."
+                ? shared.permissionDenied
+                : t.loadError
             );
           }
           return;
@@ -149,7 +145,7 @@ export default function AuditLogPage() {
           setError(null);
         }
       } catch {
-        if (!cancelled) setError("Nätverksfel.");
+        if (!cancelled) setError(t.networkError);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -157,7 +153,7 @@ export default function AuditLogPage() {
     return () => {
       cancelled = true;
     };
-  }, [query]);
+  }, [query, shared.permissionDenied, t.loadError, t.networkError]);
 
   function resetFilters() {
     setActionFilter("");
@@ -174,35 +170,37 @@ export default function AuditLogPage() {
   const page = Math.floor(offset / PAGE_SIZE) + 1;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
+  const activeFilterCount = [
+    actionFilter,
+    entityType,
+    userId,
+    fromDate,
+    toDate,
+  ].filter(Boolean).length;
+
   return (
     <div className="page-enter space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Audit-log</h1>
-          <p className="text-sm text-muted-foreground">
-            Read-only händelsehistorik för ISAE/SOC-uppföljning. Endast
-            INTERNAL_ADMIN har åtkomst.
-          </p>
+          <h1 className="text-2xl font-bold">{t.title}</h1>
+          <p className="text-sm text-muted-foreground">{t.subtitle}</p>
         </div>
         <Badge variant="outline" className="text-xs">
-          {total.toLocaleString("sv-SE")} händelser
+          {tFill(t.eventsCount, {
+            count: total.toLocaleString(shared.dateLocale),
+          })}
         </Badge>
       </div>
 
-      {/* MASTERPLAN_01 KC6.5: 5 filter-fält i en grid äter hela viewporten
-          på mobil — användaren måste scrolla för att se data. Wrap:a i
-          <details> så filter:n är collapsed default på alla skärmar och
-          tar plats först när admin explicit öppnar dem. Lägger även
-          aktiv-filter-count i headern så det syns när något är satt. */}
       <Card>
         <CardContent className="p-0">
           <details className="group" open={false}>
             <summary className="flex cursor-pointer list-none items-center gap-2 px-5 py-4 outline-none transition-colors hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
               <Search className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">Filter</span>
-              {(actionFilter || entityType || userId || fromDate || toDate) && (
+              <span className="text-sm font-medium">{t.filter}</span>
+              {activeFilterCount > 0 && (
                 <Badge variant="outline" className="text-[10px]">
-                  {[actionFilter, entityType, userId, fromDate, toDate].filter(Boolean).length} aktiva
+                  {tFill(t.activeFilters, { count: activeFilterCount })}
                 </Badge>
               )}
               <ChevronDown
@@ -211,87 +209,87 @@ export default function AuditLogPage() {
               />
             </summary>
             <div className="border-t px-5 py-5">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            <div>
-              <Label htmlFor="actionFilter">Åtgärd</Label>
-              <select
-                id="actionFilter"
-                value={actionFilter}
-                onChange={(e) => {
-                  setActionFilter(e.target.value);
-                  setOffset(0);
-                }}
-                className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              >
-                <option value="">Alla åtgärder</option>
-                {actions.map((a) => (
-                  <option key={a.action} value={a.action}>
-                    {a.action} ({a.count})
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <Label htmlFor="entityType">Entitetstyp</Label>
-              <Input
-                id="entityType"
-                value={entityType}
-                onChange={(e) => {
-                  setEntityType(e.target.value);
-                  setOffset(0);
-                }}
-                placeholder="t.ex. organization"
-              />
-            </div>
-            <div>
-              <Label htmlFor="userId">Användar-UUID</Label>
-              <Input
-                id="userId"
-                value={userId}
-                onChange={(e) => {
-                  setUserId(e.target.value);
-                  setOffset(0);
-                }}
-                placeholder="36 tecken"
-                className="font-mono text-xs"
-              />
-            </div>
-            <div>
-              <Label htmlFor="fromDate">Från</Label>
-              <Input
-                id="fromDate"
-                type="date"
-                value={fromDate}
-                onChange={(e) => {
-                  setFromDate(e.target.value);
-                  setOffset(0);
-                }}
-              />
-            </div>
-            <div>
-              <Label htmlFor="toDate">Till</Label>
-              <Input
-                id="toDate"
-                type="date"
-                value={toDate}
-                onChange={(e) => {
-                  setToDate(e.target.value);
-                  setOffset(0);
-                }}
-              />
-            </div>
-          </div>
-          {(actionFilter || entityType || userId || fromDate || toDate) && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="mt-3"
-              onClick={resetFilters}
-            >
-              <X className="mr-1 h-3 w-3" />
-              Rensa filter
-            </Button>
-          )}
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                <div>
+                  <Label htmlFor="actionFilter">{t.action}</Label>
+                  <select
+                    id="actionFilter"
+                    value={actionFilter}
+                    onChange={(e) => {
+                      setActionFilter(e.target.value);
+                      setOffset(0);
+                    }}
+                    className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    <option value="">{t.allActions}</option>
+                    {actions.map((a) => (
+                      <option key={a.action} value={a.action}>
+                        {a.action} ({a.count})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <Label htmlFor="entityType">{t.entityType}</Label>
+                  <Input
+                    id="entityType"
+                    value={entityType}
+                    onChange={(e) => {
+                      setEntityType(e.target.value);
+                      setOffset(0);
+                    }}
+                    placeholder={t.entityPlaceholder}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="userId">{t.userUuid}</Label>
+                  <Input
+                    id="userId"
+                    value={userId}
+                    onChange={(e) => {
+                      setUserId(e.target.value);
+                      setOffset(0);
+                    }}
+                    placeholder={t.uuidPlaceholder}
+                    className="font-mono text-xs"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="fromDate">{t.from}</Label>
+                  <Input
+                    id="fromDate"
+                    type="date"
+                    value={fromDate}
+                    onChange={(e) => {
+                      setFromDate(e.target.value);
+                      setOffset(0);
+                    }}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="toDate">{t.to}</Label>
+                  <Input
+                    id="toDate"
+                    type="date"
+                    value={toDate}
+                    onChange={(e) => {
+                      setToDate(e.target.value);
+                      setOffset(0);
+                    }}
+                  />
+                </div>
+              </div>
+              {activeFilterCount > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="mt-3"
+                  onClick={resetFilters}
+                >
+                  <X className="mr-1 h-3 w-3" />
+                  {shared.clearFilters}
+                </Button>
+              )}
             </div>
           </details>
         </CardContent>
@@ -306,7 +304,7 @@ export default function AuditLogPage() {
               size="sm"
               onClick={() => window.location.reload()}
             >
-              Försök igen
+              {common.retry}
             </Button>
           </CardContent>
         </Card>
@@ -318,9 +316,7 @@ export default function AuditLogPage() {
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-12">
             <Search className="h-10 w-10 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">
-              Inga händelser matchar filtren.
-            </p>
+            <p className="text-sm text-muted-foreground">{t.noMatch}</p>
           </CardContent>
         </Card>
       ) : (
@@ -346,7 +342,7 @@ export default function AuditLogPage() {
                       </Badge>
                       <div className="flex-1 min-w-0">
                         <p className="text-xs text-muted-foreground">
-                          {formatDateTime(it.createdAt)}
+                          {formatDateTime(it.createdAt, shared.dateLocale)}
                           {it.entityType && (
                             <>
                               {" · "}
@@ -363,7 +359,7 @@ export default function AuditLogPage() {
                           </p>
                         ) : (
                           <p className="mt-0.5 text-xs italic text-muted-foreground">
-                            Anonym / system
+                            {t.anonymous}
                           </p>
                         )}
                       </div>
@@ -399,7 +395,7 @@ export default function AuditLogPage() {
       {!loading && items.length > 0 && (
         <div className="flex items-center justify-between">
           <p className="text-xs text-muted-foreground">
-            Sida {page} av {totalPages}
+            {tFill(t.pageOf, { page, total: totalPages })}
           </p>
           <div className="flex gap-2">
             <Button
@@ -409,7 +405,7 @@ export default function AuditLogPage() {
               onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
             >
               <ChevronLeft className="mr-1 h-3 w-3" />
-              Föregående
+              {t.previous}
             </Button>
             <Button
               variant="outline"
@@ -417,7 +413,7 @@ export default function AuditLogPage() {
               disabled={!hasMore}
               onClick={() => setOffset(offset + PAGE_SIZE)}
             >
-              Nästa
+              {t.next}
               <ChevronRight className="ml-1 h-3 w-3" />
             </Button>
           </div>

@@ -10,11 +10,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Minus, Plus, Loader2 } from "lucide-react";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, rootsFetch } from "@/lib/api";
 import { getBrowserApiBase } from "@/lib/api-base";
 import { useToast } from "@/components/ui/toast";
-import { formatKrValue } from "@/lib/format";
+import { formatKr } from "@/lib/format";
 import { byCatalogOrder } from "@/lib/product-catalog";
+import { useLocale } from "@/i18n/locale-context";
+import { fundraisingPages } from "@/i18n/dictionaries/fundraising-pages";
+import { displayProductName } from "@/i18n/product-name";
+import { tFill } from "@/i18n/format";
 
 interface Product {
   id: string;
@@ -22,12 +26,6 @@ interface Product {
   slug: string;
   priceOre: number;
 }
-
-const PAYMENT_OPTIONS = [
-  { id: "swish", label: "Swish" },
-  { id: "cash", label: "Kontant" },
-  { id: "card", label: "Kort" },
-];
 
 /**
  * Dialog där säljaren själv registrerar en order (kontant/Swish/kort vid
@@ -42,6 +40,8 @@ export function ManualOrderDialog({
   onOpenChange: (open: boolean) => void;
   onCreated?: () => void;
 }) {
+  const { locale } = useLocale();
+  const t = fundraisingPages.manualOrder[locale];
   const [products, setProducts] = useState<Product[]>([]);
   const [qty, setQty] = useState<Record<string, number>>({});
   const [paymentMethod, setPaymentMethod] = useState("swish");
@@ -50,9 +50,15 @@ export function ManualOrderDialog({
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
 
+  const paymentOptions = [
+    { id: "swish", label: "Swish" },
+    { id: "cash", label: t.cash },
+    { id: "card", label: t.card },
+  ];
+
   useEffect(() => {
     if (!open) return;
-    fetch(`${getBrowserApiBase()}/v1/shop/products`, { credentials: "include" })
+    rootsFetch(`${getBrowserApiBase()}/v1/shop/products`)
       .then((r) => r.json())
       .then((d) => setProducts([...(d.products || [])].sort(byCatalogOrder)))
       .catch(() => setProducts([]));
@@ -76,7 +82,7 @@ export function ManualOrderDialog({
 
   async function submit() {
     if (items.length === 0) {
-      toast("Lägg till minst en vara.", "error");
+      toast(t.needItem, "error");
       return;
     }
     setSaving(true);
@@ -94,14 +100,14 @@ export function ManualOrderDialog({
     );
     setSaving(false);
     if (ok) {
-      toast("Ordern registrerades!", "success");
+      toast(t.success, "success");
       setQty({});
       setCustomerName("");
       setNote("");
       onOpenChange(false);
       onCreated?.();
     } else {
-      toast(data?.error || "Kunde inte registrera ordern.", "error");
+      toast(data?.error || t.failed, "error");
     }
   }
 
@@ -109,17 +115,16 @@ export function ManualOrderDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Registrera order</DialogTitle>
+          <DialogTitle>{t.title}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 px-6 pb-6 pt-2">
-          <p className="text-sm text-muted-foreground">
-            För försäljning öga mot öga – t.ex. när du fått betalt med Swish,
-            kontant eller kort.
-          </p>
+          <p className="text-sm text-muted-foreground">{t.intro}</p>
 
           <div className="space-y-2">
             {products.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Laddar produkter…</p>
+              <p className="text-sm text-muted-foreground">
+                {t.loadingProducts}
+              </p>
             ) : (
               products.map((p) => (
                 <div
@@ -127,9 +132,14 @@ export function ManualOrderDialog({
                   className="flex items-center justify-between gap-2 rounded-lg border p-3"
                 >
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{p.name}</p>
+                    <p className="truncate text-sm font-medium">
+                      {displayProductName(locale, {
+                        slug: p.slug,
+                        name: p.name,
+                      })}
+                    </p>
                     <p className="text-xs text-muted-foreground">
-                      {formatKrValue(p.priceOre)} kr
+                      {formatKr(p.priceOre, locale)}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -139,7 +149,12 @@ export function ManualOrderDialog({
                       variant="outline"
                       className="h-8 w-8"
                       onClick={() => setProductQty(p.id, -1)}
-                      aria-label={`Minska ${p.name}`}
+                      aria-label={tFill(t.decrease, {
+                        name: displayProductName(locale, {
+                          slug: p.slug,
+                          name: p.name,
+                        }),
+                      })}
                     >
                       <Minus className="h-3.5 w-3.5" />
                     </Button>
@@ -152,7 +167,12 @@ export function ManualOrderDialog({
                       variant="outline"
                       className="h-8 w-8"
                       onClick={() => setProductQty(p.id, 1)}
-                      aria-label={`Öka ${p.name}`}
+                      aria-label={tFill(t.increase, {
+                        name: displayProductName(locale, {
+                          slug: p.slug,
+                          name: p.name,
+                        }),
+                      })}
                     >
                       <Plus className="h-3.5 w-3.5" />
                     </Button>
@@ -163,9 +183,11 @@ export function ManualOrderDialog({
           </div>
 
           <div>
-            <label className="mb-1.5 block text-sm font-medium">Betalsätt</label>
+            <label className="mb-1.5 block text-sm font-medium">
+              {t.payment}
+            </label>
             <div className="flex gap-2">
-              {PAYMENT_OPTIONS.map((opt) => (
+              {paymentOptions.map((opt) => (
                 <button
                   key={opt.id}
                   type="button"
@@ -184,30 +206,32 @@ export function ManualOrderDialog({
 
           <div>
             <label className="mb-1.5 block text-sm font-medium">
-              Kundens namn <span className="text-muted-foreground">(valfritt)</span>
+              {t.customerName}{" "}
+              <span className="text-muted-foreground">{t.optional}</span>
             </label>
             <Input
               value={customerName}
               onChange={(e) => setCustomerName(e.target.value)}
-              placeholder="T.ex. Granne Karin"
+              placeholder={t.customerPlaceholder}
             />
           </div>
 
           <div>
             <label className="mb-1.5 block text-sm font-medium">
-              Notering <span className="text-muted-foreground">(valfritt)</span>
+              {t.note}{" "}
+              <span className="text-muted-foreground">{t.optional}</span>
             </label>
             <Input
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="T.ex. levereras med lådan"
+              placeholder={t.notePlaceholder}
             />
           </div>
 
           <div className="flex items-center justify-between border-t pt-3">
-            <span className="text-sm text-muted-foreground">Totalt</span>
+            <span className="text-sm text-muted-foreground">{t.total}</span>
             <span className="text-lg font-bold">
-              {formatKrValue(totalOre)} kr
+              {formatKr(totalOre, locale)}
             </span>
           </div>
 
@@ -217,7 +241,7 @@ export function ManualOrderDialog({
             disabled={saving || items.length === 0}
           >
             {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Registrera order
+            {t.submit}
           </Button>
         </div>
       </DialogContent>

@@ -32,10 +32,12 @@ import {
   Shield,
   HelpCircle,
   CheckCircle2,
+  type LucideIcon,
 } from "lucide-react";
 import { getBrowserApiBase } from "@/lib/api-base";
-import { apiFetch } from "@/lib/api";
-import { HELP_PUBLIC_FAQS } from "@/lib/help-faqs";
+import { apiFetch, rootsFetch } from "@/lib/api";
+import { useLocale } from "@/i18n/locale-context";
+import { pages } from "@/i18n/dictionaries/pages";
 
 const API_URL = getBrowserApiBase();
 
@@ -50,179 +52,61 @@ type Role =
   | "SALES_ADMIN"
   | "INTERNAL_ADMIN";
 
-interface FaqItem {
-  q: string;
-  a: string;
-}
-
-interface FaqSection {
-  id: string;
-  title: string;
-  icon: typeof ShoppingBag;
-  roles: Role[];
-  items: FaqItem[];
-}
-
-const SECTIONS: FaqSection[] = [
-  {
-    id: "seller",
-    title: "Säljare & egen shop",
-    icon: ShoppingBag,
-    roles: ["SELLER"],
-    items: [
-      {
-        q: "Hur delar jag min shop?",
-        a: "Gå till Min shop → kopiera länken eller använd QR-koden. Du kan dela direkt via SMS, e-post och sociala medier från delningssidan.",
-      },
-      {
-        q: "Var ser jag mina beställningar?",
-        a: "Klicka på Beställningar i vänsterspalten. Där kan du filtrera på status och datum, samt exportera till CSV.",
-      },
-      {
-        q: "Hur byter jag lösenord?",
-        a: "Inställningar → Byt lösenord. Demo-konton kan inte byta lösenord.",
-      },
-      {
-        q: "Får jag pengarna direkt?",
-        a: "Nej. Klarna-betalningarna går till föreningen och redovisas till lagansvarig vid kampanjens slut.",
-      },
-    ],
-  },
-  {
-    id: "team-leader",
-    title: "Lagansvarig",
-    icon: Users,
-    roles: ["TEAM_LEADER"],
-    items: [
-      {
-        q: "Hur bjuder jag in säljare?",
-        a: "Lag → Säljare → Bjud in. Du får en unik länk per säljare som de följer för att registrera sig.",
-      },
-      {
-        q: "Kan jag sätta olika mål per säljare?",
-        a: "Ja. På Säljar-listan klickar du på 'Sätt mål' eller 'Ändra' bredvid varje säljares progress-bar.",
-      },
-      {
-        q: "Hur ser jag lagets totala försäljning?",
-        a: "Översikten visar lagets samlade resultat, antal aktiva säljare och nuvarande genomsnitt per säljare.",
-      },
-    ],
-  },
-  {
-    id: "association",
-    title: "Förening & kampanjer",
-    icon: Building2,
-    roles: ["ASSOCIATION_ADMIN"],
-    items: [
-      {
-        q: "Hur startar jag en ny kampanj?",
-        a: "Förening → Ny kampanj. Ange namn, mål, marginal och datum så aktiveras kampanjen direkt.",
-      },
-      {
-        q: "Hur lägger jag till ett nytt lag?",
-        a: "Förening → Lag → Skapa nytt lag. Du genererar en inbjudningslänk som lagansvarig använder för att aktivera sig.",
-      },
-      {
-        q: "Hur hanterar jag flera kampanjer samtidigt?",
-        a: "Du kan ha en kampanj per lag aktiv. Skapa en kampanj per säsong; historiken behålls automatiskt.",
-      },
-    ],
-  },
-  {
-    id: "club",
-    title: "Klubb & abonnemang",
-    icon: ShoppingBag,
-    roles: ["CLUB_ADMIN", "CLUB_MEMBER"],
-    items: [
-      {
-        q: "Var hittar jag mina fakturor?",
-        a: "Portal → Fakturor. Filtrera på status (öppen, betald, makulerad) och datum. CSV-export finns för bokföring.",
-      },
-      {
-        q: "Hur lägger jag till medlemmar?",
-        a: "Portal → Medlemmar → Bjud in. Inbjudningar går via e-post och giltighetstid är 7 dagar.",
-      },
-      {
-        q: "Hur ändrar jag mitt abonnemang?",
-        a: "Kontakta din kontoansvariga säljare eller skicka in formuläret längst ned på denna sida.",
-      },
-    ],
-  },
-  {
-    id: "sales",
-    title: "Sälj-team & pipeline",
-    icon: Briefcase,
-    roles: ["SALES_REP", "SALES_ADMIN"],
-    items: [
-      {
-        q: "Hur skapar jag ett nytt lead?",
-        a: "Portal → Pipeline → Nytt lead. Ange klubbnamn, källa och potential så hamnar leadet på dig direkt.",
-      },
-      {
-        q: "Hur stänger jag en deal?",
-        a: "Flytta leadet i Pipeline-vyn från QUALIFIED → WON. Då skapas automatiskt en organisation och första-kontakts-faktura.",
-      },
-      {
-        q: "Hur ser jag min provision?",
-        a: "Portal → Översikt visar dina aktuella deals, deras värde och förväntad provision.",
-      },
-    ],
-  },
-  {
-    id: "internal",
-    title: "Drift & administration",
-    icon: Shield,
-    roles: ["INTERNAL_ADMIN"],
-    items: [
-      {
-        q: "Var hittar jag audit-loggen?",
-        a: "Portal → Audit-log. Du kan filtrera på åtgärd, entitetstyp, användar-UUID och datumintervall.",
-      },
-      {
-        q: "Hur ser jag systemhälsa?",
-        a: "Portal → System visar API-uppetid, Sentry-event och senaste deployer.",
-      },
-      {
-        q: "Hur återställs ett demokonto?",
-        a: "Demo-konton återställs automatiskt varje natt via cron-jobbet seed-demo:nightly.",
-      },
-    ],
-  },
-  {
-    id: "general",
-    title: "Allmänt om Roots",
-    icon: HelpCircle,
-    roles: ["PUBLIC"],
-    items: HELP_PUBLIC_FAQS.map((faq) => ({
-      q: faq.question,
-      a: faq.answer,
-    })),
-  },
-];
+const SECTION_META: Record<
+  string,
+  { icon: LucideIcon; roles: Role[] }
+> = {
+  seller: { icon: ShoppingBag, roles: ["SELLER"] },
+  "team-leader": { icon: Users, roles: ["TEAM_LEADER"] },
+  association: { icon: Building2, roles: ["ASSOCIATION_ADMIN"] },
+  club: { icon: ShoppingBag, roles: ["CLUB_ADMIN", "CLUB_MEMBER"] },
+  sales: { icon: Briefcase, roles: ["SALES_REP", "SALES_ADMIN"] },
+  internal: { icon: Shield, roles: ["INTERNAL_ADMIN"] },
+  general: { icon: HelpCircle, roles: ["PUBLIC"] },
+};
 
 interface MeResponse {
   user: { id: string; role: Role; name: string; email: string } | null;
 }
 
+function interpolate(template: string, vars: Record<string, string | number>) {
+  return Object.entries(vars).reduce(
+    (acc, [key, value]) => acc.replace(`{${key}}`, String(value)),
+    template
+  );
+}
+
 export default function HelpPage() {
+  const { locale } = useLocale();
+  const t = pages.hjalp[locale];
   const [role, setRole] = useState<Role>("PUBLIC");
   const [meName, setMeName] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const [contactName, setContactName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
-  const [contactSubject, setContactSubject] = useState("Hjälp via portalen");
+  const [contactSubject, setContactSubject] = useState<string>(
+    t.contactForm.subjectDefault
+  );
   const [contactMessage, setContactMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitOk, setSubmitOk] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
+    setContactSubject((prev) => {
+      const defaults: string[] = [
+        pages.hjalp.sv.contactForm.subjectDefault,
+        pages.hjalp.en.contactForm.subjectDefault,
+      ];
+      return defaults.includes(prev) ? t.contactForm.subjectDefault : prev;
+    });
+  }, [locale, t.contactForm.subjectDefault]);
+
+  useEffect(() => {
     (async () => {
       try {
-        const res = await fetch(`${API_URL}/v1/auth/me`, {
-          credentials: "include",
-        });
+        const res = await rootsFetch(`${API_URL}/v1/auth/me`);
         if (!res.ok) return;
         const j = (await res.json()) as MeResponse;
         if (j.user) {
@@ -237,14 +121,27 @@ export default function HelpPage() {
     })();
   }, []);
 
-  // Roles see their own section first, then everything else. The
-  // PUBLIC bucket is always last because logged-in users rarely
-  // need it but it's nice to keep it discoverable.
+  const sections = useMemo(
+    () =>
+      t.sections.map((section) => {
+        const meta = SECTION_META[section.id] ?? {
+          icon: HelpCircle,
+          roles: ["PUBLIC"] as Role[],
+        };
+        return {
+          ...section,
+          icon: meta.icon,
+          roles: meta.roles,
+        };
+      }),
+    [t.sections]
+  );
+
   const orderedSections = useMemo(() => {
-    const own = SECTIONS.filter((s) => s.roles.includes(role));
-    const rest = SECTIONS.filter((s) => !s.roles.includes(role));
+    const own = sections.filter((s) => s.roles.includes(role));
+    const rest = sections.filter((s) => !s.roles.includes(role));
     return [...own, ...rest];
-  }, [role]);
+  }, [sections, role]);
 
   async function handleContactSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -256,7 +153,7 @@ export default function HelpPage() {
       !contactSubject.trim() ||
       !contactMessage.trim()
     ) {
-      setSubmitError("Alla fält måste fyllas i.");
+      setSubmitError(t.contactForm.allFieldsRequired);
       return;
     }
     setSubmitting(true);
@@ -271,13 +168,13 @@ export default function HelpPage() {
         },
       });
       if (!res.ok) {
-        setSubmitError(res.data?.error ?? "Kunde inte skicka meddelandet.");
+        setSubmitError(res.data?.error ?? t.contactForm.sendFailed);
       } else {
         setSubmitOk(true);
         setContactMessage("");
       }
     } catch {
-      setSubmitError("Nätverksfel. Försök igen.");
+      setSubmitError(t.contactForm.networkError);
     } finally {
       setSubmitting(false);
     }
@@ -287,38 +184,32 @@ export default function HelpPage() {
     <div className="mx-auto max-w-5xl px-4 py-10 sm:py-14">
       <div className="mb-10 text-center">
         <Badge variant="outline" className="mb-3">
-          Hjälp & support
+          {t.badge}
         </Badge>
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-          Vi hjälper dig komma igång
+          {t.heroTitle}
         </h1>
         <p className="mx-auto mt-3 max-w-2xl text-base text-muted-foreground">
-          Vanliga frågor sorterade efter din roll. Hittar du inte svaret?
-          Skicka in formuläret längst ned så svarar vi inom 24 timmar.
+          {t.heroBody}
         </p>
         {meName && (
           <p className="mt-2 text-sm text-muted-foreground">
-            Inloggad som <span className="font-medium">{meName}</span> · roll:{" "}
-            <span className="font-mono">{role}</span>
-            {/* P2.57 (audit 2026-05-26): tidigare tappade /hjalp helt
-                navigation tillbaka till portalen — användaren landade
-                på marketing-chrome med "Logga in / Registrera" trots
-                aktiv session. Visar en uttrycklig länk till hemma-
-                portalen baserat på roll så vägen tillbaka är ett klick. */}
+            {t.loggedInAs} <span className="font-medium">{meName}</span> ·{" "}
+            {t.roleLabel}: <span className="font-mono">{role}</span>
             {" · "}
             <a
               href={
                 role === "ASSOCIATION_ADMIN"
                   ? "/forening"
                   : role === "TEAM_LEADER"
-                  ? "/lag"
-                  : role === "SELLER"
-                  ? "/min-shop"
-                  : "/portal"
+                    ? "/lag"
+                    : role === "SELLER"
+                      ? "/min-shop"
+                      : "/portal"
               }
               className="font-medium text-foreground underline-offset-4 hover:underline"
             >
-              Tillbaka till portalen
+              {t.backToPortal}
             </a>
           </p>
         )}
@@ -341,12 +232,12 @@ export default function HelpPage() {
                   <div className="flex-1">
                     <h2 className="text-base font-semibold">{section.title}</h2>
                     <p className="text-xs text-muted-foreground">
-                      {section.items.length} frågor
+                      {interpolate(t.questionsCount, { n: section.items.length })}
                     </p>
                   </div>
                   {isOwn && (
                     <Badge variant="outline" className="text-xs">
-                      Din roll
+                      {t.yourRoleBadge}
                     </Badge>
                   )}
                 </div>
@@ -392,10 +283,8 @@ export default function HelpPage() {
               <Mail className="h-4 w-4" />
             </div>
             <div>
-              <h2 className="text-base font-semibold">Kontakta support</h2>
-              <p className="text-xs text-muted-foreground">
-                Vi svarar normalt inom en arbetsdag.
-              </p>
+              <h2 className="text-base font-semibold">{t.contactTitle}</h2>
+              <p className="text-xs text-muted-foreground">{t.contactSubtitle}</p>
             </div>
           </div>
 
@@ -403,15 +292,17 @@ export default function HelpPage() {
             <div className="flex items-start gap-3 rounded-lg border border-success/30 bg-success/10 p-4 text-sm text-success">
               <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
               <div>
-                <p className="font-medium">Meddelandet har skickats</p>
-                <p className="text-xs">Vi återkommer till {contactEmail}.</p>
+                <p className="font-medium">{t.contactSuccessTitle}</p>
+                <p className="text-xs">
+                  {interpolate(t.contactSuccessBody, { email: contactEmail })}
+                </p>
               </div>
             </div>
           ) : (
             <form onSubmit={handleContactSubmit} className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <Label htmlFor="contactName">Namn</Label>
+                  <Label htmlFor="contactName">{t.contactForm.name}</Label>
                   <Input
                     id="contactName"
                     value={contactName}
@@ -421,7 +312,7 @@ export default function HelpPage() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="contactEmail">E-post</Label>
+                  <Label htmlFor="contactEmail">{t.contactForm.email}</Label>
                   <Input
                     id="contactEmail"
                     type="email"
@@ -433,7 +324,7 @@ export default function HelpPage() {
                 </div>
               </div>
               <div>
-                <Label htmlFor="contactSubject">Ämne</Label>
+                <Label htmlFor="contactSubject">{t.contactForm.subject}</Label>
                 <Input
                   id="contactSubject"
                   value={contactSubject}
@@ -443,7 +334,7 @@ export default function HelpPage() {
                 />
               </div>
               <div>
-                <Label htmlFor="contactMessage">Meddelande</Label>
+                <Label htmlFor="contactMessage">{t.contactForm.message}</Label>
                 <textarea
                   id="contactMessage"
                   value={contactMessage}
@@ -454,7 +345,9 @@ export default function HelpPage() {
                   className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 />
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {contactMessage.length}/5000 tecken
+                  {interpolate(t.contactForm.charCount, {
+                    n: contactMessage.length,
+                  })}
                 </p>
               </div>
               {submitError && (
@@ -462,7 +355,7 @@ export default function HelpPage() {
               )}
               <Button type="submit" disabled={submitting}>
                 <Send className="mr-2 h-4 w-4" />
-                {submitting ? "Skickar…" : "Skicka meddelande"}
+                {submitting ? t.contactForm.submitting : t.contactForm.submit}
               </Button>
             </form>
           )}
@@ -471,22 +364,20 @@ export default function HelpPage() {
             <div className="flex items-start gap-3">
               <Mail className="mt-0.5 h-4 w-4 text-muted-foreground" />
               <div>
-                <p className="font-medium">E-post</p>
+                <p className="font-medium">{t.emailLabel}</p>
                 <a
-                  href="mailto:hej@roots.se"
+                  href={`mailto:${t.email}`}
                   className="text-brand-700 hover:underline"
                 >
-                  hej@roots.se
+                  {t.email}
                 </a>
               </div>
             </div>
             <div className="flex items-start gap-3">
               <Phone className="mt-0.5 h-4 w-4 text-muted-foreground" />
               <div>
-                <p className="font-medium">Telefon</p>
-                <p className="text-muted-foreground">
-                  Vardagar 09–17 (via formulär ovan)
-                </p>
+                <p className="font-medium">{t.phoneLabel}</p>
+                <p className="text-muted-foreground">{t.phoneHours}</p>
               </div>
             </div>
           </div>

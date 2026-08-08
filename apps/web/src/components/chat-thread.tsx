@@ -3,6 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Loader2, Send } from "lucide-react";
+import { useLocale } from "@/i18n/locale-context";
+import { appCommon } from "@/i18n/dictionaries/app-common";
+import { fundraisingPages } from "@/i18n/dictionaries/fundraising-pages";
 
 export interface ChatMessage {
   id: string;
@@ -12,9 +15,9 @@ export interface ChatMessage {
   createdAt: string;
 }
 
-function formatTime(iso: string): string {
+function formatTime(iso: string, dateLocale: string): string {
   try {
-    return new Date(iso).toLocaleString("sv-SE", {
+    return new Date(iso).toLocaleString(dateLocale, {
       day: "numeric",
       month: "short",
       hour: "2-digit",
@@ -26,16 +29,16 @@ function formatTime(iso: string): string {
 }
 
 /**
- * Presentational chatt-tråd: meddelandelista + composer. Datat och
- * polling sköts av föräldern (säljar- eller lagledar-sidan).
+ * Presentational chat thread: message list + composer. Data and
+ * polling are owned by the parent (seller or team-leader page).
  */
 export function ChatThread({
   messages,
   onSend,
   loading,
   disabled,
-  emptyText = "Inga meddelanden ännu.",
-  placeholder = "Skriv ett meddelande…",
+  emptyText,
+  placeholder,
 }: {
   messages: ChatMessage[];
   onSend: (body: string) => Promise<void>;
@@ -44,6 +47,11 @@ export function ChatThread({
   emptyText?: string;
   placeholder?: string;
 }) {
+  const { locale } = useLocale();
+  const dateLocale = appCommon[locale].dateLocale;
+  const chatDefaults = fundraisingPages.myShopChat[locale];
+  const resolvedEmpty = emptyText ?? chatDefaults.empty;
+  const resolvedPlaceholder = placeholder ?? chatDefaults.placeholder;
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -77,7 +85,7 @@ export function ChatThread({
           </div>
         ) : messages.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
-            {emptyText}
+            {resolvedEmpty}
           </p>
         ) : (
           messages.map((m) => (
@@ -96,7 +104,7 @@ export function ChatThread({
               >
                 {m.isBroadcast && !m.fromMe && (
                   <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-600">
-                    Till hela laget
+                    {chatDefaults.broadcastBadge}
                   </p>
                 )}
                 <p className="whitespace-pre-wrap break-words">{m.body}</p>
@@ -105,7 +113,7 @@ export function ChatThread({
                     m.fromMe ? "text-white/70" : "text-muted-foreground"
                   }`}
                 >
-                  {formatTime(m.createdAt)}
+                  {formatTime(m.createdAt, dateLocale)}
                 </p>
               </div>
             </div>
@@ -124,14 +132,14 @@ export function ChatThread({
           }}
           rows={1}
           disabled={disabled}
-          placeholder={placeholder}
+          placeholder={resolvedPlaceholder}
           className="max-h-32 min-h-[40px] flex-1 resize-none rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300 disabled:opacity-50"
         />
         <Button
           size="sm"
           onClick={handleSend}
           disabled={disabled || sending || !text.trim()}
-          aria-label="Skicka meddelande"
+          aria-label={chatDefaults.sendAria}
         >
           {sending ? (
             <Loader2 className="h-4 w-4 animate-spin" />

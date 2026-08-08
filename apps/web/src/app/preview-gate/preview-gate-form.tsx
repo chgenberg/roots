@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ArrowRight, Check, Lock } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { preview } from "@/i18n/dictionaries/preview";
+import { useLocale } from "@/i18n/locale-context";
 
 /**
  * The gate asks for two different things from two different audiences, so
@@ -48,6 +50,8 @@ function resolveNextPath(param: string | null): string {
 }
 
 export function PreviewGateForm() {
+  const { locale } = useLocale();
+  const t = preview[locale];
   const search = useSearchParams();
   const nextParam = search.get("next");
   const [showPassword, setShowPassword] = useState(false);
@@ -70,7 +74,7 @@ export function PreviewGateForm() {
             className="mx-auto flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
           >
             <Lock className="h-3 w-3" aria-hidden />
-            Jag har ett lösenord
+            {t.havePassword}
           </button>
         )}
       </div>
@@ -79,6 +83,8 @@ export function PreviewGateForm() {
 }
 
 function PasswordForm({ nextParam }: { nextParam: string | null }) {
+  const { locale } = useLocale();
+  const t = preview[locale];
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -87,14 +93,14 @@ function PasswordForm({ nextParam }: { nextParam: string | null }) {
     e.preventDefault();
     setError(null);
     if (!password) {
-      setError("Ange lösenord.");
+      setError(t.errorPasswordRequired);
       return;
     }
     setLoading(true);
     try {
       const res = await apiFetch<{ ok?: boolean; error?: string }>(
         "/v1/preview/unlock",
-        { method: "POST", body: { password } }
+        { method: "POST", body: { password, locale } }
       );
       if (res.ok) {
         // The API set the cookie on this response. A hard navigation makes
@@ -103,9 +109,9 @@ function PasswordForm({ nextParam }: { nextParam: string | null }) {
         window.location.href = resolveNextPath(nextParam);
         return;
       }
-      setError(res.data?.error || "Fel lösenord.");
+      setError(res.data?.error || t.errorWrongPassword);
     } catch {
-      setError("Kunde inte ansluta. Försök igen.");
+      setError(t.errorConnect);
     } finally {
       setLoading(false);
     }
@@ -121,7 +127,7 @@ function PasswordForm({ nextParam }: { nextParam: string | null }) {
         htmlFor="preview-password"
         className="block text-xs font-medium text-muted-foreground"
       >
-        Lösenord för förhandsvisning
+        {t.passwordLabel}
       </label>
       <div className="flex gap-2">
         <input
@@ -138,7 +144,7 @@ function PasswordForm({ nextParam }: { nextParam: string | null }) {
         <button
           type="submit"
           disabled={loading}
-          aria-label="Lås upp"
+          aria-label={t.unlockAria}
           className="inline-flex h-12 shrink-0 items-center justify-center rounded-xl bg-inverse-surface px-4 text-inverse-on-surface transition-colors hover:bg-inverse-surface-hover disabled:opacity-60"
         >
           <ArrowRight className="h-4 w-4" aria-hidden />
@@ -155,6 +161,8 @@ function PasswordForm({ nextParam }: { nextParam: string | null }) {
 }
 
 function WaitlistForm() {
+  const { locale } = useLocale();
+  const t = preview[locale];
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -167,7 +175,7 @@ function WaitlistForm() {
     e.preventDefault();
     setError(null);
     if (!email) {
-      setError("Ange en e-postadress.");
+      setError(t.emailRequired);
       return;
     }
     setLoading(true);
@@ -178,15 +186,15 @@ function WaitlistForm() {
         error?: string;
       }>("/v1/preview/waitlist", {
         method: "POST",
-        body: { email, name: name || undefined },
+        body: { email, name: name || undefined, locale },
       });
       if (res.ok) {
         setSuccess({ alreadyRegistered: !!res.data?.alreadyRegistered });
         return;
       }
-      setError(res.data?.error || "Kunde inte spara just nu.");
+      setError(res.data?.error || t.waitlistError);
     } catch {
-      setError("Kunde inte ansluta. Försök igen.");
+      setError(t.errorConnect);
     } finally {
       setLoading(false);
     }
@@ -202,11 +210,11 @@ function WaitlistForm() {
           <Check className="h-5 w-5" aria-hidden />
         </span>
         <p className="mt-3 text-base font-medium">
-          {success.alreadyRegistered ? "Du står redan på listan" : "Tack!"}
+          {success.alreadyRegistered ? t.alreadyOnList : t.thankYou}
         </p>
         <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-          Vi hör av oss till <span className="text-foreground">{email}</span> så
-          fort vi lanserar.
+          {t.weWillContact}{" "}
+          <span className="text-foreground">{email}</span> {t.whenWeLaunch}
         </p>
       </div>
     );
@@ -216,7 +224,7 @@ function WaitlistForm() {
     <form onSubmit={onSubmit} className="space-y-3">
       <div>
         <label htmlFor="waitlist-email" className="sr-only">
-          E-post
+          {t.emailSr}
         </label>
         <input
           id="waitlist-email"
@@ -228,13 +236,13 @@ function WaitlistForm() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           className={FIELD_CLASS}
-          placeholder="din@epost.se"
+          placeholder={t.emailPlaceholder}
         />
       </div>
 
       <div>
         <label htmlFor="waitlist-name" className="sr-only">
-          Namn (valfritt)
+          {t.nameSr}
         </label>
         <input
           id="waitlist-name"
@@ -244,7 +252,7 @@ function WaitlistForm() {
           value={name}
           onChange={(e) => setName(e.target.value)}
           className={FIELD_CLASS}
-          placeholder="Namn (valfritt)"
+          placeholder={t.namePlaceholder}
         />
       </div>
 
@@ -255,7 +263,7 @@ function WaitlistForm() {
       )}
 
       <button type="submit" disabled={loading} className={PRIMARY_BTN_CLASS}>
-        {loading ? "Sparar…" : "Meddela mig vid lansering"}
+        {loading ? t.saving : t.notifyMe}
         {!loading && (
           <ArrowRight
             className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
@@ -265,7 +273,7 @@ function WaitlistForm() {
       </button>
 
       <p className="text-center text-xs leading-relaxed text-muted-foreground">
-        Ett mejl när vi lanserar. Inget skräp, ingen vidareförsäljning.
+        {t.privacyNote}
       </p>
     </form>
   );

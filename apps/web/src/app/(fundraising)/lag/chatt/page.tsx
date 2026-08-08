@@ -1,5 +1,9 @@
 "use client";
 
+import { useLocale } from "@/i18n/locale-context";
+import { fundraisingPages } from "@/i18n/dictionaries/fundraising-pages";
+import { tFill } from "@/i18n/format";
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,6 +20,9 @@ interface Thread {
 }
 
 export default function LeaderChatPage() {
+  const { locale } = useLocale();
+  const t = fundraisingPages.teamChat[locale];
+  const c = fundraisingPages.common[locale];
   const [teamId, setTeamId] = useState<string | null>(null);
   const [threads, setThreads] = useState<Thread[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -95,7 +102,7 @@ export default function LeaderChatPage() {
     if (ok && data?.message) {
       setMessages((prev) => [...prev, data.message]);
     } else {
-      toast(data?.error || "Kunde inte skicka meddelandet.", "error");
+      toast(data?.error || t.sendFailed, "error");
     }
   }
 
@@ -109,11 +116,11 @@ export default function LeaderChatPage() {
     );
     setSendingBroadcast(false);
     if (ok) {
-      toast("Meddelandet skickades till hela laget.", "success");
+      toast(t.broadcastOk, "success");
       setBroadcast("");
       setBroadcastOpen(false);
     } else {
-      toast(data?.error || "Kunde inte skicka meddelandet.", "error");
+      toast(data?.error || t.sendFailed, "error");
     }
   }
 
@@ -128,7 +135,7 @@ export default function LeaderChatPage() {
   if (!teamId) {
     return (
       <div className="py-20 text-center text-sm text-muted-foreground">
-        Inget lag hittades.
+        {c.noTeamFound}
       </div>
     );
   }
@@ -139,31 +146,31 @@ export default function LeaderChatPage() {
     <div className="page-enter space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Chatt</h1>
+          <h1 className="text-2xl font-bold">{t.title}</h1>
           <p className="text-sm text-muted-foreground">
-            Prata med dina säljare individuellt eller skicka till hela laget.
+            {t.subtitle}
           </p>
         </div>
         <Button variant="outline" onClick={() => setBroadcastOpen((v) => !v)}>
           <Megaphone className="mr-2 h-4 w-4" />
-          Meddela hela laget
+          {t.broadcast}
         </Button>
       </div>
 
       {broadcastOpen && (
         <Card>
           <CardContent className="space-y-3 p-4">
-            <p className="text-sm font-medium">Meddelande till hela laget</p>
+            <p className="text-sm font-medium">{t.broadcastTitle}</p>
             <textarea
               value={broadcast}
               onChange={(e) => setBroadcast(e.target.value)}
               rows={3}
-              placeholder="T.ex. Kom ihåg att säljperioden slutar på söndag!"
+              placeholder={t.broadcastPlaceholder}
               className="w-full resize-none rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
             />
             <div className="flex justify-end gap-2">
               <Button variant="ghost" onClick={() => setBroadcastOpen(false)}>
-                Avbryt
+                {c.cancel}
               </Button>
               <Button
                 onClick={sendBroadcast}
@@ -172,7 +179,7 @@ export default function LeaderChatPage() {
                 {sendingBroadcast && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
-                Skicka till alla
+                {t.sendAll}
               </Button>
             </div>
           </CardContent>
@@ -184,7 +191,7 @@ export default function LeaderChatPage() {
           <CardContent className="p-2">
             {threads.length === 0 ? (
               <p className="p-4 text-sm text-muted-foreground">
-                Inga säljare i laget ännu.
+                {t.noSellers}
               </p>
             ) : (
               <div className="space-y-1">
@@ -222,14 +229,14 @@ export default function LeaderChatPage() {
               <ChatThread
                 messages={messages}
                 onSend={send}
-                emptyText={`Inga meddelanden med ${selectedName ?? "säljaren"} ännu.`}
-                placeholder={`Skriv till ${selectedName ?? "säljaren"}…`}
+                emptyText={tFill(t.emptyThread, { name: selectedName ?? t.sellerFallback })}
+                placeholder={tFill(t.placeholder, { name: selectedName ?? t.sellerFallback })}
               />
             </>
           ) : (
             <Card className="flex h-[60vh] items-center justify-center">
               <p className="text-sm text-muted-foreground">
-                Välj en säljare för att börja chatta.
+                {t.pickSeller}
               </p>
             </Card>
           )}

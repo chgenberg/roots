@@ -3,61 +3,75 @@ import Script from "next/script";
 import { OrganizationJsonLd, SiteJsonLd } from "@/components/json-ld";
 import { Providers } from "./providers";
 import { inter, alanSans } from "@/lib/fonts";
+import { getRequestLocale } from "@/i18n/request-locale";
 import "./globals.css";
 
 const siteUrl = (
   process.env.NEXT_PUBLIC_SITE_URL || "https://roots.se"
 ).replace(/\/$/, "");
 
-export const metadata: Metadata = {
-  title: {
-    template: "%s | Roots — Föreningsnära hårvård",
-    default: "Roots — Föreningsnära hårvård",
-  },
-  description:
-    "Naturlig hårvård för föreningslivet. Schampo, balsam och body wash — utvecklat i Norden.",
-  metadataBase: new URL(siteUrl),
-  // Brandbook symbol as favicon + app icon, pre-rendered per size by
-  // scripts/build-favicons.py. Earlier revisions pointed every slot at the
-  // 4000×4000 brand source on the assumption Next would resize it — it
-  // doesn't for metadata icons, so Safari drew no tab icon at all and every
-  // visitor fetched 130 kB for a 16px slot.
-  icons: {
-    icon: [
-      { url: "/favicon.ico", sizes: "16x16 32x32 48x48" },
-      { url: "/icons/icon-32.png", type: "image/png", sizes: "32x32" },
-      { url: "/icons/icon-192.png", type: "image/png", sizes: "192x192" },
-      { url: "/icons/icon-512.png", type: "image/png", sizes: "512x512" },
-    ],
-    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180" }],
-    shortcut: ["/favicon.ico"],
-  },
-  // discovery: RSS for guider — pairs with app/feed.xml/route.ts
-  alternates: {
-    types: {
-      "application/rss+xml": `${siteUrl}/feed.xml`,
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getRequestLocale();
+  const en = locale === "en";
+  return {
+    title: {
+      template: "%s | Roots",
+      default: "Roots",
     },
-  },
-  openGraph: {
-    type: "website",
-    locale: "sv_SE",
-    siteName: "Roots",
-  },
-  twitter: {
-    card: "summary_large_image",
-  },
-};
+    description: en
+      ? "Natural hair care for sports clubs. Shampoo, conditioner and body wash — developed in the Nordics."
+      : "Naturlig hårvård för föreningslivet. Schampo, balsam och body wash — utvecklat i Norden.",
+    metadataBase: new URL(siteUrl),
+    // Brandbook symbol as favicon + app icon, pre-rendered per size by
+    // scripts/build-favicons.py. Earlier revisions pointed every slot at the
+    // 4000×4000 brand source on the assumption Next would resize it — it
+    // doesn't for metadata icons, so Safari drew no tab icon at all and every
+    // visitor fetched 130 kB for a 16px slot.
+    icons: {
+      icon: [
+        { url: "/favicon.ico", sizes: "16x16 32x32 48x48" },
+        { url: "/icons/icon-32.png", type: "image/png", sizes: "32x32" },
+        { url: "/icons/icon-192.png", type: "image/png", sizes: "192x192" },
+        { url: "/icons/icon-512.png", type: "image/png", sizes: "512x512" },
+      ],
+      apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180" }],
+      shortcut: ["/favicon.ico"],
+    },
+    // discovery: RSS for guider — pairs with app/feed.xml/route.ts
+    // (`?lang=en` for the English channel)
+    alternates: {
+      types: {
+        "application/rss+xml": [
+          { url: `${siteUrl}/feed.xml`, title: "Roots Guider" },
+          { url: `${siteUrl}/feed.xml?lang=en`, title: "Roots Guides" },
+        ],
+      },
+    },
+    openGraph: {
+      type: "website",
+      locale: en ? "en_GB" : "sv_SE",
+      alternateLocale: en ? ["sv_SE"] : ["en_GB"],
+      siteName: "Roots",
+    },
+    twitter: {
+      card: "summary_large_image",
+    },
+  };
+}
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   const plausibleDomain = process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN;
+  const locale = await getRequestLocale();
+  const skipLabel =
+    locale === "en" ? "Skip to content" : "Hoppa till innehåll";
 
   return (
     <html
-      lang="sv"
+      lang={locale}
       // Sprint E13 — expose BOTH font variables so globals.css can route
       // body → Inter and h1-h6 → Alan Sans automatically.
       className={`${inter.variable} ${alanSans.variable}`}
@@ -80,10 +94,10 @@ export default function RootLayout({
             __html: `try{if(localStorage.getItem("roots-theme")==="dark")document.documentElement.classList.add("dark")}catch(e){}`,
           }}
         />
-        <OrganizationJsonLd />
+        <OrganizationJsonLd locale={locale} />
         {/* MASTERPLAN_01 KC7.10: site-wide WebSite + SearchAction JSON-LD
             så Google kan rendera brand-search-box i sitelinks. */}
-        <SiteJsonLd />
+        <SiteJsonLd locale={locale} />
         {plausibleDomain && (
           <Script
             defer
@@ -101,7 +115,7 @@ export default function RootLayout({
           href="#main-content"
           className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-inverse-surface focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-inverse-on-surface focus:shadow-lg"
         >
-          Hoppa till innehåll
+          {skipLabel}
         </a>
         <Providers>{children}</Providers>
       </body>

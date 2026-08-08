@@ -14,38 +14,51 @@ import {
   ArrowRight,
   ChevronDown,
 } from "lucide-react";
+import { useLocale } from "@/i18n/locale-context";
+import { pages } from "@/i18n/dictionaries/pages";
+
+const OVERVIEW_ICONS = [Camera, Brain, Sparkles] as const;
+const BENEFIT_ICONS = [CheckCircle2, Leaf, Sparkles] as const;
 
 // Medan HAIR_ANALYSIS_ENABLED är false nås den här sidan aldrig — middleware:n
 // skickar /haranalys vidare till startsidan. Gaten ligger där och inte här
 // eftersom notFound() i en klientkomponent hinner få statusen 200 skickad
 // innan strömningen avbryts, vilket ger en mjuk 404.
 export default function HaranalysPage() {
+  const { locale } = useLocale();
+  const t = pages.haranalys[locale];
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   const toggleFaq = (i: number) => setOpenFaq(openFaq === i ? null : i);
 
   return (
     <>
-      {/* Hero */}
       <section className="relative overflow-hidden bg-brand-50/40 py-24 md:py-32">
-        <div className="pointer-events-none absolute left-[10%] top-[20%] h-64 w-64 rounded-full bg-brand-100/40 blur-3xl" aria-hidden="true" />
-        <div className="pointer-events-none absolute right-[5%] bottom-[10%] h-48 w-48 rounded-full bg-brand-200/30 blur-2xl" aria-hidden="true" />
+        <div
+          className="pointer-events-none absolute left-[10%] top-[20%] h-64 w-64 rounded-full bg-brand-100/40 blur-3xl"
+          aria-hidden="true"
+        />
+        <div
+          className="pointer-events-none absolute right-[5%] bottom-[10%] h-48 w-48 rounded-full bg-brand-200/30 blur-2xl"
+          aria-hidden="true"
+        />
 
         <div className="mx-auto max-w-[1280px] px-6 md:px-10">
           <div className="mx-auto max-w-2xl text-center">
-            <Badge variant="secondary" className="mb-4">AI-driven håranalys</Badge>
+            <Badge variant="secondary" className="mb-4">
+              {t.badge}
+            </Badge>
             <h1 className="text-[length:var(--font-size-hero)] font-bold tracking-tight">
-              Gratis håranalys online
+              {t.heroTitle}
             </h1>
             <p className="mt-6 text-lg leading-relaxed text-muted-foreground md:text-xl">
-              Ladda upp två bilder, svara på några frågor och få en personlig
-              håranalys — helt gratis. Powered by AI och nordiska ingredienser.
+              {t.heroBody}
             </p>
             <div className="mt-10">
               <HairAnalysisLeadDialog
                 trigger={
                   <Button size="lg" pulse className="text-base">
-                    Starta din håranalys
+                    {t.ctaStart}
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
                 }
@@ -53,95 +66,72 @@ export default function HaranalysPage() {
             </div>
           </div>
 
-          {/* 3-step overview */}
           <div className="mx-auto mt-20 grid max-w-3xl gap-6 md:grid-cols-3">
-            {[
-              { icon: Camera, title: "Ladda upp bilder", desc: "Två foton — bakifrån och uppifrån" },
-              { icon: Brain, title: "Svara på frågor", desc: "Korta frågor om dina vanor" },
-              { icon: Sparkles, title: "Få rekommendation", desc: "Personlig analys på under 2 min" },
-            ].map((s) => (
-              <div key={s.title} className="flex flex-col items-center text-center">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-card text-card-foreground shadow-sm">
-                  <s.icon className="h-6 w-6" />
+            {t.overviewSteps.map((s, i) => {
+              const Icon = OVERVIEW_ICONS[i] ?? Camera;
+              return (
+                <div
+                  key={s.title}
+                  className="flex flex-col items-center text-center"
+                >
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-card text-card-foreground shadow-sm">
+                    <Icon className="h-6 w-6" />
+                  </div>
+                  <h3 className="mt-4 font-semibold">{s.title}</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">{s.desc}</p>
                 </div>
-                <h3 className="mt-4 font-semibold">{s.title}</h3>
-                <p className="mt-1 text-sm text-muted-foreground">{s.desc}</p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>
 
-      {/* Benefits */}
       <section className="py-24 md:py-32">
         <div className="mx-auto max-w-[1280px] px-6 md:px-10">
           <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-3xl font-bold tracking-tight">Varför Roots håranalys?</h2>
+            <h2 className="text-3xl font-bold tracking-tight">
+              {t.benefitsTitle}
+            </h2>
             <p className="mt-4 text-lg text-muted-foreground">
-              En komplett analys baserad på ditt hår, dina vanor och nordisk expertis.
+              {t.benefitsSubtitle}
             </p>
           </div>
 
           <div className="mt-16 grid gap-6 md:grid-cols-3">
-            {[
-              {
-                icon: CheckCircle2,
-                title: "Personlig analys",
-                desc: "AI analyserar dina bilder och svar för att ge rekommendationer anpassade just till dig.",
-              },
-              {
-                icon: Leaf,
-                title: "Nordiska ingredienser",
-                desc: "Våra rekommendationer bygger på produkter med naturliga, nordiska råvaror utan sulfater.",
-              },
-              {
-                icon: Sparkles,
-                title: "Kostnad: Helt gratis",
-                desc: "Ingen betalning, inget abonnemang. Gör analysen hur många gånger du vill.",
-              },
-            ].map((b) => (
-              <Card key={b.title} className="border-0 bg-brand-50/40 shadow-sm hover:shadow-md transition-shadow duration-200 rounded-2xl">
-                <CardContent className="p-6">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-card text-card-foreground">
-                    <b.icon className="h-6 w-6" />
-                  </div>
-                  <h3 className="mt-4 text-lg font-semibold">{b.title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                    {b.desc}
-                  </p>
-                </CardContent>
-              </Card>
-            ))}
+            {t.benefits.map((b, i) => {
+              const Icon = BENEFIT_ICONS[i] ?? Sparkles;
+              return (
+                <Card
+                  key={b.title}
+                  className="border-0 bg-brand-50/40 shadow-sm hover:shadow-md transition-shadow duration-200 rounded-2xl"
+                >
+                  <CardContent className="p-6">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-card text-card-foreground">
+                      <Icon className="h-6 w-6" />
+                    </div>
+                    <h3 className="mt-4 text-lg font-semibold">{b.title}</h3>
+                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                      {b.desc}
+                    </p>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         </div>
       </section>
 
-      {/* Så här fungerar det */}
       <section className="bg-brand-50/40 py-24 md:py-32">
         <div className="mx-auto max-w-[1280px] px-6 md:px-10">
           <div className="mx-auto max-w-2xl text-center">
-            <Badge variant="secondary" className="mb-4">Steg för steg</Badge>
-            <h2 className="text-3xl font-bold tracking-tight">Så här fungerar det</h2>
+            <Badge variant="secondary" className="mb-4">
+              {t.howBadge}
+            </Badge>
+            <h2 className="text-3xl font-bold tracking-tight">{t.howTitle}</h2>
           </div>
 
           <div className="mx-auto mt-16 max-w-2xl space-y-10">
-            {[
-              {
-                num: "1",
-                title: "Ladda upp två bilder",
-                desc: "Ta ett foto av ditt hår bakifrån och ett uppifrån. Torrt hår utan styling ger bäst resultat. Använd jämnt ljus och undvik blixt.",
-              },
-              {
-                num: "2",
-                title: "Besvara korta frågor",
-                desc: "Berätta hur ofta du tvättar håret, om du använder värmeverktyg, kemiska behandlingar och din stressnivå. Tar ungefär 1 minut.",
-              },
-              {
-                num: "3",
-                title: "Få din personliga analys",
-                desc: "Vår AI analyserar bilderna och dina svar, och ger dig en detaljerad bedömning med livsstils-, kost- och produktrekommendationer anpassade till ditt hår.",
-              },
-            ].map((step) => (
+            {t.howSteps.map((step) => (
               <div key={step.num} className="flex items-start gap-5">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-foreground text-lg font-bold text-background">
                   {step.num}
@@ -160,7 +150,7 @@ export default function HaranalysPage() {
             <HairAnalysisLeadDialog
               trigger={
                 <Button size="lg" pulse>
-                  Starta din håranalys nu
+                  {t.ctaStartNow}
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               }
@@ -169,30 +159,28 @@ export default function HaranalysPage() {
         </div>
       </section>
 
-      {/* Social proof counter */}
       <section className="py-16 md:py-20">
         <div className="mx-auto max-w-[1280px] px-6 md:px-10">
           <div className="flex flex-col items-center justify-center gap-2 text-center">
-            <p className="text-5xl font-bold tracking-tight md:text-6xl">500+</p>
-            <p className="text-lg text-muted-foreground">analyser gjorda</p>
+            <p className="text-5xl font-bold tracking-tight md:text-6xl">
+              {t.socialProofCount}
+            </p>
+            <p className="text-lg text-muted-foreground">{t.socialProofLabel}</p>
           </div>
         </div>
       </section>
 
-      {/* FAQ */}
       <section className="bg-brand-50/40 py-24 md:py-32">
         <div className="mx-auto max-w-[1280px] px-6 md:px-10">
           <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-3xl font-bold tracking-tight">Vanliga frågor</h2>
-            <p className="mt-4 text-lg text-muted-foreground">
-              Allt du behöver veta om håranalysen.
-            </p>
+            <h2 className="text-3xl font-bold tracking-tight">{t.faqTitle}</h2>
+            <p className="mt-4 text-lg text-muted-foreground">{t.faqSubtitle}</p>
           </div>
 
           <div className="mx-auto mt-12 max-w-2xl space-y-3">
-            {FAQ_ITEMS.map((faq, i) => (
+            {t.faqs.map((faq, i) => (
               <div
-                key={i}
+                key={faq.q}
                 className="rounded-2xl border border-border bg-card text-card-foreground transition-shadow hover:shadow-sm"
               >
                 <button
@@ -216,21 +204,16 @@ export default function HaranalysPage() {
         </div>
       </section>
 
-      {/* Bottom CTA */}
       <section className="py-24 md:py-32">
         <div className="mx-auto max-w-[1280px] px-6 md:px-10">
           <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-3xl font-bold tracking-tight">
-              Redo att förstå ditt hår bättre?
-            </h2>
-            <p className="mt-4 text-lg text-muted-foreground">
-              Det tar under 2 minuter och kostar ingenting.
-            </p>
+            <h2 className="text-3xl font-bold tracking-tight">{t.bottomTitle}</h2>
+            <p className="mt-4 text-lg text-muted-foreground">{t.bottomBody}</p>
             <div className="mt-8">
               <HairAnalysisLeadDialog
                 trigger={
                   <Button size="lg" pulse className="text-base">
-                    Starta gratis håranalys
+                    {t.bottomCta}
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
                 }
@@ -240,14 +223,13 @@ export default function HaranalysPage() {
         </div>
       </section>
 
-      {/* FAQ structured data */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
           __html: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "FAQPage",
-            mainEntity: FAQ_ITEMS.map((faq) => ({
+            mainEntity: t.faqs.map((faq) => ({
               "@type": "Question",
               name: faq.q,
               acceptedAnswer: {
@@ -261,26 +243,3 @@ export default function HaranalysPage() {
     </>
   );
 }
-
-const FAQ_ITEMS = [
-  {
-    q: "Är håranalysen verkligen gratis?",
-    a: "Ja, helt gratis. Du behöver bara ange din e-postadress och ladda upp två bilder. Det finns inga dolda kostnader.",
-  },
-  {
-    q: "Hur lång tid tar det?",
-    a: "Hela processen tar under 2 minuter — bilduppladdning, frågor och analys inkluderat.",
-  },
-  {
-    q: "Vad händer med mina bilder?",
-    a: "Dina bilder analyseras av AI och raderas automatiskt efter att analysen är klar. Vi sparar inte dina bilder. Läs mer i vår integritetspolicy.",
-  },
-  {
-    q: "Ersätter analysen ett besök hos frisör eller hudläkare?",
-    a: "Nej, analysen är indikativ och ger vägledande rekommendationer. Vid ihållande besvär bör du alltid kontakta en professionell.",
-  },
-  {
-    q: "Vilka produkter rekommenderas?",
-    a: "Baserat på din analys föreslår vi produkter ur Roots sortiment — naturlig hårvård utan sulfater, silikoner eller parabener, med nordiska ingredienser.",
-  },
-];

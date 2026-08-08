@@ -22,31 +22,29 @@ import {
 import { formatKr } from "@/lib/format";
 import {
   QUOTE_STAGES,
-  STAGE_LABELS,
+  getStageLabels,
   daysSince,
   stageBadgeVariant,
 } from "@/lib/pipeline-stages";
+import { useLocale } from "@/i18n/locale-context";
+import { portalPages, portalShared } from "@/i18n/dictionaries/portal-pages";
+import { tFill } from "@/i18n/format";
+import { appCommon } from "@/i18n/dictionaries/app-common";
 
 export interface PipelineDealRef {
   kind: PipelineDealKind;
   id: string;
 }
 
-function formatDate(value: string | Date | null | undefined): string {
+function formatDate(
+  value: string | Date | null | undefined,
+  dateLocale: string
+): string {
   if (!value) return "—";
   const d = typeof value === "string" ? new Date(value) : value;
   if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("sv-SE");
+  return d.toLocaleDateString(dateLocale);
 }
-
-const LEAD_SOURCE_LABELS: Record<string, string> = {
-  INBOUND: "Inkommande förfrågan",
-  OUTBOUND: "Utgående kontakt",
-  EVENT: "Mässa / event",
-  REFERRAL: "Rekommendation",
-  WEB: "Webbplats",
-  MANUAL: "Manuellt skapad",
-};
 
 function Fact({
   label,
@@ -55,8 +53,6 @@ function Fact({
   label: string;
   value: React.ReactNode;
 }) {
-  // Only null/undefined/"" fall back to a dash — `0` is a real answer
-  // ("0 medlemmar i portalen"), not missing data.
   const empty = value === null || value === undefined || value === "";
   return (
     <div className="min-w-0">
@@ -66,14 +62,6 @@ function Fact({
   );
 }
 
-/**
- * Detail dialog for one pipeline card. Opens on click from both the kanban
- * board and the list view.
- *
- * It doubles as the accessible path for moving a deal: dragging is a
- * pointer-only gesture, so the stage buttons here are how keyboard and
- * touch users change a stage.
- */
 export function PipelineDealDialog({
   deal,
   readOnly = false,
@@ -82,12 +70,19 @@ export function PipelineDealDialog({
   onCreateQuote,
 }: {
   deal: PipelineDealRef | null;
-  /** Demo login: show the deal, but no actions that the API will refuse. */
   readOnly?: boolean;
   onClose: () => void;
   onStatusChanged: (dealId: string, status: string) => void;
   onCreateQuote: (org: { id: string; name: string }) => void;
 }) {
+  const { locale } = useLocale();
+  const t = portalPages.dealDialog[locale];
+  const shared = portalShared[locale];
+  const common = appCommon[locale];
+  const stageLabels = getStageLabels(locale);
+  const crmLabels = shared.crmStatus;
+  const sourceLabels = shared.leadSourcesShort;
+
   const [detail, setDetail] = useState<PipelineDealDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -109,14 +104,12 @@ export function PipelineDealDialog({
         setDetail(data.deal);
       } catch (err) {
         if ((err as Error)?.name === "AbortError") return;
-        setError(
-          err instanceof Error ? err.message : "Kunde inte hämta affären."
-        );
+        setError(err instanceof Error ? err.message : t.loadError);
       } finally {
         setLoading(false);
       }
     },
-    [dealKind, dealId]
+    [dealKind, dealId, t.loadError]
   );
 
   useEffect(() => {
@@ -150,16 +143,19 @@ export function PipelineDealDialog({
       });
       onStatusChanged(detail.id, res.quote.status);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Kunde inte flytta offerten."
-      );
+      setError(err instanceof Error ? err.message : t.moveFail);
     } finally {
       setSavingStage(null);
     }
   }
 
   const org = detail?.org;
-  const title = org?.name ?? "Affär";
+  const title = org?.name ?? t.titleFallback;
+
+  function crmLabel(status: string | null | undefined): string {
+    if (!status) return "—";
+    return crmLabels[status as keyof typeof crmLabels] ?? status;
+  }
 
   return (
     <Dialog open={deal !== null} onOpenChange={(open) => !open && onClose()}>
@@ -169,14 +165,12 @@ export function PipelineDealDialog({
             {title}
             {detail && (
               <Badge variant={stageBadgeVariant(detail.status)}>
-                {STAGE_LABELS[detail.status] ?? detail.status}
+                {stageLabels[detail.status] ?? detail.status}
               </Badge>
             )}
           </DialogTitle>
           <DialogDescription>
-            {detail?.kind === "LEAD"
-              ? "Lead utan offert. Skapa en offert för att flytta affären framåt."
-              : "Offert — ändra steg, se rader och klubbens historik."}
+            {detail?.kind === "LEAD" ? t.leadDesc : t.quoteDesc}
           </DialogDescription>
         </DialogHeader>
 
@@ -184,7 +178,7 @@ export function PipelineDealDialog({
           {loading && !detail && (
             <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
-              Hämtar affären…
+              {t.loading}
             </div>
           )}
 
@@ -195,7 +189,7 @@ export function PipelineDealDialog({
             >
               <span>{error}</span>
               <Button size="sm" variant="outline" onClick={() => void load()}>
-                Försök igen
+                {common.retry}
               </Button>
             </div>
           )}
@@ -204,38 +198,41 @@ export function PipelineDealDialog({
             <>
               <div className="grid grid-cols-2 gap-4 rounded-lg border bg-muted/20 p-4 sm:grid-cols-4">
                 <Fact
-                  label="Värde"
+                  label={t.value}
                   value={
                     detail.totalOre > 0
-                      ? formatKr(detail.totalOre)
-                      : "Ej offererad"
+                      ? formatKr(detail.totalOre, locale)
+                      : shared.notQuoted
                   }
                 />
                 <Fact
-                  label="I steget"
-                  value={`${daysSince(detail.stageSince ?? detail.createdAt)} dagar`}
+                  label={t.inStage}
+                  value={tFill(t.inStageDays, {
+                    days: daysSince(detail.stageSince ?? detail.createdAt),
+                  })}
                 />
-                <Fact label="Skapad" value={formatDate(detail.createdAt)} />
                 <Fact
-                  label={detail.kind === "QUOTE" ? "Giltig t.o.m." : "Ansvarig"}
+                  label={t.created}
+                  value={formatDate(detail.createdAt, shared.dateLocale)}
+                />
+                <Fact
+                  label={detail.kind === "QUOTE" ? t.validUntil : t.owner}
                   value={
                     detail.kind === "QUOTE"
-                      ? formatDate(detail.validUntil)
+                      ? formatDate(detail.validUntil, shared.dateLocale)
                       : (detail.salesRepName ?? "—")
                   }
                 />
               </div>
 
-              {/* Stage control. For a quote this is the keyboard/touch
-                  equivalent of dragging the card between columns. */}
               {readOnly ? (
                 <p className="rounded-md border border-dashed bg-muted/20 p-3 text-xs text-muted-foreground">
-                  Demokontot visar affärerna men kan inte ändra dem.
+                  {t.demoReadonly}
                 </p>
               ) : detail.kind === "QUOTE" ? (
                 <div className="space-y-2">
                   <p className="text-xs font-medium text-muted-foreground">
-                    Flytta till steg
+                    {t.moveToStage}
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {QUOTE_STAGES.map((code) => {
@@ -245,10 +242,6 @@ export function PipelineDealDialog({
                           key={code}
                           size="sm"
                           variant={active ? "default" : "outline"}
-                          // The current stage is not disabled — disabled
-                          // styling dims it, which reads as "unavailable"
-                          // rather than "this is where the deal is". The
-                          // handler no-ops on a click anyway.
                           disabled={savingStage !== null}
                           aria-current={active ? "true" : undefined}
                           onClick={() => void changeStage(code)}
@@ -258,7 +251,7 @@ export function PipelineDealDialog({
                           ) : active ? (
                             <Check className="mr-2 h-3.5 w-3.5" />
                           ) : null}
-                          {STAGE_LABELS[code]}
+                          {stageLabels[code]}
                         </Button>
                       );
                     })}
@@ -271,40 +264,35 @@ export function PipelineDealDialog({
                     onCreateQuote({ id: detail.org.id, name: detail.org.name })
                   }
                 >
-                  Skapa offert
+                  {t.createQuote}
                 </Button>
               )}
 
               <div>
                 <p className="mb-3 text-xs font-medium text-muted-foreground">
-                  Om föreningen
+                  {t.aboutClub}
                 </p>
                 <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-                  <Fact label="Org.nr" value={org?.orgNumber} />
-                  <Fact label="Kommun" value={org?.municipality} />
-                  <Fact label="Region" value={org?.region} />
-                  <Fact label="Idrott" value={org?.sportType} />
-                  <Fact label="Medlemmar i portalen" value={org?.membersCount} />
+                  <Fact label={t.orgNumber} value={org?.orgNumber} />
+                  <Fact label={t.municipality} value={org?.municipality} />
+                  <Fact label={t.region} value={org?.region} />
+                  <Fact label={t.sport} value={org?.sportType} />
+                  <Fact label={t.portalMembers} value={org?.membersCount} />
                   <Fact
-                    label="CRM-status"
-                    value={
-                      org?.crmStatus === "CUSTOMER"
-                        ? "Kund"
-                        : org?.crmStatus === "LEAD"
-                          ? "Lead"
-                          : org?.crmStatus
-                    }
+                    label={t.crmStatus}
+                    value={crmLabel(org?.crmStatus)}
                   />
                   <Fact
-                    label="Källa"
+                    label={t.source}
                     value={
                       org?.leadSource
-                        ? (LEAD_SOURCE_LABELS[org.leadSource] ?? org.leadSource)
+                        ? (sourceLabels[org.leadSource as keyof typeof sourceLabels] ??
+                          org.leadSource)
                         : "—"
                     }
                   />
                   <Fact
-                    label="Potential"
+                    label={t.potential}
                     value={
                       typeof org?.potentialScore === "number"
                         ? `${org.potentialScore}/100`
@@ -312,7 +300,7 @@ export function PipelineDealDialog({
                     }
                   />
                   <Fact
-                    label="Webbplats"
+                    label={t.website}
                     value={
                       org?.website ? (
                         <a
@@ -325,7 +313,7 @@ export function PipelineDealDialog({
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-1 text-brand-600 underline-offset-2 hover:underline"
                         >
-                          Öppna
+                          {t.open}
                           <ExternalLink className="h-3 w-3" />
                         </a>
                       ) : (
@@ -339,7 +327,7 @@ export function PipelineDealDialog({
               {detail.lines.length > 0 && (
                 <div>
                   <p className="mb-3 text-xs font-medium text-muted-foreground">
-                    Offertrader
+                    {t.quoteLines}
                   </p>
                   <div className="overflow-hidden rounded-lg border">
                     {detail.lines.map((line, i) => (
@@ -352,20 +340,20 @@ export function PipelineDealDialog({
                             {line.productName}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {line.qty} × {formatKr(line.unitPriceOre)}
+                            {line.qty} × {formatKr(line.unitPriceOre, locale)}
                           </p>
                         </div>
                         <span className="shrink-0 text-sm font-semibold tabular-nums">
-                          {formatKr(line.lineTotalOre)}
+                          {formatKr(line.lineTotalOre, locale)}
                         </span>
                       </div>
                     ))}
                     <div className="flex items-center justify-between bg-muted/30 px-3 py-2">
                       <span className="text-sm text-muted-foreground">
-                        Totalt
+                        {t.total}
                       </span>
                       <span className="text-sm font-bold tabular-nums">
-                        {formatKr(detail.totalOre)}
+                        {formatKr(detail.totalOre, locale)}
                       </span>
                     </div>
                   </div>
@@ -375,7 +363,7 @@ export function PipelineDealDialog({
               {detail.otherQuotes.length > 0 && (
                 <div>
                   <p className="mb-3 text-xs font-medium text-muted-foreground">
-                    Övriga offerter för {org?.name}
+                    {tFill(t.otherQuotes, { name: org?.name ?? "—" })}
                   </p>
                   <div className="space-y-2">
                     {detail.otherQuotes.map((q) => (
@@ -388,14 +376,14 @@ export function PipelineDealDialog({
                             variant={stageBadgeVariant(q.status)}
                             className="shrink-0"
                           >
-                            {STAGE_LABELS[q.status] ?? q.status}
+                            {stageLabels[q.status] ?? q.status}
                           </Badge>
                           <span className="truncate text-xs text-muted-foreground">
-                            {formatDate(q.createdAt)}
+                            {formatDate(q.createdAt, shared.dateLocale)}
                           </span>
                         </div>
                         <span className="shrink-0 text-sm font-medium tabular-nums">
-                          {formatKr(q.totalOre)}
+                          {formatKr(q.totalOre, locale)}
                         </span>
                       </div>
                     ))}
@@ -408,7 +396,7 @@ export function PipelineDealDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
-            Stäng
+            {common.close}
           </Button>
         </DialogFooter>
       </DialogContent>

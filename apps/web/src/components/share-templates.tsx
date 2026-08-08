@@ -2,18 +2,9 @@
 
 /**
  * Sprint E12: ready-made share copy for the seller's personal shop.
- *
- * Sellers told us in user testing that the hardest part isn't sharing —
- * it's writing the actual message. So we ship six pre-written templates
- * (SMS, Insta caption, Facebook, WhatsApp, email, family WhatsApp) with
- * the seller's name, campaign and shop URL already filled in. One click
- * copies the text. One click opens the right app.
- *
- * Templates intentionally vary in length and tone so a 12-year-old can
- * grab the SMS while a parent can grab the email-to-grandparents.
  */
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,82 +16,24 @@ import {
   Instagram,
   Facebook,
 } from "lucide-react";
+import { useLocale } from "@/i18n/locale-context";
+import { fundraisingPages } from "@/i18n/dictionaries/fundraising-pages";
+import { tFill } from "@/i18n/format";
 
 interface ShareTemplate {
   id: string;
   label: string;
   channel: "SMS" | "WHATSAPP" | "EMAIL" | "INSTAGRAM" | "FACEBOOK";
   icon: React.ComponentType<{ className?: string }>;
-  body: (vars: {
-    displayName: string;
-    shopUrl: string;
-    campaignName: string;
-    teamName: string;
-  }) => string;
-  subject?: (vars: {
-    displayName: string;
-    campaignName: string;
-  }) => string;
+  body: string;
+  subject?: string;
 }
 
-const TEMPLATES: ShareTemplate[] = [
-  {
-    id: "sms-short",
-    label: "SMS · Kort & snabb",
-    channel: "SMS",
-    icon: MessageCircle,
-    body: ({ displayName, shopUrl, campaignName }) =>
-      `Hej! Jag säljer Roots schampo och balsam för ${campaignName} 🌱 Köp via min länk så stöttar du mig direkt: ${shopUrl} – Tack! /${displayName}`,
-  },
-  {
-    id: "whatsapp-family",
-    label: "WhatsApp · Familj & nära",
-    channel: "WHATSAPP",
-    icon: MessageCircle,
-    body: ({ displayName, shopUrl, campaignName, teamName }) =>
-      `Hej! 💛\n\nVi i ${teamName} säljer Roots-produkter för att finansiera ${campaignName}. Det är riktigt bra schampo och balsam som dessutom är svensktillverkat.\n\nKöp via min personliga länk så går pengarna till oss:\n${shopUrl}\n\nTack för att du stöttar! /${displayName}`,
-  },
-  {
-    id: "instagram",
-    label: "Instagram · Story / caption",
-    channel: "INSTAGRAM",
-    icon: Instagram,
-    body: ({ displayName, shopUrl, campaignName }) =>
-      `Vi säljer Roots ✨\nSchampo och balsam i världsklass, made in Sweden.\nVarje köp via min länk stöttar ${campaignName} – tack! 🙏\n\n👉 ${shopUrl}\n\n#roots #stöttavårtlag #${displayName.replace(/\s+/g, "")} #svensktillverkat`,
-  },
-  {
-    id: "facebook",
-    label: "Facebook · Inlägg",
-    channel: "FACEBOOK",
-    icon: Facebook,
-    body: ({ displayName, shopUrl, campaignName, teamName }) =>
-      `Hej alla! 👋\n\nVi i ${teamName} har dragit igång vår försäljning för att finansiera ${campaignName}. Vi säljer Roots schampo och balsam – svensktillverkade, riktigt bra produkter som dessutom är prisvärda.\n\nKöp via min personliga länk så går pengarna direkt till oss istället för till mellanhänder:\n${shopUrl}\n\nDela gärna inlägget om du gillar det – varje köp gör skillnad! 💚\n\n/${displayName}`,
-  },
-  {
-    id: "email-grandparents",
-    label: "E-post · Mor- & farföräldrar",
-    channel: "EMAIL",
-    icon: Mail,
-    subject: ({ displayName, campaignName }) =>
-      `Vill du stötta mig? – ${displayName} (${campaignName})`,
-    body: ({ displayName, shopUrl, campaignName, teamName }) =>
-      `Hej!\n\nVi i ${teamName} har börjat sälja Roots schampo och balsam för att finansiera ${campaignName}.\n\nDet är svensktillverkade produkter av riktigt fin kvalitet – ungefär samma prisklass som man hittar på vanliga butiker. Skillnaden är att en del av pengarna går direkt till oss istället för till en stor kedja.\n\nOm du har lust att stötta oss kan du köpa via min personliga länk:\n${shopUrl}\n\nDet du beställer levereras hem till dig. Tack på förhand – det betyder massor för oss! 💚\n\nKram\n${displayName}`,
-  },
-  {
-    id: "sms-coworkers",
-    label: "SMS · Kollegor & vänner",
-    channel: "SMS",
-    icon: MessageCircle,
-    body: ({ displayName, shopUrl }) =>
-      `Hej! Säljer Roots schampo/balsam (svensktillverkat, riktigt bra) för att finansiera vår laginsamling. Köp via min länk om du har lust: ${shopUrl} /${displayName}`,
-  },
-];
-
-function shareHref(channel: ShareTemplate["channel"], body: string, subject?: string): string | null {
-  // mailto / sms / wa.me all take URL-encoded payloads. We return null
-  // for Instagram and Facebook because neither has a reliable "share
-  // pre-filled text" deep link from the browser — for those the user
-  // copies and pastes, which is the expected pattern on Insta anyway.
+function shareHref(
+  channel: ShareTemplate["channel"],
+  body: string,
+  subject?: string
+): string | null {
   const enc = encodeURIComponent(body);
   if (channel === "SMS") return `sms:?&body=${enc}`;
   if (channel === "WHATSAPP") return `https://wa.me/?text=${enc}`;
@@ -124,7 +57,69 @@ export function ShareTemplates({
   campaignName,
   teamName,
 }: ShareTemplatesProps) {
+  const { locale } = useLocale();
+  const t = fundraisingPages.shareTemplates[locale];
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const vars = useMemo(
+    () => ({
+      displayName,
+      shopUrl,
+      campaignName,
+      teamName,
+      hashtag: displayName.replace(/\s+/g, ""),
+    }),
+    [displayName, shopUrl, campaignName, teamName]
+  );
+
+  const templates: ShareTemplate[] = useMemo(
+    () => [
+      {
+        id: "sms-short",
+        label: t.labelSmsShort,
+        channel: "SMS",
+        icon: MessageCircle,
+        body: tFill(t.bodySmsShort, vars),
+      },
+      {
+        id: "whatsapp-family",
+        label: t.labelWaFamily,
+        channel: "WHATSAPP",
+        icon: MessageCircle,
+        body: tFill(t.bodyWaFamily, vars),
+      },
+      {
+        id: "instagram",
+        label: t.labelInstagram,
+        channel: "INSTAGRAM",
+        icon: Instagram,
+        body: tFill(t.bodyInstagram, vars),
+      },
+      {
+        id: "facebook",
+        label: t.labelFacebook,
+        channel: "FACEBOOK",
+        icon: Facebook,
+        body: tFill(t.bodyFacebook, vars),
+      },
+      {
+        id: "email-grandparents",
+        label: t.labelEmail,
+        channel: "EMAIL",
+        icon: Mail,
+        subject: tFill(t.subjectEmail, vars),
+        body: tFill(t.bodyEmail, vars),
+      },
+      {
+        id: "sms-coworkers",
+        label: t.labelSmsFriends,
+        channel: "SMS",
+        icon: MessageCircle,
+        body: tFill(t.bodySmsFriends, vars),
+      },
+    ],
+    [t, vars]
+  );
 
   async function copy(id: string, text: string) {
     try {
@@ -132,9 +127,14 @@ export function ShareTemplates({
       setCopiedId(id);
       setTimeout(() => setCopiedId((curr) => (curr === id ? null : curr)), 2000);
     } catch {
-      // Fall back: select-all so the user can manually copy.
-      window.prompt("Kopiera texten:", text);
+      window.prompt(t.copyPrompt, text);
     }
+  }
+
+  function openLabel(channel: ShareTemplate["channel"]) {
+    if (channel === "SMS") return "SMS";
+    if (channel === "WHATSAPP") return "WhatsApp";
+    return locale === "en" ? "Email" : "E-post";
   }
 
   return (
@@ -142,18 +142,14 @@ export function ShareTemplates({
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-brand-500" />
-          Färdiga texter att skicka
+          {t.title}
         </CardTitle>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Klicka på en mall för att kopiera texten – sedan klistrar du in i SMS, WhatsApp, Instagram eller e-post.
-        </p>
+        <p className="mt-1 text-xs text-muted-foreground">{t.subtitle}</p>
       </CardHeader>
       <CardContent>
         <div className="grid gap-3 sm:grid-cols-2">
-          {TEMPLATES.map((tpl) => {
-            const body = tpl.body({ displayName, shopUrl, campaignName, teamName });
-            const subject = tpl.subject?.({ displayName, campaignName });
-            const href = shareHref(tpl.channel, body, subject);
+          {templates.map((tpl) => {
+            const href = shareHref(tpl.channel, tpl.body, tpl.subject);
             const Icon = tpl.icon;
             const copied = copiedId === tpl.id;
             return (
@@ -166,21 +162,21 @@ export function ShareTemplates({
                   <p className="text-sm font-medium">{tpl.label}</p>
                 </div>
                 <p className="line-clamp-3 whitespace-pre-wrap text-xs text-muted-foreground">
-                  {body}
+                  {tpl.body}
                 </p>
                 <div className="mt-auto flex flex-wrap gap-2 pt-1">
                   <Button
                     size="sm"
                     variant="outline"
                     className="h-7 text-xs"
-                    onClick={() => copy(tpl.id, body)}
+                    onClick={() => copy(tpl.id, tpl.body)}
                   >
                     {copied ? (
                       <CheckCircle2 className="mr-1 h-3 w-3 text-success" />
                     ) : (
                       <Copy className="mr-1 h-3 w-3" />
                     )}
-                    {copied ? "Kopierat" : "Kopiera"}
+                    {copied ? t.copied : t.copy}
                   </Button>
                   {href && (
                     <Button
@@ -190,7 +186,7 @@ export function ShareTemplates({
                       asChild
                     >
                       <a href={href} target="_blank" rel="noopener noreferrer">
-                        Öppna {tpl.channel === "SMS" ? "SMS" : tpl.channel === "WHATSAPP" ? "WhatsApp" : "E-post"}
+                        {t.open} {openLabel(tpl.channel)}
                       </a>
                     </Button>
                   )}

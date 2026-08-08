@@ -1,34 +1,44 @@
 import { BreadcrumbJsonLd, WebPageJsonLd } from "@/components/json-ld";
 import { pageMetadata } from "@/lib/seo";
+import { getPage } from "@/i18n/get-dictionary";
+import { getRequestLocale } from "@/i18n/request-locale";
+import { withLocale } from "@/i18n/paths";
+import type { Metadata } from "next";
 
-const PAGE_TITLE = "Kontakt";
-const PAGE_DESCRIPTION =
-  "Kontakta Roots Nordic — vi hjälper er komma igång med föreningsförsäljning av naturlig hårvård.";
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getRequestLocale();
+  const t = getPage("kontakt", locale);
+  return pageMetadata({
+    title: t.title,
+    description: t.description,
+    path: "/kontakt",
+    locale,
+  });
+}
 
-export const metadata = pageMetadata({
-  title: PAGE_TITLE,
-  description: PAGE_DESCRIPTION,
-  path: "/kontakt",
-});
-
-export default function KontaktLayout({
+export default async function KontaktLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const locale = await getRequestLocale();
+  const t = getPage("kontakt", locale);
+  const homeLabel = getPage("produkter", locale).breadcrumbHome;
+
   return (
     <>
       <BreadcrumbJsonLd
         items={[
-          { name: "Hem", url: "/" },
-          { name: "Kontakt", url: "/kontakt" },
+          { name: homeLabel, url: withLocale("/", locale) },
+          { name: t.title, url: withLocale("/kontakt", locale) },
         ]}
       />
       <WebPageJsonLd
         type="ContactPage"
-        name={PAGE_TITLE}
-        description={PAGE_DESCRIPTION}
-        url="/kontakt"
+        name={t.title}
+        description={t.description}
+        url={withLocale("/kontakt", locale)}
+        locale={locale}
       />
       {children}
     </>

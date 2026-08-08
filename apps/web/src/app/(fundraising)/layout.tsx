@@ -1,12 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import {
   broadcastLogout,
   useCrossTabLogout,
 } from "@/lib/use-cross-tab-logout";
-import Link from "next/link";
 import {
   BarChart3,
   LineChart,
@@ -26,10 +25,17 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getBrowserApiBase } from "@/lib/api-base";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, rootsFetch } from "@/lib/api";
 import NotificationBell from "@/components/notification-bell";
 import { RootsLogo } from "@/components/brand";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { LanguageSwitcher } from "@/components/language-switcher";
+import { LocaleLink } from "@/components/locale-link";
+import { LocaleProvider, useLocale } from "@/i18n/locale-context";
+import { appCommon } from "@/i18n/dictionaries/app-common";
+import { fundraising as fundraisingDict } from "@/i18n/dictionaries/fundraising";
+import { stripLocalePrefix } from "@/i18n/paths";
+import type { Locale } from "@/i18n/config";
 import {
   useDocumentTitle,
   titleFromNav,
@@ -46,68 +52,55 @@ interface FundraisingUser {
   userId?: string;
 }
 
-/**
- * Navigationen per roll. Låg tidigare inline i komponenten, men flyttades ut
- * hit för att fliktiteln ska kunna räknas ut före de tidiga returerna —
- * hooken som sätter den måste anropas på varje rendering.
- */
-function buildNavItems(role: string) {
+function buildNavItems(role: string, t: (typeof fundraisingDict)[Locale]) {
   if (role === "ASSOCIATION_ADMIN") {
     return [
-      { href: "/forening", label: "Översikt", icon: BarChart3 },
-      { href: "/forening/statistik", label: "Statistik", icon: LineChart },
-      // MASTERPLAN_01 KC3.1: kom-igång alltid synlig i sidebar så
-      // användaren kan hitta tillbaka även efter att de hoppat över
-      // den vid signup. Banner-komponenten gör att det dessutom är
-      // tydligt när checklistan inte är klar.
-      { href: "/forening/kom-igang", label: "Kom igång", icon: Sparkles },
-      { href: "/forening/lag", label: "Lag", icon: Users },
-      { href: "/forening/mal", label: "Mål", icon: Target },
-      { href: "/forening/kalender", label: "Kalender", icon: CalendarDays },
-      { href: "/forening/avrakning", label: "Avräkning", icon: CreditCard },
-      { href: "/installningar", label: "Inställningar", icon: Settings },
+      { href: "/forening", label: t.navOverview, icon: BarChart3 },
+      { href: "/forening/statistik", label: t.navStats, icon: LineChart },
+      { href: "/forening/kom-igang", label: t.navGetStarted, icon: Sparkles },
+      { href: "/forening/lag", label: t.navTeams, icon: Users },
+      { href: "/forening/mal", label: t.navGoals, icon: Target },
+      { href: "/forening/kalender", label: t.navCalendar, icon: CalendarDays },
+      { href: "/forening/avrakning", label: t.navSettlement, icon: CreditCard },
+      { href: "/installningar", label: t.navSettings, icon: Settings },
     ];
   }
   if (role === "TEAM_LEADER") {
     return [
-      { href: "/lag", label: "Översikt", icon: BarChart3 },
-      { href: "/lag/statistik", label: "Statistik", icon: LineChart },
-      { href: "/lag/saljare", label: "Säljare", icon: Users },
-      { href: "/lag/bestallningar", label: "Beställningar", icon: ClipboardList },
-      { href: "/lag/chatt", label: "Chatt", icon: MessageCircle },
-      { href: "/lag/avrakning", label: "Avräkning", icon: CreditCard },
-      { href: "/installningar", label: "Inställningar", icon: Settings },
+      { href: "/lag", label: t.navOverview, icon: BarChart3 },
+      { href: "/lag/statistik", label: t.navStats, icon: LineChart },
+      { href: "/lag/saljare", label: t.navSellers, icon: Users },
+      { href: "/lag/bestallningar", label: t.navOrders, icon: ClipboardList },
+      { href: "/lag/chatt", label: t.navChat, icon: MessageCircle },
+      { href: "/lag/avrakning", label: t.navSettlement, icon: CreditCard },
+      { href: "/installningar", label: t.navSettings, icon: Settings },
     ];
   }
   return [
-    { href: "/min-shop", label: "Min shop", icon: ShoppingBag },
-    { href: "/min-shop/statistik", label: "Statistik", icon: LineChart },
+    { href: "/min-shop", label: t.navMyShop, icon: ShoppingBag },
+    { href: "/min-shop/statistik", label: t.navStats, icon: LineChart },
     {
       href: "/min-shop/bestallningar",
-      label: "Beställningar",
+      label: t.navOrders,
       icon: ClipboardList,
     },
-    { href: "/min-shop/chatt", label: "Chatt med laget", icon: MessageCircle },
-    { href: "/installningar", label: "Inställningar", icon: Settings },
+    { href: "/min-shop/chatt", label: t.navTeamChat, icon: MessageCircle },
+    { href: "/installningar", label: t.navSettings, icon: Settings },
   ];
 }
 
-export default function FundraisingLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+function FundraisingShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
+  const { locale, href } = useLocale();
+  const t = fundraisingDict[locale];
+  const c = appCommon[locale];
   const [user, setUser] = useState<FundraisingUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement | null>(null);
+  const barePath = stripLocalePrefix(pathname || "/");
 
-  // Menyn fälls ut och trycker ner innehållet, så den är inte modal — ett
-  // fokuslås hör inte hit. Vad som saknades var Escape, och att fokus kommer
-  // tillbaka till knappen när panelen stängs. Utan det står den som navigerar
-  // med tangentbord kvar i en meny som inte längre finns.
   useEffect(() => {
     if (!mobileOpen) return;
     function onKeyDown(e: KeyboardEvent) {
@@ -122,50 +115,43 @@ export default function FundraisingLayout({
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch(`${API_URL}/v1/auth/me`, {
-          credentials: "include",
-        });
+        const res = await rootsFetch(`${API_URL}/v1/auth/me`);
         if (!res.ok) {
-          router.push("/login");
+          router.push(href("/login"));
           return;
         }
         const data = await res.json();
         if (!data.user) {
-          router.push("/login");
+          router.push(href("/login"));
           return;
         }
         setUser(data.user);
       } catch {
-        router.push("/login");
+        router.push(href("/login"));
       } finally {
         setLoading(false);
       }
     }
     load();
-  }, [router]);
+  }, [router, href]);
 
   async function handleLogout() {
-    // apiFetch attaches CSRF + cookies; production rejects un-tokened
-    // POSTs with 403 which previously left users logged in.
     await apiFetch("/v1/auth/logout", { method: "POST" });
-    // MASTERPLAN_01 KC2.5: trigga cross-tab broadcast så ALLA andra
-    // /forening- och /portal-tabs i samma origin redirectar med.
     broadcastLogout();
-    router.push("/login");
+    router.push(href("/login"));
   }
 
-  // MASTERPLAN_01 KC2.5: lyssna på en annan tab som loggade ut.
   const onCrossTabLogout = useCallback(() => {
     setUser(null);
-    router.push("/login");
-  }, [router]);
+    router.push(href("/login"));
+  }, [router, href]);
   useCrossTabLogout(onCrossTabLogout);
 
-  // Före de tidiga returerna: hooken måste anropas på varje rendering. Alla
-  // 18 sidor här är "use client" och kunde därför inte exportera `metadata`,
-  // så de visade root-titeln — tre öppna flikar såg identiska ut.
-  const navItems = user ? buildNavItems(user.role) : [];
-  useDocumentTitle(titleFromNav(pathname, navItems, "Roots"));
+  const navItems = useMemo(
+    () => (user ? buildNavItems(user.role, t) : []),
+    [user, t]
+  );
+  useDocumentTitle(titleFromNav(pathname || "/", navItems, "Roots"));
 
   if (loading) {
     return (
@@ -175,24 +161,19 @@ export default function FundraisingLayout({
     );
   }
 
-  // P3.3 (audit 2026-05-26): tidigare flashade säljar-nav (/min-shop)
-  // i en frame innan redirect till /login om auth-anropet faillade.
-  // Portal-layout har samma guard på rad 156 — speglar den här.
   if (!user) return null;
 
-  const isAssociation = user?.role === "ASSOCIATION_ADMIN";
-  const isTeamLeader = user?.role === "TEAM_LEADER";
+  const isAssociation = user.role === "ASSOCIATION_ADMIN";
+  const isTeamLeader = user.role === "TEAM_LEADER";
 
   const roleBadge = isAssociation
-    ? { label: "Förening", className: "bg-brand-100 text-brand-700" }
+    ? { label: t.roleAssociation, className: "bg-brand-100 text-brand-700" }
     : isTeamLeader
-    ? { label: "Lagansvarig", className: "bg-brand-100 text-brand-700" }
-    : { label: "Säljare", className: "bg-brand-50 text-brand-600" };
+      ? { label: t.roleTeamLeader, className: "bg-brand-100 text-brand-700" }
+      : { label: t.roleSeller, className: "bg-brand-50 text-brand-600" };
 
-  // Sprint E8: build initials for the avatar bubble so the profile card
-  // looks identifiable even before we have real profile pictures.
   const initials =
-    (user?.name ?? "")
+    (user.name ?? "")
       .split(/\s+/)
       .filter(Boolean)
       .slice(0, 2)
@@ -201,39 +182,35 @@ export default function FundraisingLayout({
 
   return (
     <div className="flex min-h-screen">
-      {/* Sidebar desktop — Sprint E8: sticky to the viewport so logout
-          and profile are always visible no matter how tall <main> is. */}
       <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r bg-background lg:flex">
         <div className="flex h-16 items-center gap-2 border-b px-4">
-          <Link
+          <LocaleLink
             href="/"
-            aria-label="Roots — startsida"
+            aria-label={c.homeAria}
             className="inline-flex items-center transition-opacity duration-200 hover:opacity-70"
           >
             <RootsLogo variant="auto" className="h-7 w-[70px]" />
-          </Link>
+          </LocaleLink>
           <Badge className={`text-xs ${roleBadge.className}`}>
             {roleBadge.label}
           </Badge>
-          {/* Sprint E11: bell + help live in the sidebar header so they
-              follow the user through every fundraising page without
-              taking up vertical space. */}
           <div className="ml-auto flex items-center gap-1">
-            <Link
+            <LocaleLink
               href="/hjalp"
-              aria-label="Hjälp"
+              aria-label={c.help}
               className="inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-brand-50 hover:text-foreground"
             >
               <HelpCircle className="h-4 w-4" />
-            </Link>
+            </LocaleLink>
+            <LanguageSwitcher />
             <NotificationBell />
           </div>
         </div>
-        <nav className="flex-1 space-y-1 overflow-y-auto p-3">
+        <nav className="flex-1 space-y-1 overflow-y-auto p-3" aria-label={c.mainMenu}>
           {navItems.map((item) => {
-            const active = pathname === item.href;
+            const active = barePath === item.href;
             return (
-              <Link
+              <LocaleLink
                 key={item.href}
                 href={item.href}
                 className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
@@ -244,65 +221,66 @@ export default function FundraisingLayout({
               >
                 <item.icon className="h-4 w-4" />
                 {item.label}
-              </Link>
+              </LocaleLink>
             );
           })}
         </nav>
-        {/* Profile card with initials + name + email + logout. Lives in
-            its own flex row at the bottom of the sticky aside, so it is
-            always visible no matter where the user scrolled <main>. */}
         <div className="border-t p-3">
           <div className="mb-2 flex items-center gap-3 rounded-lg px-2 py-2">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-700 text-sm font-semibold text-primary-foreground">
               {initials}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium" title={user?.name}>
-                {user?.name}
+              <p className="truncate text-sm font-medium" title={user.name}>
+                {user.name}
               </p>
-              <p className="truncate text-xs text-muted-foreground" title={user?.email}>
-                {user?.email}
+              <p
+                className="truncate text-xs text-muted-foreground"
+                title={user.email}
+              >
+                {user.email}
               </p>
             </div>
           </div>
-          {/* Temaväxeln sitter här och inte i sidebar-headern: där finns
-              redan logo, rollbricka, hjälp och klocka, och en fjärde ikon
-              sprängde de 256 px så knappen la sig över sidans rubrik. */}
           <div className="flex items-center gap-1">
             <button
               onClick={handleLogout}
               className="flex flex-1 items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-brand-50 hover:text-foreground"
             >
               <LogOut className="h-4 w-4" />
-              Logga ut
+              {c.logout}
             </button>
             <ThemeToggle />
           </div>
         </div>
       </aside>
 
-      {/* Mobile header */}
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-14 items-center justify-between border-b px-4 lg:hidden">
-          <Link
+          <LocaleLink
             href="/"
-            aria-label="Roots — startsida"
+            aria-label={c.homeAria}
             className="inline-flex items-center transition-opacity duration-200 hover:opacity-70"
           >
             <RootsLogo variant="auto" className="h-6 w-[60px]" />
-          </Link>
+          </LocaleLink>
           <div className="flex items-center gap-1">
+            <LanguageSwitcher />
             <NotificationBell />
             <ThemeToggle />
             <button
               ref={menuButtonRef}
               onClick={() => setMobileOpen(!mobileOpen)}
-              aria-label={mobileOpen ? "Stäng meny" : "Öppna meny"}
+              aria-label={mobileOpen ? c.closeMenu : c.openMenu}
               aria-expanded={mobileOpen}
               aria-controls="fundraising-mobile-nav"
               className="ml-1 inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:bg-brand-50 hover:text-foreground"
             >
-              {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+              {mobileOpen ? (
+                <X className="h-5 w-5" />
+              ) : (
+                <Menu className="h-5 w-5" />
+              )}
             </button>
           </div>
         </header>
@@ -310,7 +288,7 @@ export default function FundraisingLayout({
         {mobileOpen && (
           <nav
             id="fundraising-mobile-nav"
-            aria-label="Huvudmeny"
+            aria-label={c.mainMenu}
             className="space-y-1 border-b bg-background p-3 lg:hidden"
           >
             <div className="mb-2 flex items-center gap-3 rounded-lg bg-brand-50 p-3">
@@ -318,15 +296,19 @@ export default function FundraisingLayout({
                 {initials}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{user?.name}</p>
-                <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
+                <p className="truncate text-sm font-medium">{user.name}</p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {user.email}
+                </p>
               </div>
-              <Badge className={`text-xs ${roleBadge.className}`}>{roleBadge.label}</Badge>
+              <Badge className={`text-xs ${roleBadge.className}`}>
+                {roleBadge.label}
+              </Badge>
             </div>
             {navItems.map((item) => {
-              const active = pathname === item.href;
+              const active = barePath === item.href;
               return (
-                <Link
+                <LocaleLink
                   key={item.href}
                   href={item.href}
                   onClick={() => setMobileOpen(false)}
@@ -338,7 +320,7 @@ export default function FundraisingLayout({
                 >
                   <item.icon className="h-4 w-4" />
                   {item.label}
-                </Link>
+                </LocaleLink>
               );
             })}
             <button
@@ -349,17 +331,27 @@ export default function FundraisingLayout({
               className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground"
             >
               <LogOut className="h-4 w-4" />
-              Logga ut
+              {c.logout}
             </button>
           </nav>
         )}
 
-        {/* P2.56 (audit 2026-05-26): id="main-content" så skip-link
-            från root layout fungerar även på fundraising-sidor. */}
         <main id="main-content" className="flex-1 p-4 sm:p-6 lg:p-8">
           {children}
         </main>
       </div>
     </div>
+  );
+}
+
+export default function FundraisingLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <LocaleProvider>
+      <FundraisingShell>{children}</FundraisingShell>
+    </LocaleProvider>
   );
 }

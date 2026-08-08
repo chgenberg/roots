@@ -1,12 +1,21 @@
 import { ImageResponse } from "next/og";
+import { headers } from "next/headers";
+import { LOCALE_HEADER } from "@/i18n/request-locale";
 
 export const runtime = "edge";
 
-export const alt = "Roots — Föreningsnära hårvård";
+export const alt = "Roots — Natural hair care for clubs";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-export default function Image() {
+export default async function Image() {
+  const h = await headers();
+  const locale = h.get(LOCALE_HEADER) === "en" ? "en" : "sv";
+  const tagline =
+    locale === "en"
+      ? "Natural hair care for clubs"
+      : "Föreningsnära hårvård";
+
   return new ImageResponse(
     (
       <div
@@ -40,7 +49,7 @@ export default function Image() {
             letterSpacing: "-0.01em",
           }}
         >
-          Föreningsnära hårvård
+          {tagline}
         </div>
       </div>
     ),

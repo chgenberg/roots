@@ -22,20 +22,24 @@ import { MfaSection } from "@/components/mfa-section";
 import { useToast } from "@/components/ui/toast";
 import { apiFetch } from "@/lib/api";
 import { broadcastLogout } from "@/lib/use-cross-tab-logout";
+import { useLocale } from "@/i18n/locale-context";
+import { portalPages } from "@/i18n/dictionaries/portal-pages";
+import { portalShared } from "@/i18n/dictionaries/portal-pages";
+import { tFill } from "@/i18n/format";
+import { appCommon } from "@/i18n/dictionaries/app-common";
+import type { Locale } from "@/i18n/config";
 
-function getRoleMeta(role: string) {
+function getRoleMeta(
+  role: string,
+  t: (typeof portalPages)["installningar"][Locale]
+) {
   if (role === "CLUB_ADMIN" || role === "CLUB_MEMBER")
-    return { label: "Förening", description: "Föreningsmedlem med tillgång till klubbportalen.", color: "bg-brand-50 text-brand-600" };
+    return { label: t.roleClub, description: t.roleClubDesc, color: "bg-brand-50 text-brand-600" };
   if (role === "SALES_REP" || role === "SALES_ADMIN")
-    return { label: "Säljare", description: "Säljrepresentant med tillgång till säljportalen.", color: "bg-brand-50 text-brand-600" };
-  return { label: "Admin", description: "Intern administratör med full åtkomst.", color: "bg-brand-50 text-brand-600" };
+    return { label: t.roleSeller, description: t.roleSellerDesc, color: "bg-brand-50 text-brand-600" };
+  return { label: t.roleAdmin, description: t.roleAdminDesc, color: "bg-brand-50 text-brand-600" };
 }
 
-// ── Byt lösenord-dialog (Sprint C) ────────────────────────────────
-// Three text fields (current / new / confirm). Calls
-// `POST /v1/auth/change-password`, which verifies the current password
-// against argon2 and writes the new hash. The current session keeps
-// working so the user doesn't get logged out mid-flow.
 function BytLosenordDialog({
   open,
   onOpenChange,
@@ -45,6 +49,10 @@ function BytLosenordDialog({
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
 }) {
+  const { locale } = useLocale();
+  const t = portalPages.installningar[locale];
+  const common = appCommon[locale];
+
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirmNext, setConfirmNext] = useState("");
@@ -62,19 +70,19 @@ function BytLosenordDialog({
     setError(null);
 
     if (!current || !next) {
-      setError("Båda lösenordsfält krävs.");
+      setError(t.pwdBothRequired);
       return;
     }
     if (next.length < 8) {
-      setError("Nytt lösenord måste vara minst 8 tecken.");
+      setError(t.pwdMinLength);
       return;
     }
     if (next !== confirmNext) {
-      setError("Bekräftelsen matchar inte det nya lösenordet.");
+      setError(t.pwdMismatch);
       return;
     }
     if (next === current) {
-      setError("Nytt lösenord får inte vara samma som det gamla.");
+      setError(t.pwdSame);
       return;
     }
 
@@ -91,8 +99,8 @@ function BytLosenordDialog({
         setError(
           data?.error ||
             (status === 401
-              ? "Fel nuvarande lösenord."
-              : `Kunde inte byta lösenord (${status}).`)
+              ? t.pwdWrongCurrent
+              : tFill(t.pwdChangeFail, { status }))
         );
         return;
       }
@@ -100,7 +108,7 @@ function BytLosenordDialog({
       onOpenChange(false);
       onSuccess();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Kunde inte byta lösenord.");
+      setError(err instanceof Error ? err.message : t.pwdChangeFailGeneric);
     } finally {
       setSubmitting(false);
     }
@@ -116,11 +124,11 @@ function BytLosenordDialog({
     >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Byt lösenord</DialogTitle>
+          <DialogTitle>{t.pwdTitle}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 px-6 py-2">
           <div className="space-y-2">
-            <Label htmlFor="pwd-current">Nuvarande lösenord</Label>
+            <Label htmlFor="pwd-current">{t.pwdCurrent}</Label>
             <Input
               id="pwd-current"
               type="password"
@@ -131,7 +139,7 @@ function BytLosenordDialog({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="pwd-new">Nytt lösenord (minst 8 tecken)</Label>
+            <Label htmlFor="pwd-new">{t.pwdNew}</Label>
             <Input
               id="pwd-new"
               type="password"
@@ -141,7 +149,7 @@ function BytLosenordDialog({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="pwd-confirm">Bekräfta nytt lösenord</Label>
+            <Label htmlFor="pwd-confirm">{t.pwdConfirm}</Label>
             <Input
               id="pwd-confirm"
               type="password"
@@ -162,10 +170,10 @@ function BytLosenordDialog({
             onClick={() => onOpenChange(false)}
             disabled={submitting}
           >
-            Avbryt
+            {common.cancel}
           </Button>
           <Button onClick={handleSubmit} disabled={submitting}>
-            {submitting ? "Sparar…" : "Spara nytt lösenord"}
+            {submitting ? t.pwdSaving : t.pwdSave}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -173,15 +181,6 @@ function BytLosenordDialog({
   );
 }
 
-// ── Radera konto-dialog (KC2.7) ───────────────────────────────────
-// Triggar `POST /v1/auth/delete-account` med password + bekräftelse-ord.
-// Loopen är två-stegs medvetet:
-//   1. Användaren skriver "RADERA" och sitt lösenord
-//   2. Server sätter scheduled_deletion_at = now+14d, anonymiserar
-//      sessions, skickar bekräftelse-mail
-// Vi loggar ut användaren omedelbart efter ok-svar (sessionen finns
-// inte längre i Redis ändå). Inom 14d kan användaren ångra via
-// /konto/avbryt-radering?token=... från mailen.
 function RaderaKontoDialog({
   open,
   onOpenChange,
@@ -191,6 +190,11 @@ function RaderaKontoDialog({
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
 }) {
+  const { locale } = useLocale();
+  const t = portalPages.installningar[locale];
+  const common = appCommon[locale];
+  const confirmWord = t.delConfirmWord;
+
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -207,11 +211,11 @@ function RaderaKontoDialog({
     setError(null);
 
     if (!password) {
-      setError("Lösenord krävs.");
+      setError(t.delPasswordRequired);
       return;
     }
-    if (confirm !== "RADERA") {
-      setError('Skriv ordet "RADERA" i bekräftelse-fältet.');
+    if (confirm !== confirmWord) {
+      setError(t.delConfirmMismatch);
       return;
     }
 
@@ -229,8 +233,8 @@ function RaderaKontoDialog({
         setError(
           data?.error ||
             (status === 401
-              ? "Fel lösenord."
-              : `Kunde inte skicka begäran (${status}).`)
+              ? t.delWrongPassword
+              : tFill(t.delFail, { status }))
         );
         return;
       }
@@ -238,7 +242,7 @@ function RaderaKontoDialog({
       onOpenChange(false);
       onSuccess();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Kunde inte skicka begäran.");
+      setError(err instanceof Error ? err.message : t.delFailGeneric);
     } finally {
       setSubmitting(false);
     }
@@ -256,22 +260,17 @@ function RaderaKontoDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 text-destructive" />
-            Radera ditt konto
+            {t.delTitle}
           </DialogTitle>
         </DialogHeader>
-        {/* KC6.8-mönstret: form-wrapper så Enter triggar submit */}
         <form onSubmit={handleSubmit} noValidate>
           <div className="space-y-4 px-6 py-2">
             <div className="rounded-lg bg-warning-surface p-3 text-xs text-warning-strong">
-              <p className="font-medium">Det här går att ångra inom 14 dagar.</p>
-              <p className="mt-1 text-warning-strong/80">
-                Efter 14 dagar anonymiseras dina personliga uppgifter
-                permanent. Beställningar och fakturor sparas anonymiserat
-                i 7 år som bokföringslagen kräver.
-              </p>
+              <p className="font-medium">{t.delWarningTitle}</p>
+              <p className="mt-1 text-warning-strong/80">{t.delWarningBody}</p>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="del-password">Lösenord</Label>
+              <Label htmlFor="del-password">{t.delPassword}</Label>
               <Input
                 id="del-password"
                 type="password"
@@ -283,16 +282,14 @@ function RaderaKontoDialog({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="del-confirm">
-                Skriv <span className="font-mono">RADERA</span> för att bekräfta
-              </Label>
+              <Label htmlFor="del-confirm">{t.delConfirmLabel}</Label>
               <Input
                 id="del-confirm"
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
                 autoComplete="off"
                 spellCheck={false}
-                placeholder="RADERA"
+                placeholder={confirmWord}
                 required
               />
             </div>
@@ -309,14 +306,14 @@ function RaderaKontoDialog({
               onClick={() => onOpenChange(false)}
               disabled={submitting}
             >
-              Avbryt
+              {common.cancel}
             </Button>
             <Button
               type="submit"
               variant="destructive"
-              disabled={submitting || confirm !== "RADERA"}
+              disabled={submitting || confirm !== confirmWord}
             >
-              {submitting ? "Skickar…" : "Radera kontot"}
+              {submitting ? t.delSending : t.delSubmit}
             </Button>
           </DialogFooter>
         </form>
@@ -334,8 +331,11 @@ interface DeletionStatus {
 export default function InstallningarPage() {
   const user = usePortalUser();
   const router = useRouter();
+  const { locale, href } = useLocale();
+  const t = portalPages.installningar[locale];
+  const shared = portalShared[locale];
   const { toast } = useToast();
-  const roleMeta = getRoleMeta(user.role);
+  const roleMeta = getRoleMeta(user.role, t);
   const [pwdOpen, setPwdOpen] = useState(false);
   const [delOpen, setDelOpen] = useState(false);
   const [delStatus, setDelStatus] = useState<DeletionStatus | null>(null);
@@ -352,13 +352,9 @@ export default function InstallningarPage() {
   }, []);
 
   async function handleDeletionSuccess() {
-    toast("Vi har skickat en bekräftelse till din e-post.");
-    // KC2.5: trigga cross-tab broadcast så övriga öppna tabs hoppar
-    // ut. Vi behöver inte själva kalla logout-endpointen — server-
-    // sidan har redan revokat alla sessions.
+    toast(t.deletionConfirmToast);
     broadcastLogout();
-    // Kort delay innan navigation så toasten hinner uppstå.
-    setTimeout(() => router.replace("/login"), 400);
+    setTimeout(() => router.replace(href("/login")), 400);
   }
 
   async function handleCancelDeletion() {
@@ -367,45 +363,43 @@ export default function InstallningarPage() {
       { method: "POST", body: {} }
     );
     if (!ok) {
-      toast(data?.error ?? "Kunde inte avbryta raderingen.");
+      toast(data?.error ?? t.cancelDeletionFail);
       return;
     }
-    toast("Raderingen är avbruten.");
+    toast(t.cancelDeletionOk);
     setDelStatus({ status: "none" });
   }
 
   return (
     <div className="page-enter space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Inställningar</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Hantera ditt konto och dina preferenser.
-        </p>
+        <h1 className="text-2xl font-bold tracking-tight">{t.title}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t.subtitle}</p>
       </div>
 
       <Card>
         <CardContent className="space-y-6 p-6">
           <div className="flex items-center gap-2">
             <Shield className="h-4 w-4 text-muted-foreground" />
-            <h2 className="font-semibold">Kontoinformation</h2>
+            <h2 className="font-semibold">{t.accountInfo}</h2>
           </div>
           <Separator />
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="settings-name">Namn</Label>
+              <Label htmlFor="settings-name">{t.name}</Label>
               <Input id="settings-name" value={user.name} readOnly />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="settings-email">E-post</Label>
+              <Label htmlFor="settings-email">{t.email}</Label>
               <Input id="settings-email" value={user.email} readOnly />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="settings-org">Organisation</Label>
+              <Label htmlFor="settings-org">{t.organisation}</Label>
               <Input id="settings-org" value={user.orgName} readOnly />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="settings-role">Roll</Label>
+              <Label htmlFor="settings-role">{t.role}</Label>
               <div className="flex items-center gap-3">
                 <Input id="settings-role" value={user.role} readOnly className="flex-1" />
                 <Badge className={cn("shrink-0", roleMeta.color)}>
@@ -428,37 +422,34 @@ export default function InstallningarPage() {
         <CardContent className="space-y-6 p-6">
           <div className="flex items-center gap-2">
             <Bell className="h-4 w-4 text-muted-foreground" />
-            <h2 className="font-semibold">Aviseringar</h2>
+            <h2 className="font-semibold">{t.notifications}</h2>
           </div>
           <Separator />
-          {/* P3.69 (audit 2026-05-26): tidigare visade vi "Aktiv"-badgar
-              utan toggle eller API som backade dem — användaren trodde
-              inställningarna sparades. Kommunicera istället att vi som
-              standard skickar dessa, och länka till hjälp om man vill
-              ändra. Riktiga toggles tillkommer i E-prefs-sprinten. */}
           <div className="space-y-4">
             <div>
-              <p className="text-sm font-medium">E-postaviseringar</p>
+              <p className="text-sm font-medium">{t.emailNotices}</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Vi skickar automatiskt e-post om nya beställningar och
-                uppdateringar till din kontoadress. Inställningen går
-                inte att stänga av i dagsläget — mejla{" "}
-                <a
-                  href="mailto:hej@roots.se"
-                  className="underline underline-offset-2"
-                >
-                  hej@roots.se
-                </a>{" "}
-                om du vill ändra.
+                {t.emailNoticesBody.includes("hej@roots.se") ? (
+                  <>
+                    {t.emailNoticesBody.split("hej@roots.se")[0]}
+                    <a
+                      href="mailto:hej@roots.se"
+                      className="underline underline-offset-2"
+                    >
+                      hej@roots.se
+                    </a>
+                    {t.emailNoticesBody.split("hej@roots.se")[1]}
+                  </>
+                ) : (
+                  t.emailNoticesBody
+                )}
               </p>
             </div>
             <Separator />
             <div>
-              <p className="text-sm font-medium">Leveransnotiser</p>
+              <p className="text-sm font-medium">{t.deliveryNotices}</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Spårnings-mejl skickas alltid när en leverans skickas
-                och när den ankommer. Konfigurerbara preferenser
-                kommer i ett senare release.
+                {t.deliveryNoticesBody}
               </p>
             </div>
           </div>
@@ -469,7 +460,7 @@ export default function InstallningarPage() {
         <CardContent className="space-y-6 p-6">
           <div className="flex items-center gap-2">
             <KeyRound className="h-4 w-4 text-muted-foreground" />
-            <h2 className="font-semibold">Tvåfaktorsautentisering</h2>
+            <h2 className="font-semibold">{t.mfaTitle}</h2>
           </div>
           <Separator />
           <MfaSection />
@@ -480,16 +471,16 @@ export default function InstallningarPage() {
         <CardContent className="space-y-6 p-6">
           <div className="flex items-center gap-2">
             <Palette className="h-4 w-4 text-muted-foreground" />
-            <h2 className="font-semibold">Konto</h2>
+            <h2 className="font-semibold">{t.account}</h2>
           </div>
           <Separator />
           <div className="flex flex-col gap-3 sm:flex-row">
             <Button variant="secondary" onClick={() => setPwdOpen(true)}>
-              Byt lösenord
+              {t.changePassword}
             </Button>
             {delStatus?.status === "scheduled" ? (
               <Button variant="outline" onClick={handleCancelDeletion}>
-                Avbryt radering
+                {t.cancelDeletion}
               </Button>
             ) : (
               <Button
@@ -497,7 +488,7 @@ export default function InstallningarPage() {
                 className="text-destructive hover:bg-destructive/5 hover:text-destructive"
                 onClick={() => setDelOpen(true)}
               >
-                Radera konto
+                {t.deleteAccount}
               </Button>
             )}
           </div>
@@ -507,16 +498,14 @@ export default function InstallningarPage() {
               role="status"
               className="rounded-lg border border-warning-edge bg-warning-surface p-4 text-sm text-warning-strong"
             >
-              <p className="font-medium">Ditt konto är schemalagt för radering</p>
+              <p className="font-medium">{t.scheduledTitle}</p>
               <p className="mt-1 text-warning-strong/80">
-                Vi raderar kontot{" "}
-                <strong>
-                  {new Date(delStatus.scheduledDeletionAt).toLocaleDateString(
-                    "sv-SE",
+                {tFill(t.scheduledBody, {
+                  date: new Date(delStatus.scheduledDeletionAt).toLocaleDateString(
+                    shared.dateLocale,
                     { day: "numeric", month: "long", year: "numeric" }
-                  )}
-                </strong>
-                . Du kan ångra fram tills dess.
+                  ),
+                })}
               </p>
             </div>
           )}
@@ -526,7 +515,7 @@ export default function InstallningarPage() {
       <BytLosenordDialog
         open={pwdOpen}
         onOpenChange={setPwdOpen}
-        onSuccess={() => toast("Lösenordet är uppdaterat.")}
+        onSuccess={() => toast(t.passwordUpdated)}
       />
       <RaderaKontoDialog
         open={delOpen}

@@ -1,5 +1,10 @@
+"use client";
+
 import type { SellerGrade, SellerGradeId } from "@/types/fundraising";
-import { formatKrValue } from "@/lib/format";
+import { formatKr } from "@/lib/format";
+import { useLocale } from "@/i18n/locale-context";
+import { fundraisingPages } from "@/i18n/dictionaries/fundraising-pages";
+import { tFill } from "@/i18n/format";
 
 const GRADE_CONFIG: Record<
   SellerGradeId,
@@ -41,6 +46,15 @@ export function getGradeConfig(grade: SellerGradeId) {
   return GRADE_CONFIG[grade] ?? GRADE_CONFIG.starter;
 }
 
+function gradeLabel(
+  gradeId: SellerGradeId,
+  locale: "sv" | "en",
+  fallback: string
+): string {
+  const labels = fundraisingPages.sellerGrade[locale];
+  return labels[gradeId] ?? fallback;
+}
+
 export function GradeBadge({
   grade,
   size = "sm",
@@ -48,8 +62,10 @@ export function GradeBadge({
   grade: SellerGrade | undefined;
   size?: "sm" | "lg";
 }) {
+  const { locale } = useLocale();
   if (!grade) return null;
   const cfg = getGradeConfig(grade.grade);
+  const label = gradeLabel(grade.grade, locale, grade.label);
 
   if (size === "lg") {
     return (
@@ -58,7 +74,7 @@ export function GradeBadge({
       >
         <span className="text-2xl">{cfg.icon}</span>
         <span className={`text-base font-semibold ${cfg.color}`}>
-          {grade.label}
+          {label}
         </span>
       </div>
     );
@@ -69,7 +85,7 @@ export function GradeBadge({
       className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${cfg.bg} ${cfg.border} ${cfg.color}`}
     >
       <span>{cfg.icon}</span>
-      {grade.label}
+      {label}
     </span>
   );
 }
@@ -81,14 +97,23 @@ export function GradeProgress({
   grade: SellerGrade | undefined;
   className?: string;
 }) {
+  const { locale } = useLocale();
+  const t = fundraisingPages.sellerGrade[locale];
+
   if (!grade?.nextGrade) return null;
 
   const currentThreshold = grade.thresholdOre;
   const nextThreshold = currentThreshold + grade.nextGrade.remainingOre;
   const totalRange = nextThreshold - currentThreshold;
-  const progress = totalRange > 0
-    ? Math.min(100, Math.round(((totalRange - grade.nextGrade.remainingOre) / totalRange) * 100))
-    : 100;
+  const progress =
+    totalRange > 0
+      ? Math.min(
+          100,
+          Math.round(
+            ((totalRange - grade.nextGrade.remainingOre) / totalRange) * 100
+          )
+        )
+      : 100;
 
   const nextCfg = getGradeConfig(grade.nextGrade.grade);
 
@@ -96,10 +121,19 @@ export function GradeProgress({
     <div className={className}>
       <div className="flex items-center justify-between mb-1">
         <span className="text-xs text-muted-foreground">
-          Nästa: {grade.nextGrade.label} {nextCfg.icon}
+          {tFill(t.next, {
+            label: gradeLabel(
+              grade.nextGrade.grade,
+              locale,
+              grade.nextGrade.label
+            ),
+          })}{" "}
+          {nextCfg.icon}
         </span>
         <span className="text-xs text-muted-foreground">
-          {formatKrValue(grade.nextGrade.remainingOre)} kr kvar
+          {tFill(t.remaining, {
+            amount: formatKr(grade.nextGrade.remainingOre, locale),
+          })}
         </span>
       </div>
       <div className="h-1.5 overflow-hidden rounded-full bg-brand-100">

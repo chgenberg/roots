@@ -28,6 +28,7 @@ import { notifications } from "./routes/notifications";
 import { preview } from "./routes/preview";
 import { clientErrors } from "./routes/client-errors";
 import { securityHeaders } from "./middleware/security-headers";
+import { resolveUiLocale, uiError } from "./lib/ui-locale";
 import { mfaRequired } from "./middleware/mfa-required";
 import { generateCsrfToken, verifyCsrfToken } from "./lib/csrf";
 import { checkReadiness } from "./lib/health-checks";
@@ -58,7 +59,8 @@ const MB = 1024 * 1024;
 const bodyLimitFor = (mb: number) =>
   bodyLimit({
     maxSize: mb * MB,
-    onError: (c) => c.json({ error: "Förfrågan är för stor." }, 413),
+    onError: (c) =>
+      c.json({ error: uiError(resolveUiLocale(c), "requestTooLarge") }, 413),
   });
 
 // Ett enda tak per request. Registrerar vi flera `app.use` körs de alla, och

@@ -1,12 +1,16 @@
 "use client";
 
-import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AreaTrend } from "./area-trend";
 import { useStats, buildDailyAxis } from "./use-stats";
 import { formatKr } from "./theme";
+import { LocaleLink } from "@/components/locale-link";
+import { useLocale } from "@/i18n/locale-context";
+import { fundraisingPages } from "@/i18n/dictionaries/fundraising-pages";
+import { tFill } from "@/i18n/format";
+import { appCommon } from "@/i18n/dictionaries/app-common";
 
 interface MiniTrendCardProps {
   /** Stats-endpoint, t.ex. "/v1/dashboard/association/stats". */
@@ -16,6 +20,9 @@ interface MiniTrendCardProps {
 }
 
 export function MiniTrendCard({ path, href }: MiniTrendCardProps) {
+  const { locale } = useLocale();
+  const t = fundraisingPages.miniTrend[locale];
+  const dateLocale = appCommon[locale].dateLocale;
   const { data, loading } = useStats(path);
 
   return (
@@ -23,18 +30,16 @@ export function MiniTrendCard({ path, href }: MiniTrendCardProps) {
       <CardContent className="p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="font-semibold leading-tight">Försäljningstrend</h2>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Senaste 90 dagarna
-            </p>
+            <h2 className="font-semibold leading-tight">{t.title}</h2>
+            <p className="mt-0.5 text-xs text-muted-foreground">{t.last90}</p>
           </div>
-          <Link
+          <LocaleLink
             href={href}
             className="inline-flex items-center gap-1 text-xs font-medium text-brand-700 transition-colors hover:text-brand-800"
           >
-            All statistik
+            {t.allStats}
             <ArrowRight className="h-3.5 w-3.5" />
-          </Link>
+          </LocaleLink>
         </div>
 
         {loading ? (
@@ -42,20 +47,22 @@ export function MiniTrendCard({ path, href }: MiniTrendCardProps) {
         ) : data && data.totals.salesOre > 0 ? (
           <div className="mt-4">
             <p className="text-2xl font-bold tabular-nums">
-              {formatKr(data.totals.salesOre)}
+              {formatKr(data.totals.salesOre, locale)}
             </p>
             <p className="mb-2 text-xs text-muted-foreground">
-              {data.totals.orders.toLocaleString("sv-SE")} betalda ordrar
+              {tFill(t.paidOrders, {
+                n: data.totals.orders.toLocaleString(dateLocale),
+              })}
             </p>
             <AreaTrend
               points={buildDailyAxis(data.daily, data.periodStart, data.periodEnd).sales}
-              format={formatKr}
+              format={(ore) => formatKr(ore, locale)}
               height={140}
             />
           </div>
         ) : (
           <p className="mt-5 rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-            Trenden visas när ni fått era första betalda ordrar.
+            {t.empty}
           </p>
         )}
       </CardContent>

@@ -2,15 +2,18 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import Link from "next/link";
 import type { CalculatorInputs, CalculatorResult } from "@roots/contracts";
 import { RevenueCalculator } from "@/components/calculator/revenue-calculator";
 import { RootsLogo } from "@/components/brand";
+import { LocaleLink } from "@/components/locale-link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { apiFetch } from "@/lib/api";
+import { pages } from "@/i18n/dictionaries/pages";
+import { tFill } from "@/i18n/format";
+import { useLocale } from "@/i18n/locale-context";
 import { CheckCircle2, Sparkles } from "lucide-react";
 
 interface CalcData {
@@ -22,6 +25,8 @@ interface CalcData {
 export default function PublicCalculatorPage() {
   const params = useParams<{ token: string }>();
   const token = params?.token;
+  const { locale } = useLocale();
+  const t = pages.kalkylatorShare[locale];
 
   const [data, setData] = useState<CalcData | null>(null);
   const [status, setStatus] = useState<"loading" | "ok" | "notfound">(
@@ -68,7 +73,7 @@ export default function PublicCalculatorPage() {
     e.preventDefault();
     if (!inputs) return;
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setError("Ange en giltig e-postadress.");
+      setError(t.errorInvalidEmail);
       return;
     }
     setError(null);
@@ -90,10 +95,10 @@ export default function PublicCalculatorPage() {
       if (ok) {
         setSent(true);
       } else {
-        setError(body?.error || "Något gick fel. Försök igen.");
+        setError(body?.error || t.errorGeneric);
       }
     } catch {
-      setError("Något gick fel. Försök igen.");
+      setError(t.errorGeneric);
     } finally {
       setSending(false);
     }
@@ -111,13 +116,10 @@ export default function PublicCalculatorPage() {
     return (
       <div className="mx-auto flex min-h-[60vh] max-w-md flex-col items-center justify-center px-4 text-center">
         <RootsLogo variant="auto" className="mb-6 h-8 w-20" />
-        <h1 className="text-xl font-bold">Kalkylen hittades inte</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Länken är felaktig eller borttagen. Kontakta din Roots-kontakt för en
-          ny länk.
-        </p>
+        <h1 className="text-xl font-bold">{t.notFoundTitle}</h1>
+        <p className="mt-2 text-sm text-muted-foreground">{t.notFoundBody}</p>
         <Button asChild className="mt-6" variant="secondary">
-          <Link href="/foreningsliv">Läs mer om Roots</Link>
+          <LocaleLink href="/foreningsliv">{t.readMore}</LocaleLink>
         </Button>
       </div>
     );
@@ -130,15 +132,12 @@ export default function PublicCalculatorPage() {
         <div>
           <p className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-700">
             <Sparkles className="h-4 w-4" />
-            Förtjänst-kalkyl för {data.associationName}
+            {tFill(t.badge, { name: data.associationName })}
           </p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
-            Se hur mycket {data.associationName} kan tjäna
+            {tFill(t.title, { name: data.associationName })}
           </h1>
-          <p className="mt-2 max-w-2xl text-muted-foreground">
-            Dra i reglagen och se direkt vad försäljningen kan ge er förening.
-            Justera antalet säljare och hur mycket var och en säljer för.
-          </p>
+          <p className="mt-2 max-w-2xl text-muted-foreground">{t.body}</p>
         </div>
       </header>
 
@@ -148,58 +147,51 @@ export default function PublicCalculatorPage() {
         onChange={onCalcChange}
       />
 
-      {/* Mjuk lead-capture */}
       <Card className="mt-10 border-brand-200">
         <CardContent className="p-6 sm:p-8">
           {sent ? (
             <div className="flex flex-col items-center gap-3 py-6 text-center">
               <CheckCircle2 className="h-10 w-10 text-brand-600" />
-              <h2 className="text-xl font-bold">Tack!</h2>
+              <h2 className="text-xl font-bold">{t.thanksTitle}</h2>
               <p className="max-w-md text-sm text-muted-foreground">
-                Vi hör av oss med en sammanfattning och nästa steg. Under tiden
-                kan du fortsätta räkna ovan.
+                {t.thanksBody}
               </p>
             </div>
           ) : (
             <>
-              <h2 className="text-xl font-bold">
-                Vill ni komma igång eller få en sammanfattning?
-              </h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Lämna er mejl så skickar vi en sammanfattning och hjälper er
-                igång. Inga förpliktelser.
-              </p>
+              <h2 className="text-xl font-bold">{t.leadTitle}</h2>
+              <p className="mt-1 text-sm text-muted-foreground">{t.leadBody}</p>
               <form
                 onSubmit={submitLead}
                 className="mt-5 grid gap-4 sm:grid-cols-2"
               >
                 <div className="space-y-1.5">
-                  <Label htmlFor="lead-email">E-post *</Label>
+                  <Label htmlFor="lead-email">{t.emailLabel}</Label>
                   <Input
                     id="lead-email"
                     type="email"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="namn@forening.se"
+                    placeholder={t.emailPlaceholder}
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="lead-name">Namn (valfritt)</Label>
+                  <Label htmlFor="lead-name">{t.nameLabel}</Label>
                   <Input
                     id="lead-name"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="Ditt namn"
+                    placeholder={t.namePlaceholder}
                   />
                 </div>
                 <div className="space-y-1.5 sm:col-span-2">
-                  <Label htmlFor="lead-msg">Meddelande (valfritt)</Label>
+                  <Label htmlFor="lead-msg">{t.messageLabel}</Label>
                   <Input
                     id="lead-msg"
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
-                    placeholder="Berätta gärna lite om er förening"
+                    placeholder={t.messagePlaceholder}
                     maxLength={2000}
                   />
                 </div>
@@ -211,15 +203,14 @@ export default function PublicCalculatorPage() {
                     className="mt-0.5 h-4 w-4 accent-[#6B794F]"
                   />
                   <span>
-                    Ja, ni får mejla mig om Roots för föreningar. Vi hanterar
-                    uppgifterna enligt vår{" "}
-                    <Link
+                    {t.consentBefore}
+                    <LocaleLink
                       href="/integritet"
                       className="underline underline-offset-2"
                     >
-                      integritetspolicy
-                    </Link>
-                    .
+                      {t.privacyLink}
+                    </LocaleLink>
+                    {t.consentAfter}
                   </span>
                 </label>
                 {error && (
@@ -229,7 +220,7 @@ export default function PublicCalculatorPage() {
                 )}
                 <div className="sm:col-span-2">
                   <Button type="submit" disabled={sending} size="lg">
-                    {sending ? "Skickar…" : "Skicka till mig"}
+                    {sending ? t.submitting : t.submit}
                   </Button>
                 </div>
               </form>

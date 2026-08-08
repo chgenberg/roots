@@ -1,17 +1,19 @@
 import type { Metadata } from "next";
+import { getAuth } from "@/i18n/get-dictionary";
+import { getRequestLocale } from "@/i18n/request-locale";
+import { pageMetadata } from "@/lib/seo";
 
-// P3.58 (audit 2026-05-26): defense-in-depth utöver robots.txt — lägg
-// noindex på själva sidan så att även rouge-crawlers som ignorerar
-// robots.txt får tagg-baserad signal.
-export const metadata: Metadata = {
-  title: "Logga in",
-  description: "Logga in på Roots-portalen för att hantera er förening, lag eller försäljning.",
-  robots: { index: false, follow: false },
-  openGraph: {
-    title: "Logga in — Roots",
-    description: "Logga in på Roots-portalen.",
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getRequestLocale();
+  const t = getAuth("login", locale);
+  return pageMetadata({
+    title: t.metaTitle,
+    description: t.metaDescription,
+    path: "/login",
+    locale,
+    noindex: true,
+  });
+}
 
 export default function LoginLayout({
   children,

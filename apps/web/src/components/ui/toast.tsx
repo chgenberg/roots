@@ -3,6 +3,8 @@
 import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { X } from "lucide-react";
+import { errors } from "@/i18n/dictionaries/errors";
+import { useLocale } from "@/i18n/locale-context";
 
 type ToastVariant = "default" | "success" | "error";
 
@@ -25,6 +27,8 @@ export function useToast() {
 }
 
 export function ToastProvider({ children }: { children: ReactNode }) {
+  const { locale } = useLocale();
+  const closeLabel = errors[locale].closeToast;
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   // P3.68 (audit 2026-05-26): tidigare auto-dismissade vi ALLA toasts
@@ -64,7 +68,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             <button
               type="button"
               onClick={() => dismiss(t.id)}
-              aria-label="Stäng meddelande"
+              aria-label={closeLabel}
               className="shrink-0 rounded-md p-0.5 opacity-60 hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <X className="h-3.5 w-3.5" />

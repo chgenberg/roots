@@ -29,12 +29,14 @@ export function titleFromNav(
   items: { href: string; label: string }[],
   fallback: string
 ): string {
-  const exact = items.find((i) => i.href === pathname);
+  // Locale-prefixed paths (`/en/portal/...`) must compare against bare hrefs.
+  const bare = pathname.replace(/^\/(en|sv)(?=\/|$)/, "") || "/";
+  const exact = items.find((i) => i.href === bare);
   if (exact) return exact.label;
   const prefix = items
     // Rot-href:en (t.ex. "/lag") är ett prefix till allting under sig och
     // hade annars alltid vunnit. Den fångas av exakt-matchningen ovan.
-    .filter((i) => i.href !== pathname && pathname.startsWith(`${i.href}/`))
+    .filter((i) => i.href !== bare && bare.startsWith(`${i.href}/`))
     .sort((a, b) => b.href.length - a.href.length)[0];
   return prefix?.label ?? fallback;
 }

@@ -17,6 +17,7 @@ import {
 } from "@roots/contracts";
 import { calculatorLeadRateLimit } from "../lib/rate-limit";
 import { childLogger } from "../lib/logger";
+import { resolveUiLocale, uiError } from "../lib/ui-locale";
 
 const log = childLogger("calculator");
 
@@ -121,19 +122,24 @@ calculator.get("/public", async (c) => {
     });
   } catch (err) {
     log.error({ err }, "public calculator fetch failed");
-    return c.json({ error: "Kunde inte hämta kalkylen" }, 500);
+    return c.json(
+      { error: uiError(resolveUiLocale(c), "calculatorFetchFailed") },
+      500
+    );
   }
 });
 
 calculator.post("/public/lead", async (c) => {
+  const locale = resolveUiLocale(c);
   const ip = clientIp(c);
   const rl = await calculatorLeadRateLimit(ip);
   if (!rl.allowed) {
     return c.json(
       {
-        error: rl.degraded
-          ? "Tjänsten är tillfälligt överbelastad. Försök igen om en stund."
-          : "Du har skickat för många förfrågningar. Försök igen senare.",
+        error: uiError(
+          locale,
+          rl.degraded ? "serviceOverloaded" : "tooManyRequests"
+        ),
         retryAfter: rl.resetInSeconds,
       },
       429
@@ -144,13 +150,19 @@ calculator.post("/public/lead", async (c) => {
   try {
     raw = await c.req.json();
   } catch {
-    return c.json({ error: "Ogiltig JSON" }, 400);
+    return c.json({ error: uiError(locale, "invalidJsonShort") }, 400);
   }
+
+  const bodyLocale =
+    raw && typeof raw === "object" && "locale" in raw
+      ? (raw as { locale?: unknown }).locale
+      : undefined;
+  const resolved = resolveUiLocale(c, bodyLocale);
 
   const parsed = CalculatorLeadSchema.safeParse(raw);
   if (!parsed.success) {
     return c.json(
-      { error: "Ogiltiga fält", issues: parsed.error.flatten() },
+      { error: uiError(resolved, "invalidFields"), issues: parsed.error.flatten() },
       400
     );
   }
@@ -158,10 +170,7 @@ calculator.post("/public/lead", async (c) => {
   try {
     const link = await getOrCreatePublicLink();
     if (!link) {
-      return c.json(
-        { error: "Lead-mottagning är inte konfigurerad. Försök igen senare." },
-        503
-      );
+      return c.json({ error: uiError(resolved, "leadNotConfigured") }, 503);
     }
 
     const result = computeCalculator(parsed.data.inputs as CalculatorInputs);
@@ -186,7 +195,7 @@ calculator.post("/public/lead", async (c) => {
       return c.json({ ok: true, deduped: true });
     }
     log.error({ err }, "public calculator lead save failed");
-    return c.json({ error: "Kunde inte skicka. Försök igen." }, 500);
+    return c.json({ error: uiError(resolved, "sendFailedRetry") }, 500);
   }
 });
 
@@ -200,9 +209,10 @@ function clientIp(c: {
 
 // ── Publik: hämta kalkyl-länkens antaganden + produktkontext ───────
 calculator.get("/by-token/:token", async (c) => {
+  const locale = resolveUiLocale(c);
   const token = c.req.param("token");
   if (!token || token.length < 8) {
-    return c.json({ error: "Ogiltig länk" }, 400);
+    return c.json({ error: uiError(locale, "invalidLink") }, 400);
   }
 
   try {
@@ -213,7 +223,7 @@ calculator.get("/by-token/:token", async (c) => {
       .limit(1);
 
     if (!link) {
-      return c.json({ error: "Kalkylen hittades inte." }, 404);
+      return c.json({ error: uiError(locale, "calculatorNotFound") }, 404);
     }
 
     // Best-effort visningsräknare — får aldrig blocka svaret.
@@ -236,12 +246,13 @@ calculator.get("/by-token/:token", async (c) => {
     });
   } catch (err) {
     log.error({ err }, "calculator by-token failed");
-    return c.json({ error: "Kunde inte hämta kalkylen" }, 500);
+    return c.json({ error: uiError(locale, "calculatorFetchFailed") }, 500);
   }
 });
 
 // ── Publik: mjuk lead-capture ──────────────────────────────────────
 calculator.post("/by-token/:token/lead", async (c) => {
+  const locale = resolveUiLocale(c);
   const token = c.req.param("token");
 
   const ip = clientIp(c);
@@ -249,9 +260,10 @@ calculator.post("/by-token/:token/lead", async (c) => {
   if (!rl.allowed) {
     return c.json(
       {
-        error: rl.degraded
-          ? "Tjänsten är tillfälligt överbelastad. Försök igen om en stund."
-          : "Du har skickat för många förfrågningar. Försök igen senare.",
+        error: uiError(
+          locale,
+          rl.degraded ? "serviceOverloaded" : "tooManyRequests"
+        ),
         retryAfter: rl.resetInSeconds,
       },
       429
@@ -262,13 +274,19 @@ calculator.post("/by-token/:token/lead", async (c) => {
   try {
     raw = await c.req.json();
   } catch {
-    return c.json({ error: "Ogiltig JSON" }, 400);
+    return c.json({ error: uiError(locale, "invalidJsonShort") }, 400);
   }
+
+  const bodyLocale =
+    raw && typeof raw === "object" && "locale" in raw
+      ? (raw as { locale?: unknown }).locale
+      : undefined;
+  const resolved = resolveUiLocale(c, bodyLocale);
 
   const parsed = CalculatorLeadSchema.safeParse(raw);
   if (!parsed.success) {
     return c.json(
-      { error: "Ogiltiga fält", issues: parsed.error.flatten() },
+      { error: uiError(resolved, "invalidFields"), issues: parsed.error.flatten() },
       400
     );
   }
@@ -281,7 +299,7 @@ calculator.post("/by-token/:token/lead", async (c) => {
       .limit(1);
 
     if (!link) {
-      return c.json({ error: "Kalkylen hittades inte." }, 404);
+      return c.json({ error: uiError(resolved, "calculatorNotFound") }, 404);
     }
 
     const result = computeCalculator(parsed.data.inputs as CalculatorInputs);
@@ -310,6 +328,6 @@ calculator.post("/by-token/:token/lead", async (c) => {
       return c.json({ ok: true, deduped: true });
     }
     log.error({ err }, "calculator lead save failed");
-    return c.json({ error: "Kunde inte skicka. Försök igen." }, 500);
+    return c.json({ error: uiError(resolved, "sendFailedRetry") }, 500);
   }
 });

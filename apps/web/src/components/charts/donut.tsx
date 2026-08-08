@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { seriesColor } from "./theme";
+import { useLocale } from "@/i18n/locale-context";
+import { fundraisingPages } from "@/i18n/dictionaries/fundraising-pages";
 
 export interface DonutSlice {
   label: string;
@@ -28,6 +30,8 @@ export function Donut({
   format,
   size = 168,
 }: DonutProps) {
+  const { locale } = useLocale();
+  const chartAria = fundraisingPages.stats[locale].chartSplitAria;
   const [hover, setHover] = useState<number | null>(null);
   const total = data.reduce((s, d) => s + d.value, 0) || 1;
 
@@ -52,7 +56,7 @@ export function Donut({
         height={size}
         viewBox="0 0 160 160"
         role="img"
-        aria-label="Fördelning"
+        aria-label={chartAria}
         className="shrink-0"
       >
         <g transform="rotate(-90 80 80)">

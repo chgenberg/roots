@@ -1,7 +1,12 @@
 "use client";
 
+import { useLocale } from "@/i18n/locale-context";
+import { fundraisingPages } from "@/i18n/dictionaries/fundraising-pages";
+import { tFill } from "@/i18n/format";
+import { appCommon } from "@/i18n/dictionaries/app-common";
+import { LocaleLink } from "@/components/locale-link";
+
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,7 +19,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import type { AssociationDashboard, Campaign, Team } from "@/types/fundraising";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, rootsFetch } from "@/lib/api";
 import { useToast } from "@/components/ui/toast";
 import { getBrowserApiBase } from "@/lib/api-base";
 import { formatKr, formatKrValue, pluralSv } from "@/lib/format";
@@ -35,23 +40,9 @@ type PayoutRow = {
   paymentReference?: string | null;
 };
 
-function statusLabel(status: string): string {
-  switch (status) {
-    case "PENDING":
-      return "Väntar på utbetalning";
-    case "INVOICED":
-      return "Fakturerad";
-    case "PAID":
-      return "Utbetald";
-    case "ACTIVE":
-      return "Pågår";
-    case "ENDED":
-      return "Avslutad";
-    case "SETTLED":
-      return "Avräknad";
-    default:
-      return status;
-  }
+function statusLabel(status: string, locale: "sv" | "en"): string {
+  const labels = fundraisingPages.payoutStatus[locale] as Record<string, string>;
+  return labels[status] ?? status;
 }
 
 function statusVariant(
@@ -72,6 +63,11 @@ function statusVariant(
 }
 
 export default function SettlementPage() {
+  const { locale, href } = useLocale();
+  const t = fundraisingPages.settlement[locale];
+  const c = fundraisingPages.common[locale];
+  const dateLocale = appCommon[locale].dateLocale;
+
   const { toast } = useToast();
   const [data, setData] = useState<AssociationDashboard | null>(null);
   const [payouts, setPayouts] = useState<PayoutRow[]>([]);
@@ -83,7 +79,7 @@ export default function SettlementPage() {
   const load = useCallback(async () => {
     try {
       const [dashRes, payRes, orgRes] = await Promise.all([
-        fetch(`${API_URL}/v1/dashboard/association`, { credentials: "include" }),
+        rootsFetch(`${API_URL}/v1/dashboard/association`),
         apiFetch<{ payouts?: PayoutRow[] }>("/v1/payouts/mine"),
         apiFetch<{ organization?: { orgNumber?: string | null } }>(
           "/v1/association/org"
@@ -94,13 +90,13 @@ export default function SettlementPage() {
         setData(await dashRes.json());
         setError(null);
       } else {
-        setError("Kunde inte hämta avräkningsdata. Försök igen.");
+        setError(t.loadFailed);
       }
 
       if (payRes.ok) setPayouts(payRes.data.payouts ?? []);
       if (orgRes.ok) setOrgNumber(orgRes.data.organization?.orgNumber ?? null);
     } catch {
-      setError("Ett nätverksfel uppstod. Försök igen.");
+      setError(c.networkError);
     } finally {
       setLoading(false);
     }
@@ -112,9 +108,7 @@ export default function SettlementPage() {
 
   async function endCampaign(campaignId: string, name: string) {
     if (
-      !window.confirm(
-        `Avsluta kampanjen "${name}"? Efteråt kan ni generera avräkning. Butiken stängs för nya ordrar i den här kampanjen.`
-      )
+      !window.confirm(tFill(t.confirmEnd, { name }))
     ) {
       return;
     }
@@ -125,10 +119,10 @@ export default function SettlementPage() {
         { method: "POST", body: {} }
       );
       if (!res.ok) {
-        toast(res.data?.error || "Kunde inte avsluta kampanjen.", "error");
+        toast(res.data?.error || t.endFailed, "error");
         return;
       }
-      toast("Kampanjen är avslutad. Ni kan nu generera avräkning.", "success");
+      toast(t.endedToast, "success");
       await load();
     } finally {
       setActingId(null);
@@ -137,9 +131,7 @@ export default function SettlementPage() {
 
   async function generateSettlement(campaignId: string) {
     if (
-      !window.confirm(
-        "Generera avräkning? Vi räknar ut föreningens andel per lag utifrån er marginal."
-      )
+      !window.confirm(t.confirmGenerate)
     ) {
       return;
     }
@@ -150,10 +142,10 @@ export default function SettlementPage() {
         { method: "POST", body: {} }
       );
       if (!res.ok) {
-        toast(res.data?.error || "Avräkningen misslyckades.", "error");
+        toast(res.data?.error || t.generateFailed, "error");
         return;
       }
-      toast("Avräkningen är klar. Roots hanterar utbetalningen.", "success");
+      toast(t.generateOk, "success");
       await load();
     } finally {
       setActingId(null);
@@ -173,7 +165,7 @@ export default function SettlementPage() {
       <div className="flex flex-col items-center justify-center gap-3 py-20">
         <p className="text-sm text-destructive">{error}</p>
         <Button variant="outline" onClick={() => window.location.reload()}>
-          Försök igen
+          {c.retry}
         </Button>
       </div>
     );
@@ -198,9 +190,9 @@ export default function SettlementPage() {
   return (
     <div className="page-enter space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Avräkning</h1>
+        <h1 className="text-2xl font-bold">{t.title}</h1>
         <p className="text-sm text-muted-foreground">
-          Avsluta kampanj → generera avräkning → Roots betalar ut er andel.
+          {t.subtitle}
         </p>
       </div>
 
@@ -211,19 +203,18 @@ export default function SettlementPage() {
               <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-warning-strong" />
               <div>
                 <p className="font-semibold text-warning-strong">
-                  Organisationsnummer saknas
+                  {t.missingOrgTitle}
                 </p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Fyll i det under Inställningar innan vi kan fakturera och
-                  betala ut.
+                  {t.missingOrgBody}
                 </p>
               </div>
             </div>
             <Button size="sm" asChild>
-              <Link href="/installningar">
-                Fyll i nu
+              <LocaleLink href="/installningar">
+                {t.fillNow}
                 <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
+              </LocaleLink>
             </Button>
           </CardContent>
         </Card>
@@ -234,41 +225,41 @@ export default function SettlementPage() {
           <CardContent className="p-5">
             <div className="mb-1 flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-brand-500" />
-              <p className="text-sm text-muted-foreground">Total försäljning</p>
+              <p className="text-sm text-muted-foreground">{c.totalSales}</p>
             </div>
-            <p className="text-2xl font-bold">{formatKrValue(totalSales)} kr</p>
+            <p className="text-2xl font-bold">{formatKr(totalSales, locale)}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">Föreningens intjänat</p>
+            <p className="text-sm text-muted-foreground">{t.clubEarned}</p>
             <p className="text-2xl font-bold text-success">
-              {formatKrValue(teamShare)} kr
+              {formatKr(teamShare, locale)}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              {marginPercent}% marginal
+              {tFill(c.percentMargin, { n: marginPercent })}
             </p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">Roots andel</p>
-            <p className="text-2xl font-bold">{formatKrValue(rootsShare)} kr</p>
+            <p className="text-sm text-muted-foreground">{t.rootsShare}</p>
+            <p className="text-2xl font-bold">{formatKr(rootsShare, locale)}</p>
           </CardContent>
         </Card>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Kampanjer</CardTitle>
+          <CardTitle className="text-base">{t.campaigns}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           {activeOrEnded.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Ingen kampanj ännu.{" "}
-              <Link href="/forening" className="underline underline-offset-4">
-                Starta er första kampanj
-              </Link>
+              {t.noCampaignYet}{" "}
+              <LocaleLink href="/forening" className="underline underline-offset-4">
+                {t.startFirstCampaign}
+              </LocaleLink>
               .
             </p>
           ) : (
@@ -283,12 +274,14 @@ export default function SettlementPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-medium">{c.name}</p>
                       <Badge variant={statusVariant(c.status)}>
-                        {statusLabel(c.status)}
+                        {statusLabel(c.status, locale)}
                       </Badge>
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Marginal {c.marginPercent}%
-                      {c.endDate ? ` · Slutdatum ${c.endDate}` : ""}
+                      {tFill(t.marginLabel, { n: c.marginPercent })}
+                      {c.endDate
+                        ? ` · ${tFill(t.endDateLabel, { date: c.endDate })}`
+                        : ""}
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -303,7 +296,7 @@ export default function SettlementPage() {
                         {busy && (
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         )}
-                        Avsluta kampanj
+                        {t.endCampaign}
                       </Button>
                     )}
                     {c.status === "ENDED" && (
@@ -316,13 +309,13 @@ export default function SettlementPage() {
                         {busy && (
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         )}
-                        Generera avräkning
+                        {t.generateSettlement}
                       </Button>
                     )}
                     {c.status === "SETTLED" && (
                       <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
                         <CheckCircle2 className="h-4 w-4 text-success" />
-                        Avräknad
+                        {statusLabel("SETTLED", locale)}
                       </span>
                     )}
                   </div>
@@ -337,14 +330,13 @@ export default function SettlementPage() {
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <CreditCard className="h-4 w-4" />
-            Utbetalningar
+            {t.payouts}
           </CardTitle>
         </CardHeader>
         <CardContent>
           {payouts.length === 0 ? (
             <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
-              När ni genererat avräkning syns utbetalningarna här. Roots
-              markerar dem som utbetalda när pengarna skickats.
+              {t.payoutsEmpty}
             </p>
           ) : (
             <div className="space-y-3">
@@ -355,17 +347,19 @@ export default function SettlementPage() {
                 >
                   <div>
                     <p className="text-sm font-medium">
-                      {p.campaignName || "Kampanj"}
+                      {p.campaignName || c.campaignFallback}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      Er andel {formatKr(p.teamShareOre)}
+                      {tFill(t.yourShare, {
+                        amount: formatKr(p.teamShareOre, locale),
+                      })}
                       {p.paymentReference
                         ? ` · Ref ${p.paymentReference}`
                         : ""}
                     </p>
                   </div>
                   <Badge variant={statusVariant(p.status)}>
-                    {statusLabel(p.status)}
+                    {statusLabel(p.status, locale)}
                   </Badge>
                 </div>
               ))}
@@ -376,11 +370,11 @@ export default function SettlementPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Per lag (live)</CardTitle>
+          <CardTitle className="text-base">{t.perTeamLive}</CardTitle>
         </CardHeader>
         <CardContent>
           {teams.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Inga lag ännu.</p>
+            <p className="text-sm text-muted-foreground">{c.noTeamsYet}</p>
           ) : (
             <div className="space-y-3">
               {teams.map((team: Team) => {
@@ -395,15 +389,15 @@ export default function SettlementPage() {
                     <div>
                       <p className="text-sm font-medium">{team.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        {pluralSv(team.orderCount, "order", "ordrar")}
+                        {pluralSv(team.orderCount, c.orderSingular, c.orderPlural)}
                       </p>
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-semibold">
-                        {formatKrValue(team.totalSalesOre)} kr
+                        {formatKr(team.totalSalesOre, locale)}
                       </p>
                       <p className="text-xs text-success">
-                        +{formatKrValue(teamEarned)} kr
+                        +{formatKr(teamEarned, locale)}
                       </p>
                     </div>
                   </div>

@@ -1362,6 +1362,180 @@ def r_skarm(slide, spec: Slide, ctx: Ctx):
     footer(slide, ctx.deck_name, ctx.page)
 
 
+def r_phones(slide, spec: Slide, ctx: Ctx):
+    """2–3 mobilskärmar sida vid sida — en roll, flera steg i fickan.
+
+    `images` är filnamn under `_assets/skarm/` (porträtt). `items` är etiketter
+    under respektive telefon. Färre bilder ger större telefoner.
+    """
+    background(slide)
+    y = title_block(slide, spec, base_pt=28, gap=0.04)
+
+    rels = list(spec.images[:3])
+    labels = list(spec.items[: len(rels)])
+    while len(labels) < len(rels):
+        labels.append("")
+
+    n = max(1, len(rels))
+    gap = 0.50 if n <= 2 else 0.36
+    col_w = (CONTENT_W - gap * (n - 1)) / n
+    floor = FOOTER_Y - (0.68 if spec.caption else 0.28)
+    label_h = 0.34 if any(labels) else 0.0
+    frame_h = min(5.05 if n <= 2 else 4.75, floor - y - label_h - 0.08)
+
+    bezel = 0.10
+    for i, rel in enumerate(rels):
+        x = MARGIN + i * (col_w + gap)
+        img = screenshot_path(rel, 0.0)
+        # Två telefoner får vara bredare; tre håller klassisk proportion.
+        phone_w = min(col_w * 0.92, frame_h * (0.58 if n <= 2 else 0.50))
+        phone_h = frame_h
+        px = x + (col_w - phone_w) / 2
+
+        rrect(slide, px, y, phone_w, phone_h, INK, None, radius=0.12)
+        sx = px + bezel
+        sy = y + bezel + 0.07
+        sw = phone_w - 2 * bezel
+        sh = phone_h - 2 * bezel - 0.14
+        rrect(slide, sx, sy, sw, sh, WHITE, None, radius=0.055)
+
+        if img:
+            iw, ih = Image.open(img).size
+            draw_w = sw
+            draw_h = draw_w * ih / iw
+            if draw_h > sh:
+                draw_h = sh
+                draw_w = draw_h * iw / ih
+            pic_x = sx + (sw - draw_w) / 2
+            pic_y = sy + (sh - draw_h) / 2
+            slide.shapes.add_picture(img, Inches(pic_x), Inches(pic_y),
+                                     Inches(draw_w), Inches(draw_h))
+
+        rect(slide, px + phone_w / 2 - 0.26, y + phone_h - 0.13, 0.52, 0.032,
+             RGBColor(0x3A, 0x3A, 0x38))
+
+        if labels[i]:
+            lab_pt = fit_size(labels[i], col_w, 13.5, 11, 2, HEAD)
+            text(slide, x, y + phone_h + 0.12, col_w, label_h,
+                 [[(labels[i], HEAD, lab_pt, INK, False)]],
+                 align=PP_ALIGN.CENTER, space_after=0)
+
+    if spec.caption:
+        caption(slide, spec, FOOTER_Y - 0.68)
+    footer(slide, ctx.deck_name, ctx.page)
+
+
+def r_desktops(slide, spec: Slide, ctx: Ctx):
+    """Två skrivbordsskärmar sida vid sida — förening / lagledare.
+
+    `images` är landskaps-PNG under `_assets/skarm/`. `items` etiketter under.
+    """
+    background(slide)
+    y = title_block(slide, spec, base_pt=28, gap=0.04)
+
+    rels = list(spec.images[:2])
+    labels = list(spec.items[: len(rels)])
+    while len(labels) < len(rels):
+        labels.append("")
+
+    n = max(1, len(rels))
+    gap = 0.34
+    col_w = (CONTENT_W - gap * (n - 1)) / n
+    floor = FOOTER_Y - (0.68 if spec.caption else 0.28)
+    label_h = 0.32 if any(labels) else 0.0
+    panel_h = min(4.55, floor - y - label_h - 0.08)
+    pad = 0.10
+
+    for i, rel in enumerate(rels):
+        x = MARGIN + i * (col_w + gap)
+        img = screenshot_path(rel, 0.22)
+        rrect(slide, x, y, col_w, panel_h, WHITE, SAND_LIGHT, radius=0.03)
+        # Tunn “browser chrome”
+        rect(slide, x, y, col_w, 0.22, SAND_100)
+        oval(slide, x + 0.14, y + 0.07, 0.08, 0.08, SAND_MED)
+        oval(slide, x + 0.28, y + 0.07, 0.08, 0.08, SAND_MED)
+        oval(slide, x + 0.42, y + 0.07, 0.08, 0.08, SAND_LIGHT)
+
+        inner_w = col_w - 2 * pad
+        inner_h = panel_h - 0.22 - 2 * pad
+        if img:
+            iw, ih = Image.open(img).size
+            draw_w = inner_w
+            draw_h = draw_w * ih / iw
+            if draw_h > inner_h:
+                draw_h = inner_h
+                draw_w = draw_h * iw / ih
+            pic_x = x + pad + (inner_w - draw_w) / 2
+            pic_y = y + 0.22 + pad + (inner_h - draw_h) / 2
+            slide.shapes.add_picture(img, Inches(pic_x), Inches(pic_y),
+                                     Inches(draw_w), Inches(draw_h))
+
+        if labels[i]:
+            lab_pt = fit_size(labels[i], col_w, 13, 10.5, 2, HEAD)
+            text(slide, x, y + panel_h + 0.12, col_w, label_h,
+                 [[(labels[i], HEAD, lab_pt, INK, False)]],
+                 align=PP_ALIGN.CENTER, space_after=0)
+
+    if spec.caption:
+        caption(slide, spec, FOOTER_Y - 0.68)
+    footer(slide, ctx.deck_name, ctx.page)
+
+
+def r_impact(slide, spec: Slide, ctx: Ctx):
+    """Maffig säljsiffra på mörk botten — en siffra som bär hela sliden.
+
+    `title` är den stora siffran (t.ex. »35 %«), `subtitle` raden under,
+    `items` tre korta påståenden i rad, `caption` avslutningsrad.
+    """
+    background(slide, INK)
+    rect(slide, 0, 0, 0.12, SH, FOREST)
+
+    # Mjuk sandyta som ger djup utan gradient-prål.
+    rect(slide, SW - 4.2, 0, 4.2, SH, RGBColor(0x24, 0x24, 0x21))
+
+    kicker(slide, spec.kicker, x=MARGIN, y=0.78, color=OLIVE, w=CONTENT_W)
+
+    fig = spec.title or ""
+    fig_pt = fit_size(fig, CONTENT_W - 0.4, 128, 72, 1, HEAD)
+    fig_h = fig_pt * 1.05 / 72
+    text(slide, MARGIN, 1.55, CONTENT_W - 0.4, fig_h + 0.15,
+         [[(fig, HEAD, fig_pt, WHITE, False)]], space_after=0, line_spacing=0.95)
+
+    y = 1.55 + fig_h + 0.10
+    if spec.subtitle:
+        sub_pt = fit_size(spec.subtitle, 9.5, 28, 18, 2, HEAD)
+        sub_h = line_count(spec.subtitle, 9.5, sub_pt, HEAD) * sub_pt * 1.15 / 72
+        text(slide, MARGIN, y, 9.5, sub_h + 0.1,
+             [[(spec.subtitle, HEAD, sub_pt, OLIVE, False)]], space_after=0,
+             line_spacing=1.12)
+        y += sub_h + 0.28
+
+    hairline(slide, MARGIN, y, 1.8, FOREST, 0.028)
+    y += 0.42
+
+    points = [p.strip() for p in spec.items if p.strip()][:3]
+    if points:
+        gap = 0.28
+        col_w = (CONTENT_W - gap * (len(points) - 1)) / len(points)
+        for i, point in enumerate(points):
+            x = MARGIN + i * (col_w + gap)
+            # Numerisk chip
+            oval(slide, x, y + 0.06, 0.28, 0.28, FOREST)
+            text(slide, x, y + 0.08, 0.28, 0.24,
+                 [[(f"{i + 1}", BODY, 10, WHITE, True)]],
+                 align=PP_ALIGN.CENTER, space_after=0)
+            body_pt = fit_size(point, col_w - 0.10, 14.5, 11, 3)
+            text(slide, x, y + 0.48, col_w, 1.35,
+                 [[(point, BODY, body_pt, SAND_LIGHT, False)]],
+                 space_after=0, line_spacing=1.32)
+
+    if spec.caption:
+        text(slide, MARGIN, FOOTER_Y - 0.55, CONTENT_W, 0.35,
+             [[(spec.caption, BODY, 12.5, OLIVE, False)]], space_after=0)
+
+    footer(slide, ctx.deck_name, ctx.page, light=True)
+
+
 def r_team(slide, spec: Slide, ctx: Ctx):
     """Teamgrid: enhetliga porträtt med namn under.
 
@@ -1440,6 +1614,9 @@ RENDERERS = {
     "story": r_story,
     "pitch": r_pitch,
     "skarm": r_skarm,
+    "phones": r_phones,
+    "desktops": r_desktops,
+    "impact": r_impact,
     "bignumber": r_bignumber,
     "words": r_words,
     "calc": r_calc,

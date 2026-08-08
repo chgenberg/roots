@@ -39,6 +39,11 @@ import {
 } from "@roots/db/schema";
 import { requireSession } from "../lib/http-session";
 import { childLogger } from "../lib/logger";
+import {
+  resolveUiLocale,
+  uiError,
+  type UiLocale,
+} from "../lib/ui-locale";
 
 const log = childLogger("notifications");
 
@@ -62,13 +67,74 @@ interface NotificationItem {
 const LOOKBACK_DAYS = 30;
 const FEED_LIMIT = 20;
 
-function formatSek(ore: number): string {
-  return `${Math.round(ore / 100).toLocaleString("sv-SE")} kr`;
+const NOTIF_COPY = {
+  sv: {
+    fetchFailed: "Kunde inte hämta aviseringar",
+    sellerPaid: (name: string, amount: string) =>
+      `${name} betalade ${amount}`,
+    sellerNew: (name: string) => `Ny beställning från ${name}`,
+    status: (status: string) => `Status: ${status}`,
+    teamPaid: (amount: string) => `Beställning betald: ${amount}`,
+    teamNew: "Ny beställning till laget",
+    customerStatus: (name: string, status: string) =>
+      `${name} (${status})`,
+    orgPaid: (amount: string) => `Beställning betald: ${amount}`,
+    orgNew: "Ny beställning i föreningen",
+    teamClaimed: (teamName: string) =>
+      `Lagansvarig anslöt sig: ${teamName}`,
+    teamClaimedBody: "Laget är nu aktivt och kan bjuda in säljare.",
+    invoicePaid: (amount: string) => `Faktura betald: ${amount}`,
+    invoiceIssued: (amount: string) => `Faktura skickad: ${amount}`,
+    fortnoxInvoice: (id: string) => `Fortnox-fakt. #${id}`,
+    orderShort: (id: string) => `Order #${id}`,
+    newLead: (name: string) => `Nytt lead: ${name}`,
+    leadSource: (source: string) => `Källa: ${source}`,
+    incomingProspect: "Inkommande prospekt",
+    calcLeadPublic: "Ny lead från webbkalkylatorn",
+    calcLead: (name: string) => `Ny kalkyl-lead: ${name}`,
+    publicWebAssociation: "Öppen kalkylator (webbplatsen)",
+  },
+  en: {
+    fetchFailed: "Could not fetch notifications",
+    sellerPaid: (name: string, amount: string) =>
+      `${name} paid ${amount}`,
+    sellerNew: (name: string) => `New order from ${name}`,
+    status: (status: string) => `Status: ${status}`,
+    teamPaid: (amount: string) => `Order paid: ${amount}`,
+    teamNew: "New order for the team",
+    customerStatus: (name: string, status: string) =>
+      `${name} (${status})`,
+    orgPaid: (amount: string) => `Order paid: ${amount}`,
+    orgNew: "New order in the club",
+    teamClaimed: (teamName: string) =>
+      `Team leader joined: ${teamName}`,
+    teamClaimedBody: "The team is now active and can invite sellers.",
+    invoicePaid: (amount: string) => `Invoice paid: ${amount}`,
+    invoiceIssued: (amount: string) => `Invoice sent: ${amount}`,
+    fortnoxInvoice: (id: string) => `Fortnox inv. #${id}`,
+    orderShort: (id: string) => `Order #${id}`,
+    newLead: (name: string) => `New lead: ${name}`,
+    leadSource: (source: string) => `Source: ${source}`,
+    incomingProspect: "Incoming prospect",
+    calcLeadPublic: "New lead from the web calculator",
+    calcLead: (name: string) => `New calculator lead: ${name}`,
+    publicWebAssociation: "Open calculator (website)",
+  },
+} as const;
+
+function formatSek(ore: number, locale: UiLocale): string {
+  const amount = Math.round(ore / 100).toLocaleString(
+    locale === "en" ? "en-GB" : "sv-SE"
+  );
+  return locale === "en" ? `${amount} SEK` : `${amount} kr`;
 }
 
 notifications.get("/", async (c) => {
+  const locale = resolveUiLocale(c);
+  const t = NOTIF_COPY[locale];
+
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
 
   const since = new Date(Date.now() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
   const items: NotificationItem[] = [];
@@ -99,9 +165,9 @@ notifications.get("/", async (c) => {
             type: r.status === "PAID" ? "ORDER_PAID" : "ORDER_NEW",
             title:
               r.status === "PAID"
-                ? `${r.customerName} betalade ${formatSek(r.totalOre)}`
-                : `Ny beställning från ${r.customerName}`,
-            body: `Status: ${r.status.toLowerCase()}`,
+                ? t.sellerPaid(r.customerName, formatSek(r.totalOre, locale))
+                : t.sellerNew(r.customerName),
+            body: t.status(r.status.toLowerCase()),
             createdAt: r.createdAt.toISOString(),
             href: "/min-shop/bestallningar",
           });
@@ -134,9 +200,9 @@ notifications.get("/", async (c) => {
             type: r.status === "PAID" ? "ORDER_PAID" : "ORDER_NEW",
             title:
               r.status === "PAID"
-                ? `Beställning betald: ${formatSek(r.totalOre)}`
-                : `Ny beställning till laget`,
-            body: `${r.customerName} (${r.status.toLowerCase()})`,
+                ? t.teamPaid(formatSek(r.totalOre, locale))
+                : t.teamNew,
+            body: t.customerStatus(r.customerName, r.status.toLowerCase()),
             createdAt: r.createdAt.toISOString(),
             href: "/lag/bestallningar",
           });
@@ -163,9 +229,9 @@ notifications.get("/", async (c) => {
           type: r.status === "PAID" ? "ORDER_PAID" : "ORDER_NEW",
           title:
             r.status === "PAID"
-              ? `Beställning betald: ${formatSek(r.totalOre)}`
-              : `Ny beställning i föreningen`,
-          body: `${r.customerName} (${r.status.toLowerCase()})`,
+              ? t.orgPaid(formatSek(r.totalOre, locale))
+              : t.orgNew,
+          body: t.customerStatus(r.customerName, r.status.toLowerCase()),
           createdAt: r.createdAt.toISOString(),
           href: "/forening",
         });
@@ -184,14 +250,14 @@ notifications.get("/", async (c) => {
         )
         .orderBy(desc(teamInvites.usedAt))
         .limit(10);
-      for (const c of claims) {
-        if (!c.usedAt) continue;
+      for (const claim of claims) {
+        if (!claim.usedAt) continue;
         items.push({
-          id: `claim:${c.id}`,
+          id: `claim:${claim.id}`,
           type: "TEAM_INVITE_CLAIMED",
-          title: `Lagansvarig anslöt sig: ${c.teamName}`,
-          body: "Laget är nu aktivt och kan bjuda in säljare.",
-          createdAt: c.usedAt.toISOString(),
+          title: t.teamClaimed(claim.teamName),
+          body: t.teamClaimedBody,
+          createdAt: claim.usedAt.toISOString(),
           href: "/forening/lag",
         });
       }
@@ -220,11 +286,11 @@ notifications.get("/", async (c) => {
           type: r.invoiceStatus === "PAID" ? "INVOICE_PAID" : "INVOICE_ISSUED",
           title:
             r.invoiceStatus === "PAID"
-              ? `Faktura betald: ${formatSek(r.totalOre)}`
-              : `Faktura skickad: ${formatSek(r.totalOre)}`,
+              ? t.invoicePaid(formatSek(r.totalOre, locale))
+              : t.invoiceIssued(formatSek(r.totalOre, locale)),
           body: r.fortnoxInvoiceId
-            ? `Fortnox-fakt. #${r.fortnoxInvoiceId}`
-            : `Order #${r.id.slice(0, 8)}`,
+            ? t.fortnoxInvoice(r.fortnoxInvoiceId)
+            : t.orderShort(r.id.slice(0, 8)),
           createdAt: r.createdAt.toISOString(),
           href: "/portal/fakturor",
         });
@@ -257,10 +323,10 @@ notifications.get("/", async (c) => {
         items.push({
           id: `lead:${r.id}`,
           type: "AUDIT_EVENT",
-          title: `Nytt lead: ${r.name}`,
+          title: t.newLead(r.name),
           body: r.leadSource
-            ? `Källa: ${r.leadSource.toLowerCase()}`
-            : "Inkommande prospekt",
+            ? t.leadSource(r.leadSource.toLowerCase())
+            : t.incomingProspect,
           createdAt: r.createdAt.toISOString(),
           href: "/portal/pipeline",
         });
@@ -289,7 +355,9 @@ notifications.get("/", async (c) => {
         // Leads från den öppna webbkalkylatorn hör inte till någon enskild
         // säljare (sentinel-länk) → visa dem för alla sälj-roller, inte bara
         // länkägaren. Övriga leads filtreras per ägare för SALES_REP.
-        const isPublicWeb = r.associationName === "Öppen kalkylator (webbplatsen)";
+        // Match stored Swedish sentinel name regardless of UI locale.
+        const isPublicWeb =
+          r.associationName === NOTIF_COPY.sv.publicWebAssociation;
         if (
           !isPublicWeb &&
           session.role === "SALES_REP" &&
@@ -301,8 +369,8 @@ notifications.get("/", async (c) => {
           id: `calc-lead:${r.id}`,
           type: "AUDIT_EVENT",
           title: isPublicWeb
-            ? "Ny lead från webbkalkylatorn"
-            : `Ny kalkyl-lead: ${r.associationName}`,
+            ? t.calcLeadPublic
+            : t.calcLead(r.associationName),
           body: r.contactName ? `${r.contactName} · ${r.email}` : r.email,
           createdAt: r.createdAt.toISOString(),
           href: "/portal/raknesnurra",
@@ -357,6 +425,6 @@ notifications.get("/", async (c) => {
     });
   } catch (err) {
     log.error({ err, role: session.role }, "notifications fetch failed");
-    return c.json({ error: "Kunde inte hämta aviseringar" }, 500);
+    return c.json({ error: t.fetchFailed }, 500);
   }
 });

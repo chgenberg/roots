@@ -2,7 +2,23 @@ const OPENAI_BASE_URL =
   process.env.OPENAI_BASE_URL || "https://api.openai.com";
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
 const OPENAI_MODEL = process.env.OPENAI_DEFAULT_MODEL || "gpt-5.4-mini";
+/**
+ * Public marketing chat model.
+ * Prefer OPENAI_PUBLIC_CHAT_MODEL (e.g. claude-sonnet-5 on a compatible
+ * gateway). Fall back to OPENAI_DEFAULT_MODEL so prod OpenAI stays working
+ * when the Sonnet override is not set.
+ */
+export const PUBLIC_CHAT_MODEL =
+  process.env.OPENAI_PUBLIC_CHAT_MODEL ||
+  process.env.OPENAI_DEFAULT_MODEL ||
+  "gpt-5.4-mini";
 const TIMEOUT_MS = Number(process.env.OPENAI_MCP_TIMEOUT_MS) || 10000;
+
+export interface ChatCompletionOptions {
+  model?: string;
+  /** Override default request timeout (ms). */
+  timeoutMs?: number;
+}
 
 export interface ChatMessage {
   role: "user" | "assistant" | "system";
@@ -103,19 +119,22 @@ async function postWithRetry(
 }
 
 export async function chatCompletion(
-  messages: ChatMessage[]
+  messages: ChatMessage[],
+  options: ChatCompletionOptions = {}
 ): Promise<AiResponse> {
   if (!isAiConfigured()) {
     throw new Error("OpenAI is not configured");
   }
 
+  const model = options.model || OPENAI_MODEL;
+  const timeoutMs = options.timeoutMs ?? TIMEOUT_MS;
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const res = await postWithRetry(
       {
-        model: OPENAI_MODEL,
+        model,
         messages,
         max_completion_tokens: 1024,
       },
@@ -125,7 +144,7 @@ export async function chatCompletion(
     const data = await res.json();
     return {
       content: data.choices?.[0]?.message?.content || "",
-      model: data.model || OPENAI_MODEL,
+      model: data.model || model,
       usage: data.usage
         ? {
             promptTokens: data.usage.prompt_tokens,
@@ -161,16 +180,19 @@ export async function* chatCompletionStream(
   // funktionen. Vi ber OpenAI om ett avslutande usage-chunk och
   // rapporterar det via callback — även vid abort, för de tokens är
   // redan betalda.
-  onUsage?: (usage: StreamUsage) => void
+  onUsage?: (usage: StreamUsage) => void,
+  options: ChatCompletionOptions = {}
 ): AsyncGenerator<string> {
   if (!isAiConfigured()) {
     throw new Error("OpenAI is not configured");
   }
 
+  const model = options.model || OPENAI_MODEL;
+  const timeoutMs = options.timeoutMs ?? TIMEOUT_MS * 3;
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS * 3);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   const onUpstreamAbort = () => controller.abort();
-  let reportedModel = OPENAI_MODEL;
+  let reportedModel = model;
   let promptTokens: number | undefined;
   let completionTokens: number | undefined;
   let streamedChars = 0;
@@ -187,7 +209,7 @@ export async function* chatCompletionStream(
         Authorization: `Bearer ${OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
-        model: OPENAI_MODEL,
+        model,
         messages,
         max_completion_tokens: 1024,
         stream: true,

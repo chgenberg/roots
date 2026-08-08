@@ -25,6 +25,8 @@ import { stockholmDateIso } from "../lib/date";
 import { auditLog, requestContext } from "../lib/audit";
 import { resolveCampaignCatalog } from "../lib/campaign-catalog";
 import { validatePassword } from "./auth";
+import { resolveUiLocale, uiError } from "../lib/ui-locale";
+import { localizedProductName } from "../lib/product-i18n";
 
 const ARGON2_OPTIONS = {
   memoryCost: 19456,
@@ -151,14 +153,15 @@ async function weekdaySeries(scope: ReturnType<typeof and> | undefined) {
 
 dashboard.get("/association", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
-  if (!session.orgId) return c.json({ error: "Ingen organisation" }, 403);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
+  if (!session.orgId) return c.json({ error: uiError(locale, "noOrganisation") }, 403);
 
   if (
     session.role !== "ASSOCIATION_ADMIN" &&
     session.role !== "INTERNAL_ADMIN"
   ) {
-    return c.json({ error: "Behörighet saknas" }, 403);
+    return c.json({ error: uiError(locale, "permissionDenied") }, 403);
   }
 
   const orgId = session.orgId;
@@ -242,7 +245,7 @@ dashboard.get("/association", async (c) => {
     });
   } catch (err) {
     log.error({ err }, "Failed to fetch association dashboard");
-    return c.json({ error: "Kunde inte hämta data" }, 500);
+    return c.json({ error: uiError(locale, "couldNotFetchData") }, 500);
   }
 });
 
@@ -252,17 +255,18 @@ dashboard.get("/association", async (c) => {
 // with the tRPC `campaigns.setGoal` path that already exists.
 dashboard.patch("/association/team-goals", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
-  if (!session.orgId) return c.json({ error: "Ingen organisation" }, 403);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
+  if (!session.orgId) return c.json({ error: uiError(locale, "noOrganisation") }, 403);
   if (
     session.role !== "ASSOCIATION_ADMIN" &&
     session.role !== "INTERNAL_ADMIN"
   ) {
-    return c.json({ error: "Behörighet saknas" }, 403);
+    return c.json({ error: uiError(locale, "permissionDenied") }, 403);
   }
   // P3.29 (audit 2026-05-26): demo-konton ska inte muta:a DB.
   if (isDemoSession(session)) {
-    return c.json({ error: "Demo-konton kan inte ändra lagmål." }, 403);
+    return c.json({ error: uiError(locale, "demoCannotChangeTeamGoals") }, 403);
   }
 
   type Body = {
@@ -275,18 +279,19 @@ dashboard.patch("/association/team-goals", async (c) => {
   try {
     body = await c.req.json<Body>();
   } catch {
-    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+    return c.json({ error: uiError(locale, "invalidJson") }, 400);
   }
+  locale = resolveUiLocale(c, (body as { locale?: unknown }).locale);
 
   const teamId = (body.teamId ?? "").trim();
   const campaignId = (body.campaignId ?? "").trim();
   const goalValue = Number(body.goalValue);
   const goalType = body.goalType === "PACKAGES" ? "PACKAGES" : "AMOUNT";
   if (!teamId || !campaignId) {
-    return c.json({ error: "teamId och campaignId krävs" }, 400);
+    return c.json({ error: uiError(locale, "teamIdAndCampaignIdRequired") }, 400);
   }
   if (!Number.isFinite(goalValue) || goalValue < 0) {
-    return c.json({ error: "goalValue måste vara ett positivt tal" }, 400);
+    return c.json({ error: uiError(locale, "goalValuePositive") }, 400);
   }
 
   try {
@@ -297,19 +302,19 @@ dashboard.patch("/association/team-goals", async (c) => {
       .from(teams)
       .where(eq(teams.id, teamId))
       .limit(1);
-    if (!team) return c.json({ error: "Laget hittades inte" }, 404);
+    if (!team) return c.json({ error: uiError(locale, "teamNotFoundThe") }, 404);
     if (
       session.role !== "INTERNAL_ADMIN" &&
       team.orgId !== session.orgId
     ) {
-      return c.json({ error: "Behörighet saknas" }, 403);
+      return c.json({ error: uiError(locale, "permissionDenied") }, 403);
     }
     // Laget måste tillhöra kampanjen målet sätts för — annars kan en
     // (teamId, campaignId)-rad skapas för fel kombination och förvränga
     // statistiken.
     if (team.campaignId !== campaignId) {
       return c.json(
-        { error: "Laget tillhör inte den angivna kampanjen." },
+        { error: uiError(locale, "teamNotInCampaign") },
         400
       );
     }
@@ -319,12 +324,12 @@ dashboard.patch("/association/team-goals", async (c) => {
       .from(campaigns)
       .where(eq(campaigns.id, campaignId))
       .limit(1);
-    if (!campaign) return c.json({ error: "Kampanjen hittades inte" }, 404);
+    if (!campaign) return c.json({ error: uiError(locale, "campaignNotFoundThe") }, 404);
     if (
       session.role !== "INTERNAL_ADMIN" &&
       campaign.orgId !== session.orgId
     ) {
-      return c.json({ error: "Behörighet saknas" }, 403);
+      return c.json({ error: uiError(locale, "permissionDenied") }, 403);
     }
 
     await db
@@ -346,13 +351,14 @@ dashboard.patch("/association/team-goals", async (c) => {
     return c.json({ ok: true, teamId, campaignId, goalValue, goalType });
   } catch (err) {
     log.error({ err }, "Failed to upsert team goal");
-    return c.json({ error: "Kunde inte spara målet" }, 500);
+    return c.json({ error: uiError(locale, "couldNotSaveGoal") }, 500);
   }
 });
 
 dashboard.get("/my-team", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
 
   try {
     const [team] = await db
@@ -361,18 +367,19 @@ dashboard.get("/my-team", async (c) => {
       .where(eq(teams.leaderId, session.userId))
       .limit(1);
 
-    if (!team) return c.json({ error: "Inget lag hittades" }, 404);
+    if (!team) return c.json({ error: uiError(locale, "noTeamFound") }, 404);
 
     return c.json({ teamId: team.id });
   } catch (err) {
     log.error({ err }, "Failed to fetch my-team");
-    return c.json({ error: "Kunde inte hämta data" }, 500);
+    return c.json({ error: uiError(locale, "couldNotFetchData") }, 500);
   }
 });
 
 dashboard.get("/team/:teamId", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
 
   const teamId = c.req.param("teamId");
 
@@ -383,7 +390,7 @@ dashboard.get("/team/:teamId", async (c) => {
       .where(eq(teams.id, teamId))
       .limit(1);
 
-    if (!team) return c.json({ error: "Lag hittades inte" }, 404);
+    if (!team) return c.json({ error: uiError(locale, "teamNotFoundShort") }, 404);
 
     const hasAccess =
       session.role === "INTERNAL_ADMIN" ||
@@ -391,7 +398,7 @@ dashboard.get("/team/:teamId", async (c) => {
       (session.role === "TEAM_LEADER" && team.leaderId === session.userId);
 
     if (!hasAccess) {
-      return c.json({ error: "Behörighet saknas" }, 403);
+      return c.json({ error: uiError(locale, "permissionDenied") }, 403);
     }
 
     const sellerList = await db
@@ -514,7 +521,7 @@ dashboard.get("/team/:teamId", async (c) => {
     });
   } catch (err) {
     log.error({ err }, "Failed to fetch team dashboard");
-    return c.json({ error: "Kunde inte hämta data" }, 500);
+    return c.json({ error: uiError(locale, "couldNotFetchData") }, 500);
   }
 });
 
@@ -525,20 +532,21 @@ dashboard.get("/team/:teamId", async (c) => {
 // bug in the UI can't accidentally PATCH e.g. role or shopSlug.
 dashboard.patch("/sellers/:sellerId", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
   // MASTERPLAN_01 KC2.1: en demo-INTERNAL_ADMIN passerar role-checken
   // nedan men skulle annars kunna ändra status på en RIKTIG säljare
   // (t.ex. inaktivera dem). Stoppa innan vi rör DB.
   if (isDemoSession(session)) {
     return c.json(
-      { error: "Demoläget kan inte ändra riktiga säljare." },
+      { error: uiError(locale, "demoCannotChangeSellers") },
       403
     );
   }
 
   const sellerId = c.req.param("sellerId");
   if (!/^[0-9a-f-]{36}$/i.test(sellerId)) {
-    return c.json({ error: "Ogiltigt säljar-ID." }, 400);
+    return c.json({ error: uiError(locale, "invalidSellerId") }, 400);
   }
 
   // Sprint E12: this endpoint now also handles seller status changes
@@ -549,8 +557,9 @@ dashboard.patch("/sellers/:sellerId", async (c) => {
   try {
     body = await c.req.json();
   } catch {
-    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+    return c.json({ error: uiError(locale, "invalidJson") }, 400);
   }
+  locale = resolveUiLocale(c, (body as { locale?: unknown }).locale);
 
   const goalRaw = body.individualGoal;
   const statusRaw = body.status;
@@ -560,7 +569,7 @@ dashboard.patch("/sellers/:sellerId", async (c) => {
 
   if (!wantsGoal && !wantsStatus) {
     return c.json(
-      { error: "individualGoal eller status krävs." },
+      { error: uiError(locale, "individualGoalOrStatusRequired") },
       400
     );
   }
@@ -573,7 +582,7 @@ dashboard.patch("/sellers/:sellerId", async (c) => {
       (goalRaw as number) > 10_000_000
     ) {
       return c.json(
-        { error: "individualGoal måste vara ett heltal mellan 0 och 10 000 000 kr." },
+        { error: uiError(locale, "individualGoalRange") },
         400
       );
     }
@@ -581,7 +590,7 @@ dashboard.patch("/sellers/:sellerId", async (c) => {
 
   if (wantsStatus && statusRaw !== "ACTIVE" && statusRaw !== "INACTIVE") {
     return c.json(
-      { error: "status måste vara ACTIVE eller INACTIVE." },
+      { error: uiError(locale, "statusActiveOrInactive") },
       400
     );
   }
@@ -592,14 +601,14 @@ dashboard.patch("/sellers/:sellerId", async (c) => {
       .from(sellers)
       .where(eq(sellers.id, sellerId))
       .limit(1);
-    if (!seller) return c.json({ error: "Säljare hittades inte" }, 404);
+    if (!seller) return c.json({ error: uiError(locale, "sellerNotFound") }, 404);
 
     const [team] = await db
       .select()
       .from(teams)
       .where(eq(teams.id, seller.teamId))
       .limit(1);
-    if (!team) return c.json({ error: "Lag hittades inte" }, 404);
+    if (!team) return c.json({ error: uiError(locale, "teamNotFoundShort") }, 404);
 
     const hasAccess =
       session.role === "INTERNAL_ADMIN" ||
@@ -607,7 +616,7 @@ dashboard.patch("/sellers/:sellerId", async (c) => {
       (session.role === "TEAM_LEADER" && team.leaderId === session.userId);
 
     if (!hasAccess) {
-      return c.json({ error: "Behörighet saknas" }, 403);
+      return c.json({ error: uiError(locale, "permissionDenied") }, 403);
     }
 
     const patch: { individualGoal?: number; status?: "ACTIVE" | "INACTIVE"; updatedAt: Date } = {
@@ -629,18 +638,19 @@ dashboard.patch("/sellers/:sellerId", async (c) => {
     });
   } catch (err) {
     log.error({ err }, "Failed to update seller");
-    return c.json({ error: "Kunde inte uppdatera säljaren" }, 500);
+    return c.json({ error: uiError(locale, "couldNotUpdateSeller") }, 500);
   }
 });
 
 dashboard.post("/team/:teamId/sellers", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
   // MASTERPLAN_01 KC2.1: skapar riktig users-rad + säljare + skickar
   // welcome-email. Demo får inte trigga det.
   if (isDemoSession(session)) {
     return c.json(
-      { error: "Demoläget kan inte skapa riktiga säljare." },
+      { error: uiError(locale, "demoCannotCreateSellers") },
       403
     );
   }
@@ -651,18 +661,19 @@ dashboard.post("/team/:teamId/sellers", async (c) => {
   try {
     body = await c.req.json();
   } catch {
-    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+    return c.json({ error: uiError(locale, "invalidJson") }, 400);
   }
+  locale = resolveUiLocale(c, (body as { locale?: unknown }).locale);
 
   const { displayName, email, password } = body;
   if (!displayName || !email || !password) {
-    return c.json({ error: "Namn, e-post och lösenord krävs." }, 400);
+    return c.json({ error: uiError(locale, "nameEmailPasswordRequired") }, 400);
   }
   // Scout fix 2026-05-26 (Auth-H4): tidigare hashades lösenordet
   // direkt utan styrkekontroll, vilket lät en team-leader skapa
   // säljare med svaga lösenord (kringgår 12-tecken-policyn i
   // /auth/register + /change-password).
-  const passwordError = validatePassword(password);
+  const passwordError = validatePassword(password, locale);
   if (passwordError) {
     return c.json({ error: passwordError }, 400);
   }
@@ -674,7 +685,7 @@ dashboard.post("/team/:teamId/sellers", async (c) => {
       .where(eq(teams.id, teamId))
       .limit(1);
 
-    if (!team) return c.json({ error: "Lag hittades inte" }, 404);
+    if (!team) return c.json({ error: uiError(locale, "teamNotFoundShort") }, 404);
 
     const hasAccess =
       session.role === "INTERNAL_ADMIN" ||
@@ -682,7 +693,7 @@ dashboard.post("/team/:teamId/sellers", async (c) => {
       (session.role === "TEAM_LEADER" && team.leaderId === session.userId);
 
     if (!hasAccess) {
-      return c.json({ error: "Behörighet saknas" }, 403);
+      return c.json({ error: uiError(locale, "permissionDenied") }, 403);
     }
 
     const [existing] = await db
@@ -692,7 +703,7 @@ dashboard.post("/team/:teamId/sellers", async (c) => {
       .limit(1);
 
     if (existing) {
-      return c.json({ error: "E-postadressen är redan registrerad." }, 409);
+      return c.json({ error: uiError(locale, "emailAlreadyRegistered") }, 409);
     }
 
     const passwordHash = await hash(password, ARGON2_OPTIONS);
@@ -735,7 +746,7 @@ dashboard.post("/team/:teamId/sellers", async (c) => {
     getEmailSender()
       .sendEmail({
         to: result.user.email,
-        ...welcomeEmail(displayName, "SELLER"),
+        ...welcomeEmail(displayName, "SELLER", locale),
       })
       .catch((e) => log.error({ err: e }, "Seller invite email failed"));
 
@@ -753,7 +764,7 @@ dashboard.post("/team/:teamId/sellers", async (c) => {
     });
   } catch (err) {
     log.error({ err }, "Failed to create seller inline");
-    return c.json({ error: "Kunde inte skapa säljare." }, 500);
+    return c.json({ error: uiError(locale, "couldNotCreateSeller") }, 500);
   }
 });
 
@@ -774,29 +785,31 @@ dashboard.post("/team/:teamId/sellers", async (c) => {
  */
 dashboard.post("/team/:teamId/sellers/import", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
   if (isDemoSession(session)) {
-    return c.json({ error: "Demoläget kan inte importera säljare." }, 403);
+    return c.json({ error: uiError(locale, "demoCannotImportSellers") }, 403);
   }
 
   const teamId = c.req.param("teamId");
   if (!/^[0-9a-f-]{36}$/i.test(teamId)) {
-    return c.json({ error: "Ogiltigt lag-ID." }, 400);
+    return c.json({ error: uiError(locale, "invalidTeamId") }, 400);
   }
 
   let body: { rows?: Array<{ displayName?: string; email?: string }> };
   try {
     body = await c.req.json();
   } catch {
-    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+    return c.json({ error: uiError(locale, "invalidJson") }, 400);
   }
+  locale = resolveUiLocale(c, (body as { locale?: unknown }).locale);
 
   const rawRows = Array.isArray(body?.rows) ? body.rows : [];
   if (rawRows.length === 0) {
-    return c.json({ error: "Inga rader att importera." }, 400);
+    return c.json({ error: uiError(locale, "noRowsToImport") }, 400);
   }
   if (rawRows.length > 2000) {
-    return c.json({ error: "Max 2000 rader per import." }, 400);
+    return c.json({ error: uiError(locale, "max2000ImportRows") }, 400);
   }
 
   try {
@@ -805,13 +818,13 @@ dashboard.post("/team/:teamId/sellers/import", async (c) => {
       .from(teams)
       .where(eq(teams.id, teamId))
       .limit(1);
-    if (!team) return c.json({ error: "Lag hittades inte" }, 404);
+    if (!team) return c.json({ error: uiError(locale, "teamNotFoundShort") }, 404);
 
     const hasAccess =
       session.role === "INTERNAL_ADMIN" ||
       (session.role === "ASSOCIATION_ADMIN" && session.orgId === team.orgId) ||
       (session.role === "TEAM_LEADER" && team.leaderId === session.userId);
-    if (!hasAccess) return c.json({ error: "Behörighet saknas" }, 403);
+    if (!hasAccess) return c.json({ error: uiError(locale, "permissionDenied") }, 403);
 
     const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -836,7 +849,7 @@ dashboard.post("/team/:teamId/sellers/import", async (c) => {
           email,
           displayName,
           status: "error",
-          reason: "Namn och e-post krävs",
+          reason: uiError(locale, "importNameEmailRequired"),
         });
         continue;
       }
@@ -845,7 +858,7 @@ dashboard.post("/team/:teamId/sellers/import", async (c) => {
           email,
           displayName,
           status: "error",
-          reason: "Ogiltig e-post",
+          reason: uiError(locale, "importInvalidEmail"),
         });
         continue;
       }
@@ -854,7 +867,7 @@ dashboard.post("/team/:teamId/sellers/import", async (c) => {
           email,
           displayName,
           status: "skipped",
-          reason: "Dubblett i filen",
+          reason: uiError(locale, "importDuplicateInFile"),
         });
         continue;
       }
@@ -886,7 +899,7 @@ dashboard.post("/team/:teamId/sellers/import", async (c) => {
           email: p.email,
           displayName: p.displayName,
           status: "skipped",
-          reason: "E-post redan registrerad",
+          reason: uiError(locale, "importEmailAlreadyRegistered"),
         });
         continue;
       }
@@ -939,7 +952,7 @@ dashboard.post("/team/:teamId/sellers/import", async (c) => {
           email: p.email,
           displayName: p.displayName,
           status: "error",
-          reason: "Kunde inte skapa kontot",
+          reason: uiError(locale, "importCreateFailed"),
         });
       }
     }
@@ -947,7 +960,10 @@ dashboard.post("/team/:teamId/sellers/import", async (c) => {
     // Välkomstmail (best-effort, blockar inte svaret).
     for (const w of welcomeQueue) {
       getEmailSender()
-        .sendEmail({ to: w.email, ...welcomeEmail(w.displayName, "SELLER") })
+        .sendEmail({
+          to: w.email,
+          ...welcomeEmail(w.displayName, "SELLER", locale),
+        })
         .catch((e) => log.error({ err: e }, "Import welcome email failed"));
     }
 
@@ -961,7 +977,7 @@ dashboard.post("/team/:teamId/sellers/import", async (c) => {
     });
   } catch (err) {
     log.error({ err }, "Seller import failed");
-    return c.json({ error: "Kunde inte importera säljare." }, 500);
+    return c.json({ error: uiError(locale, "couldNotImportSellers") }, 500);
   }
 });
 
@@ -987,25 +1003,27 @@ dashboard.post("/team/:teamId/sellers/import", async (c) => {
  */
 dashboard.post("/team/:teamId/rotate-invite-token", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
   if (isDemoSession(session)) {
     return c.json(
-      { error: "Demoläget kan inte rotera riktiga invite-tokens." },
+      { error: uiError(locale, "demoCannotRotateInviteTokens") },
       403
     );
   }
 
   const teamId = c.req.param("teamId");
   if (!/^[0-9a-f-]{36}$/i.test(teamId)) {
-    return c.json({ error: "Ogiltigt lag-ID." }, 400);
+    return c.json({ error: uiError(locale, "invalidTeamId") }, 400);
   }
 
-  let body: { expiresInDays?: number; maxUses?: number } = {};
+  let body: { expiresInDays?: number; maxUses?: number; locale?: unknown } = {};
   try {
     body = await c.req.json();
   } catch {
     // Body är valfri.
   }
+  locale = resolveUiLocale(c, (body as { locale?: unknown }).locale);
 
   // expiresInDays: 0 = "ingen utgång", default 30, cap 365 för att
   // motverka oavsiktlig "evig token".
@@ -1015,7 +1033,7 @@ dashboard.post("/team/:teamId/rotate-invite-token", async (c) => {
       : 30;
   if (rawDays < 0 || rawDays > 365) {
     return c.json(
-      { error: "expiresInDays måste vara 0–365 (0 = ingen utgång)." },
+      { error: uiError(locale, "expiresInDaysRange") },
       400
     );
   }
@@ -1034,7 +1052,7 @@ dashboard.post("/team/:teamId/rotate-invite-token", async (c) => {
       rawMaxUses > 10_000
     ) {
       return c.json(
-        { error: "maxUses måste vara mellan 1 och 10000 (eller utelämnat)." },
+        { error: uiError(locale, "maxUsesRange") },
         400
       );
     }
@@ -1047,14 +1065,14 @@ dashboard.post("/team/:teamId/rotate-invite-token", async (c) => {
       .from(teams)
       .where(eq(teams.id, teamId))
       .limit(1);
-    if (!team) return c.json({ error: "Lag hittades inte" }, 404);
+    if (!team) return c.json({ error: uiError(locale, "teamNotFoundShort") }, 404);
 
     const hasAccess =
       session.role === "INTERNAL_ADMIN" ||
       (session.role === "ASSOCIATION_ADMIN" && session.orgId === team.orgId) ||
       (session.role === "TEAM_LEADER" && team.leaderId === session.userId);
     if (!hasAccess) {
-      return c.json({ error: "Behörighet saknas" }, 403);
+      return c.json({ error: uiError(locale, "permissionDenied") }, 403);
     }
 
     // 32 chars hex = 128 bits entropy. Samma form som existerande
@@ -1098,13 +1116,14 @@ dashboard.post("/team/:teamId/rotate-invite-token", async (c) => {
     });
   } catch (err) {
     log.error({ err }, "team invite-token rotate failed");
-    return c.json({ error: "Kunde inte rotera inbjudningslänken just nu." }, 500);
+    return c.json({ error: uiError(locale, "couldNotRotateInviteLink") }, 500);
   }
 });
 
 dashboard.get("/seller", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
 
   try {
     const [seller] = await db
@@ -1113,7 +1132,7 @@ dashboard.get("/seller", async (c) => {
       .where(eq(sellers.userId, session.userId))
       .limit(1);
 
-    if (!seller) return c.json({ error: "Ingen säljar-profil" }, 404);
+    if (!seller) return c.json({ error: uiError(locale, "noSellerProfile") }, 404);
 
     const [team] = await db
       .select()
@@ -1193,7 +1212,7 @@ dashboard.get("/seller", async (c) => {
     });
   } catch (err) {
     log.error({ err }, "Failed to fetch seller dashboard");
-    return c.json({ error: "Kunde inte hämta data" }, 500);
+    return c.json({ error: uiError(locale, "couldNotFetchData") }, 500);
   }
 });
 
@@ -1214,9 +1233,10 @@ dashboard.get("/seller", async (c) => {
  */
 dashboard.post("/seller/orders", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
   if (isDemoSession(session)) {
-    return c.json({ error: "Demoläget kan inte registrera riktiga ordrar." }, 403);
+    return c.json({ error: uiError(locale, "demoCannotRegisterOrders") }, 403);
   }
 
   // Rå body behövs för idempotensnyckeln — ett dubbeltryck eller en retry
@@ -1226,8 +1246,9 @@ dashboard.post("/seller/orders", async (c) => {
   try {
     body = JSON.parse(rawBody);
   } catch {
-    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+    return c.json({ error: uiError(locale, "invalidJson") }, 400);
   }
+  locale = resolveUiLocale(c, (body as { locale?: unknown }).locale);
 
   const headerKey = c.req.header("idempotency-key")?.trim() ?? "";
   const idempotencyKey = createHash("sha256")
@@ -1237,7 +1258,7 @@ dashboard.post("/seller/orders", async (c) => {
 
   const items = Array.isArray(body?.items) ? body.items : [];
   if (items.length === 0) {
-    return c.json({ error: "Minst en vara krävs." }, 400);
+    return c.json({ error: uiError(locale, "atLeastOneItemRequired") }, 400);
   }
   for (const item of items) {
     if (
@@ -1248,7 +1269,7 @@ dashboard.post("/seller/orders", async (c) => {
       item.qty > 100
     ) {
       return c.json(
-        { error: "Ogiltig vara: qty måste vara ett heltal mellan 1 och 100." },
+        { error: uiError(locale, "invalidQty") },
         400
       );
     }
@@ -1296,9 +1317,9 @@ dashboard.post("/seller/orders", async (c) => {
       .from(sellers)
       .where(eq(sellers.userId, session.userId))
       .limit(1);
-    if (!seller) return c.json({ error: "Ingen säljar-profil" }, 404);
+    if (!seller) return c.json({ error: uiError(locale, "noSellerProfile") }, 404);
     if (seller.status !== "ACTIVE") {
-      return c.json({ error: "Din säljprofil är inte aktiv." }, 403);
+      return c.json({ error: uiError(locale, "sellerProfileInactive") }, 403);
     }
 
     const [team] = await db
@@ -1306,7 +1327,7 @@ dashboard.post("/seller/orders", async (c) => {
       .from(teams)
       .where(eq(teams.id, seller.teamId))
       .limit(1);
-    if (!team) return c.json({ error: "Lag hittades inte" }, 404);
+    if (!team) return c.json({ error: uiError(locale, "teamNotFoundShort") }, 404);
 
     const [campaign] = await db
       .select()
@@ -1314,7 +1335,7 @@ dashboard.post("/seller/orders", async (c) => {
       .where(eq(campaigns.id, seller.campaignId))
       .limit(1);
     if (!campaign || campaign.status !== "ACTIVE") {
-      return c.json({ error: "Kampanjen är inte aktiv." }, 400);
+      return c.json({ error: uiError(locale, "campaignInactive") }, 400);
     }
 
     // Samma periodlogik som publika checkout (Europe/Stockholm).
@@ -1323,7 +1344,7 @@ dashboard.post("/seller/orders", async (c) => {
       campaign.startDate <= todayStr && todayStr <= campaign.endDate;
     if (!withinPeriod && !campaign.allowSalesOutsidePeriod) {
       return c.json(
-        { error: "Försäljningsperioden är inte aktiv just nu." },
+        { error: uiError(locale, "salesPeriodInactive") },
         400
       );
     }
@@ -1338,7 +1359,7 @@ dashboard.post("/seller/orders", async (c) => {
     for (const item of items) {
       const product = productMap.get(item.productId);
       if (!product) {
-        return c.json({ error: `Produkt hittades inte: ${item.productId}` }, 400);
+        return c.json({ error: uiError(locale, "productNotFoundPrefix") + item.productId }, 400);
       }
       totalOre += product.effectivePriceOre * item.qty;
       lines.push({
@@ -1348,7 +1369,7 @@ dashboard.post("/seller/orders", async (c) => {
       });
     }
     if (totalOre === 0) {
-      return c.json({ error: "Varukorgen är tom." }, 400);
+      return c.json({ error: uiError(locale, "cartEmpty") }, 400);
     }
 
     const [order] = await db.transaction(async (tx) => {
@@ -1403,7 +1424,7 @@ dashboard.post("/seller/orders", async (c) => {
     });
   } catch (err) {
     log.error({ err }, "Failed to create manual seller order");
-    return c.json({ error: "Kunde inte registrera ordern." }, 500);
+    return c.json({ error: uiError(locale, "couldNotRegisterOrder") }, 500);
   }
 });
 
@@ -1420,11 +1441,12 @@ dashboard.post("/seller/orders", async (c) => {
  */
 dashboard.get("/seller/orders/:orderId", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
 
   const orderId = c.req.param("orderId");
   if (!/^[0-9a-f-]{36}$/i.test(orderId)) {
-    return c.json({ error: "Ogiltigt order-ID." }, 400);
+    return c.json({ error: uiError(locale, "invalidOrderId") }, 400);
   }
 
   try {
@@ -1433,7 +1455,7 @@ dashboard.get("/seller/orders/:orderId", async (c) => {
       .from(customerOrders)
       .where(eq(customerOrders.id, orderId))
       .limit(1);
-    if (!order) return c.json({ error: "Order hittades inte" }, 404);
+    if (!order) return c.json({ error: uiError(locale, "orderNotFound") }, 404);
 
     const [orderSeller] = await db
       .select()
@@ -1443,7 +1465,7 @@ dashboard.get("/seller/orders/:orderId", async (c) => {
     if (!orderSeller) {
       // Defensive: an order without a seller row should not exist —
       // treat as 404 rather than leak the order's internals.
-      return c.json({ error: "Order hittades inte" }, 404);
+      return c.json({ error: uiError(locale, "orderNotFound") }, 404);
     }
 
     const [orderTeam] = await db
@@ -1463,7 +1485,7 @@ dashboard.get("/seller/orders/:orderId", async (c) => {
       session.orgId === order.orgId;
 
     if (!isOwner && !isInternalAdmin && !isTeamLeader && !isAssocAdmin) {
-      return c.json({ error: "Behörighet saknas" }, 403);
+      return c.json({ error: uiError(locale, "permissionDenied") }, 403);
     }
 
     // Load order lines + product names in one query. We intentionally
@@ -1538,7 +1560,10 @@ dashboard.get("/seller/orders/:orderId", async (c) => {
       lines: lines.map((l) => ({
         id: l.id,
         productId: l.productId,
-        productName: l.productName ?? "Okänd produkt",
+        productName: localizedProductName(locale, {
+          sku: l.productSku,
+          fallback: l.productName ?? uiError(locale, "unknownProduct"),
+        }),
         productSku: l.productSku ?? null,
         qty: l.qty,
         unitPriceOre: l.unitPriceOre,
@@ -1547,7 +1572,7 @@ dashboard.get("/seller/orders/:orderId", async (c) => {
     });
   } catch (err) {
     log.error({ err, orderId }, "Failed to fetch seller order detail");
-    return c.json({ error: "Kunde inte hämta order" }, 500);
+    return c.json({ error: uiError(locale, "couldNotFetchOrder") }, 500);
   }
 });
 
@@ -1562,26 +1587,28 @@ dashboard.get("/seller/orders/:orderId", async (c) => {
  */
 dashboard.patch("/orders/:orderId/fulfillment", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
   if (isDemoSession(session)) {
-    return c.json({ error: "Demoläget kan inte ändra leveransstatus." }, 403);
+    return c.json({ error: uiError(locale, "demoCannotChangeDelivery") }, 403);
   }
 
   const orderId = c.req.param("orderId");
   if (!/^[0-9a-f-]{36}$/i.test(orderId)) {
-    return c.json({ error: "Ogiltigt order-ID." }, 400);
+    return c.json({ error: uiError(locale, "invalidOrderId") }, 400);
   }
 
   let body: { status?: string };
   try {
     body = await c.req.json();
   } catch {
-    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+    return c.json({ error: uiError(locale, "invalidJson") }, 400);
   }
+  locale = resolveUiLocale(c, (body as { locale?: unknown }).locale);
   const status = body.status;
   if (status !== "SHIPPED" && status !== "DELIVERED" && status !== "PAID") {
     return c.json(
-      { error: "status måste vara SHIPPED, DELIVERED eller PAID." },
+      { error: uiError(locale, "statusShippedDeliveredPaid") },
       400
     );
   }
@@ -1592,7 +1619,7 @@ dashboard.patch("/orders/:orderId/fulfillment", async (c) => {
       .from(customerOrders)
       .where(eq(customerOrders.id, orderId))
       .limit(1);
-    if (!order) return c.json({ error: "Order hittades inte" }, 404);
+    if (!order) return c.json({ error: uiError(locale, "orderNotFound") }, 404);
 
     const [orderTeam] = await db
       .select()
@@ -1606,7 +1633,7 @@ dashboard.patch("/orders/:orderId/fulfillment", async (c) => {
       (session.role === "TEAM_LEADER" &&
         !!orderTeam &&
         orderTeam.leaderId === session.userId);
-    if (!hasAccess) return c.json({ error: "Behörighet saknas" }, 403);
+    if (!hasAccess) return c.json({ error: uiError(locale, "permissionDenied") }, 403);
 
     // En avbokad eller återbetald order är stängd. Utan den här kontrollen
     // kunde "ångra leveransmarkering" (status: PAID) sätta tillbaka den till
@@ -1620,8 +1647,7 @@ dashboard.patch("/orders/:orderId/fulfillment", async (c) => {
     ) {
       return c.json(
         {
-          error:
-            "Ordern är avbokad eller återbetald och kan inte ändras. Registrera en ny order istället.",
+          error: uiError(locale, "orderCancelledOrRefundedLocked"),
         },
         400
       );
@@ -1636,7 +1662,7 @@ dashboard.patch("/orders/:orderId/fulfillment", async (c) => {
       order.status !== "DELIVERED"
     ) {
       return c.json(
-        { error: "Endast betalda ordrar kan markeras som skickade/levererade." },
+        { error: uiError(locale, "onlyPaidOrdersShipDeliver") },
         400
       );
     }
@@ -1675,7 +1701,7 @@ dashboard.patch("/orders/:orderId/fulfillment", async (c) => {
     });
   } catch (err) {
     log.error({ err, orderId }, "Failed to update order fulfillment");
-    return c.json({ error: "Kunde inte uppdatera leveransstatus." }, 500);
+    return c.json({ error: uiError(locale, "couldNotUpdateDelivery") }, 500);
   }
 });
 
@@ -1691,29 +1717,31 @@ dashboard.patch("/orders/:orderId/fulfillment", async (c) => {
  */
 dashboard.post("/orders/:orderId/verify", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
   if (isDemoSession(session)) {
-    return c.json({ error: "Demoläget kan inte bekräfta ordrar." }, 403);
+    return c.json({ error: uiError(locale, "demoCannotConfirmOrders") }, 403);
   }
   if (
     session.role !== "TEAM_LEADER" &&
     session.role !== "ASSOCIATION_ADMIN" &&
     session.role !== "INTERNAL_ADMIN"
   ) {
-    return c.json({ error: "Behörighet saknas" }, 403);
+    return c.json({ error: uiError(locale, "permissionDenied") }, 403);
   }
 
   const orderId = c.req.param("orderId");
   if (!/^[0-9a-f-]{36}$/i.test(orderId)) {
-    return c.json({ error: "Ogiltigt order-ID." }, 400);
+    return c.json({ error: uiError(locale, "invalidOrderId") }, 400);
   }
 
   let body: { verified?: boolean };
   try {
     body = await c.req.json();
   } catch {
-    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+    return c.json({ error: uiError(locale, "invalidJson") }, 400);
   }
+  locale = resolveUiLocale(c, (body as { locale?: unknown }).locale);
   const verified = body.verified !== false;
 
   try {
@@ -1722,16 +1750,16 @@ dashboard.post("/orders/:orderId/verify", async (c) => {
       .from(customerOrders)
       .where(eq(customerOrders.id, orderId))
       .limit(1);
-    if (!order) return c.json({ error: "Order hittades inte" }, 404);
+    if (!order) return c.json({ error: uiError(locale, "orderNotFound") }, 404);
     if (!order.isManual) {
       return c.json(
-        { error: "Bara manuella ordrar behöver bekräftas." },
+        { error: uiError(locale, "onlyManualOrdersNeedConfirm") },
         400
       );
     }
     if (order.status === "CANCELLED" || order.status === "REFUNDED") {
       return c.json(
-        { error: "Ordern är avbokad och kan inte bekräftas." },
+        { error: uiError(locale, "orderCancelledCannotConfirm") },
         400
       );
     }
@@ -1748,13 +1776,13 @@ dashboard.post("/orders/:orderId/verify", async (c) => {
       (session.role === "TEAM_LEADER" &&
         !!orderTeam &&
         orderTeam.leaderId === session.userId);
-    if (!hasAccess) return c.json({ error: "Behörighet saknas" }, 403);
+    if (!hasAccess) return c.json({ error: uiError(locale, "permissionDenied") }, 403);
 
     // Den som lade ordern får inte godkänna den. Annars är kontrollen
     // meningslös för precis det scenario den finns till för.
     if (order.placedByUserId && order.placedByUserId === session.userId) {
       return c.json(
-        { error: "Du kan inte bekräfta en order du själv har registrerat." },
+        { error: uiError(locale, "cannotConfirmOwnOrder") },
         403
       );
     }
@@ -1793,7 +1821,7 @@ dashboard.post("/orders/:orderId/verify", async (c) => {
     });
   } catch (err) {
     log.error({ err, orderId }, "Failed to verify manual order");
-    return c.json({ error: "Kunde inte bekräfta ordern." }, 500);
+    return c.json({ error: uiError(locale, "orderConfirmFailed") }, 500);
   }
 });
 
@@ -1815,27 +1843,29 @@ dashboard.post("/orders/:orderId/verify", async (c) => {
  */
 dashboard.post("/orders/:orderId/cancel", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
   if (isDemoSession(session)) {
-    return c.json({ error: "Demoläget kan inte avboka ordrar." }, 403);
+    return c.json({ error: uiError(locale, "demoCannotCancelOrders") }, 403);
   }
 
   const orderId = c.req.param("orderId");
   if (!/^[0-9a-f-]{36}$/i.test(orderId)) {
-    return c.json({ error: "Ogiltigt order-ID." }, 400);
+    return c.json({ error: uiError(locale, "invalidOrderId") }, 400);
   }
 
   let body: { status?: string; reason?: string; force?: boolean };
   try {
     body = await c.req.json();
   } catch {
-    return c.json({ error: "Ogiltig JSON i request body." }, 400);
+    return c.json({ error: uiError(locale, "invalidJson") }, 400);
   }
+  locale = resolveUiLocale(c, (body as { locale?: unknown }).locale);
 
   const target = body.status;
   if (target !== "CANCELLED" && target !== "REFUNDED") {
     return c.json(
-      { error: "status måste vara CANCELLED eller REFUNDED." },
+      { error: uiError(locale, "statusCancelledOrRefunded") },
       400
     );
   }
@@ -1845,10 +1875,10 @@ dashboard.post("/orders/:orderId/cancel", async (c) => {
   // den skillnaden som avgör om försäljningen ska räknas om eller inte.
   const reason = (body.reason ?? "").trim();
   if (reason.length < 3) {
-    return c.json({ error: "Ange ett skäl (minst 3 tecken)." }, 400);
+    return c.json({ error: uiError(locale, "enterReasonMin3") }, 400);
   }
   if (reason.length > 500) {
-    return c.json({ error: "Skälet får vara högst 500 tecken." }, 400);
+    return c.json({ error: uiError(locale, "reasonMax500") }, 400);
   }
 
   try {
@@ -1857,7 +1887,7 @@ dashboard.post("/orders/:orderId/cancel", async (c) => {
       .from(customerOrders)
       .where(eq(customerOrders.id, orderId))
       .limit(1);
-    if (!order) return c.json({ error: "Order hittades inte" }, 404);
+    if (!order) return c.json({ error: uiError(locale, "orderNotFound") }, 404);
 
     // Redan avbokad — svara med nuvarande läge istället för att fela, så
     // att en dubbelklick inte ser ut som ett fel för användaren.
@@ -1898,7 +1928,7 @@ dashboard.post("/orders/:orderId/cancel", async (c) => {
       order.placedByUserId === session.userId;
 
     if (!isLeaderOrAbove && !isOwnUnverifiedManual) {
-      return c.json({ error: "Behörighet saknas" }, 403);
+      return c.json({ error: uiError(locale, "permissionDenied") }, 403);
     }
 
     // Kundens pengar ligger hos Klarna. Att bara markera ordern som avbokad
@@ -1910,8 +1940,7 @@ dashboard.post("/orders/:orderId/cancel", async (c) => {
     ) {
       return c.json(
         {
-          error:
-            "Ordern är betald via Klarna. Använd återbetalning istället för avbokning.",
+          error: uiError(locale, "orderPaidUseRefund"),
         },
         400
       );
@@ -1937,8 +1966,7 @@ dashboard.post("/orders/:orderId/cancel", async (c) => {
     if (countedInPayout && body.force !== true) {
       return c.json(
         {
-          error:
-            "Lagets utbetalning är redan fakturerad eller genomförd. Ordern räknades in i den, så avbokningen måste hanteras manuellt i bokföringen också.",
+          error: uiError(locale, "teamPayoutAlreadyInvoicedCancel"),
           requiresForce: true,
           payoutStatus: lockedPayout.status,
         },
@@ -1967,7 +1995,7 @@ dashboard.post("/orders/:orderId/cancel", async (c) => {
 
     if (!updated) {
       return c.json(
-        { error: "Ordern ändrades av någon annan. Ladda om och försök igen." },
+        { error: uiError(locale, "orderChangedByOther") },
         409
       );
     }
@@ -2003,12 +2031,12 @@ dashboard.post("/orders/:orderId/cancel", async (c) => {
       // rakt ut istället för att låta användaren tro att pengarna är på väg.
       manualStepRequired:
         target === "REFUNDED" && order.paymentMethod === "KLARNA"
-          ? "Återbetalningen måste också utföras i Klarnas portal."
+          ? uiError(locale, "klarnaRefundManualStep")
           : null,
     });
   } catch (err) {
     log.error({ err, orderId }, "Failed to cancel order");
-    return c.json({ error: "Kunde inte avboka ordern." }, 500);
+    return c.json({ error: uiError(locale, "couldNotCancelOrder") }, 500);
   }
 });
 
@@ -2022,20 +2050,21 @@ dashboard.post("/orders/:orderId/cancel", async (c) => {
  */
 dashboard.post("/campaign/:campaignId/ship-bulk", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
   if (isDemoSession(session)) {
-    return c.json({ error: "Demoläget kan inte ändra leveransstatus." }, 403);
+    return c.json({ error: uiError(locale, "demoCannotChangeDelivery") }, 403);
   }
   if (
     session.role !== "ASSOCIATION_ADMIN" &&
     session.role !== "INTERNAL_ADMIN"
   ) {
-    return c.json({ error: "Behörighet saknas" }, 403);
+    return c.json({ error: uiError(locale, "permissionDenied") }, 403);
   }
 
   const campaignId = c.req.param("campaignId");
   if (!/^[0-9a-f-]{36}$/i.test(campaignId)) {
-    return c.json({ error: "Ogiltigt kampanj-ID." }, 400);
+    return c.json({ error: uiError(locale, "invalidCampaignId") }, 400);
   }
 
   try {
@@ -2044,12 +2073,12 @@ dashboard.post("/campaign/:campaignId/ship-bulk", async (c) => {
       .from(campaigns)
       .where(eq(campaigns.id, campaignId))
       .limit(1);
-    if (!campaign) return c.json({ error: "Kampanjen hittades inte" }, 404);
+    if (!campaign) return c.json({ error: uiError(locale, "campaignNotFoundThe") }, 404);
     if (
       session.role !== "INTERNAL_ADMIN" &&
       campaign.orgId !== session.orgId
     ) {
-      return c.json({ error: "Behörighet saknas" }, 403);
+      return c.json({ error: uiError(locale, "permissionDenied") }, 403);
     }
 
     const now = new Date();
@@ -2071,7 +2100,7 @@ dashboard.post("/campaign/:campaignId/ship-bulk", async (c) => {
     return c.json({ ok: true, shipped: updated.length });
   } catch (err) {
     log.error({ err, campaignId }, "Bulk ship failed");
-    return c.json({ error: "Kunde inte markera leverans." }, 500);
+    return c.json({ error: uiError(locale, "couldNotMarkDelivery") }, 500);
   }
 });
 
@@ -2091,10 +2120,11 @@ function clampPeriodStart(campaignStart: string | null | undefined): string {
  */
 dashboard.get("/association/stats", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
-  if (!session.orgId) return c.json({ error: "Ingen organisation" }, 403);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
+  if (!session.orgId) return c.json({ error: uiError(locale, "noOrganisation") }, 403);
   if (session.role !== "ASSOCIATION_ADMIN" && session.role !== "INTERNAL_ADMIN") {
-    return c.json({ error: "Behörighet saknas" }, 403);
+    return c.json({ error: uiError(locale, "permissionDenied") }, 403);
   }
   const orgId = session.orgId;
   const scope = and(eq(customerOrders.orgId, orgId));
@@ -2167,7 +2197,7 @@ dashboard.get("/association/stats", async (c) => {
     });
   } catch (err) {
     log.error({ err }, "Failed to fetch association stats");
-    return c.json({ error: "Kunde inte hämta statistik" }, 500);
+    return c.json({ error: uiError(locale, "couldNotFetchStats") }, 500);
   }
 });
 
@@ -2177,7 +2207,8 @@ dashboard.get("/association/stats", async (c) => {
  */
 dashboard.get("/team/:teamId/stats", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
   const teamId = c.req.param("teamId");
 
   try {
@@ -2186,13 +2217,13 @@ dashboard.get("/team/:teamId/stats", async (c) => {
       .from(teams)
       .where(eq(teams.id, teamId))
       .limit(1);
-    if (!team) return c.json({ error: "Lag hittades inte" }, 404);
+    if (!team) return c.json({ error: uiError(locale, "teamNotFoundShort") }, 404);
 
     const hasAccess =
       session.role === "INTERNAL_ADMIN" ||
       (session.role === "ASSOCIATION_ADMIN" && session.orgId === team.orgId) ||
       (session.role === "TEAM_LEADER" && team.leaderId === session.userId);
-    if (!hasAccess) return c.json({ error: "Behörighet saknas" }, 403);
+    if (!hasAccess) return c.json({ error: uiError(locale, "permissionDenied") }, 403);
 
     const scope = and(eq(customerOrders.teamId, teamId));
     const [daily, payments, weekday] = await Promise.all([
@@ -2263,7 +2294,7 @@ dashboard.get("/team/:teamId/stats", async (c) => {
     });
   } catch (err) {
     log.error({ err }, "Failed to fetch team stats");
-    return c.json({ error: "Kunde inte hämta statistik" }, 500);
+    return c.json({ error: uiError(locale, "couldNotFetchStats") }, 500);
   }
 });
 
@@ -2273,7 +2304,8 @@ dashboard.get("/team/:teamId/stats", async (c) => {
  */
 dashboard.get("/seller/stats", async (c) => {
   const session = await requireSession(c);
-  if (!session) return c.json({ error: "Ej inloggad" }, 401);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
 
   try {
     const [seller] = await db
@@ -2281,7 +2313,7 @@ dashboard.get("/seller/stats", async (c) => {
       .from(sellers)
       .where(eq(sellers.userId, session.userId))
       .limit(1);
-    if (!seller) return c.json({ error: "Ingen säljar-profil" }, 404);
+    if (!seller) return c.json({ error: uiError(locale, "noSellerProfile") }, 404);
 
     const scope = and(eq(customerOrders.sellerId, seller.id));
     const [daily, payments, weekday] = await Promise.all([
@@ -2294,6 +2326,8 @@ dashboard.get("/seller/stats", async (c) => {
       .select({
         id: products.id,
         name: products.name,
+        slug: products.slug,
+        sku: products.sku,
         salesOre: sql<number>`COALESCE(SUM(${customerOrderLines.qty} * ${customerOrderLines.unitPriceOre}), 0)`,
         units: sql<number>`COALESCE(SUM(${customerOrderLines.qty}), 0)`,
       })
@@ -2304,7 +2338,7 @@ dashboard.get("/seller/stats", async (c) => {
       )
       .innerJoin(products, eq(customerOrderLines.productId, products.id))
       .where(and(eq(customerOrders.sellerId, seller.id), PAID_IN_STATS))
-      .groupBy(products.id, products.name)
+      .groupBy(products.id, products.name, products.slug, products.sku)
       .orderBy(
         sql`COALESCE(SUM(${customerOrderLines.qty} * ${customerOrderLines.unitPriceOre}), 0) DESC`
       );
@@ -2333,7 +2367,11 @@ dashboard.get("/seller/stats", async (c) => {
       weekday,
       breakdown: byProduct.map((p) => ({
         id: p.id,
-        name: p.name,
+        name: localizedProductName(locale, {
+          slug: p.slug,
+          sku: p.sku,
+          fallback: p.name,
+        }),
         salesOre: Number(p.salesOre),
         units: Number(p.units),
       })),
@@ -2349,6 +2387,6 @@ dashboard.get("/seller/stats", async (c) => {
     });
   } catch (err) {
     log.error({ err }, "Failed to fetch seller stats");
-    return c.json({ error: "Kunde inte hämta statistik" }, 500);
+    return c.json({ error: uiError(locale, "couldNotFetchStats") }, 500);
   }
 });

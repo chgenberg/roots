@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { HAIR_ANALYSIS_ENABLED } from "@/lib/feature-flags";
+import { LOCALE_HEADER } from "@/i18n/request-locale";
+import {
+  getLocaleFromPathname,
+  stripLocalePrefix,
+  withLocale,
+} from "@/i18n/paths";
 
 /**
  * Site-wide middleware. Two responsibilities, in order:
@@ -140,21 +146,46 @@ const HIDDEN_ROUTES: string[] = [
   ...(HAIR_ANALYSIS_ENABLED ? [] : ["/haranalys"]),
 ];
 
+function withLocaleHeaders(
+  request: NextRequest,
+  pathname: string
+): NextResponse {
+  const locale = getLocaleFromPathname(pathname);
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set(LOCALE_HEADER, locale);
+
+  if (locale === "en") {
+    const url = request.nextUrl.clone();
+    url.pathname = stripLocalePrefix(pathname);
+    const res = NextResponse.rewrite(url, {
+      request: { headers: requestHeaders },
+    });
+    res.headers.set(LOCALE_HEADER, locale);
+    return res;
+  }
+
+  const res = NextResponse.next({ request: { headers: requestHeaders } });
+  res.headers.set(LOCALE_HEADER, locale);
+  return res;
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const barePath = stripLocalePrefix(pathname);
+  const locale = getLocaleFromPathname(pathname);
 
   // 0. Dolda sidor ───────────────────────────────────────────────
   if (
-    HIDDEN_ROUTES.some((p) => pathname === p || pathname.startsWith(p + "/"))
+    HIDDEN_ROUTES.some((p) => barePath === p || barePath.startsWith(p + "/"))
   ) {
-    return NextResponse.redirect(new URL("/", request.url));
+    return NextResponse.redirect(new URL(withLocale("/", locale), request.url));
   }
 
   // 1. Gate check ────────────────────────────────────────────────
   // Exact match OR path-segment prefix (`/api` → `/api/...`, not `/apiv2`).
   // A bare startsWith(p) previously bypassed unintended neighbors.
   const isBypassed = GATE_BYPASS_PREFIXES.some(
-    (p) => pathname === p || pathname.startsWith(p + "/")
+    (p) => barePath === p || barePath.startsWith(p + "/")
   );
 
   if (!isBypassed && !isPreviewGateDisabled()) {
@@ -163,18 +194,29 @@ export async function middleware(request: NextRequest) {
       // P1.7: konfigurationsfel — vi får inte fall back till en
       // hårdkodad default. Skicka tillbaka 503 så ops märker att
       // SITE_PREVIEW_PASSWORD måste sättas (eller PREVIEW_GATE_DISABLED).
-      return new NextResponse(
-        "Förhandsvisningen är felkonfigurerad. Kontakta hej@roots.se.",
-        { status: 503, headers: { "content-type": "text/plain; charset=utf-8" } }
-      );
+      const misconfigured =
+        locale === "en"
+          ? "Preview is misconfigured. Contact hej@roots.se."
+          : "Förhandsvisningen är felkonfigurerad. Kontakta hej@roots.se.";
+      return new NextResponse(misconfigured, {
+        status: 503,
+        headers: { "content-type": "text/plain; charset=utf-8" },
+      });
     }
     const cookie = request.cookies.get(PREVIEW_COOKIE_NAME);
     if (!cookie || cookie.value !== expected) {
       // Rewrite (not redirect) so the URL bar still shows where the
       // user *intended* to go — they'll land there after unlock.
+      // Preserve locale header so /en/* unlock screens render in English.
       const gateUrl = new URL("/preview-gate", request.url);
       gateUrl.searchParams.set("next", pathname);
-      return NextResponse.rewrite(gateUrl);
+      const requestHeaders = new Headers(request.headers);
+      requestHeaders.set(LOCALE_HEADER, locale);
+      const res = NextResponse.rewrite(gateUrl, {
+        request: { headers: requestHeaders },
+      });
+      res.headers.set(LOCALE_HEADER, locale);
+      return res;
     }
   }
 
@@ -184,17 +226,18 @@ export async function middleware(request: NextRequest) {
   // capture "/foreningsliv" (a public marketing page) and redirect
   // logged-out visitors to /login. Same risk for any future route
   // that shares a leading substring with a protected prefix.
+  // Locale prefix is stripped first so /en never shields a portal path.
   const matchedPrefix = Object.keys(PROTECTED_ROUTES).find(
-    (prefix) => pathname === prefix || pathname.startsWith(prefix + "/")
+    (prefix) => barePath === prefix || barePath.startsWith(prefix + "/")
   );
 
   if (!matchedPrefix) {
-    return NextResponse.next();
+    return withLocaleHeaders(request, pathname);
   }
 
   const sessionCookie = request.cookies.get("rootsSessionId");
   if (!sessionCookie?.value) {
-    const loginUrl = new URL("/login", request.url);
+    const loginUrl = new URL(withLocale("/login", locale), request.url);
     loginUrl.searchParams.set("next", pathname);
     return NextResponse.redirect(loginUrl);
   }
@@ -216,11 +259,11 @@ export async function middleware(request: NextRequest) {
     // ser det ut som en massutloggning mitt i ett arbetspass. 5xx och
     // nätverksfel ger istället en tillfällig felsida med samma URL kvar.
     if (res.status >= 500) {
-      return serviceUnavailable();
+      return serviceUnavailable(locale);
     }
 
     if (!res.ok) {
-      const loginUrl = new URL("/login", request.url);
+      const loginUrl = new URL(withLocale("/login", locale), request.url);
       loginUrl.searchParams.set("next", pathname);
       return NextResponse.redirect(loginUrl);
     }
@@ -230,7 +273,7 @@ export async function middleware(request: NextRequest) {
     const allowedRoles = PROTECTED_ROUTES[matchedPrefix];
 
     if (!role) {
-      const loginUrl = new URL("/login", request.url);
+      const loginUrl = new URL(withLocale("/login", locale), request.url);
       loginUrl.searchParams.set("next", pathname);
       return NextResponse.redirect(loginUrl);
     }
@@ -241,25 +284,36 @@ export async function middleware(request: NextRequest) {
       // till /portal/saljare ska landa på /min-shop, inte en blank
       // 403-sida. Om vi inte vet vart de hör hemma → /login.
       const home = roleHome(role);
-      if (home === pathname) {
+      if (home === barePath) {
         return new NextResponse("Forbidden", { status: 403 });
       }
-      return NextResponse.redirect(new URL(home, request.url));
+      return NextResponse.redirect(
+        new URL(withLocale(home, locale), request.url)
+      );
     }
 
-    return NextResponse.next();
+    return withLocaleHeaders(request, pathname);
   } catch {
     // Timeout eller nätverksfel mot API:et — samma resonemang som 5xx ovan.
-    return serviceUnavailable();
+    return serviceUnavailable(locale);
   }
 }
 
-function serviceUnavailable(): NextResponse {
+function serviceUnavailable(locale: "sv" | "en" = "sv"): NextResponse {
+  const en = locale === "en";
+  const title = en ? "Temporary issue — Roots" : "Tillfälligt problem — Roots";
+  const heading = en
+    ? "We are having a temporary issue"
+    : "Vi har ett tillfälligt problem";
+  const body = en
+    ? "The portal cannot be reached right now. You are still signed in — please try again shortly. If it persists, email hej@roots.se."
+    : "Portalen kan inte nås just nu. Du är fortfarande inloggad — försök igen om en liten stund. Kvarstår det, mejla hej@roots.se.";
+  const retry = en ? "Try again" : "Försök igen";
   return new NextResponse(
-    `<!doctype html><html lang="sv"><head><meta charset="utf-8">
+    `<!doctype html><html lang="${locale}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex">
-<title>Tillfälligt problem — Roots</title>
+<title>${title}</title>
 <style>
   body{margin:0;min-height:100vh;display:grid;place-items:center;background:#faf9f7;
     color:#1c1917;font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
@@ -269,10 +323,9 @@ function serviceUnavailable(): NextResponse {
   a{display:inline-block;background:#1c1917;color:#fff;padding:.7rem 1.6rem;
     border-radius:.5rem;text-decoration:none;font-weight:600;font-size:.9rem}
 </style></head><body><main>
-<h1>Vi har ett tillfälligt problem</h1>
-<p>Portalen kan inte nås just nu. Du är fortfarande inloggad — försök igen om en
-liten stund. Kvarstår det, mejla hej@roots.se.</p>
-<a href="javascript:location.reload()">Försök igen</a>
+<h1>${heading}</h1>
+<p>${body}</p>
+<a href="javascript:location.reload()">${retry}</a>
 </main></body></html>`,
     {
       status: 503,
