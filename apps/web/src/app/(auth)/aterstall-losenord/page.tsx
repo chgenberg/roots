@@ -52,7 +52,7 @@ function Skeleton() {
 function ResetPasswordInner() {
   const router = useRouter();
   const token = useSearchParams().get("token");
-  const { locale } = useLocale();
+  const { locale, href } = useLocale();
   const t = auth.reset[locale];
   const [password, setPassword] = useState("");
   const [repeat, setRepeat] = useState("");
@@ -84,7 +84,7 @@ function ResetPasswordInner() {
         return;
       }
       setDone(true);
-      setTimeout(() => router.push("/login"), 2500);
+      setTimeout(() => router.push(href("/login")), 2500);
     } catch {
       setError(t.errorServer);
     } finally {

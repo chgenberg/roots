@@ -49,7 +49,7 @@ export default function TeamLeaderClaimPage() {
   const router = useRouter();
   const params = useParams();
   const token = params.token as string;
-  const { locale } = useLocale();
+  const { locale, href } = useLocale();
   const t = auth.registerTeamLeader[locale];
 
   const [preview, setPreview] = useState<InvitePreview | null>(null);
@@ -128,7 +128,10 @@ export default function TeamLeaderClaimPage() {
 
       if (res.ok && res.data?.ok) {
         setSuccess(true);
-        setTimeout(() => router.push(res.data?.redirect || "/lag"), 1500);
+        setTimeout(
+          () => router.push(href(res.data?.redirect || "/lag")),
+          1500
+        );
       } else {
         setFormError(res.data?.error || t.errorGeneric);
       }

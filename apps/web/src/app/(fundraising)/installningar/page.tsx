@@ -4,6 +4,7 @@ import { useLocale } from "@/i18n/locale-context";
 import { fundraisingPages } from "@/i18n/dictionaries/fundraising-pages";
 import { tFill } from "@/i18n/format";
 import { appCommon } from "@/i18n/dictionaries/app-common";
+import { absoluteLocaleUrl } from "@/i18n/paths";
 import { LocaleLink } from "@/components/locale-link";
 
 /**
@@ -236,7 +237,9 @@ export default function InstallningarPage() {
   function copyShopLink() {
     if (!sellerShopSlug || !SITE_URL) return;
     try {
-      navigator.clipboard.writeText(`${SITE_URL}/shop/${sellerShopSlug}`);
+      navigator.clipboard.writeText(
+        absoluteLocaleUrl(SITE_URL, `/shop/${sellerShopSlug}`, locale)
+      );
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -271,7 +274,9 @@ export default function InstallningarPage() {
         : me.role === "SELLER"
           ? t.roleSeller
           : me.role;
-  const shopUrl = sellerShopSlug ? `${SITE_URL}/shop/${sellerShopSlug}` : null;
+  const shopUrl = sellerShopSlug
+    ? absoluteLocaleUrl(SITE_URL, `/shop/${sellerShopSlug}`, locale)
+    : null;
 
   return (
     <div className="page-enter mx-auto max-w-3xl space-y-6">

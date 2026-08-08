@@ -5,6 +5,7 @@ import { fundraisingPages } from "@/i18n/dictionaries/fundraising-pages";
 import { tFill } from "@/i18n/format";
 import { milestoneLabel, milestoneRemaining } from "@/i18n/milestones";
 import { appCommon } from "@/i18n/dictionaries/app-common";
+import { absoluteLocaleUrl } from "@/i18n/paths";
 import { LocaleLink } from "@/components/locale-link";
 
 import { useCallback, useEffect, useState } from "react";
@@ -82,7 +83,11 @@ export default function TeamDashboard() {
 
   function copyInviteLink() {
     if (!data?.team?.inviteToken) return;
-    const url = `${SITE_URL}/registrera/saljare/${data.team.inviteToken}`;
+    const url = absoluteLocaleUrl(
+      SITE_URL,
+      `/registrera/saljare/${data.team.inviteToken}`,
+      locale
+    );
     try {
       navigator.clipboard.writeText(url);
       setCopied(true);
@@ -235,7 +240,11 @@ export default function TeamDashboard() {
             <div className="flex gap-2">
               <Input
                 readOnly
-                value={`${SITE_URL}/registrera/saljare/${data.team.inviteToken}`}
+                value={absoluteLocaleUrl(
+                  SITE_URL,
+                  `/registrera/saljare/${data.team.inviteToken}`,
+                  locale
+                )}
                 className="text-xs"
               />
               <Button size="sm" variant="outline" onClick={copyInviteLink}>

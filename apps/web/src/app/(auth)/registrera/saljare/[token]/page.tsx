@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -121,26 +120,30 @@ export default function SellerRegistrationPage() {
             <div className="w-full rounded-lg bg-brand-50 p-3 text-center">
               <p className="text-xs text-muted-foreground">{t.shopLinkLabel}</p>
               <p className="mt-1 break-all font-mono text-xs text-foreground">
-                /shop/{shopSlug}
+                {locale === "en" ? `/en/shop/${shopSlug}` : `/shop/${shopSlug}`}
               </p>
             </div>
           )}
 
           <div className="mt-2 flex w-full flex-col gap-2">
             {shopSlug && (
-              <Link href={`/shop/${shopSlug}`} target="_blank" className="w-full">
+              <LocaleLink
+                href={`/shop/${shopSlug}`}
+                target="_blank"
+                className="w-full"
+              >
                 <Button className="w-full">
                   <ExternalLink className="mr-2 h-4 w-4" />
                   {t.viewShop}
                 </Button>
-              </Link>
+              </LocaleLink>
             )}
-            <Link href="/min-shop" className="w-full">
+            <LocaleLink href="/min-shop" className="w-full">
               <Button variant="outline" className="w-full">
                 <LayoutDashboard className="mr-2 h-4 w-4" />
                 {t.goToDashboard}
               </Button>
-            </Link>
+            </LocaleLink>
           </div>
         </CardContent>
       </Card>

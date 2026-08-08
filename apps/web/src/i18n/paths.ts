@@ -62,3 +62,16 @@ export function switchLocalePath(pathname: string): string {
   const target: Locale = current === "sv" ? "en" : "sv";
   return withLocale(stripLocalePrefix(pathname), target);
 }
+
+/**
+ * Build an absolute site URL with the active locale prefix.
+ * `path` should be locale-agnostic (`/shop/foo`, `/registrera/saljare/…`).
+ */
+export function absoluteLocaleUrl(
+  siteUrl: string,
+  path: string,
+  locale: Locale
+): string {
+  const base = siteUrl.replace(/\/$/, "");
+  return `${base}${withLocale(path, locale)}`;
+}

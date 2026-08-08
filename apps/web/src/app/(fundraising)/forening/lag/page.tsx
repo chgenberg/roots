@@ -4,6 +4,7 @@ import { useLocale } from "@/i18n/locale-context";
 import { fundraisingPages } from "@/i18n/dictionaries/fundraising-pages";
 import { tFill } from "@/i18n/format";
 import { appCommon } from "@/i18n/dictionaries/app-common";
+import { absoluteLocaleUrl } from "@/i18n/paths";
 import { LocaleLink } from "@/components/locale-link";
 
 import { useEffect, useState } from "react";
@@ -107,9 +108,13 @@ export default function TeamsManagementPage() {
   }, []);
 
   function copyInviteLink(token: string, isLeader: boolean) {
-    const url = isLeader
-      ? `${SITE_URL}/registrera/lagansvarig/${token}`
-      : `${SITE_URL}/registrera/saljare/${token}`;
+    const url = absoluteLocaleUrl(
+      SITE_URL,
+      isLeader
+        ? `/registrera/lagansvarig/${token}`
+        : `/registrera/saljare/${token}`,
+      locale
+    );
     try {
       navigator.clipboard.writeText(url);
       setCopiedToken(token);
@@ -187,7 +192,11 @@ export default function TeamsManagementPage() {
   }
 
   const leaderInviteUrl = createdInvite
-    ? `${SITE_URL}/registrera/lagansvarig/${createdInvite.token}`
+    ? absoluteLocaleUrl(
+        SITE_URL,
+        `/registrera/lagansvarig/${createdInvite.token}`,
+        locale
+      )
     : "";
 
   return (
@@ -225,7 +234,11 @@ export default function TeamsManagementPage() {
       ) : (
         <div className="space-y-4">
           {teams.map((team) => {
-            const inviteUrl = `${SITE_URL}/registrera/saljare/${team.inviteToken}`;
+            const inviteUrl = absoluteLocaleUrl(
+              SITE_URL,
+              `/registrera/saljare/${team.inviteToken}`,
+              locale
+            );
             return (
               <Card key={team.id}>
                 <CardContent className="p-5">

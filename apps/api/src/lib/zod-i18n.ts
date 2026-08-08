@@ -30,7 +30,10 @@ type Flattened = {
   fieldErrors: Record<string, string[] | undefined>;
 };
 
-function translate(msg: string, locale: UiLocale): string {
+export function localizeZodMessage(
+  msg: string,
+  locale: UiLocale
+): string {
   if (locale !== "en") return msg;
   return SV_TO_EN[msg] ?? msg;
 }
@@ -43,12 +46,14 @@ export function localizeZodFlatten<T extends Flattened>(
 
   const fieldErrors: Record<string, string[] | undefined> = {};
   for (const [key, msgs] of Object.entries(flattened.fieldErrors)) {
-    fieldErrors[key] = msgs?.map((m) => translate(m, locale));
+    fieldErrors[key] = msgs?.map((m) => localizeZodMessage(m, locale));
   }
 
   return {
     ...flattened,
-    formErrors: flattened.formErrors.map((m) => translate(m, locale)),
+    formErrors: flattened.formErrors.map((m) =>
+      localizeZodMessage(m, locale)
+    ),
     fieldErrors,
   };
 }

@@ -4,6 +4,7 @@ import { useLocale } from "@/i18n/locale-context";
 import { fundraisingPages } from "@/i18n/dictionaries/fundraising-pages";
 import { tFill } from "@/i18n/format";
 import { appCommon } from "@/i18n/dictionaries/app-common";
+import { absoluteLocaleUrl } from "@/i18n/paths";
 import { LocaleLink } from "@/components/locale-link";
 
 import { useEffect, useState } from "react";
@@ -193,7 +194,11 @@ export default function TeamSellersPage() {
     if (!data?.team?.inviteToken) return;
     try {
       navigator.clipboard.writeText(
-        `${SITE_URL}/registrera/saljare/${data.team.inviteToken}`
+        absoluteLocaleUrl(
+          SITE_URL,
+          `/registrera/saljare/${data.team.inviteToken}`,
+          locale
+        )
       );
       setCopiedInvite(true);
       setTimeout(() => setCopiedInvite(false), 2000);
@@ -204,7 +209,9 @@ export default function TeamSellersPage() {
 
   function copyShopLink(slug: string) {
     try {
-      navigator.clipboard.writeText(`${SITE_URL}/shop/${slug}`);
+      navigator.clipboard.writeText(
+        absoluteLocaleUrl(SITE_URL, `/shop/${slug}`, locale)
+      );
       setCopiedShop(slug);
       setTimeout(() => setCopiedShop(null), 2000);
     } catch {
@@ -411,7 +418,11 @@ export default function TeamSellersPage() {
             <div className="flex gap-2">
               <Input
                 readOnly
-                value={`${SITE_URL}/registrera/saljare/${data.team.inviteToken}`}
+                value={absoluteLocaleUrl(
+                  SITE_URL,
+                  `/registrera/saljare/${data.team.inviteToken}`,
+                  locale
+                )}
                 className="text-xs"
               />
               <Button size="sm" variant="outline" onClick={copyInviteLink}>
@@ -629,7 +640,11 @@ export default function TeamSellersPage() {
                           asChild
                         >
                           <a
-                            href={`${SITE_URL}/shop/${seller.shopSlug}`}
+                            href={absoluteLocaleUrl(
+                              SITE_URL,
+                              `/shop/${seller.shopSlug}`,
+                              locale
+                            )}
                             target="_blank"
                             rel="noopener noreferrer"
                           >

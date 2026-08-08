@@ -41,7 +41,7 @@ interface OrgSearchResult {
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { locale } = useLocale();
+  const { locale, href } = useLocale();
   const t = auth.register[locale];
   const [type, setType] = useState<RegistrationType>(null);
   const [step, setStep] = useState(0);
@@ -142,9 +142,9 @@ export default function RegisterPage() {
           // MASTERPLAN_01 KC3.1: skicka ASSOCIATION_ADMIN till kom-igång-
           // sidan istället för en tom dashboard. ?onboarding=1 låter
           // sidan visa en specifik welcome-header för fresh signups.
-          router.push("/forening/kom-igang?onboarding=1");
+          router.push(href("/forening/kom-igang?onboarding=1"));
         } else {
-          router.push("/lag");
+          router.push(href("/lag"));
         }
       }, 1500);
     } catch {

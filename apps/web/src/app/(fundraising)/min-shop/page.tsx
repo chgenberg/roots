@@ -5,6 +5,7 @@ import { fundraisingPages } from "@/i18n/dictionaries/fundraising-pages";
 import { tFill } from "@/i18n/format";
 import { milestoneLabel, milestoneRemaining } from "@/i18n/milestones";
 import { appCommon } from "@/i18n/dictionaries/app-common";
+import { absoluteLocaleUrl } from "@/i18n/paths";
 import { LocaleLink } from "@/components/locale-link";
 
 import { useCallback, useEffect, useState } from "react";
@@ -65,7 +66,11 @@ export default function SellerDashboard() {
         setData(d);
 
         if (d.seller?.shopSlug) {
-          const url = `${SITE_URL}/shop/${d.seller.shopSlug}`;
+          const url = absoluteLocaleUrl(
+            SITE_URL,
+            `/shop/${d.seller.shopSlug}`,
+            locale
+          );
           const dataUrl = await QRCode.toDataURL(url, {
             width: 200,
             margin: 2,
@@ -94,7 +99,9 @@ export default function SellerDashboard() {
   function copyLink() {
     if (!data?.seller?.shopSlug) return;
     try {
-      navigator.clipboard.writeText(`${SITE_URL}/shop/${data.seller.shopSlug}`);
+      navigator.clipboard.writeText(
+        absoluteLocaleUrl(SITE_URL, `/shop/${data.seller.shopSlug}`, locale)
+      );
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -104,7 +111,11 @@ export default function SellerDashboard() {
 
   function share() {
     if (!data?.seller?.shopSlug) return;
-    const url = `${SITE_URL}/shop/${data.seller.shopSlug}`;
+    const url = absoluteLocaleUrl(
+      SITE_URL,
+      `/shop/${data.seller.shopSlug}`,
+      locale
+    );
     try {
       if (navigator.share) {
         navigator.share({
@@ -150,7 +161,11 @@ export default function SellerDashboard() {
     );
   }
 
-  const shopUrl = `${SITE_URL}/shop/${data.seller.shopSlug}`;
+  const shopUrl = absoluteLocaleUrl(
+    SITE_URL,
+    `/shop/${data.seller.shopSlug}`,
+    locale
+  );
   const totalSales = data.stats?.totalSalesOre || 0;
   const orderCount = data.stats?.orderCount || 0;
   const estimatedEarnings = data.stats?.estimatedEarningsOre || 0;
