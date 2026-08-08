@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { getBrowserApiBase } from "@/lib/api-base";
 import { rootsFetch } from "@/lib/api";
+import type { Locale } from "@/i18n/config";
 import { formatDayLabel, paymentLabel } from "./theme";
 import type { TrendPoint } from "./area-trend";
 
@@ -65,7 +66,8 @@ export function useStats(path: string | null) {
 export function buildDailyAxis(
   daily: StatsResponse["daily"],
   periodStart: string,
-  periodEnd: string
+  periodEnd: string,
+  locale: Locale = "sv"
 ): { sales: TrendPoint[]; cumulative: TrendPoint[] } {
   const byDay = new Map(daily.map((d) => [d.day, d.salesOre]));
   const out: TrendPoint[] = [];
@@ -77,7 +79,10 @@ export function buildDailyAxis(
   let guard = 0;
   while (cursor <= end && guard < maxDays) {
     const iso = cursor.toISOString().slice(0, 10);
-    out.push({ label: formatDayLabel(iso), value: byDay.get(iso) ?? 0 });
+    out.push({
+      label: formatDayLabel(iso, locale),
+      value: byDay.get(iso) ?? 0,
+    });
     cursor.setUTCDate(cursor.getUTCDate() + 1);
     guard += 1;
   }

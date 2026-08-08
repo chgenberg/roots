@@ -81,7 +81,12 @@ export function StatsDashboard({
     );
   }
 
-  const axis = buildDailyAxis(data.daily, data.periodStart, data.periodEnd);
+  const axis = buildDailyAxis(
+    data.daily,
+    data.periodStart,
+    data.periodEnd,
+    locale
+  );
   const trend = mode === "daily" ? axis.sales : axis.cumulative;
   const hasSales = data.totals.salesOre > 0;
   const payments = paymentSlices(data.payments, locale);
@@ -225,7 +230,7 @@ export function StatsDashboard({
         >
           <Donut
             data={payments}
-            centerLabel={formatKrShort(data.totals.salesOre)}
+            centerLabel={formatKrShort(data.totals.salesOre, locale)}
             centerSub={t.total}
             format={formatMoney}
           />
@@ -246,7 +251,11 @@ export function StatsDashboard({
           subtitle={t.salesByWeekday}
           empty={!hasSales}
         >
-          <BarSeries data={weekday} format={formatKrShort} color={CHART.primary} />
+          <BarSeries
+            data={weekday}
+            format={(ore) => formatKrShort(ore, locale)}
+            color={CHART.primary}
+          />
         </ChartCard>
       </div>
 

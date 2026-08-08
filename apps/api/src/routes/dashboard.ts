@@ -130,7 +130,10 @@ async function paymentSeries(scope: ReturnType<typeof and> | undefined) {
 }
 
 /** Försäljning per veckodag (0=söndag … 6=lördag). */
-async function weekdaySeries(scope: ReturnType<typeof and> | undefined) {
+async function weekdaySeries(
+  scope: ReturnType<typeof and> | undefined,
+  locale: "sv" | "en" = "sv"
+) {
   const dowExpr = sql<number>`EXTRACT(DOW FROM ${customerOrders.createdAt})`;
   const rows = await db
     .select({
@@ -142,9 +145,12 @@ async function weekdaySeries(scope: ReturnType<typeof and> | undefined) {
     .where(and(scope, PAID_IN_STATS, gte(customerOrders.createdAt, statsSince())))
     .groupBy(dowExpr);
   const byDow = new Map(rows.map((r) => [Number(r.dow), Number(r.salesOre)]));
-  // Returnera må–sö i svensk ordning.
+  // Returnera må–sö (Mon–Sun) in calendar order.
   const order = [1, 2, 3, 4, 5, 6, 0];
-  const labels = ["Mån", "Tis", "Ons", "Tor", "Fre", "Lör", "Sön"];
+  const labels =
+    locale === "en"
+      ? ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+      : ["Mån", "Tis", "Ons", "Tor", "Fre", "Lör", "Sön"];
   return order.map((dow, i) => ({
     label: labels[i],
     salesOre: byDow.get(dow) ?? 0,
@@ -456,8 +462,20 @@ dashboard.get("/team/:teamId", async (c) => {
     const teamEarningsOre = Math.round(totalSales * (marginPercent / 100));
     const goalOre = campaign?.goalType === "AMOUNT" && campaign?.goalValue ? campaign.goalValue * 100 : undefined;
     const goalPackages = campaign?.goalType === "PACKAGES" && campaign?.goalValue ? campaign.goalValue : undefined;
-    const achieved = getAchievedMilestones(totalSales, totalOrderCount, goalOre, goalPackages);
-    const next = getNextMilestone(totalSales, totalOrderCount, goalOre, goalPackages);
+    const achieved = getAchievedMilestones(
+      totalSales,
+      totalOrderCount,
+      goalOre,
+      goalPackages,
+      locale
+    );
+    const next = getNextMilestone(
+      totalSales,
+      totalOrderCount,
+      goalOre,
+      goalPackages,
+      locale
+    );
 
     return c.json({
       team,
@@ -474,7 +492,7 @@ dashboard.get("/team/:teamId", async (c) => {
           totalSalesOre: sellerSalesOre,
           orderCount: Number(sales?.count || 0),
           individualGoal: s.individualGoal,
-          grade: getSellerGrade(sellerSalesOre),
+          grade: getSellerGrade(sellerSalesOre, locale),
           // Sprint E12: surface status so /lag/saljare can show paused
           // sellers separately and hide them from the live ranking.
           status: s.status,
@@ -515,8 +533,14 @@ dashboard.get("/team/:teamId", async (c) => {
         unverifiedManualCount: unverifiedManual.count,
       },
       milestones: {
-        achieved: achieved.map((m) => ({ id: m.id, label: m.label, description: m.description })),
-        next: next ? { label: next.label, remaining: next.remaining } : null,
+        achieved: achieved.map((m) => ({
+          id: m.id,
+          label: m.label,
+          description: m.description,
+        })),
+        next: next
+          ? { id: next.id, label: next.label, remaining: next.remaining }
+          : null,
       },
     });
   } catch (err) {
@@ -759,7 +783,7 @@ dashboard.post("/team/:teamId/sellers", async (c) => {
         totalSalesOre: 0,
         orderCount: 0,
         individualGoal: 0,
-        grade: getSellerGrade(0),
+        grade: getSellerGrade(0, locale),
       },
     });
   } catch (err) {
@@ -1170,8 +1194,20 @@ dashboard.get("/seller", async (c) => {
     const orderCount = Number(salesResult[0]?.count || 0);
     const sellerGoalOre = seller.individualGoal ? seller.individualGoal * 100 : undefined;
 
-    const achieved = getAchievedMilestones(totalSalesOre, orderCount, sellerGoalOre);
-    const next = getNextMilestone(totalSalesOre, orderCount, sellerGoalOre);
+    const achieved = getAchievedMilestones(
+      totalSalesOre,
+      orderCount,
+      sellerGoalOre,
+      undefined,
+      locale
+    );
+    const next = getNextMilestone(
+      totalSalesOre,
+      orderCount,
+      sellerGoalOre,
+      undefined,
+      locale
+    );
 
     const marginPercent = campaign?.marginPercent ?? 25;
     const estimatedEarningsOre = Math.round(totalSalesOre * (marginPercent / 100));
@@ -1192,10 +1228,16 @@ dashboard.get("/seller", async (c) => {
         orderCount,
         estimatedEarningsOre,
       },
-      grade: getSellerGrade(totalSalesOre),
+      grade: getSellerGrade(totalSalesOre, locale),
       milestones: {
-        achieved: achieved.map((m) => ({ id: m.id, label: m.label, description: m.description })),
-        next: next ? { label: next.label, remaining: next.remaining } : null,
+        achieved: achieved.map((m) => ({
+          id: m.id,
+          label: m.label,
+          description: m.description,
+        })),
+        next: next
+          ? { id: next.id, label: next.label, remaining: next.remaining }
+          : null,
       },
       orders: orders.map((o) => ({
         id: o.id,
@@ -2133,7 +2175,7 @@ dashboard.get("/association/stats", async (c) => {
     const [daily, payments, weekday] = await Promise.all([
       dailySeries(scope),
       paymentSeries(scope),
-      weekdaySeries(scope),
+      weekdaySeries(scope, locale),
     ]);
 
     const byTeam = await db
@@ -2229,7 +2271,7 @@ dashboard.get("/team/:teamId/stats", async (c) => {
     const [daily, payments, weekday] = await Promise.all([
       dailySeries(scope),
       paymentSeries(scope),
-      weekdaySeries(scope),
+      weekdaySeries(scope, locale),
     ]);
 
     const bySeller = await db
@@ -2319,7 +2361,7 @@ dashboard.get("/seller/stats", async (c) => {
     const [daily, payments, weekday] = await Promise.all([
       dailySeries(scope),
       paymentSeries(scope),
-      weekdaySeries(scope),
+      weekdaySeries(scope, locale),
     ]);
 
     const byProduct = await db

@@ -86,8 +86,9 @@ export interface Milestone {
 }
 
 export interface MilestoneNext {
+  id?: string;
   label: string;
-  remaining: number;
+  remaining: string | number;
 }
 
 export interface AssociationDashboard {

@@ -68,10 +68,22 @@ contact.post("/", async (c) => {
     const safeEmail = escapeHtml(email);
     const safeSubject = escapeHtml(subject);
     const safeMessage = escapeHtml(message).replace(/\n/g, "<br />");
+    const en = locale === "en";
     const result = await sender.sendEmail({
       to: recipientEmail,
-      subject: `Kontaktformulär: ${safeSubject}`,
-      html: `
+      subject: en
+        ? `Contact form: ${safeSubject}`
+        : `Kontaktformulär: ${safeSubject}`,
+      html: en
+        ? `
+        <h2>New message via the contact form</h2>
+        <p><strong>Name:</strong> ${safeName}</p>
+        <p><strong>Email:</strong> ${safeEmail}</p>
+        <p><strong>Subject:</strong> ${safeSubject}</p>
+        <hr />
+        <p>${safeMessage}</p>
+      `
+        : `
         <h2>Nytt meddelande via kontaktformuläret</h2>
         <p><strong>Namn:</strong> ${safeName}</p>
         <p><strong>E-post:</strong> ${safeEmail}</p>
@@ -79,7 +91,9 @@ contact.post("/", async (c) => {
         <hr />
         <p>${safeMessage}</p>
       `,
-      text: `Namn: ${name}\nE-post: ${email}\nÄmne: ${subject}\n\n${message}`,
+      text: en
+        ? `Name: ${name}\nEmail: ${email}\nSubject: ${subject}\n\n${message}`
+        : `Namn: ${name}\nE-post: ${email}\nÄmne: ${subject}\n\n${message}`,
     });
 
     if (!result.success) {

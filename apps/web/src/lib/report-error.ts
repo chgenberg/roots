@@ -42,7 +42,7 @@ function messageOf(error: unknown): string {
   try {
     return JSON.stringify(error).slice(0, 500);
   } catch {
-    return "Okänt fel";
+    return "Unknown error";
   }
 }
 

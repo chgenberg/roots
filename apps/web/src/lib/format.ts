@@ -26,10 +26,21 @@ export function formatKrValue(ore: number, locale: "sv" | "en" = "sv"): string {
   );
 }
 
-/** Öre → kompakt "12,3k" för axel- och stapeletiketter. */
-export function formatKrShort(ore: number): string {
+/** Öre → kompakt "12,3k" / "12.3k" för axel- och stapeletiketter. */
+export function formatKrShort(
+  ore: number,
+  locale: "sv" | "en" = "sv"
+): string {
   const kr = ore / 100;
-  if (kr >= 1000) return `${(kr / 1000).toFixed(kr >= 10000 ? 0 : 1)}k`;
+  if (kr >= 1000) {
+    const n = kr / 1000;
+    const digits = kr >= 10000 ? 0 : 1;
+    const formatted = n.toLocaleString(locale === "en" ? "en-GB" : "sv-SE", {
+      maximumFractionDigits: digits,
+      minimumFractionDigits: digits,
+    });
+    return `${formatted}k`;
+  }
   return `${Math.round(kr)}`;
 }
 

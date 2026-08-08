@@ -179,64 +179,116 @@ association.get("/onboarding-status", async (c) => {
     const hasTeamLeader = (teamLeaderCount?.c ?? 0) > 0;
     const firstSaleMade = (paidOrderCount?.c ?? 0) > 0;
 
+    const en = locale === "en";
     const steps = [
       {
         // Ligger först eftersom det är det enda steget föreningen inte kan
         // bocka av själv. Utan det hade "Starta kampanj" bara gett ett
         // avslag utan förklaring.
         id: "approval" as const,
-        label: "Vi granskar föreningen",
+        label: en ? "We are reviewing the club" : "Vi granskar föreningen",
         description: org.verified
-          ? "Föreningen är godkänd och kan ta emot beställningar."
-          : "Innan er butik kan ta emot betalningar kontrollerar vi att uppgifterna stämmer. Ni kan sätta upp allt annat under tiden.",
+          ? en
+            ? "The club is approved and can accept orders."
+            : "Föreningen är godkänd och kan ta emot beställningar."
+          : en
+            ? "Before your shop can accept payments we check that the details are correct. You can set everything else up in the meantime."
+            : "Innan er butik kan ta emot betalningar kontrollerar vi att uppgifterna stämmer. Ni kan sätta upp allt annat under tiden.",
         completed: !!org.verified,
         ctaHref: "/installningar",
-        ctaLabel: org.verified ? "Visa uppgifter" : "Komplettera uppgifter",
+        ctaLabel: org.verified
+          ? en
+            ? "View details"
+            : "Visa uppgifter"
+          : en
+            ? "Complete details"
+            : "Komplettera uppgifter",
       },
       {
         id: "org_details" as const,
-        label: "Fyll i föreningens uppgifter",
-        description:
-          "Vi behöver organisationsnummer för att kunna fakturera och göra utbetalningar.",
+        label: en
+          ? "Fill in the club details"
+          : "Fyll i föreningens uppgifter",
+        description: en
+          ? "We need your company registration number (org.nr) to invoice and pay out."
+          : "Vi behöver organisationsnummer för att kunna fakturera och göra utbetalningar.",
         completed: hasOrgDetails,
         ctaHref: "/installningar",
-        ctaLabel: hasOrgDetails ? "Visa uppgifter" : "Fyll i nu",
+        ctaLabel: hasOrgDetails
+          ? en
+            ? "View details"
+            : "Visa uppgifter"
+          : en
+            ? "Fill in now"
+            : "Fyll i nu",
       },
       {
         id: "campaign" as const,
-        label: "Starta din första kampanj",
-        description:
-          "Sätt mål, start- och slutdatum. Den blir er gemensamma försäljningsperiod.",
+        label: en ? "Start your first campaign" : "Starta din första kampanj",
+        description: en
+          ? "Set a goal and start/end dates. This becomes your shared sales period."
+          : "Sätt mål, start- och slutdatum. Den blir er gemensamma försäljningsperiod.",
         completed: hasCampaign,
         ctaHref: "/forening?openCampaign=1",
-        ctaLabel: hasCampaign ? "Hantera kampanj" : "Starta kampanj",
+        ctaLabel: hasCampaign
+          ? en
+            ? "Manage campaign"
+            : "Hantera kampanj"
+          : en
+            ? "Start campaign"
+            : "Starta kampanj",
       },
       {
         id: "team" as const,
-        label: "Skapa eller bjud in ett lag",
-        description:
-          "Lagansvariga bjuder sedan in säljare. Du kan börja med ett enda lag.",
+        label: en ? "Create or invite a team" : "Skapa eller bjud in ett lag",
+        description: en
+          ? "Team leaders then invite sellers. You can start with a single team."
+          : "Lagansvariga bjuder sedan in säljare. Du kan börja med ett enda lag.",
         completed: hasTeam,
         ctaHref: "/forening/lag",
-        ctaLabel: hasTeam ? "Hantera lag" : "Skapa lag",
+        ctaLabel: hasTeam
+          ? en
+            ? "Manage teams"
+            : "Hantera lag"
+          : en
+            ? "Create team"
+            : "Skapa lag",
       },
       {
         id: "team_leader" as const,
-        label: "Få en lagansvarig på plats",
-        description:
-          "När någon klickar på er invite-länk och registrerar sig får ni en lagansvarig.",
+        label: en
+          ? "Get a team leader in place"
+          : "Få en lagansvarig på plats",
+        description: en
+          ? "When someone clicks your invite link and registers, you get a team leader."
+          : "När någon klickar på er invite-länk och registrerar sig får ni en lagansvarig.",
         completed: hasTeamLeader,
         ctaHref: "/forening/lag",
-        ctaLabel: hasTeamLeader ? "Visa lagansvariga" : "Visa pågående inbjudningar",
+        ctaLabel: hasTeamLeader
+          ? en
+            ? "View team leaders"
+            : "Visa lagansvariga"
+          : en
+            ? "View pending invites"
+            : "Visa pågående inbjudningar",
       },
       {
         id: "first_sale" as const,
-        label: "Få in er första betalda order",
-        description:
-          "När er första säljare har stängt en order syns den här — då är ni igång på riktigt.",
+        label: en
+          ? "Get your first paid order"
+          : "Få in er första betalda order",
+        description: en
+          ? "When your first seller closes an order it shows up here — then you are truly up and running."
+          : "När er första säljare har stängt en order syns den här — då är ni igång på riktigt.",
         completed: firstSaleMade,
         ctaHref: "/forening/avrakning",
-        ctaLabel: firstSaleMade ? "Visa beställningar" : "Tips för att komma igång",
+        ctaLabel: firstSaleMade
+          ? en
+            ? "View orders"
+            : "Visa beställningar"
+          : en
+            ? "Tips to get started"
+            : "Tips för att komma igång",
       },
     ];
 

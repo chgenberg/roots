@@ -34,14 +34,18 @@ export function milestoneLabel(
 
 /**
  * Best-effort localisation of API remaining strings like
- * "3 paket kvar" / "1 200 kr kvar". Falls back to the original text.
+ * "3 paket kvar" / "1 200 kr kvar". Also accepts already-localised
+ * English ("3 packages left" / "SEK 1,200 left").
  */
 export function milestoneRemaining(
   remaining: string | number,
   locale: Locale
 ): string {
   const text = String(remaining);
-  if (locale === "sv") return text;
+  if (locale === "sv") {
+    // If API already returned English (stale client), leave as-is.
+    return text;
+  }
 
   const packages = text.match(/^(\d+)\s+paket kvar$/i);
   if (packages) {
@@ -59,5 +63,6 @@ export function milestoneRemaining(
     );
   }
 
+  // Already English from the API — pass through.
   return text;
 }

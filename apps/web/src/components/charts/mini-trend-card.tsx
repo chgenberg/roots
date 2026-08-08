@@ -55,7 +55,14 @@ export function MiniTrendCard({ path, href }: MiniTrendCardProps) {
               })}
             </p>
             <AreaTrend
-              points={buildDailyAxis(data.daily, data.periodStart, data.periodEnd).sales}
+              points={
+                buildDailyAxis(
+                  data.daily,
+                  data.periodStart,
+                  data.periodEnd,
+                  locale
+                ).sales
+              }
               format={(ore) => formatKr(ore, locale)}
               height={140}
             />

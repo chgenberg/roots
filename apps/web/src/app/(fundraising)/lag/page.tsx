@@ -203,7 +203,7 @@ export default function TeamDashboard() {
               <div className="rounded-lg bg-brand-50 p-3 flex items-center gap-3">
                 <Star className="h-5 w-5 text-brand-500 shrink-0" />
                 <div>
-                  <p className="text-sm font-medium">{tFill(c.nextMilestone, { label: milestoneLabel(milestones.next.label, locale) })}</p>
+                  <p className="text-sm font-medium">{tFill(c.nextMilestone, { label: milestoneLabel(milestones.next.id ?? milestones.next.label, locale) })}</p>
                   <p className="text-xs text-muted-foreground">{milestoneRemaining(milestones.next.remaining, locale)}</p>
                 </div>
               </div>

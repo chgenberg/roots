@@ -15,7 +15,10 @@ import {
 import { childLogger } from "../lib/logger";
 import { resolveCampaignCatalog, catalogToList } from "../lib/campaign-catalog";
 import { resolveUiLocale, uiError } from "../lib/ui-locale";
-import { localizedProductName } from "../lib/product-i18n";
+import {
+  localizedProductDescription,
+  localizedProductName,
+} from "../lib/product-i18n";
 
 const log = childLogger("shop");
 
@@ -98,7 +101,7 @@ shop.get("/by-slug/:slug", async (c) => {
 
     // Butiken visar kampanjens katalog med kampanjens priser, så att det
     // kunden ser är exakt det kassan sedan tar betalt för.
-    const productList = campaign
+    const rawProducts = campaign
       ? catalogToList(await resolveCampaignCatalog(campaign.id)).map(
           // effectivePriceOre och sortOrder är interna för katalogupp-
           // slagningen. Butikens svarsform ska se ut som en produkt, inte
@@ -110,6 +113,19 @@ shop.get("/by-slug/:slug", async (c) => {
           })
         )
       : await db.select().from(products).where(eq(products.active, true));
+    const productList = rawProducts.map((p) => ({
+      ...p,
+      name: localizedProductName(locale, {
+        slug: p.slug,
+        sku: p.sku,
+        fallback: p.name,
+      }),
+      description: localizedProductDescription(locale, {
+        slug: p.slug,
+        sku: p.sku,
+        fallback: p.description ?? "",
+      }),
+    }));
     const bundleList = await db.select().from(bundles);
     const bundleProductLinks = await db.select().from(bundleProducts);
 
@@ -202,6 +218,11 @@ shop.get("/products", async (c) => {
           slug: p.slug,
           sku: p.sku,
           fallback: p.name,
+        }),
+        description: localizedProductDescription(locale, {
+          slug: p.slug,
+          sku: p.sku,
+          fallback: p.description ?? "",
         }),
       })),
       bundles: bundleList,
