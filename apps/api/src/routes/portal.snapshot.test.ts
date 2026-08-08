@@ -152,11 +152,13 @@ describe("GET /v1/portal/dashboard — SALES_REP", () => {
       createdAt: 0,
     } as any);
 
+    // Query order in portal.ts SALES_REP branch: clubs → closed →
+    // pipeline sum → openQuotes (SENT count).
     dbHandle.reset([
       [{ count: 7 }],            // clubs
-      [{ count: 5 }],            // quotesOut
-      [{ count: 3 }],            // closedThisMonth
+      [{ count: 3 }],            // closedThisMonth (ACCEPTED this month)
       [{ total: 1_250_000 }],    // pipelineValue (SENT) → 12 500 kr
+      [{ count: 5 }],            // openQuotes / quotesOut (SENT)
     ]);
 
     const out = await callPortal("/dashboard");
