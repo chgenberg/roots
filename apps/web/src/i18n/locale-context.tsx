@@ -3,14 +3,15 @@
 import {
   createContext,
   useContext,
-  useEffect,
   useMemo,
-  useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
-import { usePathname } from "next/navigation";
 import { defaultLocale, type Locale } from "./config";
-import { getBrowserLocale } from "./browser-locale";
+import {
+  getBrowserLocale,
+  subscribeBrowserUrl,
+} from "./browser-locale";
 import { withLocale } from "./paths";
 import { chrome } from "./dictionaries/chrome";
 
@@ -28,10 +29,11 @@ const LocaleContext = createContext<LocaleContextValue | null>(null);
  * Middleware rewrites `/en/...` → `/...` for App Router matching. That means:
  * - Server Components get the right locale via `x-roots-locale`
  * - `usePathname()` often returns the *rewritten* path (`/`), not `/en`
- * - Soft navigation can leave a stale server `locale` prop on shared layouts
+ * - Soft navigation between `/page` and `/en/page` may not remount layouts
  *
- * After mount, the browser URL (`window.location`) is authoritative. During
- * SSR / first paint we trust the middleware-provided prop so hydration matches.
+ * On the client we subscribe to the real browser URL (History API), not the
+ * rewritten pathname, so chrome (nav/footer/switcher) always tracks locale.
+ * During SSR we trust the middleware-provided prop so hydration matches.
  */
 export function LocaleProvider({
   locale: localeProp,
@@ -40,20 +42,12 @@ export function LocaleProvider({
   locale?: Locale;
   children: ReactNode;
 }) {
-  // Re-render on client navigations; do not use the value for locale itself.
-  const pathname = usePathname();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  // When already mounted, re-read on every navigation (soft locale switch).
-  // `pathname` from usePathname() triggers the re-render; the locale itself
-  // comes from window.location because rewrites strip `/en` from usePathname.
-  const locale: Locale = mounted
-    ? getBrowserLocale()
-    : (localeProp ?? defaultLocale);
+  const serverLocale = localeProp ?? defaultLocale;
+  const locale = useSyncExternalStore(
+    subscribeBrowserUrl,
+    getBrowserLocale,
+    () => serverLocale
+  );
 
   const value = useMemo<LocaleContextValue>(
     () => ({
@@ -61,8 +55,7 @@ export function LocaleProvider({
       t: chrome[locale],
       href: (path: string) => withLocale(path, locale),
     }),
-    // pathname: recompute after client navigations even if locale string matches
-    [locale, pathname]
+    [locale]
   );
 
   return (

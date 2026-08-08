@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { notifyBrowserUrlChange } from "@/i18n/browser-locale";
 import { switchLocalePath } from "@/i18n/paths";
 import { useLocale } from "@/i18n/locale-context";
 
@@ -47,6 +48,7 @@ function FlagEn({ className }: { className?: string }) {
  * Uses the shared locale context so it stays in sync with nav/footer copy.
  */
 export function LanguageSwitcher({ className }: { className?: string }) {
+  const router = useRouter();
   const routerPathname = usePathname() || "/";
   const { locale } = useLocale();
   // Middleware rewrites strip `/en` from usePathname; prefer the browser URL.
@@ -59,6 +61,20 @@ export function LanguageSwitcher({ className }: { className?: string }) {
     <Link
       href={target}
       hrefLang={toEn ? "en" : "sv"}
+      onClick={(e) => {
+        // Soft-nav between `/page` and `/en/page` shares a rewritten
+        // pathname, so layout chrome can stay on the old dictionary.
+        // Drive the transition ourselves and re-sync after the URL updates.
+        e.preventDefault();
+        router.push(target);
+        const sync = () => {
+          notifyBrowserUrlChange();
+          router.refresh();
+        };
+        requestAnimationFrame(sync);
+        // Second pass — Next may apply history.pushState one frame later.
+        window.setTimeout(sync, 50);
+      }}
       className={cn(
         "group flex h-10 w-10 items-center justify-center rounded-full transition-colors duration-200 hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         className
