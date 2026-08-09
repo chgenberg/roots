@@ -105,7 +105,7 @@ export const marketingUi = {
     hairAnalysis: hairAnalysis.en,
     team: {
       badge: "The team",
-      title: "Eight neighbours. One goal.",
+      title: "8 unique people. One goal.",
       body: "Clubs, technology and product — building what we always wished we had as a club.",
       groupAlt: "The Roots team outdoors",
       groupCaption:
