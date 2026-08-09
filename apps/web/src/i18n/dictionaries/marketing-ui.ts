@@ -6,11 +6,18 @@ export const marketingUi = {
     hairAnalysis: hairAnalysis.sv,
     team: {
       badge: "Teamet",
-      title: "Sju grannar. Ett mål.",
+      title: "Åtta grannar. Ett mål.",
       body: "Föreningsliv, teknik och produkt — vi bygger det vi själva hade velat ha som förening.",
       groupAlt: "Roots teamet samlat utomhus",
       groupCaption:
-        "Roots teamet: Kent Gustafson, Fredrik Lindqvist, Johan Lindqvist, Christopher Genberg, Ola Nordlund, Johan Fogell och Niclas Corse.",
+        "Roots teamet: Kent Gustafson, Fredrik Lindqvist, Johan Lindqvist, Christopher Genberg, Ola Nordlund, Johan Fogell, Niclas Corse och Matilda Stukat Grauers.",
+      roles: {
+        clubRep: "Föreningsrepresentant",
+        networkSales: "Nätverkssäljare",
+        ceoSales: "VD/Försäljningschef",
+        marketingHr: "Marknadsansvarig och HR",
+        techProduct: "Tech och produktutvecklare",
+      },
     },
     search: {
       aria: "Sök",
@@ -98,11 +105,18 @@ export const marketingUi = {
     hairAnalysis: hairAnalysis.en,
     team: {
       badge: "The team",
-      title: "Seven neighbours. One goal.",
+      title: "Eight neighbours. One goal.",
       body: "Clubs, technology and product — building what we always wished we had as a club.",
       groupAlt: "The Roots team outdoors",
       groupCaption:
-        "The Roots team: Kent Gustafson, Fredrik Lindqvist, Johan Lindqvist, Christopher Genberg, Ola Nordlund, Johan Fogell and Niclas Corse.",
+        "The Roots team: Kent Gustafson, Fredrik Lindqvist, Johan Lindqvist, Christopher Genberg, Ola Nordlund, Johan Fogell, Niclas Corse and Matilda Stukat Grauers.",
+      roles: {
+        clubRep: "Club representative",
+        networkSales: "Network sales",
+        ceoSales: "CEO / Head of Sales",
+        marketingHr: "Marketing & HR",
+        techProduct: "Tech & product development",
+      },
     },
     search: {
       aria: "Search",

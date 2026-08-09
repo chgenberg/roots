@@ -2,40 +2,59 @@ import Image from "next/image";
 import { getRequestLocale } from "@/i18n/request-locale";
 import { marketingUi } from "@/i18n/dictionaries/marketing-ui";
 
-const TEAM = [
+type TeamRoleKey =
+  | "clubRep"
+  | "networkSales"
+  | "ceoSales"
+  | "marketingHr"
+  | "techProduct";
+
+const TEAM: ReadonlyArray<{
+  name: string;
+  image: string;
+  role: TeamRoleKey;
+}> = [
   {
     name: "Kent Gustafson",
     image: "/personal/kent-gustafson.jpg",
+    role: "clubRep",
   },
   {
     name: "Fredrik Lindqvist",
     image: "/personal/fredrik-lindqvist.jpg",
+    role: "marketingHr",
   },
   {
     name: "Johan Lindqvist",
     image: "/personal/johan-lindqvist.jpg",
+    role: "ceoSales",
   },
   {
     name: "Christopher Genberg",
     image: "/personal/christopher-genberg.jpg",
+    role: "techProduct",
   },
   {
     name: "Ola Nordlund",
     image: "/personal/ola-nordlund.jpg",
+    role: "networkSales",
   },
   {
     name: "Johan Fogell",
     image: "/personal/johan-fogell.jpg",
+    role: "networkSales",
   },
   {
     name: "Niclas Corse",
     image: "/personal/niclas-corse.jpg",
+    role: "clubRep",
   },
   {
-    name: "Matilda",
+    name: "Matilda Stukat Grauers",
     image: "/personal/matilda.jpg",
+    role: "networkSales",
   },
-] as const;
+];
 
 export async function TeamSection() {
   const locale = await getRequestLocale();
@@ -108,13 +127,13 @@ export async function TeamSection() {
                     className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.045]"
                     sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 240px"
                   />
-                  {/* Name lives on the image — no separate card footer */}
+                  {/* Name + role live on the image — no separate card footer */}
                   <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-brand-900/85 via-brand-900/35 to-transparent px-3.5 pb-3.5 pt-16 sm:px-4 sm:pb-4">
                     <h3 className="text-[0.95rem] font-semibold leading-tight tracking-tight text-white sm:text-base">
                       {person.name}
                     </h3>
-                    <p className="mt-0.5 text-[11px] font-medium uppercase tracking-[0.14em] text-brand-400 transition-opacity duration-300 sm:text-xs">
-                      Roots
+                    <p className="mt-0.5 text-[11px] font-medium leading-snug tracking-wide text-brand-400 transition-opacity duration-300 sm:text-xs">
+                      {t.roles[person.role]}
                     </p>
                   </div>
                 </div>
