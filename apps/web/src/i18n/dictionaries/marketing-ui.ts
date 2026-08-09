@@ -6,7 +6,7 @@ export const marketingUi = {
     hairAnalysis: hairAnalysis.sv,
     team: {
       badge: "Teamet",
-      title: "Åtta grannar. Ett mål.",
+      title: "8 unika personer. Ett mål.",
       body: "Föreningsliv, teknik och produkt — vi bygger det vi själva hade velat ha som förening.",
       groupAlt: "Roots teamet samlat utomhus",
       groupCaption:
