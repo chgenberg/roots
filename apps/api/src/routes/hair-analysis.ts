@@ -88,11 +88,11 @@ function buildFallbackAnalysis(
   const summary =
     reason === "ai-off"
       ? en
-        ? "AI is not configured on the server. Contact us at hej@roots.se for personal advice."
-        : "AI är inte konfigurerat på servern. Kontakta oss på hej@roots.se för personlig rådgivning."
+        ? "AI is not configured on the server. Contact us at info@roots.nu for personal advice."
+        : "AI är inte konfigurerat på servern. Kontakta oss på info@roots.nu för personlig rådgivning."
       : en
-        ? "We could not complete a full analysis right now, but you can start here. Email hej@roots.se and we will get back with personal advice."
-        : "Vi kunde inte göra en fullständig analys just nu, men du kan börja här. Maila hej@roots.se så återkommer vi med personlig rådgivning.";
+        ? "We could not complete a full analysis right now, but you can start here. Email info@roots.nu and we will get back with personal advice."
+        : "Vi kunde inte göra en fullständig analys just nu, men du kan börja här. Maila info@roots.nu så återkommer vi med personlig rådgivning.";
 
   return JSON.stringify({
     summary,

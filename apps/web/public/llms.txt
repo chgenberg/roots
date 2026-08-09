@@ -4,9 +4,10 @@
 
 ## Bolag
 
-- Namn: Roots Nordic AB (org.nr 559517-3210)
+- Namn: Ourroots AB (org.nr 559355-7126)
+- Adress: Hallängsvägen 8, 439 55 Åsa
 - Webb: https://roots.se
-- Kontakt: hej@roots.se
+- Kontakt: info@roots.nu
 - Språk: svenska (sv-SE)
 - Socialt: https://www.instagram.com/roots.nordic · https://www.linkedin.com/company/roots-nordic
 
@@ -77,4 +78,4 @@ Varje säljare har en egen shop på `https://roots.se/shop/{slug}`. Shopparna ä
 
 ## Kontakt
 
-Frågor om produkter, föreningsförsäljning eller press: hej@roots.se
+Frågor om produkter, föreningsförsäljning eller press: info@roots.nu

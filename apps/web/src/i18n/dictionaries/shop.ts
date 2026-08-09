@@ -187,10 +187,10 @@ export const shop = {
         "Bekräftelse-länken saknar order-id. Kontrollera länken eller gå tillbaka till shoppen.",
       notFoundTitle: "Vi hittade ingen order",
       notFoundBody:
-        "Ordern finns inte eller har tagits bort. Maila hej@roots.se om du tror att detta är fel.",
+        "Ordern finns inte eller har tagits bort. Maila info@roots.nu om du tror att detta är fel.",
       serverTitle: "Tekniskt fel",
       serverBody:
-        "Vi kunde inte hämta din beställning just nu. Försök igen om en stund, eller maila hej@roots.se.",
+        "Vi kunde inte hämta din beställning just nu. Försök igen om en stund, eller maila info@roots.nu.",
       failedTitle: "Din betalning gick inte igenom",
       failedBody:
         "Klarna avbröt eller nekade betalningen. Du kan försöka igen från shoppen.",
@@ -215,10 +215,10 @@ export const shop = {
         "The confirmation link is missing an order ID. Check the link or go back to the shop.",
       notFoundTitle: "We could not find an order",
       notFoundBody:
-        "The order does not exist or has been removed. Email hej@roots.se if you believe this is a mistake.",
+        "The order does not exist or has been removed. Email info@roots.nu if you believe this is a mistake.",
       serverTitle: "Technical error",
       serverBody:
-        "We could not fetch your order right now. Please try again shortly, or email hej@roots.se.",
+        "We could not fetch your order right now. Please try again shortly, or email info@roots.nu.",
       failedTitle: "Your payment did not go through",
       failedBody:
         "Klarna cancelled or declined the payment. You can try again from the shop.",
@@ -242,7 +242,7 @@ export const shop = {
     sv: {
       invalidLinkTitle: "Länken är ogiltig eller utgången",
       invalidLinkBody:
-        "Öppna länken i orderbekräftelsen vi mailade dig — den innehåller koden som krävs för att visa din order. Saknar du mailet? Kontakta oss på hej@roots.se.",
+        "Öppna länken i orderbekräftelsen vi mailade dig — den innehåller koden som krävs för att visa din order. Saknar du mailet? Kontakta oss på info@roots.nu.",
       notFoundTitle: "Order hittades inte",
       notFoundBody:
         "Vi kunde inte hitta denna order. Kontrollera länken och försök igen.",
@@ -272,7 +272,7 @@ export const shop = {
     en: {
       invalidLinkTitle: "The link is invalid or has expired",
       invalidLinkBody:
-        "Open the link in the order confirmation we emailed you — it contains the code required to view your order. Missing the email? Contact us at hej@roots.se.",
+        "Open the link in the order confirmation we emailed you — it contains the code required to view your order. Missing the email? Contact us at info@roots.nu.",
       notFoundTitle: "Order not found",
       notFoundBody:
         "We could not find this order. Check the link and try again.",

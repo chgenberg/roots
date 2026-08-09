@@ -11,7 +11,7 @@ interface LegalIdentityBlockProps {
 }
 
 /**
- * Displays the company's legal identity — organisation number, VAT ID,
+ * Displays the company's legal identity — organisation number and
  * registered address. Must appear in footer, contract-like pages (villkor,
  * integritet) and order confirmations to satisfy Swedish disclosure rules
  * (Bokföringslagen, e-handelslagen) and build buyer trust.
@@ -23,8 +23,8 @@ export function LegalIdentityBlock({
 }: LegalIdentityBlockProps) {
   const { locale } = useLocale();
   const orgLabel = locale === "en" ? "Org no." : "Org.nr";
-  const vatLabel = locale === "en" ? "VAT no." : "Momsreg.nr";
-  const phoneDigits = LEGAL_IDENTITY.contact.phone.replace(/\s+/g, "");
+  const phone = LEGAL_IDENTITY.contact.phone;
+  const phoneDigits = phone?.replace(/\s+/g, "") ?? "";
 
   if (variant === "block") {
     return (
@@ -42,8 +42,7 @@ export function LegalIdentityBlock({
         <br />
         {LEGAL_IDENTITY.address.postalCode} {LEGAL_IDENTITY.address.city}
         <br />
-        {orgLabel} {LEGAL_IDENTITY.orgNumber} · {vatLabel}{" "}
-        {LEGAL_IDENTITY.vatId}
+        {orgLabel} {LEGAL_IDENTITY.orgNumber}
         {showContact && (
           <>
             <br />
@@ -53,13 +52,17 @@ export function LegalIdentityBlock({
             >
               {LEGAL_IDENTITY.contact.email}
             </a>
-            {" · "}
-            <a
-              href={`tel:${phoneDigits}`}
-              className="hover:text-foreground"
-            >
-              {LEGAL_IDENTITY.contact.phone}
-            </a>
+            {phone && (
+              <>
+                {" · "}
+                <a
+                  href={`tel:${phoneDigits}`}
+                  className="hover:text-foreground"
+                >
+                  {phone}
+                </a>
+              </>
+            )}
           </>
         )}
       </address>
@@ -69,7 +72,7 @@ export function LegalIdentityBlock({
   return (
     <span className={className ?? "text-xs text-muted-foreground"}>
       {LEGAL_IDENTITY.legalName} · {formatAddressSingleLine()} · {orgLabel}{" "}
-      {LEGAL_IDENTITY.orgNumber} · {vatLabel} {LEGAL_IDENTITY.vatId}
+      {LEGAL_IDENTITY.orgNumber}
       {showContact && (
         <>
           {" · "}
@@ -79,13 +82,17 @@ export function LegalIdentityBlock({
           >
             {LEGAL_IDENTITY.contact.email}
           </a>
-          {" · "}
-          <a
-            href={`tel:${phoneDigits}`}
-            className="hover:text-foreground"
-          >
-            {LEGAL_IDENTITY.contact.phone}
-          </a>
+          {phone && (
+            <>
+              {" · "}
+              <a
+                href={`tel:${phoneDigits}`}
+                className="hover:text-foreground"
+              >
+                {phone}
+              </a>
+            </>
+          )}
         </>
       )}
     </span>

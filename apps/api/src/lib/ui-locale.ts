@@ -807,8 +807,8 @@ const ERRORS = {
     en: "The AI assistant is not activated right now. Contact support for help.",
   },
   aiUnavailableTryAgain: {
-    sv: "AI-assistenten är inte tillgänglig just nu. Försök igen eller maila hej@roots.se.",
-    en: "The AI assistant is unavailable right now. Try again or email hej@roots.se.",
+    sv: "AI-assistenten är inte tillgänglig just nu. Försök igen eller maila info@roots.nu.",
+    en: "The AI assistant is unavailable right now. Try again or email info@roots.nu.",
   },
   aiGeneratedDisclaimer: {
     sv: "AI-genererat svar — verifiera viktig information",

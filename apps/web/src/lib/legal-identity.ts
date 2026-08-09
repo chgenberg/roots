@@ -4,27 +4,27 @@
  * Keep this in one place so:
  * - JSON-LD (Organization / Product), footer, checkout receipt and legal
  *   pages all quote the same values.
- * - Updating VAT-ID, Fortnox address or phone number is a single edit.
+ * - Updating address or contact email is a single edit.
  *
  * Values intentionally live in code (not env) because they are public and
  * should never silently differ between environments.
  */
 
 export const LEGAL_IDENTITY = {
-  legalName: "Roots Nordic AB",
+  legalName: "Ourroots AB",
   tradingName: "Roots",
-  orgNumber: "559517-3210",
-  vatId: "SE559517321001",
+  orgNumber: "559355-7126",
   address: {
-    street: "Storgatan 1",
-    postalCode: "111 51",
-    city: "Stockholm",
+    street: "Hallängsvägen 8",
+    postalCode: "439 55",
+    city: "Åsa",
     country: "Sverige",
     countryCode: "SE",
   },
   contact: {
-    email: "hej@roots.se",
-    phone: "+46 8 000 000 00",
+    email: "info@roots.nu",
+    /** Omit until a real public phone number is published. */
+    phone: null as string | null,
   },
   social: {
     instagram: "https://www.instagram.com/roots.nordic",

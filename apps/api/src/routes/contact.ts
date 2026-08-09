@@ -62,7 +62,7 @@ contact.post("/", async (c) => {
 
   try {
     const sender = getEmailSender();
-    const recipientEmail = process.env.CONTACT_FORM_EMAIL || "hej@roots.se";
+    const recipientEmail = process.env.CONTACT_FORM_EMAIL || "info@roots.nu";
 
     const safeName = escapeHtml(name);
     const safeEmail = escapeHtml(email);

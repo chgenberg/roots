@@ -76,7 +76,7 @@ export default async function PreviewGatePage() {
           </div>
 
           <p className="mt-5 text-center text-xs text-white/80 [text-shadow:0_1px_3px_rgb(0_0_0/45%)]">
-            © {new Date().getFullYear()} Roots Nordic AB
+            © {new Date().getFullYear()} Ourroots AB
           </p>
         </div>
       </div>

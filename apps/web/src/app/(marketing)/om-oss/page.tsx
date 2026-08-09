@@ -1,6 +1,8 @@
 import Image from "next/image";
-import { Heart, Leaf, Shield } from "lucide-react";
+import { ArrowRight, Heart, Leaf, Shield } from "lucide-react";
 import { BreadcrumbJsonLd, WebPageJsonLd } from "@/components/json-ld";
+import { LocaleLink } from "@/components/locale-link";
+import { Button } from "@/components/ui/button";
 import { pageMetadata } from "@/lib/seo";
 import { TeamSection } from "@/components/sections/team";
 import { getPage } from "@/i18n/get-dictionary";
@@ -62,6 +64,19 @@ export default async function OmOssPage() {
             <p className="mt-5 text-lg leading-relaxed text-muted-foreground md:text-xl">
               {t.heroBody}
             </p>
+            <div className="mt-8 flex justify-center">
+              <Button
+                size="lg"
+                pulse
+                asChild
+                className="group rounded-full px-8 shadow-[var(--shadow-card)] transition-[transform,box-shadow] duration-300 hover:-translate-y-0.5 hover:shadow-[var(--shadow-elevated)]"
+              >
+                <LocaleLink href="/kontakt">
+                  {t.ctaContact}
+                  <ArrowRight className="ml-0.5 h-4 w-4 transition-transform duration-300 ease-out group-hover:translate-x-1" />
+                </LocaleLink>
+              </Button>
+            </div>
           </div>
         </div>
       </section>

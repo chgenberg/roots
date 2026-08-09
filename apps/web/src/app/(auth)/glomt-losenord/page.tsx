@@ -66,10 +66,10 @@ export default function ForgotPasswordPage() {
           <p>
             {t.noMailHint}{" "}
             <a
-              href="mailto:hej@roots.se"
+              href="mailto:info@roots.nu"
               className="font-medium text-foreground underline-offset-4 hover:underline"
             >
-              hej@roots.se
+              info@roots.nu
             </a>
             .
           </p>

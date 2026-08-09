@@ -89,8 +89,8 @@ function CancelDeletionInner() {
             <p className="font-medium">{t.expiredTitle}</p>
             <p className="mt-1">
               {t.expiredBody}{" "}
-              <a className="underline" href="mailto:hej@roots.se">
-                hej@roots.se
+              <a className="underline" href="mailto:info@roots.nu">
+                info@roots.nu
               </a>
               .
             </p>

@@ -54,7 +54,7 @@ export async function generateMetadata({
     ogImage: guide.heroImage,
     publishedTime: guide.publishedAt,
     modifiedTime: guide.updatedAt,
-    authors: ["Roots Nordic AB"],
+    authors: ["Ourroots AB"],
   });
 }
 

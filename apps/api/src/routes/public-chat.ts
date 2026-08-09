@@ -41,14 +41,14 @@ function chatCopy(locale: string | undefined) {
       ? `Messages may be at most ${MAX_MESSAGE_LENGTH} characters.`
       : `Meddelandet får vara max ${MAX_MESSAGE_LENGTH} tecken.`,
     fallback: en
-      ? "Our AI assistant is unavailable right now. Contact us at hej@roots.se and we will help you."
-      : "Vår AI-assistent är inte tillgänglig just nu. Kontakta oss på hej@roots.se så hjälper vi dig.",
+      ? "Our AI assistant is unavailable right now. Contact us at info@roots.nu and we will help you."
+      : "Vår AI-assistent är inte tillgänglig just nu. Kontakta oss på info@roots.nu så hjälper vi dig.",
     streamError: en
-      ? "Something went wrong. Please try again or contact hej@roots.se."
-      : "Något gick fel. Försök igen eller kontakta hej@roots.se.",
+      ? "Something went wrong. Please try again or contact info@roots.nu."
+      : "Något gick fel. Försök igen eller kontakta info@roots.nu.",
     completionError: en
-      ? "Something went wrong. Please try again or contact us at hej@roots.se."
-      : "Något gick fel. Försök igen eller kontakta oss på hej@roots.se.",
+      ? "Something went wrong. Please try again or contact us at info@roots.nu."
+      : "Något gick fel. Försök igen eller kontakta oss på info@roots.nu.",
     disclaimer: en
       ? "AI-generated reply — please verify important information"
       : "AI-genererat svar — verifiera viktig information",

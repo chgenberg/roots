@@ -19,9 +19,6 @@ const SITE_URL = (
 const ORG_ID = `${SITE_URL}/#organization`;
 const WEBSITE_ID = `${SITE_URL}/#website`;
 
-/** Placeholder-telefon — emitteras aldrig i JSON-LD. */
-const PLACEHOLDER_PHONE = "+46 8 000 000 00";
-
 /**
  * MASTERPLAN_01 KC7.3: Google ignorerar JSON-LD images som inte är
  * absolute URLs. Den här helpern prefixar med SITE_URL om värdet
@@ -83,7 +80,6 @@ export function OrganizationJsonLd({
     description: resolvedDescription,
     areaServed: "SE",
     foundingDate: "2025",
-    vatID: LEGAL_IDENTITY.vatId,
     taxID: LEGAL_IDENTITY.orgNumber,
     email: LEGAL_IDENTITY.contact.email,
     contactPoint: {
@@ -103,7 +99,7 @@ export function OrganizationJsonLd({
     numberOfEmployees: { "@type": "QuantitativeValue", value: 3 },
   };
 
-  if (phone && phone !== PLACEHOLDER_PHONE) {
+  if (phone) {
     jsonLd.telephone = phone;
   }
 

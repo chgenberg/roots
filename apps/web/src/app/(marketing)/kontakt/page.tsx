@@ -173,8 +173,6 @@ export default function KontaktPage() {
                     </address>
                     <p className="mt-2 text-xs text-muted-foreground">
                       {t.orgNumberLabel} {LEGAL_IDENTITY.orgNumber}
-                      <br />
-                      {t.vatLabel} {LEGAL_IDENTITY.vatId}
                     </p>
                   </div>
                 </div>

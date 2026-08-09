@@ -31,7 +31,7 @@ export function getEmailSender(): EmailSender {
   }
 
   if (apiKey) {
-    const from = process.env.RESEND_FROM_ADDRESS || "Roots <hej@roots.se>";
+    const from = process.env.RESEND_FROM_ADDRESS || "Roots <info@roots.nu>";
     _sender = new ResendEmailSender(apiKey, from);
     log.info("Using Resend provider");
   } else {

@@ -74,7 +74,7 @@ export function Footer() {
 
         <div className="flex flex-col gap-2 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
           <p>
-            © {new Date().getFullYear()} Roots Nordic AB. {t.footer.copyright}
+            © {new Date().getFullYear()} Ourroots AB. {t.footer.copyright}
           </p>
           <LegalIdentityBlock variant="compact" showContact />
         </div>

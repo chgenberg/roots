@@ -28,8 +28,8 @@ export const aiChat = new Hono();
 const COPY = {
   sv: {
     fallbacks: [
-      "Just nu är AI-assistenten inte tillgänglig. Kontakta oss på hej@roots.se så hjälper vi dig.",
-      "Vår AI-assistent är tillfälligt nedstängd. Du hittar vanliga frågor på vår hemsida, eller maila hej@roots.se.",
+      "Just nu är AI-assistenten inte tillgänglig. Kontakta oss på info@roots.nu så hjälper vi dig.",
+      "Vår AI-assistent är tillfälligt nedstängd. Du hittar vanliga frågor på vår hemsida, eller maila info@roots.nu.",
     ],
     disclaimer: "AI-genererat svar — verifiera viktig information",
     notLoggedIn: "Inte inloggad.",
@@ -46,8 +46,8 @@ const COPY = {
   },
   en: {
     fallbacks: [
-      "The AI assistant is unavailable right now. Contact us at hej@roots.se and we will help you.",
-      "Our AI assistant is temporarily offline. You can find common questions on our website, or email hej@roots.se.",
+      "The AI assistant is unavailable right now. Contact us at info@roots.nu and we will help you.",
+      "Our AI assistant is temporarily offline. You can find common questions on our website, or email info@roots.nu.",
     ],
     disclaimer: "AI-generated reply — please verify important information",
     notLoggedIn: "Not signed in.",

@@ -208,8 +208,8 @@ export async function middleware(request: NextRequest) {
       // SITE_PREVIEW_PASSWORD måste sättas (eller PREVIEW_GATE_DISABLED).
       const misconfigured =
         locale === "en"
-          ? "Preview is misconfigured. Contact hej@roots.se."
-          : "Förhandsvisningen är felkonfigurerad. Kontakta hej@roots.se.";
+          ? "Preview is misconfigured. Contact info@roots.nu."
+          : "Förhandsvisningen är felkonfigurerad. Kontakta info@roots.nu.";
       return new NextResponse(misconfigured, {
         status: 503,
         headers: { "content-type": "text/plain; charset=utf-8" },
@@ -318,8 +318,8 @@ function serviceUnavailable(locale: "sv" | "en" = "sv"): NextResponse {
     ? "We are having a temporary issue"
     : "Vi har ett tillfälligt problem";
   const body = en
-    ? "The portal cannot be reached right now. You are still signed in — please try again shortly. If it persists, email hej@roots.se."
-    : "Portalen kan inte nås just nu. Du är fortfarande inloggad — försök igen om en liten stund. Kvarstår det, mejla hej@roots.se.";
+    ? "The portal cannot be reached right now. You are still signed in — please try again shortly. If it persists, email info@roots.nu."
+    : "Portalen kan inte nås just nu. Du är fortfarande inloggad — försök igen om en liten stund. Kvarstår det, mejla info@roots.nu.";
   const retry = en ? "Try again" : "Försök igen";
   return new NextResponse(
     `<!doctype html><html lang="${locale}"><head><meta charset="utf-8">
