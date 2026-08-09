@@ -31,6 +31,10 @@ const TEAM = [
     name: "Niclas Corse",
     image: "/personal/niclas-corse.jpg",
   },
+  {
+    name: "Matilda",
+    image: "/personal/matilda.jpg",
+  },
 ] as const;
 
 export async function TeamSection() {
