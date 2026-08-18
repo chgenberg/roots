@@ -64,7 +64,8 @@ describe("computeCalculator", () => {
   it("uses sane defaults with the locked 35% margin", () => {
     const r = computeCalculator(CALCULATOR_DEFAULTS);
     expect(r.marginPercent).toBe(35);
-    expect(r.grossKr).toBe(37500);
-    expect(r.earningsKr).toBe(13125); // 37500 * 0.35
+    expect(r.sellers).toBe(50);
+    expect(r.grossKr).toBe(75000);
+    expect(r.earningsKr).toBe(26250); // 75000 * 0.35
   });
 });

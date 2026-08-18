@@ -272,16 +272,24 @@ def chars_per_line(content: str, width_in: float, size_pt: float, font: str) -> 
 def line_count(content: str, width_in: float, size_pt: float, font: str = BODY) -> int:
     if not content:
         return 0
-    per_line = chars_per_line(content, width_in, size_pt, font)
-    lines, used = 1, 0
-    for word in content.split():
-        needed = len(word) + (1 if used else 0)
-        if used + needed > per_line:
-            lines += 1
-            used = len(word)
-        else:
-            used += needed
-    return lines
+    # Explicit \n i rubriker måste räknas — annars krockar underrubrik med
+    # titel när presentatören skrivit in manuella radbrytningar.
+    total = 0
+    for para in content.split("\n"):
+        if not para:
+            total += 1
+            continue
+        per_line = chars_per_line(para, width_in, size_pt, font)
+        lines, used = 1, 0
+        for word in para.split():
+            needed = len(word) + (1 if used else 0)
+            if used + needed > per_line:
+                lines += 1
+                used = len(word)
+            else:
+                used += needed
+        total += lines
+    return total
 
 
 def fit_size(content: str, width_in: float, base_pt: float, min_pt: float,
@@ -318,30 +326,30 @@ def title_block(slide, slide_spec, color=INK, sub_color=SAND_DARK,
                 base_pt=37.0, width=None, gap=0.0) -> float:
     """Skriver kicker, rubrik, underrubrik och linje. Returnerar y för brödtext.
 
-    gap skjuter ned linjen under rubriken. Standardläget lägger den tätt intill
-    texten, vilket är avsikten — men en rubrik som slutar med en bokstav med
-    underhäng, som g eller j, får då stapeln att nudda linjen.
+    gap skjuter ned linjen under rubriken. Extra luft efter rubrik så att
+    underhäng (g, j, y) inte krockar med accentlinjen.
     """
     width = width or CONTENT_W
     kicker(slide, slide_spec.kicker)
 
     size = fit_size(slide_spec.title, width, base_pt, 21, 2, HEAD)
     lines = line_count(slide_spec.title, width, size, HEAD)
-    title_h = lines * size * 1.16 / 72
-    text(slide, MARGIN, TITLE_Y, width, title_h + 0.1,
+    # Generös höjd + luft: Alan Sans-underhäng (g/j/y) går långt under baseline.
+    title_h = lines * size * 1.22 / 72
+    text(slide, MARGIN, TITLE_Y, width, title_h + 0.14,
          [[(slide_spec.title, HEAD, size, color, False)]], space_after=0,
-         line_spacing=1.06)
-    y = TITLE_Y + title_h + 0.16
+         line_spacing=1.08)
+    y = TITLE_Y + title_h + 0.52
 
     if slide_spec.subtitle:
         sub_pt = fit_size(slide_spec.subtitle, width, 14.5, 11, 2)
         sub_h = line_count(slide_spec.subtitle, width, sub_pt) * sub_pt * 1.3 / 72
         text(slide, MARGIN, y, width, sub_h + 0.06,
              [[(slide_spec.subtitle, BODY, sub_pt, sub_color, False)]], space_after=0)
-        y += sub_h + 0.20
+        y += sub_h + 0.28
 
     hairline(slide, MARGIN, y + gap, 1.5, FOREST, 0.022)
-    return y + gap + 0.42
+    return y + gap + 0.40
 
 
 def footer(slide, deck_name, page, light=False):
@@ -415,13 +423,16 @@ class Ctx:
 
 def r_cover(slide, spec: Slide, ctx: Ctx):
     has_image = bool(spec.images) and image_path(spec.images[0])
-    panel_w = 7.55 if has_image else 8.40
+    # Luft mellan textpanel och foto — annars äter motivet i bilden
+    # sista orden i rubriken visuellt.
+    panel_w = 6.85 if has_image else 8.40
+    gutter = 0.28 if has_image else 0.0
 
     background(slide, OFFWHITE)
     if has_image:
         # Lite mer av nedre halvan så en förgrundsprodukt inte äter hela panelens höjd.
-        image_cover(slide, image_path(spec.images[0]), panel_w, 0, SW - panel_w, SH,
-                    focus_y=0.58)
+        image_cover(slide, image_path(spec.images[0]), panel_w + gutter, 0,
+                    SW - panel_w - gutter, SH, focus_y=0.58)
     else:
         # Utan foto håller ett sandfält med märket balansen i uppslaget.
         rect(slide, panel_w, 0, SW - panel_w, SH, SAND_100)
@@ -436,20 +447,22 @@ def r_cover(slide, spec: Slide, ctx: Ctx):
     if os.path.exists(logo):
         slide.shapes.add_picture(logo, Inches(MARGIN), Inches(0.82), height=Inches(0.42))
 
-    inner_w = panel_w - MARGIN - 0.9
-    kicker(slide, spec.kicker, y=2.28, color=SAND_DARK, w=inner_w)
+    inner_w = panel_w - MARGIN - 0.55
+    kicker(slide, spec.kicker, y=2.10, color=SAND_DARK, w=inner_w)
 
-    size = fit_size(spec.title, inner_w, 52, 30, 3, HEAD)
+    size = fit_size(spec.title, inner_w, 44, 26, 5, HEAD)
     lines = line_count(spec.title, inner_w, size, HEAD)
-    title_h = lines * size * 1.1 / 72
-    text(slide, MARGIN, 2.70, inner_w, title_h + 0.1,
-         [[(spec.title, HEAD, size, INK, False)]], space_after=0, line_spacing=1.04)
+    title_h = lines * size * 1.12 / 72
+    text(slide, MARGIN, 2.50, inner_w, title_h + 0.12,
+         [[(spec.title, HEAD, size, INK, False)]], space_after=0, line_spacing=1.08)
 
-    y = 2.70 + title_h + 0.30
+    y = 2.50 + title_h + 0.38
     hairline(slide, MARGIN, y, 1.5, FOREST, 0.022)
     if spec.subtitle:
-        text(slide, MARGIN, y + 0.34, inner_w, 0.9,
-             [[(spec.subtitle, BODY, 15, SAND_DARK, False)]], space_after=0)
+        sub_pt = fit_size(spec.subtitle, inner_w, 14.5, 11.5, 4)
+        text(slide, MARGIN, y + 0.32, inner_w, 1.15,
+             [[(spec.subtitle, BODY, sub_pt, SAND_DARK, False)]], space_after=0,
+             line_spacing=1.32)
 
     text(slide, MARGIN, FOOTER_Y, 6.0, 0.3,
          [[(ctx.deck_name, BODY, 9, SAND_MED, False)]], space_after=0)
@@ -481,16 +494,21 @@ def r_hero(slide, spec: Slide, ctx: Ctx):
 def r_points(slide, spec: Slide, ctx: Ctx):
     background(slide)
     img = image_path(spec.images[0]) if spec.images else None
-    body_w = 6.85 if img else CONTENT_W
+    body_w = 6.55 if img else CONTENT_W
 
     y = title_block(slide, spec, width=body_w if img else CONTENT_W)
     if img:
-        image_cover(slide, img, SW - MARGIN - 4.35, 1.05, 4.35, 5.35, rounded=True)
+        # Kortare bild när caption finns — annars krockar nedersta raden
+        # med fotots nedre hörn.
+        img_h = 4.85 if spec.caption else 5.35
+        image_cover(slide, img, SW - MARGIN - 4.20, 1.10, 4.20, img_h,
+                    rounded=True)
 
-    cap_room = 0.72 if spec.caption else 0
+    cap_room = 0.78 if spec.caption else 0
     bullets(slide, spec.items, MARGIN, y, body_w,
             max_h=FOOTER_Y - 0.35 - y - cap_room)
-    caption(slide, spec, FOOTER_Y - 0.78)
+    if spec.caption:
+        caption(slide, spec, FOOTER_Y - 0.82, w=body_w)
     footer(slide, ctx.deck_name, ctx.page)
 
 
@@ -924,49 +942,56 @@ def r_table(slide, spec: Slide, ctx: Ctx):
 
     rows = spec.cells(2)
     headers = spec.columns or ["", ""]
-    left_w = CONTENT_W * 0.44
+    left_w = CONTENT_W * 0.40
     right_w = CONTENT_W - left_w
-    head_h = 0.44
-    available = FOOTER_Y - 0.35 - y - head_h
+    head_h = 0.36
+    available = FOOTER_Y - 0.38 - y - head_h - (0.62 if spec.caption else 0)
+    # Radhöjd får aldrig överskrida tillgängligt utrymme (summa/caption krockar).
     row_h = min(0.62, available / max(1, len(rows)))
+    max_lines = 2 if row_h >= 0.52 else 1
 
     rect(slide, MARGIN, y, CONTENT_W, head_h, SAND_100)
     for i, (label, width) in enumerate(zip(headers[:2], (left_w, right_w))):
         x = MARGIN + (0 if i == 0 else left_w)
-        text(slide, x + 0.28, y + 0.13, width - 0.4, 0.26,
+        text(slide, x + 0.28, y + 0.08, width - 0.4, 0.22,
              [[(label.upper(), BODY, 9, SAND_DARK, True)]], space_after=0)
 
     for i, (left, right) in enumerate(rows):
         top = y + head_h + i * row_h
         if i % 2 == 1:
             rect(slide, MARGIN, top, CONTENT_W, row_h, SAND_100)
-        hairline(slide, MARGIN, top, CONTENT_W, SAND_LIGHT, 0.008)
 
-        left_pt = fit_size(left, left_w - 0.6, 13.5, 10, 2)
-        text(slide, MARGIN + 0.28, top, left_w - 0.6, row_h,
+        left_pt = fit_size(left, left_w - 0.55, 12.5, 9, max_lines)
+        text(slide, MARGIN + 0.28, top + 0.03, left_w - 0.55, row_h - 0.06,
              [[(left, BODY, left_pt, INK, False)]], space_after=0,
-             anchor=MSO_ANCHOR.MIDDLE, line_spacing=1.26)
+             anchor=MSO_ANCHOR.MIDDLE, line_spacing=1.12)
 
-        right_pt = fit_size(right, right_w - 0.6, 13.5, 10, 2)
-        text(slide, MARGIN + left_w + 0.28, top, right_w - 0.6, row_h,
+        right_pt = fit_size(right, right_w - 0.55, 12, 9, max_lines)
+        text(slide, MARGIN + left_w + 0.28, top + 0.03, right_w - 0.55,
+             row_h - 0.06,
              [[(right, BODY, right_pt, SAND_DARK, False)]], space_after=0,
-             anchor=MSO_ANCHOR.MIDDLE, line_spacing=1.26)
+             anchor=MSO_ANCHOR.MIDDLE, line_spacing=1.12)
 
     footer(slide, ctx.deck_name, ctx.page)
+    if spec.caption:
+        caption(slide, spec, FOOTER_Y - 0.52)
 
 
 def r_kpi(slide, spec: Slide, ctx: Ctx):
+    """KPI-kort med fasta band — värde, linje, etikett — utan överlapp."""
     background(slide)
     y = title_block(slide, spec)
 
     rows = spec.cells(2)
     n = max(1, len(rows))
     per_row = n if n <= 4 else 3
-    gap = 0.30
+    gap = 0.28
     tile_w = (CONTENT_W - gap * (per_row - 1)) / per_row
     row_count = (n + per_row - 1) // per_row
-    available = FOOTER_Y - 0.35 - y - (0.72 if spec.caption else 0)
-    tile_h = min(2.45, (available - gap * (row_count - 1)) / row_count)
+    available = FOOTER_Y - 0.40 - y - (0.70 if spec.caption else 0)
+    tile_h = min(2.55, (available - gap * (row_count - 1)) / row_count)
+    # Gemensam värdezon så linjen ligger lika i alla kort och aldrig skär text.
+    value_band = min(1.05, max(0.78, tile_h * 0.38))
 
     for i, (value, label) in enumerate(rows):
         col, row = i % per_row, i // per_row
@@ -974,21 +999,31 @@ def r_kpi(slide, spec: Slide, ctx: Ctx):
         top = y + row * (tile_h + gap)
 
         rrect(slide, x, top, tile_w, tile_h, WHITE, SAND_LIGHT)
-        value_pt = fit_size(value, tile_w - 0.7, 46, 22, 1, HEAD)
-        text(slide, x + 0.35, top + 0.40, tile_w - 0.7, 0.9,
-             [[(value, HEAD, value_pt, FOREST, False)]], space_after=0)
+        inner = tile_w - 0.64
+        vx = x + 0.32
 
-        hairline(slide, x + 0.35, top + 0.40 + value_pt / 72 * 1.15 + 0.16,
-                 0.7, SAND_LIGHT, 0.016)
+        # Preferera en rad — två rader bara om värdet absolut inte får plats.
+        value_pt = fit_size(value, inner, 26, 13, 1, HEAD)
+        if line_count(value, inner, value_pt, HEAD) > 1:
+            value_pt = fit_size(value, inner, 22, 12, 2, HEAD)
+        text(slide, vx, top + 0.18, inner, value_band - 0.22,
+             [[(value, HEAD, value_pt, FOREST, False)]], space_after=0,
+             line_spacing=1.05, anchor=MSO_ANCHOR.MIDDLE)
 
-        label_pt = fit_size(label, tile_w - 0.7, 12.5, 9.5, 4)
-        text(slide, x + 0.35, top + 0.40 + value_pt / 72 * 1.15 + 0.36,
-             tile_w - 0.7, tile_h - 1.2,
+        line_y = top + value_band
+        hairline(slide, vx, line_y, 0.70, SAND_LIGHT, 0.016)
+
+        label_top = line_y + 0.20
+        label_h = top + tile_h - label_top - 0.22
+        label_pt = fit_size(label, inner, 12, 9, 4)
+        text(slide, vx, label_top, inner, max(0.35, label_h),
              [[(label, BODY, label_pt, SAND_DARK, False)]], space_after=0,
-             line_spacing=1.32)
+             line_spacing=1.28)
 
     footer(slide, ctx.deck_name, ctx.page)
-    caption(slide, spec, y + row_count * tile_h + (row_count - 1) * gap + 0.28)
+    if spec.caption:
+        caption(slide, spec,
+                y + row_count * tile_h + (row_count - 1) * gap + 0.26)
 
 
 def r_roles(slide, spec: Slide, ctx: Ctx):
@@ -1031,6 +1066,127 @@ def r_roles(slide, spec: Slide, ctx: Ctx):
              [[(duty, BODY, duty_pt, SAND_DARK, False)]], space_after=0,
              line_spacing=1.32)
 
+    footer(slide, ctx.deck_name, ctx.page)
+
+
+def r_compare(slide, spec: Slide, ctx: Ctx):
+    """Produktjämförelse: tre kategorirader × fyra kort (Roots + konkurrenter).
+
+    Varje `items`-rad: kategori | varumärke | produkt | pris/100ml | förp | badge | feature
+    Badge «Vårt pris» markerar Roots-kortet (grön bakgrund).
+    """
+    background(slide)
+    y = title_block(slide, spec, base_pt=22, gap=0.0)
+
+    rows_raw = [p for p in spec.items if p.strip()]
+    parsed: list[tuple[str, str, str, str, str, str, str]] = []
+    for item in rows_raw:
+        parts = [x.strip() for x in item.split("|")]
+        while len(parts) < 7:
+            parts.append("")
+        parsed.append(tuple(parts[:7]))  # type: ignore[arg-type]
+
+    categories: list[tuple[str, list]] = []
+    for row in parsed:
+        cat = row[0]
+        if not categories or categories[-1][0] != cat:
+            categories.append((cat, [row]))
+        else:
+            categories[-1][1].append(row)
+
+    # Ingen caption-zon — underrubriken bär förklaringen och korten får höjden.
+    floor = FOOTER_Y - 0.22
+    n_cat = max(1, len(categories))
+    gap_y = 0.14
+    avail = floor - y - gap_y * (n_cat - 1)
+    block_h = avail / n_cat
+    label_h = 0.17
+    card_h = block_h - label_h - 0.02
+
+    cols = 4
+    gap_x = 0.12
+    card_w = (CONTENT_W - gap_x * (cols - 1)) / cols
+
+    for ci, (cat, products) in enumerate(categories):
+        top = y + ci * (block_h + gap_y)
+        pill_w = min(1.70, 0.18 * len(cat) + 0.70)
+        rrect(slide, MARGIN, top, pill_w, 0.17, SAND_100, None, radius=0.35)
+        text(slide, MARGIN, top + 0.005, pill_w, 0.16,
+             [[(cat.upper(), BODY, 8, SAND_DARK, True)]],
+             align=PP_ALIGN.CENTER, space_after=0)
+
+        card_top = top + label_h
+        for i, (_, brand, product, price, pack, badge, feature) in enumerate(
+            products[:cols]
+        ):
+            x = MARGIN + i * (card_w + gap_x)
+            ours = badge.lower().startswith("vårt") or brand.lower() == "roots"
+            fill = FOREST_SOFT if ours else WHITE
+            border = FOREST if ours else SAND_LIGHT
+            rrect(slide, x, card_top, card_w, card_h, fill, border,
+                  radius=0.035, line_pt=1.2 if ours else 0.85)
+
+            pad_x = 0.10
+            inner = card_w - 2 * pad_x
+            # Relativa band (andel av kortets höjd) så allt ryms.
+            def band(a: float, b: float) -> tuple[float, float]:
+                return card_top + card_h * a, card_h * (b - a)
+
+            by, bh = band(0.03, 0.15)
+            brand_pt = fit_size(brand, inner, 10.5, 7.5, 1, HEAD)
+            text(slide, x + pad_x, by, inner, bh,
+                 [[(brand, HEAD, brand_pt, INK, False)]],
+                 align=PP_ALIGN.CENTER, space_after=0, anchor=MSO_ANCHOR.MIDDLE)
+
+            py, ph = band(0.15, 0.32)
+            prod_pt = fit_size(product, inner, 8, 6.5, 2)
+            text(slide, x + pad_x, py, inner, ph,
+                 [[(product, BODY, prod_pt, SAND_DARK, False)]],
+                 align=PP_ALIGN.CENTER, space_after=0, line_spacing=1.05,
+                 anchor=MSO_ANCHOR.MIDDLE)
+
+            pry, prh = band(0.32, 0.52)
+            price_pt = fit_size(price, inner, 15, 10.5, 1, HEAD)
+            text(slide, x + pad_x, pry, inner, prh,
+                 [[(price, HEAD, price_pt, INK, False)]],
+                 align=PP_ALIGN.CENTER, space_after=0, anchor=MSO_ANCHOR.MIDDLE)
+
+            pky, pkh = band(0.52, 0.62)
+            text(slide, x + pad_x, pky, inner, pkh,
+                 [[(pack, BODY, 7, SAND_MED, False)]],
+                 align=PP_ALIGN.CENTER, space_after=0, anchor=MSO_ANCHOR.MIDDLE)
+
+            bgy, bgh = band(0.64, 0.78)
+            badge_w = min(inner * 0.92, max(0.90, 0.09 * max(len(badge), 1) + 0.40))
+            badge_x = x + (card_w - badge_w) / 2
+            badge_h = min(0.20, bgh)
+            rrect(slide, badge_x, bgy + (bgh - badge_h) / 2, badge_w, badge_h,
+                  FOREST, None, radius=0.40)
+            text(slide, badge_x, bgy + (bgh - badge_h) / 2, badge_w, badge_h,
+                 [[(badge, BODY, 7.5, WHITE, True)]],
+                 align=PP_ALIGN.CENTER, space_after=0, anchor=MSO_ANCHOR.MIDDLE)
+
+            if feature:
+                fy, fh = band(0.80, 0.97)
+                feat_pt = fit_size(feature, inner, 7.5, 6, 2)
+                text(slide, x + pad_x, fy, inner, fh,
+                     [[(feature, BODY, feat_pt, SAND_DARK, False)]],
+                     align=PP_ALIGN.CENTER, space_after=0, line_spacing=1.05,
+                     anchor=MSO_ANCHOR.MIDDLE)
+
+    footer(slide, ctx.deck_name, ctx.page)
+
+
+def r_fullimage(slide, spec: Slide, ctx: Ctx):
+    """Helbreddsbild under rubrik — för infografik och jämförelser."""
+    background(slide)
+    y = title_block(slide, spec, base_pt=24, gap=0.04)
+    img = image_path(spec.images[0]) if spec.images else None
+    bottom = FOOTER_Y - (0.48 if spec.caption else 0.28)
+    if img:
+        image_contain(slide, img, MARGIN - 0.10, y, CONTENT_W + 0.20, bottom - y)
+    if spec.caption:
+        caption(slide, spec, FOOTER_Y - 0.48)
     footer(slide, ctx.deck_name, ctx.page)
 
 
@@ -1080,11 +1236,13 @@ def r_bignumber(slide, spec: Slide, ctx: Ctx):
 
     top = y + 0.10 + fig_pt / 72 * 1.28
     if explain:
-        exp_pt = fit_size(explain, 8.4, 15, 11.5, 2)
-        text(slide, MARGIN, top, 8.4, 0.7,
+        # Bredare förklaringsrad så sista orden inte hänger ensamma.
+        exp_w = min(10.2, CONTENT_W)
+        exp_pt = fit_size(explain, exp_w, 15, 11.5, 3)
+        text(slide, MARGIN, top, exp_w, 0.85,
              [[(explain, BODY, exp_pt, SAND_DARK, False)]], space_after=0,
              line_spacing=1.32)
-        top += line_count(explain, 8.4, exp_pt) * exp_pt * 1.32 / 72 + 0.34
+        top += line_count(explain, exp_w, exp_pt) * exp_pt * 1.32 / 72 + 0.34
 
     n = max(1, len(roles))
     gap = 0.30
@@ -1094,12 +1252,16 @@ def r_bignumber(slide, spec: Slide, ctx: Ctx):
         name, note = role[0], role[1]
         x = MARGIN + i * (card_w + gap)
         rrect(slide, x, top, card_w, card_h, SAND_100)
-        name_pt = fit_size(name, card_w - 0.6, 17, 12.5, 1, HEAD)
-        text(slide, x + 0.30, top + 0.26, card_w - 0.6, 0.4,
-             [[(name, HEAD, name_pt, INK, False)]], space_after=0)
+        name_pt = fit_size(name, card_w - 0.6, 16, 12, 1, HEAD)
+        name_band = name_pt / 72 * 1.55 + 0.10
+        text(slide, x + 0.30, top + 0.22, card_w - 0.6, name_band,
+             [[(name, HEAD, name_pt, INK, False)]], space_after=0,
+             anchor=MSO_ANCHOR.MIDDLE)
+        note_top = top + 0.22 + name_band + 0.10
         note_pt = fit_size(note, card_w - 0.6, 12.5, 9.5, 2)
-        text(slide, x + 0.30, top + 0.26 + name_pt / 72 * 1.35, card_w - 0.6,
-             card_h - 0.7, [[(note, BODY, note_pt, SAND_DARK, False)]],
+        text(slide, x + 0.30, note_top, card_w - 0.6,
+             card_h - (note_top - top) - 0.22,
+             [[(note, BODY, note_pt, SAND_DARK, False)]],
              space_after=0, line_spacing=1.3)
 
     footer(slide, ctx.deck_name, ctx.page)
@@ -1149,20 +1311,28 @@ def r_calc(slide, spec: Slide, ctx: Ctx):
     panel_h = min(3.55, FOOTER_Y - 0.40 - y)
 
     rrect(slide, MARGIN, y, left_w, panel_h, WHITE, SAND_LIGHT)
-    fields = [f for f in spec.items if f.strip()]
+    # items: "etikett" eller "etikett | belopp" — belopp visas i högerfältet.
+    fields = []
+    for raw in spec.items:
+        if not raw.strip():
+            continue
+        parts = [p.strip() for p in raw.split("|", 1)]
+        fields.append((parts[0], parts[1] if len(parts) > 1 else ""))
     row_h = (panel_h - 0.70) / max(1, len(fields))
-    for i, name in enumerate(fields):
+    for i, (name, amount) in enumerate(fields):
         top = y + 0.35 + i * row_h
-        label_pt = fit_size(name, left_w - 1.9, 13.5, 10.5, 2)
-        text(slide, MARGIN + 0.40, top, left_w - 1.9, row_h,
+        label_pt = fit_size(name, left_w - 2.05, 13.5, 10.5, 2)
+        text(slide, MARGIN + 0.40, top, left_w - 2.05, row_h,
              [[(name, BODY, label_pt, INK, False)]], space_after=0,
              anchor=MSO_ANCHOR.MIDDLE)
-        # Tomt inmatningsfält: kalkylen fylls i tillsammans med föreningen.
-        rrect(slide, MARGIN + left_w - 1.42, top + row_h / 2 - 0.16, 1.02, 0.32,
-              SAND_100)
-        if i < len(fields) - 1:
-            hairline(slide, MARGIN + 0.40, top + row_h, left_w - 0.80,
-                     SAND_LIGHT, 0.010)
+        box_x = MARGIN + left_w - 1.55
+        rrect(slide, box_x, top + row_h / 2 - 0.18, 1.20, 0.36, SAND_100)
+        if amount:
+            amt_pt = fit_size(amount, 1.05, 11.5, 9, 1)
+            text(slide, box_x + 0.06, top + row_h / 2 - 0.16, 1.08, 0.32,
+                 [[(amount, BODY, amt_pt, FOREST, True)]], space_after=0,
+                 align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
+        # Inga hairlines mellan rader — beloppsrutor + linjer blir stökigt.
 
     rx = MARGIN + left_w + gap
     rrect(slide, rx, y, right_w, panel_h, FOREST_SOFT)
@@ -1338,7 +1508,7 @@ def r_skarm(slide, spec: Slide, ctx: Ctx):
     body_w = min(column_w, 5.90)
 
     # Rubriken får däremot bruka hela spalten — den tål långa rader.
-    y = title_block(slide, spec, width=column_w, base_pt=31, gap=0.12)
+    y = title_block(slide, spec, width=column_w, base_pt=31, gap=0.06)
 
     if img:
         panel_h = draw_h + 2 * pad
@@ -1369,7 +1539,7 @@ def r_phones(slide, spec: Slide, ctx: Ctx):
     under respektive telefon. Färre bilder ger större telefoner.
     """
     background(slide)
-    y = title_block(slide, spec, base_pt=28, gap=0.04)
+    y = title_block(slide, spec, base_pt=28, gap=0.02)
 
     rels = list(spec.images[:3])
     labels = list(spec.items[: len(rels)])
@@ -1441,9 +1611,9 @@ def r_desktops(slide, spec: Slide, ctx: Ctx):
     n = max(1, len(rels))
     gap = 0.34
     col_w = (CONTENT_W - gap * (n - 1)) / n
-    floor = FOOTER_Y - (0.68 if spec.caption else 0.28)
+    floor = FOOTER_Y - (0.78 if spec.caption else 0.28)
     label_h = 0.32 if any(labels) else 0.0
-    panel_h = min(4.55, floor - y - label_h - 0.08)
+    panel_h = min(4.35, floor - y - label_h - 0.10)
     pad = 0.10
 
     for i, rel in enumerate(rels):
@@ -1564,8 +1734,10 @@ def r_team(slide, spec: Slide, ctx: Ctx):
     grid_w = SW - 2 * side
     gap_x, gap_y = 0.16, 0.08
     name_h = 0.24
-    cap_h = 0.32 if spec.caption else 0
-    bottom = FOOTER_Y - 0.16 - cap_h
+    # Caption behöver mer plats än en tunn rad — annars lägger den sig
+    # över nedersta porträttraden.
+    cap_h = 0.72 if spec.caption else 0
+    bottom = FOOTER_Y - 0.18 - cap_h
     avail_h = bottom - y - gap_y * (row_count - 1)
 
     tile_w = (grid_w - gap_x * (per_row - 1)) / per_row
@@ -1604,7 +1776,7 @@ def r_team(slide, spec: Slide, ctx: Ctx):
              align=PP_ALIGN.CENTER, space_after=0)
 
     if spec.caption:
-        caption(slide, spec, FOOTER_Y - 0.68)
+        caption(slide, spec, FOOTER_Y - 0.70)
     footer(slide, ctx.deck_name, ctx.page)
 
 
@@ -1633,5 +1805,7 @@ RENDERERS = {
     "kpi": r_kpi,
     "roles": r_roles,
     "team": r_team,
+    "fullimage": r_fullimage,
+    "compare": r_compare,
     "close": r_close,
 }

@@ -125,7 +125,7 @@ export function computeCalculator(input: CalculatorInputs): CalculatorResult {
 
 /** Föreslagna standardvärden (härledda från demodata + brandbok). */
 export const CALCULATOR_DEFAULTS: CalculatorInputs = {
-  sellers: 25,
+  sellers: 50,
   avgPerSellerKr: 1500,
   marginPercent: LOCKED_MARGIN_PERCENT,
 };

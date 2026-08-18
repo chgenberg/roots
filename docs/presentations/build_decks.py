@@ -27,6 +27,8 @@ from pptx.util import Inches  # noqa: E402
 import roots_deck as rd  # noqa: E402
 from decks import DECKS as MS_DECKS  # noqa: E402
 import deck_salj  # noqa: E402
+import deck_forening  # noqa: E402
+import deck_kommunikation  # noqa: E402
 from slide_model import Deck  # noqa: E402
 
 HERE = Path(__file__).parent
@@ -37,16 +39,24 @@ FOOTERS = {
     "Roots_Roadmap_Ar_1-5.pptx": "Roots · Roadmap år 1–5",
     "Roots_Oversiktspresentation.pptx": "Roots · Det här är Roots",
     "Roots_Ar_1_Execution_Roadmap.pptx": "Roots · År 1 – Execution Roadmap",
+    "Roots_Bankpresentation.pptx": "Roots · Bankunderlag",
+    "Roots_Foreningspresentation.pptx": "Roots · Till föreningen",
+    "Roots_Kommunikationskit.pptx": "Roots · Kommunikationskit",
+    "Roots_Plattformen.pptx": "Roots · Plattformen",
 }
 KEYS = {"d1": "Roots_Saljpresentation.pptx",
         "d2": "Roots_Roadmap_Ar_1-5.pptx",
         "d3": "Roots_Oversiktspresentation.pptx",
-        "d4": "Roots_Ar_1_Execution_Roadmap.pptx"}
+        "d4": "Roots_Ar_1_Execution_Roadmap.pptx",
+        "forening": "Roots_Foreningspresentation.pptx",
+        "komm": "Roots_Kommunikationskit.pptx"}
 
-# D1 kommer ur deck_salj (noter + MS). Övriga MS-decks lämnas orörda.
+# D1 kommer ur deck_salj (noter + MS). Förenings-/komm-decks är fristående.
 DECKS = {
     **MS_DECKS,
     "Roots_Saljpresentation.pptx": deck_salj.build,
+    "Roots_Foreningspresentation.pptx": deck_forening.build,
+    "Roots_Kommunikationskit.pptx": deck_kommunikation.build,
 }
 
 
