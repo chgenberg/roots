@@ -352,32 +352,27 @@ export function SaFungerarDetClient() {
 
   return (
     <>
-      <section className="relative overflow-hidden bg-brand-50/40 py-20 md:py-28">
+      <section
+        id="rakna"
+        className="relative scroll-mt-24 overflow-hidden bg-brand-50/40 py-16 md:py-24"
+      >
         <div
           className="pointer-events-none absolute -top-16 right-[8%] h-48 w-48 rounded-full border border-brand-200/30 animate-float motion-reduce:animate-none"
           aria-hidden="true"
         />
-        <div className="mx-auto max-w-[760px] px-6 text-center md:px-10">
-          <Badge variant="secondary" className="mb-4">
-            {t.badge}
-          </Badge>
-          <h1 className="text-[length:var(--font-size-hero)] font-bold leading-[1.05] tracking-tight">
-            {t.heroTitle}
-          </h1>
-          <p className="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-muted-foreground">
-            {t.heroBody}
-          </p>
-          <div className="mt-10 flex flex-wrap justify-center gap-4">
-            <Button size="lg" asChild>
-              <a href="#rakna">
-                {t.ctaCalc}
-                <ArrowRight className="ml-1 h-4 w-4" />
-              </a>
-            </Button>
-            <Button variant="secondary" size="lg" asChild>
-              <LocaleLink href="/kontakt?intent=demo">{t.ctaDemo}</LocaleLink>
-            </Button>
+        <div className="mx-auto max-w-[1100px] px-6 md:px-10">
+          <div className="mx-auto mb-10 max-w-2xl text-center">
+            <Badge variant="secondary" className="mb-4">
+              {t.badge}
+            </Badge>
+            <h1 className="text-[length:var(--font-size-hero)] font-bold leading-[1.05] tracking-tight">
+              {t.calcTitle}
+            </h1>
+            <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-muted-foreground">
+              {t.calcBody}
+            </p>
           </div>
+          <CalculatorBlock copy={t} locale={locale} />
         </div>
       </section>
 
@@ -398,38 +393,6 @@ export function SaFungerarDetClient() {
             roleTablistLabel={t.roleTablistLabel}
             locale={locale}
           />
-          <div className="mt-14 flex justify-center">
-            <Button size="lg" asChild>
-              <a href="#rakna">
-                {t.ctaMid}
-                <ArrowRight className="ml-1 h-4 w-4" />
-              </a>
-            </Button>
-          </div>
-        </div>
-      </section>
-
-      <section id="rakna" className="scroll-mt-24 bg-brand-50/40 py-20 md:py-28">
-        <div className="mx-auto max-w-[1100px] px-6 md:px-10">
-          <div className="mx-auto mb-14 max-w-2xl text-center">
-            <p className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-700">
-              <Sparkles className="h-4 w-4" />
-              {t.calcEyebrow}
-            </p>
-            <h2 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
-              {t.calcTitle}
-            </h2>
-            <p className="mt-3 text-muted-foreground">{t.calcBody}</p>
-            <ul className="mx-auto mt-6 max-w-md space-y-3 text-left">
-              {t.calcBullets.map((b) => (
-                <li key={b} className="flex items-start gap-3 text-sm">
-                  <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-brand-600" />
-                  <span>{b}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-          <CalculatorBlock copy={t} locale={locale} />
         </div>
       </section>
 

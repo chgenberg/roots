@@ -256,7 +256,7 @@ export const pages = {
       calcEyebrow: "Räkna på er förtjänst",
       calcTitle: "Vad kan er förening tjäna?",
       calcBody:
-        "Se hur enkelt det är att räkna — och prova själv direkt nedan. Dra i reglagen så uppdateras förtjänsten i realtid.",
+        "Dra i reglagen så uppdateras förtjänsten i realtid. Två siffror — resten räknar Roots.",
       calcBullets: [
         "Justera antal säljare och snittförsäljning",
         "Se förtjänsten och hur långt ni når mot målet",
@@ -347,7 +347,7 @@ export const pages = {
       calcEyebrow: "Calculate your earnings",
       calcTitle: "What could your club earn?",
       calcBody:
-        "See how easy it is to calculate — and try it yourself below. Drag the sliders and earnings update in real time.",
+        "Drag the sliders and earnings update in real time. Two numbers — Roots does the rest.",
       calcBullets: [
         "Adjust number of sellers and average sales",
         "See earnings and how close you are to the goal",
