@@ -30,7 +30,7 @@ type LocalizedProduct = Record<Locale, ProductCopy>;
 
 const sharedUi = {
   sv: {
-    orderViaAssociation: "Beställ via din förening",
+    orderViaAssociation: "Beställ nu och stötta din förening",
     allProducts: "Alla produkter",
     ingredientsHeading: "Ingredienser (INCI)",
     containsHeading: "Detta ingår",
@@ -38,7 +38,7 @@ const sharedUi = {
     notFoundTitle: "Produkt hittades inte",
   },
   en: {
-    orderViaAssociation: "Order through your club",
+    orderViaAssociation: "Order now and support your club",
     allProducts: "All products",
     ingredientsHeading: "Ingredients (INCI)",
     containsHeading: "What's included",
@@ -59,8 +59,8 @@ export const products: Record<
         "Schampo som rengör på riktigt — och lämnar hårbotten i ro",
       description:
         "Ett mjukt men effektivt schampo som löser smuts och fett utan att skala bort hårbottnens naturliga balans. Sockerbaserade, sulfatsnåla tvättämnen rengör skonsamt medan SyriCalm® — en forskningsförankrad nordisk aktiv av vass (Phragmites Communis) och svamp (Poria Cocos) — lugnar och stärker hårbotten. Polyquaternium reder ut och ger naturlig glans. Håret känns rent, lätt och levande, dag efter dag.",
-      priceSek: 149,
-      priceOre: 14900,
+      priceSek: 199,
+      priceOre: 19900,
       volume: "250 ml",
       badge: "Bestseller",
       highlights: [
@@ -78,8 +78,8 @@ export const products: Record<
         "Shampoo that truly cleanses — and leaves the scalp calm",
       description:
         "A gentle yet effective shampoo that lifts dirt and oil without stripping the scalp's natural balance. Sugar-based, low-sulphate surfactants cleanse kindly while SyriCalm® — a research-backed Nordic active from reed (Phragmites Communis) and mushroom (Poria Cocos) — soothes and supports the scalp. Polyquaternium detangles and brings natural shine. Hair feels clean, light and alive, day after day.",
-      priceSek: 149,
-      priceOre: 14900,
+      priceSek: 199,
+      priceOre: 19900,
       volume: "250 ml",
       badge: "Bestseller",
       highlights: [
@@ -100,8 +100,8 @@ export const products: Record<
         "Balsam som ger håret exakt det det behöver — inget mer, inget mindre",
       description:
         "Ett närande balsam som gör håret mjukt, följsamt och lätt att reda ut utan att tynga ner. Ett lätt emollient-komplex och Pro-Vitamin B5 (Panthenol) återfuktar på djupet, medan E-vitamin och antioxidanter från svartpeppar (Piper Nigrum) och Inga-bark skyddar håret mot daglig miljöstress. SyriCalm® lugnar hårbotten. Resultatet: silkeslent hår med en lyster som håller hela dagen.",
-      priceSek: 149,
-      priceOre: 14900,
+      priceSek: 199,
+      priceOre: 19900,
       volume: "250 ml",
       badge: null,
       highlights: [
@@ -119,8 +119,8 @@ export const products: Record<
         "Conditioner that gives hair exactly what it needs — nothing more, nothing less",
       description:
         "A nourishing conditioner that leaves hair soft, manageable and easy to detangle without weighing it down. A light emollient complex and Pro-Vitamin B5 (Panthenol) moisturise deeply, while vitamin E and antioxidants from black pepper (Piper Nigrum) and Inga bark help protect hair from everyday environmental stress. SyriCalm® soothes the scalp. The result: silky hair with a shine that lasts all day.",
-      priceSek: 149,
-      priceOre: 14900,
+      priceSek: 199,
+      priceOre: 19900,
       volume: "250 ml",
       badge: null,
       highlights: [
@@ -141,8 +141,8 @@ export const products: Record<
         "Body wash som respekterar huden — istället för att störa den",
       description:
         "En skonsam kroppstvätt med krämigt lödder som rengör utan att torka ut. Milda tvättämnen och ett Panthenol-derivat lämnar huden len och återfuktad, medan SyriCalm® — av vass (Phragmites Communis) och svamp (Poria Cocos) — lugnar och stärker hudens naturliga skyddsbarriär. Huden känns ren, mjuk och i balans efter varje dusch.",
-      priceSek: 129,
-      priceOre: 12900,
+      priceSek: 179,
+      priceOre: 17900,
       volume: "250 ml",
       badge: null,
       highlights: ["Sulfatsnålt", "SyriCalm® – lugnar huden", "Panthenol (B5)"],
@@ -156,8 +156,8 @@ export const products: Record<
         "Body wash that respects the skin — instead of disrupting it",
       description:
         "A gentle body wash with a creamy lather that cleanses without drying out. Mild surfactants and a Panthenol derivative leave skin soft and hydrated, while SyriCalm® — from reed (Phragmites Communis) and mushroom (Poria Cocos) — soothes and supports the skin's natural barrier. Skin feels clean, soft and balanced after every shower.",
-      priceSek: 129,
-      priceOre: 12900,
+      priceSek: 179,
+      priceOre: 17900,
       volume: "250 ml",
       badge: null,
       highlights: [
@@ -176,14 +176,14 @@ export const products: Record<
       subtitle: "Paket — schampo, balsam & body wash",
       tagline: "Hela rutinen — schampo, balsam och kroppstvätt i ett paket",
       description:
-        "De tre produkterna är formulerade för att användas tillsammans. Schampot rengör utan att rubba hårbottnens balans, balsamet ger tillbaka fukt och följsamhet, och kroppstvätten tar hand om huden på samma skonsamma sätt. SyriCalm® — den nordiska aktiven av vass och svamp — går igenom alla tre. Som paket kostar de 399 kr istället för 427 kr var för sig.",
+        "De tre produkterna är formulerade för att användas tillsammans. Schampot rengör utan att rubba hårbottnens balans, balsamet ger tillbaka fukt och följsamhet, och kroppstvätten tar hand om huden på samma skonsamma sätt. SyriCalm® — den nordiska aktiven av vass och svamp — går igenom alla tre. Som paket kostar de 399 kr istället för 577 kr var för sig.",
       priceSek: 399,
       priceOre: 39900,
       volume: "3 × 250 ml",
-      badge: "Spara 28 kr",
+      badge: "Spara 178 kr",
       highlights: [
         "Alla tre produkterna",
-        "Spara 28 kr",
+        "Spara 178 kr",
         "SyriCalm® i hela rutinen",
       ],
       contains: [
@@ -200,14 +200,14 @@ export const products: Record<
       tagline:
         "The full routine — shampoo, conditioner and body wash in one pack",
       description:
-        "The three products are formulated to work together. The shampoo cleanses without upsetting scalp balance, the conditioner restores moisture and manageability, and the body wash cares for skin with the same gentle approach. SyriCalm® — the Nordic reed-and-mushroom active — runs through all three. As a pack they cost SEK 399 instead of SEK 427 separately.",
+        "The three products are formulated to work together. The shampoo cleanses without upsetting scalp balance, the conditioner restores moisture and manageability, and the body wash cares for skin with the same gentle approach. SyriCalm® — the Nordic reed-and-mushroom active — runs through all three. As a pack they cost SEK 399 instead of SEK 577 separately.",
       priceSek: 399,
       priceOre: 39900,
       volume: "3 × 250 ml",
-      badge: "Save SEK 28",
+      badge: "Save SEK 178",
       highlights: [
         "All three products",
-        "Save SEK 28",
+        "Save SEK 178",
         "SyriCalm® throughout the routine",
       ],
       contains: [

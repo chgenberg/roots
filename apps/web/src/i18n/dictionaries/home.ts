@@ -94,7 +94,7 @@ export const home: Record<Locale, HomeCopy> = {
           name: "Roots Schampoo",
           tagline: "Rengör på riktigt — SyriCalm® lugnar hårbotten",
           image: "/images/sport-schampoo.jpg",
-          price: "149 kr",
+          price: "199 kr",
           badge: "Schampo",
         },
         {
@@ -102,7 +102,7 @@ export const home: Record<Locale, HomeCopy> = {
           name: "Roots Conditioner",
           tagline: "Mjukt, följsamt hår — Pro-Vitamin B5 & antioxidanter",
           image: "/images/sport-conditioner.jpg",
-          price: "149 kr",
+          price: "199 kr",
           badge: "Balsam",
         },
         {
@@ -110,7 +110,7 @@ export const home: Record<Locale, HomeCopy> = {
           name: "Roots Body Wash",
           tagline: "Respekterar huden — SyriCalm® lugnar och stärker",
           image: "/images/sport-body-wash.jpg",
-          price: "129 kr",
+          price: "179 kr",
           badge: "Body Wash",
         },
       ],
@@ -203,7 +203,7 @@ export const home: Record<Locale, HomeCopy> = {
           name: "Roots Schampoo",
           tagline: "Cleanses thoroughly — SyriCalm® soothes the scalp",
           image: "/images/sport-schampoo.jpg",
-          price: "SEK 149",
+          price: "SEK 199",
           badge: "Shampoo",
         },
         {
@@ -211,7 +211,7 @@ export const home: Record<Locale, HomeCopy> = {
           name: "Roots Conditioner",
           tagline: "Soft, manageable hair — Pro-Vitamin B5 & antioxidants",
           image: "/images/sport-conditioner.jpg",
-          price: "SEK 149",
+          price: "SEK 199",
           badge: "Conditioner",
         },
         {
@@ -219,7 +219,7 @@ export const home: Record<Locale, HomeCopy> = {
           name: "Roots Body Wash",
           tagline: "Gentle on skin — SyriCalm® soothes and strengthens",
           image: "/images/sport-body-wash.jpg",
-          price: "SEK 129",
+          price: "SEK 179",
           badge: "Body Wash",
         },
       ],

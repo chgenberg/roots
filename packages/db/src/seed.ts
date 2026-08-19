@@ -141,7 +141,7 @@ async function seed() {
       slug: "shampoo",
       description:
         "Milt schampo med SyriCalm® som lugnar hårbotten och sulfatsnåla, sockerbaserade tvättämnen. 250 ml.",
-      priceOre: 14900,
+      priceOre: 19900,
       currency: "SEK",
     },
     {
@@ -150,7 +150,7 @@ async function seed() {
       slug: "conditioner",
       description:
         "Närande balsam med SyriCalm®, Pro-Vitamin B5 och E-vitamin. Mjukt, följsamt hår utan att tynga. 250 ml.",
-      priceOre: 14900,
+      priceOre: 19900,
       currency: "SEK",
     },
     {
@@ -159,7 +159,7 @@ async function seed() {
       slug: "body-wash",
       description:
         "Skonsam kroppstvätt med SyriCalm® och Panthenol. Rengör utan att torka ut. 250 ml.",
-      priceOre: 12900,
+      priceOre: 17900,
       currency: "SEK",
     },
     // Paketet ligger i `products`, inte i `bundles` — se BUNDLE_SKU i

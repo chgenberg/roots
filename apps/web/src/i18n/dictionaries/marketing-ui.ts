@@ -98,7 +98,7 @@ export const marketingUi = {
       totalSales: "Total försäljning",
       setGoal: "Lägg till ett mål ovan för att se hur långt ni når.",
       disclaimer:
-        "En uppskattning utifrån era antaganden. Faktisk förtjänst beror på hur mycket laget säljer.",
+        "En uppskattning utifrån era antaganden. Faktisk förtjänst beror på hur mycket föreningen säljer.",
     },
   },
   en: {
@@ -197,7 +197,7 @@ export const marketingUi = {
       totalSales: "Total sales",
       setGoal: "Add a goal above to see how close you are.",
       disclaimer:
-        "An estimate based on your assumptions. Actual earnings depend on how much the team sells.",
+        "An estimate based on your assumptions. Actual earnings depend on how much the club sells.",
     },
   },
 } as const satisfies Record<Locale, unknown>;

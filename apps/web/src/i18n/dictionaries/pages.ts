@@ -30,9 +30,9 @@ export const pages = {
         "Unisex — för alla",
       ],
       readMore: "Läs mer",
-      ctaTitle: "Beställ via din förening",
+      ctaTitle: "Beställ nu och stötta din förening",
       ctaBody:
-        "Roots säljs genom föreningar och klubbar — en del av varje köp går direkt till laget.",
+        "Roots säljs genom föreningar och klubbar — en del av varje köp går direkt till föreningen.",
       ctaButton: "Så gör din förening",
       productSlugs: ["shampoo", "conditioner", "body-wash", "paket"] as const,
     },
@@ -51,9 +51,9 @@ export const pages = {
         "Unisex — for everyone",
       ],
       readMore: "Learn more",
-      ctaTitle: "Order through your club",
+      ctaTitle: "Order now and support your club",
       ctaBody:
-        "Roots is sold through sports clubs — a share of every purchase goes straight to the team.",
+        "Roots is sold through sports clubs — a share of every purchase goes straight to the club.",
       ctaButton: "How your club gets started",
       productSlugs: ["shampoo", "conditioner", "body-wash", "paket"] as const,
     },
@@ -213,20 +213,20 @@ export const pages = {
           description:
             "Föreningsansvarig loggar in, sätter ett mål och öppnar en säljperiod. Allt syns live i dashboarden — ni ser exakt hur långt ni har kvar.",
           bullets: [
-            "Sätt mål per lag och per säljare",
+            "Sätt mål per lag eller per säljare/medlem",
             "Skapa säljperioder med start- och slutdatum",
             "Följ försäljningen i realtid mot målet",
           ],
         },
         {
           id: "lag",
-          tab: "Lagledaren",
+          tab: "Genomföraren",
           eyebrow: "Steg 2",
-          title: "Lagledaren bjuder in laget",
+          title: "Genomföraren bjuder in",
           description:
-            "Tränaren eller föräldragruppen skickar en registreringslänk till spelarna och peppar laget via topplistan — utan att hålla i någon pärm.",
+            "Genomföraren i föreningen skickar ut registreringslänken. Vid lagförsäljning är det lagledaren, i en klass klassansvarig — utan att hålla i någon pärm.",
           bullets: [
-            "Bjud in hela laget med en länk",
+            "Bjud in hela gruppen med en länk",
             "Topplista som driver lite vänskaplig tävling",
             "Chatt och uppföljning på ett ställe",
           ],
@@ -302,20 +302,20 @@ export const pages = {
           description:
             "The club admin logs in, sets a goal and opens a sales period. Progress updates live on the dashboard — you can see exactly how far you still have to go.",
           bullets: [
-            "Set goals per team and per seller",
+            "Set goals per team or per seller/member",
             "Create sales periods with start and end dates",
             "Track sales in real time against the goal",
           ],
         },
         {
           id: "lag",
-          tab: "The team leader",
+          tab: "The organiser",
           eyebrow: "Step 2",
-          title: "The team leader invites the team",
+          title: "The organiser invites members",
           description:
-            "The coach or parent group sends a registration link to the players and motivates the team via the leaderboard — without paperwork.",
+            "The person running the campaign in the club sends the registration link. For team sales that's the team leader; for a class it's the class lead — without paperwork.",
           bullets: [
-            "Invite the whole team with one link",
+            "Invite the whole group with one link",
             "A leaderboard that drives friendly competition",
             "Chat and follow-up in one place",
           ],

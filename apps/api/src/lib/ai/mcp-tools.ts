@@ -17,9 +17,9 @@ export const mcpTools: McpTool[] = [
     readonly: true,
     execute: async (params) => {
       const products = [
-        { slug: "shampoo", name: "Roots Shampoo", price: "149 kr" },
-        { slug: "conditioner", name: "Roots Conditioner", price: "149 kr" },
-        { slug: "body-wash", name: "Roots Body Wash", price: "129 kr" },
+        { slug: "shampoo", name: "Roots Shampoo", price: "199 kr" },
+        { slug: "conditioner", name: "Roots Conditioner", price: "199 kr" },
+        { slug: "body-wash", name: "Roots Body Wash", price: "179 kr" },
       ];
       const query = (params.query as string || "").toLowerCase();
       return products.find(
