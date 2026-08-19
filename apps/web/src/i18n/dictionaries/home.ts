@@ -51,6 +51,7 @@ type HomeCopy = {
     body: string;
     benefits: Benefit[];
     cta: string;
+    ctaCalc: string;
   };
   socialProof: {
     principles: Principle[];
@@ -142,6 +143,7 @@ export const home: Record<Locale, HomeCopy> = {
         },
       ],
       cta: "Anslut din förening",
+      ctaCalc: "Räkna på er förtjänst",
     },
     socialProof: {
       principles: [
@@ -251,6 +253,7 @@ export const home: Record<Locale, HomeCopy> = {
         },
       ],
       cta: "Register your club",
+      ctaCalc: "Calculate your earnings",
     },
     socialProof: {
       principles: [

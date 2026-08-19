@@ -25,6 +25,7 @@
     "@trpc/react-query": "^11.0.0-rc.700",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "jspdf": "^4.2.1",
     "lucide-react": "^0.474",
     "next": "^15.3",
     "qrcode": "^1.5.4",

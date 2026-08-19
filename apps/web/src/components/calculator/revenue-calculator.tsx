@@ -11,8 +11,9 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { GoalGauge } from "@/components/charts";
 import { cn } from "@/lib/utils";
-import { Lock } from "lucide-react";
+import { Download, Lock } from "lucide-react";
 import { formatKr } from "@/lib/format";
+import { downloadCalculatorPdf } from "@/lib/calculator-pdf";
 import { useLocale } from "@/i18n/locale-context";
 import { marketingUi } from "@/i18n/dictionaries/marketing-ui";
 
@@ -365,6 +366,16 @@ export function RevenueCalculator({
               {t.ofGross.replace("{gross}", money(result.grossKr))} ·{" "}
               {result.marginPercent}%
             </p>
+            <button
+              type="button"
+              onClick={() =>
+                void downloadCalculatorPdf({ inputs, result, locale })
+              }
+              className="mt-6 inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/25"
+            >
+              <Download className="h-4 w-4" aria-hidden="true" />
+              {t.downloadPdf}
+            </button>
           </CardContent>
         </Card>
 

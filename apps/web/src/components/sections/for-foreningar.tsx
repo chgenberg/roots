@@ -50,11 +50,16 @@ export async function ForForeningar() {
           })}
         </div>
 
-        <div className="mt-16 text-center">
+        <div className="mt-16 flex flex-wrap justify-center gap-4">
           <Button size="lg" pulse asChild>
             <LocaleLink href="/foreningsliv">
               {forClubs.cta}
               <ArrowRight className="ml-1 h-4 w-4" />
+            </LocaleLink>
+          </Button>
+          <Button variant="secondary" size="lg" asChild>
+            <LocaleLink href="/sa-fungerar-det#rakna">
+              {forClubs.ctaCalc}
             </LocaleLink>
           </Button>
         </div>

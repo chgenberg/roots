@@ -72,6 +72,9 @@ export const pages = {
       heroImageAlt: "Roots produkter i föreningens omklädningsrum",
       ctaPrimary: "Anslut din förening",
       ctaSecondary: "Kontakta oss",
+      ctaCalc: "Räkna på er förtjänst",
+      ctaAfterSteps: "Räkna på er förtjänst",
+      bottomCalcCta: "Se vad Roots kan ge er förening",
       stepsTitle: "Så här fungerar det",
       stepsSubtitle: "Från registrering till leverans — i fyra enkla steg.",
       steps: [
@@ -133,6 +136,9 @@ export const pages = {
       heroImageAlt: "Roots products in the club changing room",
       ctaPrimary: "Register your club",
       ctaSecondary: "Contact us",
+      ctaCalc: "Calculate your earnings",
+      ctaAfterSteps: "Calculate your earnings",
+      bottomCalcCta: "See what Roots can give your club",
       stepsTitle: "How it works",
       stepsSubtitle: "From registration to delivery — in four simple steps.",
       steps: [
@@ -198,6 +204,8 @@ export const pages = {
       heroBody:
         "Tre enkla steg — från att föreningen kommer igång till att medlemmen säljer i mobilen. Se hur det går till och räkna ut vad det kan ge er förening.",
       ctaCalc: "Räkna på er förtjänst",
+      ctaMid: "Räkna på er förtjänst",
+      ctaBottom: "Se vad Roots kan ge er förening",
       ctaDemo: "Boka en demo",
       demoEyebrow: "Se det i praktiken",
       demoTitle: "Enkelt för alla — i varje steg",
@@ -287,6 +295,8 @@ export const pages = {
       heroBody:
         "Three simple steps — from the club signing up to members selling on their phone. See how it works and calculate what it could mean for your club.",
       ctaCalc: "Calculate your earnings",
+      ctaMid: "Calculate your earnings",
+      ctaBottom: "See what Roots can give your club",
       ctaDemo: "Book a demo",
       demoEyebrow: "See it in action",
       demoTitle: "Simple for everyone — at every step",

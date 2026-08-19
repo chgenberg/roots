@@ -73,7 +73,7 @@ export default async function ForeningslivPage() {
                 </LocaleLink>
               </Button>
               <Button variant="secondary" size="lg" asChild>
-                <LocaleLink href="/kontakt">{t.ctaSecondary}</LocaleLink>
+                <LocaleLink href="/sa-fungerar-det#rakna">{t.ctaCalc}</LocaleLink>
               </Button>
             </div>
           </div>
@@ -113,6 +113,15 @@ export default async function ForeningslivPage() {
                 </p>
               </div>
             ))}
+          </div>
+
+          <div className="mt-14 flex justify-center">
+            <Button size="lg" asChild>
+              <LocaleLink href="/sa-fungerar-det#rakna">
+                {t.ctaAfterSteps}
+                <ArrowRight className="ml-1 h-4 w-4" />
+              </LocaleLink>
+            </Button>
           </div>
         </div>
       </section>
@@ -167,16 +176,28 @@ export default async function ForeningslivPage() {
           <p className="mx-auto mt-4 max-w-xl text-inverse-on-surface/80">
             {t.bottomBody}
           </p>
-          <Button
-            size="lg"
-            className="mt-8 bg-white text-neutral-900 shadow-sm hover:bg-neutral-100"
-            asChild
-          >
-            <LocaleLink href="/registrera" localeNeutral>
-              {t.bottomCta}
-              <ArrowRight className="ml-1 h-4 w-4" />
-            </LocaleLink>
-          </Button>
+          <div className="mt-8 flex flex-wrap justify-center gap-4">
+            <Button
+              size="lg"
+              className="bg-white text-neutral-900 shadow-sm hover:bg-neutral-100"
+              asChild
+            >
+              <LocaleLink href="/registrera" localeNeutral>
+                {t.bottomCta}
+                <ArrowRight className="ml-1 h-4 w-4" />
+              </LocaleLink>
+            </Button>
+            <Button
+              size="lg"
+              variant="secondary"
+              className="border-white/30 bg-white/10 text-white hover:bg-white/20"
+              asChild
+            >
+              <LocaleLink href="/sa-fungerar-det#rakna">
+                {t.bottomCalcCta}
+              </LocaleLink>
+            </Button>
+          </div>
         </div>
       </section>
     </>

@@ -185,6 +185,13 @@ export function Header() {
             </nav>
 
             <div className={cn(PILL, "ml-auto hidden items-center gap-0.5 lg:flex")}>
+              <LocaleLink
+                href="/sa-fungerar-det#rakna"
+                aria-label={t.aria.calcCta}
+                className="flex h-10 items-center whitespace-nowrap rounded-full bg-brand-700 px-4 text-sm font-medium text-white transition-colors duration-200 hover:bg-brand-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {t.calcCta}
+              </LocaleLink>
               <SearchTrigger />
               <ThemeToggle />
               <Link
@@ -267,6 +274,14 @@ export function Header() {
           ))}
 
           <div className="mt-12 flex flex-col gap-4">
+            <LocaleLink
+              href="/sa-fungerar-det#rakna"
+              onClick={() => setMenuOpen(false)}
+              className="flex items-center gap-2 rounded-md text-lg font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {t.calcCta}
+              <ArrowRight className="h-4 w-4" />
+            </LocaleLink>
             <button
               type="button"
               onClick={() => {

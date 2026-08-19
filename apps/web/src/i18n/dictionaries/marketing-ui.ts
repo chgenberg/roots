@@ -35,6 +35,7 @@ export const marketingUi = {
         { label: "Föreningsliv", href: "/foreningsliv", category: "pages" },
         { label: "Guider", href: "/guider", category: "pages" },
         { label: "Så fungerar det", href: "/sa-fungerar-det", category: "pages" },
+        { label: "Räkna på intäkten", href: "/sa-fungerar-det#rakna", category: "pages" },
         { label: "Hjälp", href: "/hjalp", category: "pages" },
         { label: "Om oss", href: "/om-oss", category: "pages" },
         { label: "Kontakt", href: "/kontakt", category: "pages" },
@@ -99,6 +100,7 @@ export const marketingUi = {
       setGoal: "Lägg till ett mål ovan för att se hur långt ni når.",
       disclaimer:
         "En uppskattning utifrån era antaganden. Faktisk förtjänst beror på hur mycket föreningen säljer.",
+      downloadPdf: "Ladda ner PDF till styrelsen",
     },
   },
   en: {
@@ -134,6 +136,7 @@ export const marketingUi = {
         { label: "For clubs", href: "/foreningsliv", category: "pages" },
         { label: "Guides", href: "/guider", category: "pages" },
         { label: "How it works", href: "/sa-fungerar-det", category: "pages" },
+        { label: "Calculate earnings", href: "/sa-fungerar-det#rakna", category: "pages" },
         { label: "Help", href: "/hjalp", category: "pages" },
         { label: "About us", href: "/om-oss", category: "pages" },
         { label: "Contact", href: "/kontakt", category: "pages" },
@@ -198,6 +201,7 @@ export const marketingUi = {
       setGoal: "Add a goal above to see how close you are.",
       disclaimer:
         "An estimate based on your assumptions. Actual earnings depend on how much the club sells.",
+      downloadPdf: "Download a PDF for the board",
     },
   },
 } as const satisfies Record<Locale, unknown>;

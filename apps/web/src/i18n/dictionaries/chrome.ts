@@ -7,9 +7,11 @@ type FooterGroup = { title: string; links: FooterLink[] };
 
 type ChromeCopy = {
   nav: Record<NavKey, string>;
+  calcCta: string;
   aria: {
     login: string;
     bookDemo: string;
+    calcCta: string;
     openMenu: string;
     closeMenu: string;
     home: string;
@@ -41,9 +43,11 @@ export const chrome: Record<Locale, ChromeCopy> = {
       guides: "Guider",
       about: "Om oss",
     },
+    calcCta: "Räkna på intäkten",
     aria: {
       login: "Logga in",
       bookDemo: "Boka demo",
+      calcCta: "Räkna på intäkten",
       openMenu: "Öppna meny",
       closeMenu: "Stäng meny",
       home: "Roots — startsida",
@@ -71,6 +75,7 @@ export const chrome: Record<Locale, ChromeCopy> = {
           links: [
             { href: "/foreningsliv", label: "Föreningsliv" },
             { href: "/sa-fungerar-det", label: "Så fungerar det" },
+            { href: "/sa-fungerar-det#rakna", label: "Räkna på intäkten" },
             { href: "/om-oss", label: "Om oss" },
             { href: "/kontakt", label: "Kontakt" },
             { href: "/om-oss#press", label: "Press" },
@@ -116,9 +121,11 @@ export const chrome: Record<Locale, ChromeCopy> = {
       guides: "Guides",
       about: "About us",
     },
+    calcCta: "Calculate earnings",
     aria: {
       login: "Log in",
       bookDemo: "Book a demo",
+      calcCta: "Calculate earnings",
       openMenu: "Open menu",
       closeMenu: "Close menu",
       home: "Roots — home",
@@ -146,6 +153,7 @@ export const chrome: Record<Locale, ChromeCopy> = {
           links: [
             { href: "/foreningsliv", label: "For clubs" },
             { href: "/sa-fungerar-det", label: "How it works" },
+            { href: "/sa-fungerar-det#rakna", label: "Calculate earnings" },
             { href: "/om-oss", label: "About us" },
             { href: "/kontakt", label: "Contact" },
             { href: "/om-oss#press", label: "Press" },

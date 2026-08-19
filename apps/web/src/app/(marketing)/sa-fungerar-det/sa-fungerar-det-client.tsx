@@ -58,52 +58,6 @@ function PhonePlaceholder({
   );
 }
 
-function PhoneFilm({
-  src,
-  poster,
-  className,
-  locale,
-  placeholderTitle,
-  placeholderEyebrow,
-}: {
-  src: string;
-  poster: string;
-  className?: string;
-  locale: Locale;
-  placeholderTitle: string;
-  placeholderEyebrow?: string;
-}) {
-  if (locale === "en") {
-    return (
-      <PhonePlaceholder
-        title={placeholderTitle}
-        eyebrow={placeholderEyebrow}
-        className={className}
-      />
-    );
-  }
-  return (
-    <div className={cn("relative mx-auto w-full max-w-[300px]", className)}>
-      <div
-        className="pointer-events-none absolute -inset-6 -z-10 rounded-[3rem] bg-brand-100/50 blur-2xl"
-        aria-hidden="true"
-      />
-      <div className="overflow-hidden rounded-[2rem] border border-border/60 shadow-[var(--shadow-card)]">
-        <video
-          className="aspect-[9/16] w-full bg-brand-50 object-cover"
-          poster={poster}
-          src={src}
-          muted
-          playsInline
-          autoPlay
-          loop
-          preload="metadata"
-        />
-      </div>
-    </div>
-  );
-}
-
 function DemoFilms({
   steps,
   roleTablistLabel,
@@ -444,45 +398,64 @@ export function SaFungerarDetClient() {
             roleTablistLabel={t.roleTablistLabel}
             locale={locale}
           />
+          <div className="mt-14 flex justify-center">
+            <Button size="lg" asChild>
+              <a href="#rakna">
+                {t.ctaMid}
+                <ArrowRight className="ml-1 h-4 w-4" />
+              </a>
+            </Button>
+          </div>
         </div>
       </section>
 
       <section id="rakna" className="scroll-mt-24 bg-brand-50/40 py-20 md:py-28">
         <div className="mx-auto max-w-[1100px] px-6 md:px-10">
-          <div className="mb-14 grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
-            <div className="order-2 lg:order-1">
-              <PhoneFilm
-                src="/demo/kalkylator.mp4"
-                poster="/demo/kalkylator-poster.jpg"
-                locale={locale}
-                placeholderTitle={t.calcTitle}
-                placeholderEyebrow={t.calcEyebrow}
-              />
-            </div>
-            <div className="order-1 lg:order-2">
-              <p className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-700">
-                <Sparkles className="h-4 w-4" />
-                {t.calcEyebrow}
-              </p>
-              <h2 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
-                {t.calcTitle}
-              </h2>
-              <p className="mt-3 max-w-md text-muted-foreground">{t.calcBody}</p>
-              <ul className="mt-6 space-y-3">
-                {t.calcBullets.map((b) => (
-                  <li key={b} className="flex items-start gap-3 text-sm">
-                    <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-brand-600" />
-                    <span>{b}</span>
-                  </li>
-                ))}
-              </ul>
-              <p className="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-brand-700">
-                {t.calcTryBelow}
-                <ArrowRight className="h-4 w-4" />
-              </p>
-            </div>
+          <div className="mx-auto mb-14 max-w-2xl text-center">
+            <p className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-700">
+              <Sparkles className="h-4 w-4" />
+              {t.calcEyebrow}
+            </p>
+            <h2 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
+              {t.calcTitle}
+            </h2>
+            <p className="mt-3 text-muted-foreground">{t.calcBody}</p>
+            <ul className="mx-auto mt-6 max-w-md space-y-3 text-left">
+              {t.calcBullets.map((b) => (
+                <li key={b} className="flex items-start gap-3 text-sm">
+                  <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-brand-600" />
+                  <span>{b}</span>
+                </li>
+              ))}
+            </ul>
           </div>
           <CalculatorBlock copy={t} locale={locale} />
+        </div>
+      </section>
+
+      <section className="bg-inverse-surface py-16 text-inverse-on-surface md:py-20">
+        <div className="mx-auto max-w-[760px] px-6 text-center md:px-10">
+          <h2 className="text-3xl font-bold tracking-tight">{t.ctaBottom}</h2>
+          <div className="mt-8 flex flex-wrap justify-center gap-4">
+            <Button
+              size="lg"
+              className="bg-white text-neutral-900 shadow-sm hover:bg-neutral-100"
+              asChild
+            >
+              <a href="#rakna">
+                {t.ctaCalc}
+                <ArrowRight className="ml-1 h-4 w-4" />
+              </a>
+            </Button>
+            <Button
+              size="lg"
+              variant="secondary"
+              className="border-white/30 bg-white/10 text-white hover:bg-white/20"
+              asChild
+            >
+              <LocaleLink href="/kontakt?intent=demo">{t.ctaDemo}</LocaleLink>
+            </Button>
+          </div>
         </div>
       </section>
     </>
