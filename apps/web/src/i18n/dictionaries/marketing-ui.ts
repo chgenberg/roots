@@ -80,7 +80,7 @@ export const marketingUi = {
     },
     calculator: {
       sellers: "Hur många säljer?",
-      sellersHint: "Medlemmar som faktiskt säljer — i steg om 5.",
+      sellersHint: "Medlemmar som faktiskt säljer (1–1 000).",
       avgPerSeller: "Hur mycket säljer var och en?",
       avgHint: "Snitt per person under kampanjen (max 5 000 kr).",
       ordersPerSeller: "Antal ordrar per säljare",
@@ -179,7 +179,7 @@ export const marketingUi = {
     },
     calculator: {
       sellers: "How many are selling?",
-      sellersHint: "Members who actually sell — in steps of 5.",
+      sellersHint: "Members who actually sell (1–1,000).",
       avgPerSeller: "How much does each person sell?",
       avgHint: "Average per person during the campaign (max SEK 5,000).",
       ordersPerSeller: "Orders per seller",

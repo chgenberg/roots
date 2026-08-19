@@ -3,7 +3,7 @@
 Mål: få föreningen intresserad nog att boka nästa möte med styrelserepresentanter.
 Inte en full pitch. Inte byråkalkyler. Inte varje skärm.
 
-Dramaturgi: problem → erbjudande → pengar → hur det funkar → nästa steg.
+Dramaturgi: problem → erbjudande → pengar → enkelheten → nästa steg.
 
     python3 docs/presentations/deck_forening.py
 """
@@ -110,20 +110,49 @@ def build() -> Deck:
               "och bjuda in till ett möte där ni räknar deras siffror.",
     ))
 
-    # ── 06 · Hur det funkar (~1 min) ──────────────────────────────────
+    # ── 06 · Enkelheten (~1 min) ──────────────────────────────────────
     slides.append(Slide(
-        number=next(n), layout="skarm", kicker="SÅ FUNKAR DET",
-        title="Styrelsen ser pengarna samma dag",
+        number=next(n), layout="cards", kicker="SÅ FUNKAR DET",
+        title="Föreningsförsäljning. Fast enkelt.",
         items=[
-            "Personlig shop per säljare",
-            "Onlinebetalning — ingen kontant",
-            "Avräkning inbyggd",
+            "Starta | Vi bestämmer oss — sedan är vi igång.",
+            "Kommunicera | Inget tomt dokument att börja i.",
+            "Sälja | Dela. Sälj. Klart. Kunden betalar själv.",
+            "Administrera | Roots håller ihop listor, pengar och resultat.",
         ],
-        images=["forening-oversikt.png"],
-        notes="En skärm räcker. Mer demo sparar ni till styrelsemötet.",
+        caption="Ni fokuserar på föreningen. Roots tar hand om försäljningen.",
+        notes="Ett andetag per block. Dashboard-demo sparar ni till "
+              "styrelsemötet — här räcker modellen.",
     ))
 
-    # ── 07 · Hook / CTA (~1 min) ──────────────────────────────────────
+    # ── 07 · Det Roots tar bort (~45 sek) ─────────────────────────────
+    slides.append(Slide(
+        number=next(n), layout="columns", kicker="DET NI SLÄPPER",
+        title="Vi tar bort jobbet runt omkring",
+        left=Column(
+            heading="Borta",
+            items=[
+                "Kataloger och fysiskt säljmaterial",
+                "Skriva mail, SMS och SOME själv",
+                "Excel, orderlistor och sammanställningar",
+                "Swish, kontanter och fakturor till varje kund",
+            ],
+        ),
+        right=Column(
+            heading="Kvar hos er",
+            items=[
+                "Beslutet att köra",
+                "Målet och ändamålet",
+                "Att engagera medlemmarna",
+                "Att följa resultatet — inte jaga det",
+            ],
+        ),
+        caption="Var är vi? → Vad händer nu? → Behöver jag göra något? "
+                "Svaret ska så ofta som möjligt vara: nej.",
+        notes="Låt dem peka på vänsterkolumnen. Sedan CTA.",
+    ))
+
+    # ── 08 · Hook / CTA (~1 min) ──────────────────────────────────────
     slides.append(Slide(
         number=next(n), layout="close", kicker="NÄSTA STEG",
         title="Boka 30 minuter med styrelsen",
@@ -148,4 +177,8 @@ if __name__ == "__main__":
     render(deck, out, DECK_NAME)
     for s in deck.slides:
         print(f"  {s.number:02d} {s.layout:10} {s.title[:58]}")
-    print(f"\nWrote {out}")
+    desktop = Path.home() / "Desktop"
+    desktop_pptx = desktop / FILENAME
+    desktop_pptx.write_bytes(out.read_bytes())
+    print(f"Wrote {out}")
+    print(f"Wrote {desktop_pptx}")

@@ -44,7 +44,7 @@ def build() -> Deck:
         number=next(n), layout="kpi", kicker="SÅ RÄKNAR NI",
         title="Två frågor. En siffra.",
         items=[
-            "Hur många säljer? | Steg om 5 (20, 50, 100 …)",
+            "Hur många säljer? | 1–1 000 (20, 50, 100, 300, 500 …)",
             "Hur mycket säljer var och en? | Max 5 000 kr per person",
             "Er andel | 35 % — låst, ingen förhandling",
             "Exempel | 50 × 1 500 kr × 35 % = 26 250 kr till er",

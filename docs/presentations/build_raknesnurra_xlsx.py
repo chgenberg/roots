@@ -126,7 +126,7 @@ def build() -> Path:
     ws.row_dimensions[8].height = 36
 
     ws.merge_cells("B9:C9")
-    ws["B9"] = "Antal medlemmar som säljer (5, 10, 15 …)"
+    ws["B9"] = "Antal medlemmar som säljer (1–1 000)"
     ws["B9"].font = font(9, color=SAND_DARK)
     ws["B9"].fill = fill(WHITE)
 
@@ -153,22 +153,25 @@ def build() -> Path:
     ws["B12"].alignment = Alignment(horizontal="center")
 
     # Snabbval
-    paint(ws, 7, 12, 5, 6, WHITE)
-    for r in range(7, 13):
+    paint(ws, 7, 13, 5, 6, WHITE)
+    for r in range(7, 14):
         for c in (5, 6):
             ws.cell(r, c).border = thin()
 
     ws.merge_cells("E7:F7")
-    ws["E7"] = "SNABBVAL — klicka och kopiera"
+    ws["E7"] = "SNABBVAL — skriv in till vänster"
     ws["E7"].font = font(10, bold=True, color=FOREST)
     ws["E7"].fill = fill(FOREST_SOFT)
     ws["E7"].alignment = Alignment(horizontal="center")
 
-    ws["E8"] = "Storlek"
-    ws["F8"] = "Skriv in →"
-    ws["E8"].font = font(9, bold=True, color=SAND_DARK)
-    ws["F8"].font = font(9, color=SAND_DARK)
-    for r, label, val in ((9, "Litet lag", 20), (10, "Vanligt", 50), (11, "Stort", 100), (12, "Mycket stort", 200)):
+    for r, label, val in (
+        (8, "Litet lag", 20),
+        (9, "Vanligt", 50),
+        (10, "Stort", 100),
+        (11, "200", 200),
+        (12, "300", 300),
+        (13, "500", 500),
+    ):
         ws.cell(r, 5).value = label
         ws.cell(r, 5).font = font(10)
         ws.cell(r, 5).fill = fill(WHITE)
@@ -298,10 +301,10 @@ def build() -> Path:
 
     # Validering
     dv_m = DataValidation(
-        type="whole", operator="between", formula1="5", formula2="2000",
+        type="whole", operator="between", formula1="1", formula2="1000",
         allow_blank=False, showErrorMessage=True, showInputMessage=True,
-        promptTitle="Medlemmar", prompt="Välj ett jämnt 5-tal, t.ex. 20, 50 eller 100.",
-        errorTitle="Ogiltigt", error="Ange mellan 5 och 2 000 (helst 5-tal).",
+        promptTitle="Medlemmar", prompt="Ange hur många som säljer (1–1 000).",
+        errorTitle="Ogiltigt", error="Ange ett heltal mellan 1 och 1 000.",
     )
     dv_a = DataValidation(
         type="whole", operator="between", formula1="0", formula2="5000",
@@ -314,10 +317,10 @@ def build() -> Path:
     dv_m.add(ws["C8"])
     dv_a.add(ws["C10"])
 
-    # Villkorlig varning om ej 5-tal
+    # Villkorlig varning om utanför 1–1000
     ws.conditional_formatting.add(
         "C8",
-        FormulaRule(formula=['MOD(C8,5)<>0'], fill=fill("F5D6D0")),
+        FormulaRule(formula=["OR(C8<1,C8>1000)"], fill=fill("F5D6D0")),
     )
 
     # ── Blad 2: Så funkar det ────────────────────────────────────────
@@ -336,7 +339,7 @@ def build() -> Path:
 
     blocks = [
         (5, "Tre steg",
-         "1) Skriv hur många som säljer (jämna 5-tal).\n"
+         "1) Skriv hur många som säljer (1–1 000).\n"
          "2) Skriv hur mycket varje person säljer för i snitt.\n"
          "3) Läs av den stora gröna siffran — det är vad föreningen får."),
         (10, "Formeln",

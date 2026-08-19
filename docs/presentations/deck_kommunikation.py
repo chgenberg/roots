@@ -1,7 +1,8 @@
 """Kommunikationskit — kort konceptpresentation (augusti 2026).
 
-Utgår från kreativ brief / konceptunderlag:
-Kärnan: Föreningen fattar beslutet. Roots hjälper dem med resten.
+Utgår från Enkelhet-briefen (aug 2026):
+Föreningsförsäljning. Fast enkelt.
+Starta → Kommunicera → Sälja → Administrera.
 
 Syfte: 5–8 min för säljare, styrelse eller intern synk — inte byråpitch
 i full längd. Visar USP, resa och vad föreningen slipper göra.
@@ -37,53 +38,55 @@ def build() -> Deck:
     # ── 01 · Omslag ───────────────────────────────────────────────────
     slides.append(Slide(
         number=next(n), layout="cover", kicker="ROOTS · KOMMUNIKATIONSKIT",
-        title="Föreningen fattar beslutet.\nRoots hjälper er med resten.",
-        subtitle="Färdig kommunikation för hela säljresan — mail, SMS, "
-                 "SOME och resultat. Granska → anpassa → skicka.",
+        title="Föreningsförsäljning.\nFast enkelt.",
+        subtitle="Föreningen bestämmer sig, sätter målet och engagerar "
+                 "medlemmarna. Roots hjälper till med resten.",
         images=["images/sport-pres-cover.jpg"],
-        notes="Öppna med känslan: efter ett ja ska ledaren känna "
-              "»det här skapar inte mer administration för mig«.",
+        notes="Öppna med enkelheten — inte kitet. Efter ett ja ska ledaren "
+              "känna: det här skapar inte mer administration för mig.",
     ))
 
-    # ── 02 · Problemet ────────────────────────────────────────────────
+    # ── 02 · Den enkla modellen (brief: Roots = enkelhet) ─────────────
     slides.append(Slide(
-        number=next(n), layout="columns", kicker="TRÖSKELN",
-        title="Det är inte produkten som stoppar — det är jobbet runt omkring",
+        number=next(n), layout="cards", kicker="ENKELHETEN",
+        title="Fyra steg. Resten tar vi.",
+        items=[
+            "Starta | Vi bestämmer oss — sedan är vi igång.",
+            "Kommunicera | Inget tomt dokument att börja i.",
+            "Sälja | Dela. Sälj. Klart. Kunden betalar själv.",
+            "Administrera | Roots håller ihop listor, pengar och resultat.",
+        ],
+        caption="Ni fokuserar på föreningen. Roots tar hand om försäljningen.",
+        notes="Huvudslide ur Enkelhet-briefen. Ett andetag per block. "
+              "Inte en featurelista — känslan: var är vi, vad händer nu, "
+              "behöver jag göra något? Svaret ska oftast vara nej.",
+    ))
+
+    # ── 03 · Det Roots tar bort ───────────────────────────────────────
+    slides.append(Slide(
+        number=next(n), layout="columns", kicker="DET NI SLÄPPER",
+        title="Vi tar bort jobbet runt omkring",
         left=Column(
-            heading="Utan Roots",
+            heading="Borta",
             items=[
-                "Skriva mail och SMS själv",
-                "Hitta på SOME-inlägg",
-                "Jaga aktivering och påminnelser",
-                "Samla resultat i efterhand",
+                "Kataloger och fysiskt säljmaterial",
+                "Skriva mail, SMS och SOME själv",
+                "Excel, orderlistor och sammanställningar",
+                "Swish, kontanter och fakturor till varje kund",
             ],
         ),
         right=Column(
-            heading="Med Roots",
+            heading="Kvar hos er",
             items=[
-                "Färdiga texter, klubbanpassade",
-                "Rätt budskap vid rätt tid",
-                "Påminnelse bara till dem som saknas",
-                "Resultat och tack — automatiskt",
+                "Beslutet att köra",
+                "Målet och ändamålet",
+                "Att engagera medlemmarna",
+                "Att följa resultatet — inte jaga det",
             ],
         ),
-        caption="Vi har inte bara gjort det enkelt att sälja. "
-                "Vi har gjort det enkelt att vara den som ansvarar.",
-        notes="Låt styrelsen/ledaren känna igen sig till vänster.",
-    ))
-
-    # ── 03 · USP-punch ────────────────────────────────────────────────
-    slides.append(Slide(
-        number=next(n), layout="impact", kicker="POSITIONERING",
-        title="Enkelt att vara ansvarig",
-        subtitle="Föreningen fattar beslutet. Roots hjälper er med resten.",
-        items=[
-            "Inga tomma dokument att börja i.",
-            "Inga egna Excel-listor eller Swish-jakter.",
-            "Kommunikation förberedd från första info till tack.",
-        ],
-        caption="Premiumprodukt + digital shop + färdigt kommunikationskit.",
-        notes="Stanna. Det här är USP:n — inte bara plattformen.",
+        caption="Var är vi? → Vad händer nu? → Behöver jag göra något? "
+                "Svaret ska så ofta som möjligt vara: nej.",
+        notes="Visuell kontrast till de fyra stegen. Sedan in i kitet.",
     ))
 
     # ── 04 · Vad ni får ───────────────────────────────────────────────
@@ -158,4 +161,8 @@ if __name__ == "__main__":
     render(deck, out, DECK_NAME)
     for s in deck.slides:
         print(f"  {s.number:02d} {s.layout:10} {s.title[:58]}")
-    print(f"\nWrote {out}")
+    desktop = Path.home() / "Desktop"
+    desktop_pptx = desktop / FILENAME
+    desktop_pptx.write_bytes(out.read_bytes())
+    print(f"Wrote {out}")
+    print(f"Wrote {desktop_pptx}")

@@ -16,8 +16,8 @@ import { formatKr } from "@/lib/format";
 import { useLocale } from "@/i18n/locale-context";
 import { marketingUi } from "@/i18n/dictionaries/marketing-ui";
 
-const MEMBER_PRESETS = [20, 50, 100, 200] as const;
-const AVG_PRESETS = [1000, 1500, 2500, 4000] as const; // 4000 ≈ 10 paket à 399
+const MEMBER_PRESETS = [20, 50, 100, 200, 300, 500] as const;
+const AVG_PRESETS = [1000, 1500, 2000, 2500, 3000, 4000] as const;
 
 function krLabel(kr: number, locale: string): string {
   const tag = locale === "en" ? "en-GB" : "sv-SE";
@@ -163,10 +163,7 @@ export function RevenueCalculator({
     };
     return {
       ...merged,
-      sellers: Math.min(
-        500,
-        Math.max(5, Math.round((merged.sellers || 50) / 5) * 5)
-      ),
+      sellers: Math.min(1000, Math.max(1, Math.round(merged.sellers || 50))),
       avgPerSellerKr: Math.min(5_000, Math.max(0, merged.avgPerSellerKr || 1500)),
     };
   });
@@ -225,9 +222,9 @@ export function RevenueCalculator({
             <SliderField
               label={t.sellers}
               value={inputs.sellers}
-              min={5}
-              max={500}
-              step={5}
+              min={1}
+              max={1000}
+              step={1}
               locale={locale}
               onChange={(v) => set("sellers", v)}
               hint={t.sellersHint}
