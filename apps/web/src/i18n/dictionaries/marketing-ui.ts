@@ -93,7 +93,7 @@ export const marketingUi = {
       marginBody:
         "Ni behåller {pct}% av försäljningen — fast, tydligt och samma i hela Roots.",
       goal: "Insamlingsmål (valfritt)",
-      profit: "Er förening får",
+      profit: "Er förening tjänar",
       ofGross: "av {gross} i total försäljning",
       perSellerLabel: "Per säljare till er",
       totalSales: "Total försäljning",
@@ -194,7 +194,7 @@ export const marketingUi = {
       marginBody:
         "You keep {pct}% of sales — fixed, clear, and the same across Roots.",
       goal: "Fundraising goal (optional)",
-      profit: "Your club gets",
+      profit: "Your club earns",
       ofGross: "of {gross} in total sales",
       perSellerLabel: "Per seller to you",
       totalSales: "Total sales",

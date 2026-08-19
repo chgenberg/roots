@@ -29,7 +29,7 @@ def build() -> Deck:
 
     slides.append(Slide(
         number=next(n), layout="impact", kicker="RÄKNESNURRA",
-        title="Er förening får",
+        title="Er förening tjänar",
         subtitle="Medlemmar × snitt × 35 % — samma modell som på roots.nu",
         items=[
             "Två siffror att fylla i.",

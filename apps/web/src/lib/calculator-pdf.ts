@@ -37,7 +37,7 @@ export async function downloadCalculatorPdf(opts: {
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(12);
-  doc.text(sv ? "Er förening får" : "Your club gets", 16, 28);
+  doc.text(sv ? "Er förening tjänar" : "Your club earns", 16, 28);
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(36);

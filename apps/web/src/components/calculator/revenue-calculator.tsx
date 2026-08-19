@@ -357,7 +357,7 @@ export function RevenueCalculator({
         <Card className="overflow-hidden border-0 bg-brand-700 text-white shadow-sm">
           <CardContent className="p-6 sm:p-8">
             <p className="text-sm font-medium text-brand-100">
-              {locale === "en" ? "Your club gets" : "Er förening får"}
+              {locale === "en" ? "Your club earns" : "Er förening tjänar"}
             </p>
             <p className="mt-2 text-5xl font-bold tabular-nums tracking-tight sm:text-6xl">
               {money(result.earningsKr)}

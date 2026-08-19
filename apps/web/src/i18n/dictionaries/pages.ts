@@ -232,11 +232,11 @@ export const pages = {
           eyebrow: "Steg 2",
           title: "Genomföraren bjuder in",
           description:
-            "Genomföraren i föreningen skickar ut registreringslänken. Vid lagförsäljning är det lagledaren, i en klass klassansvarig — utan att hålla i någon pärm.",
+            "Genomföraren skickar ut registreringslänken — utan att hålla i någon pärm. Vem det är beror på hur ni säljer.",
           bullets: [
-            "Bjud in hela gruppen med en länk",
-            "Topplista som driver lite vänskaplig tävling",
-            "Chatt och uppföljning på ett ställe",
+            "Föreningen: sälj-/kampanjansvarig",
+            "Laget: lagledaren eller föräldragruppen",
+            "Klassen: sälj-/kampanjansvarig eller föräldragruppen",
           ],
         },
         {
@@ -323,11 +323,11 @@ export const pages = {
           eyebrow: "Step 2",
           title: "The organiser invites members",
           description:
-            "The person running the campaign in the club sends the registration link. For team sales that's the team leader; for a class it's the class lead — without paperwork.",
+            "The organiser sends the registration link — no paperwork. Who that is depends on how you sell.",
           bullets: [
-            "Invite the whole group with one link",
-            "A leaderboard that drives friendly competition",
-            "Chat and follow-up in one place",
+            "In the club: a sales or campaign lead",
+            "In the team: the team leader or the parent group",
+            "In the class: a sales or campaign lead or the parent group",
           ],
         },
         {
