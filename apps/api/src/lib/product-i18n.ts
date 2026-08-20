@@ -1,6 +1,6 @@
 import type { UiLocale } from "./ui-locale";
 
-/** Catalog display names for Klarna, emails and order status (not marketing copy). */
+/** Catalog display names for Stripe, emails and order status (not marketing copy). */
 const BY_SLUG: Record<string, { sv: string; en: string }> = {
   shampoo: { sv: "Roots Schampoo", en: "Roots Schampoo" },
   conditioner: { sv: "Roots Conditioner", en: "Roots Conditioner" },

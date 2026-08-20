@@ -12,7 +12,7 @@
     "API_URL",
     "NEXT_PUBLIC_*",
     "OPENAI_*",
-    "KLARNA_*",
+    "STRIPE_*",
     "FORTNOX_*",
     "RESEND_*",
     "SENTRY_*",

@@ -113,7 +113,7 @@ async function dailySeries(scope: ReturnType<typeof and> | undefined) {
   }));
 }
 
-/** Försäljning per betalmetod (Swish/Klarna/Kort/Kontant) för ett scope. */
+/** Försäljning per betalmetod (Swish/Stripe/Kort/Kontant) för ett scope. */
 async function paymentSeries(scope: ReturnType<typeof and> | undefined) {
   const methodExpr = sql<string>`LOWER(COALESCE(NULLIF(${customerOrders.selectedPaymentMethod}, ''), ${customerOrders.paymentMethod}::text, 'unknown'))`;  const rows = await db
     .select({
@@ -1591,6 +1591,7 @@ dashboard.get("/seller/orders/:orderId", async (c) => {
         totalOre: order.totalOre,
         shippingOre: order.shippingOre,
         klarnaOrderId: order.klarnaOrderId,
+        stripeCheckoutSessionId: order.stripeCheckoutSessionId,
         note: order.note,
         shippedAt: order.shippedAt,
         deliveredAt: order.deliveredAt,
@@ -2005,11 +2006,11 @@ dashboard.post("/orders/:orderId/cancel", async (c) => {
       return c.json({ error: uiError(locale, "permissionDenied") }, 403);
     }
 
-    // Kundens pengar ligger hos Klarna. Att bara markera ordern som avbokad
+    // Kundens pengar ligger hos Stripe. Att bara markera ordern som avbokad
     // hos oss lämnar dem där, så den vägen måste gå via återbetalning.
     if (
       target === "CANCELLED" &&
-      order.paymentMethod === "KLARNA" &&
+      (order.paymentMethod === "STRIPE" || order.paymentMethod === "KLARNA") &&
       countsAsRevenue(order.status)
     ) {
       return c.json(
@@ -2101,11 +2102,12 @@ dashboard.post("/orders/:orderId/cancel", async (c) => {
         cancelledAt: updated.cancelledAt,
         cancelReason: updated.cancelReason,
       },
-      // Klarna-återbetalningen kan vi inte utföra själva ännu, så säg det
+      // Stripe-återbetalningen kan vi inte utföra själva ännu, så säg det
       // rakt ut istället för att låta användaren tro att pengarna är på väg.
       manualStepRequired:
-        target === "REFUNDED" && order.paymentMethod === "KLARNA"
-          ? uiError(locale, "klarnaRefundManualStep")
+        target === "REFUNDED" &&
+        (order.paymentMethod === "STRIPE" || order.paymentMethod === "KLARNA")
+          ? uiError(locale, "stripeRefundManualStep")
           : null,
     });
   } catch (err) {

@@ -39,7 +39,7 @@ interface EnvVar {
  *   - `REDIS_URL` — sessions require Redis in prod (see session.ts).
  *   - `CSRF_SECRET` — mintable tokens without a secret = trivial CSRF.
  *   - `CORS_ORIGIN` — wrong CORS = either broken site or open API.
- *   - `NEXT_PUBLIC_SITE_URL` — used in Klarna redirect / email links.
+ *   - `NEXT_PUBLIC_SITE_URL` — used in Stripe redirect / email links.
  */
 const REQUIRED_IN_PROD: ReadonlyArray<EnvVar> = [
   { name: "DATABASE_URL", purpose: "Postgres connection string" },
@@ -61,12 +61,11 @@ const REQUIRED_IN_PROD: ReadonlyArray<EnvVar> = [
   },
   // Scout fix 2026-05-26 (Integration CRIT-email + post-deploy 2026-05-26):
   // RESEND_API_KEY hanteras conditionally längre ner — required när
-  // FEATURE_EMAIL_DISABLED inte är "true". Annars blev en "Klarna+mail
+  // FEATURE_EMAIL_DISABLED inte är "true". Annars blev en "Stripe+mail
   // off"-deploy en boot-loop bara för att man inte hunnit konfa Resend.
   //
-  // KLARNA_WEBHOOK_SECRET hanteras likadant — krävs ENDAST när Klarna
-  // faktiskt är aktiverat (KLARNA_USERNAME satt). Utan Klarna har vi
-  // inget att HMAC-verifiera.
+  // STRIPE_WEBHOOK_SECRET hanteras likadant — krävs ENDAST när Stripe
+  // faktiskt är aktiverat (STRIPE_SECRET_KEY satt).
 ];
 
 /**
@@ -80,15 +79,11 @@ const RECOMMENDED_IN_PROD: ReadonlyArray<EnvVar> = [
     purpose: "Hair-analysis vision + Open Claw assistant (AI features off without it)",
   },
   // MASTERPLAN_01 KC8.1: utan dessa går inga riktiga betalningar genom
-  // Klarna i prod. Saknas de bör vi varna högt vid boot så ops vet att
+  // Stripe i prod. Saknas de bör vi varna högt vid boot så ops vet att
   // checkout är degraderad.
   {
-    name: "KLARNA_USERNAME",
-    purpose: "Basic-auth username mot Klarna Checkout API (utan denna kan inga sessions skapas)",
-  },
-  {
-    name: "KLARNA_PASSWORD",
-    purpose: "Basic-auth password mot Klarna Checkout API",
+    name: "STRIPE_SECRET_KEY",
+    purpose: "Stripe secret key (sk_test_… / sk_live_…) — utan denna kan inga checkout-sessions skapas",
   },
   {
     name: "FORTNOX_WEBHOOK_SECRET",
@@ -196,7 +191,7 @@ function originOf(raw: string): string | null {
  * klassen av fel är dyrast att felsöka i efterhand och billigast att
  * stoppa vid boot.
  *
- * Här ligger också dev-genvägarna: stubbad Klarna, osignerade webhooks,
+ * Här ligger också dev-genvägarna: stubbad Stripe, osignerade webhooks,
  * Redis avstängt, demoskrivningar. De är rimliga lokalt och oacceptabla i
  * prod, så de fäller bootan i stället för att ligga kvar och glömmas.
  */
@@ -215,7 +210,7 @@ function crossCheck(env: NodeJS.ProcessEnv): string[] {
     } else {
       if (!site.startsWith("https://")) {
         conflicts.push(
-          `NEXT_PUBLIC_SITE_URL måste vara https i prod (är "${site}"). Klarna-redirects och e-postlänkar bygger på den.`
+          `NEXT_PUBLIC_SITE_URL måste vara https i prod (är "${site}"). Stripe-redirects och e-postlänkar bygger på den.`
         );
       }
       if (corsOrigin) {
@@ -275,11 +270,11 @@ function crossCheck(env: NodeJS.ProcessEnv): string[] {
       "Sessioner, rate-limits och settlement-lås kräver Redis i prod.",
     ],
     [
-      "ROOTS_KLARNA_STUB",
-      "Stubbad Klarna markerar ordrar som betalda utan att pengar rört sig.",
+      "ROOTS_STRIPE_STUB",
+      "Stubbad Stripe markerar ordrar som betalda utan att pengar rört sig.",
     ],
     [
-      "ROOTS_ALLOW_UNSIGNED_KLARNA_WEBHOOK",
+      "ROOTS_ALLOW_UNSIGNED_STRIPE_WEBHOOK",
       "Utan HMAC kan vem som helst markera en order som PAID.",
     ],
     [
@@ -388,17 +383,13 @@ export function checkEnv(
       }
     }
 
-    // Post-deploy fix 2026-05-26: KLARNA_WEBHOOK_SECRET behövs ENDAST
-    // när Klarna är aktivt. Triggas av KLARNA_USERNAME (vi har inga
-    // sessions att verifiera om vi inte ens kan skapa dem). HMAC är
-    // defense-in-depth ovanpå IP-allowlist.
-    const klarnaUser = env.KLARNA_USERNAME?.trim();
-    if (klarnaUser) {
-      const hmac = env.KLARNA_WEBHOOK_SECRET;
+    const stripeKey = env.STRIPE_SECRET_KEY?.trim();
+    if (stripeKey) {
+      const hmac = env.STRIPE_WEBHOOK_SECRET;
       if (!hmac || hmac.trim() === "" || looksLikePlaceholder(hmac)) {
         conditionalMissing.push(
-          "KLARNA_WEBHOOK_SECRET (HMAC-verifiering av Klarna webhooks) — krävs när KLARNA_USERNAME är satt. " +
-            "Utan HMAC kan spoofad x-forwarded-for-header markera ordrar som PAID."
+          "STRIPE_WEBHOOK_SECRET (HMAC-verifiering av Stripe webhooks) — krävs när STRIPE_SECRET_KEY är satt. " +
+            "Utan HMAC kan vem som helst markera ordrar som PAID."
         );
       }
     }

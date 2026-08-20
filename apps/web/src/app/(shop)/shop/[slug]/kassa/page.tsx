@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState, useRef } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -99,8 +99,7 @@ function CheckoutPageInner() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [klarnaHtml, setKlarnaHtml] = useState("");
-  const klarnaRef = useRef<HTMLDivElement>(null);
+  const paymentCancelled = searchParams.get("cancelled") === "1";
 
   // MASTERPLAN_01 KC4.1: hydra från sessionStorage när URL saknar
   // ?item_*. Tidigare visade kassan "tom varukorg" vid refresh /
@@ -160,7 +159,7 @@ function CheckoutPageInner() {
 
   // MASTERPLAN_01 KC4.2: spegla samma frakt-logik som API:t
   // (checkout.ts ~235–254). Tidigare visade kassan ENDAST subtotal,
-  // sedan tog Klarna in subtotal + frakt → supportern betalade mer än
+  // sedan tog Stripe in subtotal + frakt → supportern betalade mer än
   // vi visade. Bedrägeririsk + lagligt problem (prisindikering).
   const shippingFee = shopData?.campaign?.shippingFeeOre ?? 0;
   const shippingThreshold = shopData?.campaign?.shippingThresholdOre ?? 0;
@@ -173,7 +172,7 @@ function CheckoutPageInner() {
       : 0;
   const totalOre = subtotalOre + shippingOre;
   // Priserna är inklusive moms. Samma helper som API:t och orderbekräftelsen
-  // använder, så kunden, Klarna och bokföringen ser samma öre.
+  // använder, så kunden, Stripe och bokföringen ser samma öre.
   const vatOre = vatOfGrossOre(totalOre);
   const campaignAcceptsOrders = shopData?.campaign?.status === "ACTIVE";
 
@@ -185,7 +184,7 @@ function CheckoutPageInner() {
     try {
       // apiFetch attaches the CSRF token + credentials cookie so the API's
       // CSRF middleware in production accepts the POST.
-      const res = await apiFetch<{ htmlSnippet?: string; error?: string }>(
+      const res = await apiFetch<{ checkoutUrl?: string; error?: string }>(
         "/v1/checkout/create",
         {
           method: "POST",
@@ -215,66 +214,17 @@ function CheckoutPageInner() {
         return;
       }
 
-      setKlarnaHtml(res.data?.htmlSnippet || "");
+      const checkoutUrl = res.data?.checkoutUrl;
+      if (!checkoutUrl || !/^https?:\/\//i.test(checkoutUrl)) {
+        setError(t.checkoutInitFailed);
+        return;
+      }
+      window.location.href = checkoutUrl;
     } catch {
       setError(t.errorServer);
     } finally {
       setLoading(false);
     }
-  }
-
-  useEffect(() => {
-    if (!klarnaHtml || !klarnaRef.current) return;
-
-    // P2.1 (audit 2026-05-26): innerHTML-injection av Klarna's snippet
-    // är by-design (Klarna shipper själv inline script-handlers) men
-    // det betyder att vi måste lita på att källan ÄR Klarna's snippet.
-    // Defense-in-depth: vi gör en strikt sanity-validering på att
-    // texten ser ut som Klarna's snippet och avvisar allt annat.
-    // Detta stoppar t.ex. en komprometterad downstream-respons från
-    // att injektera <script>alert(1)</script> rakt in i DOM:en.
-    const looksLikeKlarnaSnippet =
-      /klarna-checkout|klarna\.com|class="klarna/i.test(klarnaHtml) &&
-      !/javascript:/i.test(klarnaHtml);
-    if (!looksLikeKlarnaSnippet) {
-      console.error("Refusing to render non-Klarna checkout snippet");
-      setError(t.klarnaInitFailed);
-      setKlarnaHtml("");
-      return;
-    }
-
-    klarnaRef.current.innerHTML = klarnaHtml;
-    const scripts = klarnaRef.current.querySelectorAll("script");
-    scripts.forEach((oldScript) => {
-      // Block externa script-källor som inte är Klarna's CDN. Inline-
-      // script lämnas igenom — det är vad Klarna behöver för att
-      // hooke postMessage-bryggan.
-      const src = oldScript.getAttribute("src");
-      if (src && !/^https:\/\/([a-z0-9-]+\.)*klarna(cdn)?\.com\//i.test(src)) {
-        return;
-      }
-      const newScript = document.createElement("script");
-      Array.from(oldScript.attributes).forEach((attr) =>
-        newScript.setAttribute(attr.name, attr.value)
-      );
-      newScript.appendChild(document.createTextNode(oldScript.innerHTML));
-      oldScript.parentNode?.replaceChild(newScript, oldScript);
-    });
-  }, [klarnaHtml, t.klarnaInitFailed]);
-
-  if (klarnaHtml) {
-    return (
-      <div className="min-h-screen bg-brand-50/30">
-        <header className="border-b bg-background">
-          <div className="mx-auto max-w-2xl px-4 py-4">
-            <h1 className="text-lg font-semibold">{t.completeOrder}</h1>
-          </div>
-        </header>
-        <main className="mx-auto max-w-2xl px-4 py-8">
-          <div ref={klarnaRef} />
-        </main>
-      </div>
-    );
   }
 
   return (
@@ -298,10 +248,18 @@ function CheckoutPageInner() {
             {error}
           </div>
         )}
+        {paymentCancelled && !error && (
+          <div
+            role="status"
+            className="mb-4 rounded-lg border border-amber-200 bg-amber-50/70 p-3 text-sm text-amber-900"
+          >
+            {t.paymentCancelled}
+          </div>
+        )}
 
         <form onSubmit={handleCheckout} className="space-y-6">
           {/* Order summary — the supporter can verify what they are about
-              to pay for before being redirected to Klarna. */}
+              to pay for before being redirected to Stripe. */}
           <Card>
             <CardHeader>
               <CardTitle className="text-base">{t.orderSummary}</CardTitle>

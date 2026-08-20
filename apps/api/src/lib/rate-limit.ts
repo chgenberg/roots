@@ -187,8 +187,8 @@ export async function aiGlobalVisionDailyCap(): Promise<RateLimitResult> {
 /**
  * P2.42 (audit 2026-05-26): /v1/checkout/create var helt
  * unrate-limit:ad. En enkel skript-spam mot publika personal
- * shop-slugs kunde skapa tusentals PENDING-orders + Klarna-sessions
- * per minut → Klarna-quota brann + databasen växte med skräp.
+ * shop-slugs kunde skapa tusentals PENDING-orders + Stripe-sessions
+ * per minut → Stripe-quota brann + databasen växte med skräp.
  *
  * 60 försök per timme per IP ger gott om utrymme för normal
  * familje-shopping från samma WiFi men stoppar abuse.

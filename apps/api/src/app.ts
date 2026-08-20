@@ -138,12 +138,9 @@ app.use(
 const CSRF_SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 const CSRF_EXEMPT_PATHS = [
   "/v1/integrations/fortnox/webhook",
-  // MASTERPLAN_01 KC1.1: Klarna server pushes the order-status update
-  // straight to /v1/checkout/webhook/:klarnaOrderId without a CSRF
-  // token (it's a server-to-server POST). Without this exemption every
-  // payment fastnar PENDING in production. Authentication is enforced
-  // by HMAC signature + IP allowlist inside the route handler.
-  "/v1/checkout/webhook",
+  // Stripe pushes checkout.session.completed here. Auth is the
+  // Stripe-Signature HMAC inside the route handler.
+  "/v1/checkout/webhook/stripe",
   "/health",
   // Sprint D: Railway/Cloud Run/k8s liveness + readiness probes never
   // carry a CSRF token. They're GET-only so the safe-method check

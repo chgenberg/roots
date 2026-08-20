@@ -588,7 +588,7 @@ export const pages = {
             },
             {
               q: "Får jag pengarna direkt?",
-              a: "Nej. Klarna-betalningarna går till föreningen och redovisas till lagansvarig vid kampanjens slut.",
+              a: "Nej. Stripe-betalningarna går till föreningen och redovisas till lagansvarig vid kampanjens slut.",
             },
           ],
         },
@@ -688,7 +688,7 @@ export const pages = {
           items: [
             {
               q: "Vad är Roots?",
-              a: "En plattform för insamlingskampanjer där föreningar säljer produkter via personliga shopar. Betalning via Klarna eller direkt till lagansvarig.",
+              a: "En plattform för insamlingskampanjer där föreningar säljer produkter via personliga shopar. Betalning via Stripe eller direkt till lagansvarig.",
             },
             {
               q: "Hur startar vi en kampanj?",
@@ -700,7 +700,7 @@ export const pages = {
             },
             {
               q: "Är det GDPR-säkert?",
-              a: "Ja. All data lagras inom EU, betalningar hanteras av Klarna, och vi loggar alla användaråtgärder för spårbarhet.",
+              a: "Ja. All data lagras inom EU, betalningar hanteras av Stripe, och vi loggar alla användaråtgärder för spårbarhet.",
             },
             {
               q: "Vad är en personlig shop?",
@@ -773,7 +773,7 @@ export const pages = {
             },
             {
               q: "Do I receive the money straight away?",
-              a: "No. Klarna payments go to the club and are settled with the team leader at the end of the campaign.",
+              a: "No. Stripe payments go to the club and are settled with the team leader at the end of the campaign.",
             },
           ],
         },
@@ -873,7 +873,7 @@ export const pages = {
           items: [
             {
               q: "What is Roots?",
-              a: "A platform for fundraising campaigns where clubs sell products through personal shops. Payment via Klarna or directly to the team leader.",
+              a: "A platform for fundraising campaigns where clubs sell products through personal shops. Payment via Stripe or directly to the team leader.",
             },
             {
               q: "How do we start a campaign?",
@@ -885,7 +885,7 @@ export const pages = {
             },
             {
               q: "Is it GDPR compliant?",
-              a: "Yes. All data is stored within the EU, payments are handled by Klarna, and we log all user actions for traceability.",
+              a: "Yes. All data is stored within the EU, payments are handled by Stripe, and we log all user actions for traceability.",
             },
             {
               q: "What is a personal shop?",

@@ -4,7 +4,7 @@
  * Tidigare lät `GET /v1/checkout/order-status/:orderId` vem som helst
  * läsa kundnamn, produktinnehåll, beloppen, säljarens shop-slug osv
  * bara man kände till order-UUID:n. UUID:n hamnar i:
- *   - Klarnas confirmation-URL (Referer-header läcker till tredje-part)
+ *   - Stripe confirmation-URL (Referer-header läcker till tredje-part)
  *   - Bekräftelse-mailet (vidare-skickas, indexeras av extensions)
  *   - Browser-history på delade datorer
  *

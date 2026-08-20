@@ -88,7 +88,7 @@ function ConfirmationPageInner() {
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     // Betalningen kan fortfarande vara PENDING när kunden landar här
-    // (Klarna-webhooken har inte hunnit fram). Poll:a tills status
+    // (Stripe-webhooken har inte hunnit fram). Poll:a tills status
     // flippar till PAID/CONFIRMED istället för att fastna på
     // "behandlas…". ~36 s (12 × 3 s) räcker gott för webhook-latens.
     const MAX_ATTEMPTS = 12;
@@ -139,7 +139,7 @@ function ConfirmationPageInner() {
           // väntade vi tills status flippat till PAID/CONFIRMED, men
           // medan vi visade "Din betalning behandlas…" låg cart:en
           // kvar i sessionStorage. Backknapp + ny checkout blev en
-          // möjlig dubbel-order. PENDING betyder att Klarna har
+          // möjlig dubbel-order. PENDING betyder att Stripe har
           // accepterat — om något brister kan kunden lägga till
           // produkterna igen.
           const cartClearable =

@@ -26,11 +26,11 @@ import { randomUUID } from "node:crypto";
 
 const HAS_DB = Boolean(process.env.DATABASE_URL);
 
-// Stub-Klarna: låter oss nå PAID utan riktiga merchant-credentials.
+// Stub-Stripe: låter oss nå PAID utan riktiga merchant-credentials.
 // isStubAllowed() läser env vid anrop, inte vid import, så det räcker att
-// sätta den innan första requesten. Guarden i klarna.ts vägrar ändå stubba
+// sätta den innan första requesten. Guarden i stripe.ts vägrar ändå stubba
 // när NODE_ENV=production, vilket är precis vad vi vill.
-process.env.ROOTS_KLARNA_STUB = "true";
+process.env.ROOTS_STRIPE_STUB = "true";
 
 describe.skipIf(!HAS_DB)("pengavägen (integration)", () => {
   // Modulerna importeras dynamiskt så att en saknad DATABASE_URL inte ens
@@ -731,8 +731,8 @@ describe.skipIf(!HAS_DB)("pengavägen (integration)", () => {
     expect(revive.status).toBe(400);
   });
 
-  it("kräver återbetalning, inte avbokning, för en Klarna-betald order", async () => {
-    // Kundens pengar ligger hos Klarna. Att bara markera ordern som avbokad
+  it("kräver återbetalning, inte avbokning, för en Stripe-betald order", async () => {
+    // Kundens pengar ligger hos Stripe. Att bara markera ordern som avbokad
     // hos oss lämnar dem där utan att någon uppmärksammar det.
     const paidOnlineOrderId = orderIds[0];
     const leader = await asUser(ids.leaderUser);
@@ -772,7 +772,7 @@ describe.skipIf(!HAS_DB)("pengavägen (integration)", () => {
     );
     expect(res.status).toBe(200);
     const refund = (await res.json()) as { manualStepRequired: string | null };
-    // Klarna-återbetalningen kan vi inte utföra själva, och då ska svaret
+    // Stripe-återbetalningen kan vi inte utföra själva, och då ska svaret
     // säga det rakt ut i stället för att låta någon tro att den är gjord.
     expect(refund.manualStepRequired).toBeTruthy();
 

@@ -49,8 +49,8 @@ const nextConfig: NextConfig = {
     // P2.37 (audit 2026-05-26): CSP är nu enforced.
     //
     // Tidigare körde vi report-only vilket inte stoppade XSS-payloads
-    // utan bara loggade dem. Vi tillåter Klarna (checkout.js + iframe),
-    // Plausible och Sentry. `'unsafe-inline'` på script är fortfarande
+    // utan bara loggade dem. Vi tillåter Plausible och Sentry.
+    // `'unsafe-inline'` på script är fortfarande
     // tyvärr nödvändigt p.g.a. Next.js inline-bootstrap; planerad
     // upgrade till nonce/hash gör att vi kan ta bort det senare.
     //
@@ -65,15 +65,13 @@ const nextConfig: NextConfig = {
     // script-src tills vi kan rulla ut nonce-baserad CSP. Planen
     // är att en framtida middleware injicerar per-request nonce
     // och vi då kan lägga till 'strict-dynamic'. För nu är allow-
-    // listan över Klarna/Plausible/Sentry den faktiska kontrollen.
+    // listan över Plausible/Sentry den faktiska kontrollen.
     const isProd = process.env.NODE_ENV === "production";
     const scriptSrc = [
       "script-src",
       "'self'",
       "'unsafe-inline'",
       ...(!isProd ? ["'unsafe-eval'"] : []),
-      "https://x.klarnacdn.net",
-      "https://*.klarna.com",
       "https://plausible.io",
       "https://*.sentry.io",
     ].join(" ");
@@ -81,14 +79,14 @@ const nextConfig: NextConfig = {
     const cspDirectives = [
       "default-src 'self'",
       scriptSrc,
-      "style-src 'self' 'unsafe-inline' https://x.klarnacdn.net",
-      "img-src 'self' data: blob: https://x.klarnacdn.net https://*.klarna.com",
-      "font-src 'self' data: https://x.klarnacdn.net",
-      "connect-src 'self' https://*.railway.app https://*.klarna.com https://plausible.io https://*.sentry.io https://*.ingest.sentry.io",
-      "frame-src 'self' https://*.klarna.com https://x.klarnacdn.net",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob:",
+      "font-src 'self' data:",
+      "connect-src 'self' https://*.railway.app https://plausible.io https://*.sentry.io https://*.ingest.sentry.io",
+      "frame-src 'self'",
       "frame-ancestors 'none'",
       "base-uri 'self'",
-      "form-action 'self' https://*.klarna.com",
+      "form-action 'self' https://checkout.stripe.com",
       "object-src 'none'",
       // P3.50 (audit 2026-05-26): explicit worker-src så att Service
       // Workers inte kan injiceras från tredje part.
@@ -120,14 +118,9 @@ const nextConfig: NextConfig = {
             // P3.51 (audit 2026-05-26): utöka deny-list till sensorer
             // vi inte använder.
             // Pre-push fix 2026-05-26: tidigare hade vi `payment=()`
-            // vilket BLOCKERAR Payment Request API (Apple Pay/Google
-            // Pay) i Klarnas checkout-iframe. Klarna kan fortfarande
-            // visa Wallet-knapparna men de slutar fungera. Delegera
-            // istället till `self` + Klarna-domänen så Wallet-flöden
-            // funkar utan att en obetrodd tredjepart kan trigga
-            // payment-prompts.
+            // Hosted Stripe Checkout körs på checkout.stripe.com.
             value:
-              "camera=(), microphone=(), geolocation=(), payment=(self \"https://*.klarna.com\"), usb=(), accelerometer=(), gyroscope=(), magnetometer=(), interest-cohort=()",
+              "camera=(), microphone=(), geolocation=(), payment=(self \"https://checkout.stripe.com\"), usb=(), accelerometer=(), gyroscope=(), magnetometer=(), interest-cohort=()",
           },
           {
             key: "X-Frame-Options",
@@ -147,8 +140,8 @@ const nextConfig: NextConfig = {
           },
           // P3.51 (audit 2026-05-26): Cross-Origin Resource Policy gör
           // att andra origins inte kan embed:a våra svar (skydd mot
-          // ClickJacking-liknande exfiltrering). Klarna-iframes laddas
-          // FRÅN dem mot vår sida, inte vice versa, så same-site är OK.
+          // ClickJacking-liknande exfiltrering). Stripe Checkout är
+          // hosted redirect, inte iframe på vår sida, så same-site är OK.
           {
             key: "Cross-Origin-Resource-Policy",
             value: "same-site",
@@ -156,8 +149,8 @@ const nextConfig: NextConfig = {
           // OBS: vi sätter MEDVETET inte Cross-Origin-Embedder-Policy
           // (COEP). COEP kräver att alla externa resurser exponerar
           // CORP-headers eller använder credentialless mode, vilket
-          // skulle bryta Klarna-checkout-iframe. Lägg in senare när
-          // vi har auditat Klarnas headers.
+          // skulle bryta tredjeparts-embeds. Stripe Checkout är hosted
+          // redirect så COEP kan införas senare efter audit.
           {
             key: cspHeaderKey,
             value: cspValue,

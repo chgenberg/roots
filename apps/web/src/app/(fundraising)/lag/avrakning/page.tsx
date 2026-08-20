@@ -102,7 +102,8 @@ export default function TeamSettlementPage() {
   );
 
   const klarnaOrders = paidOrders.filter(
-    (o: CustomerOrder) => o.paymentMethod === "KLARNA"
+    (o: CustomerOrder) =>
+      o.paymentMethod === "STRIPE" || o.paymentMethod === "KLARNA"
   );
   const directOrders = paidOrders.filter(
     (o: CustomerOrder) => o.paymentMethod === "DIRECT_TO_LEADER"
@@ -267,12 +268,14 @@ export default function TeamSettlementPage() {
                       <Badge
                         variant="secondary"
                         className={`text-xs ${
+                          order.paymentMethod === "STRIPE" ||
                           order.paymentMethod === "KLARNA"
                             ? "bg-brand-100 text-brand-700"
                             : "bg-brand-50 text-brand-600"
                         }`}
                       >
-                        {order.paymentMethod === "KLARNA"
+                        {order.paymentMethod === "STRIPE" ||
+                        order.paymentMethod === "KLARNA"
                           ? c.paidToRoots
                           : c.collectByLeader}
                       </Badge>

@@ -40,8 +40,14 @@ function paymentMethodLabel(method: string, locale: "sv" | "en") {
   const m = method.toLowerCase();
   if (m.includes("swish")) return labels.swish;
   if (m.includes("card") || m.includes("kort")) return labels.card;
-  if (m.includes("klarna") || m.includes("pay_later") || m.includes("invoice"))
-    return labels.klarna;
+  if (
+    m.includes("stripe") ||
+    m.includes("card") ||
+    m.includes("klarna") ||
+    m.includes("pay_later") ||
+    m.includes("invoice")
+  )
+    return labels.stripe ?? labels.klarna;
   if (m === "cash" || m.includes("kontant")) return labels.cash;
   return method;
 }

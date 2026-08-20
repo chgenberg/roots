@@ -78,6 +78,7 @@ export type CustomerOrderStatus = z.infer<typeof CustomerOrderStatusEnum>;
 
 export const CustomerPaymentMethodEnum = z.enum([
   "KLARNA",
+  "STRIPE",
   "DIRECT_TO_LEADER",
 ]);
 

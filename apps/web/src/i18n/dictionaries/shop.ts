@@ -81,8 +81,10 @@ export const shop = {
       loading: "Laddar kassa...",
       errorGeneric: "Något gick fel.",
       errorServer: "Kunde inte nå servern.",
-      klarnaInitFailed:
+      checkoutInitFailed:
         "Kassan kunde inte initieras. Kontakta supporten om problemet kvarstår.",
+      paymentCancelled:
+        "Betalningen avbröts. Du kan försöka igen — varukorgen är kvar.",
       completeOrder: "Slutför din beställning",
       back: "Tillbaka",
       title: "Kassa",
@@ -119,7 +121,7 @@ export const shop = {
       termsLink: "köpvillkor",
       termsAnd: " och ",
       privacyLink: "integritetspolicy",
-      termsSuffix: ". Betalningen hanteras säkert av Klarna.",
+      termsSuffix: ". Betalningen hanteras säkert av Stripe.",
       campaignInactive:
         "Kampanjen är inte aktiv just nu. Det går inte att slutföra en beställning.",
       productCount: "{count} produkter",
@@ -132,8 +134,10 @@ export const shop = {
       loading: "Loading checkout...",
       errorGeneric: "Something went wrong.",
       errorServer: "Could not reach the server.",
-      klarnaInitFailed:
+      checkoutInitFailed:
         "Checkout could not be started. Contact support if the problem persists.",
+      paymentCancelled:
+        "The payment was cancelled. You can try again — your basket is still here.",
       completeOrder: "Complete your order",
       back: "Back",
       title: "Checkout",
@@ -170,7 +174,7 @@ export const shop = {
       termsLink: "terms of purchase",
       termsAnd: " and ",
       privacyLink: "privacy policy",
-      termsSuffix: ". Payment is handled securely by Klarna.",
+      termsSuffix: ". Payment is handled securely by Stripe.",
       campaignInactive:
         "The campaign is not active right now. It is not possible to complete an order.",
       productCount: "{count} products",
@@ -193,7 +197,7 @@ export const shop = {
         "Vi kunde inte hämta din beställning just nu. Försök igen om en stund, eller maila info@roots.nu.",
       failedTitle: "Din betalning gick inte igenom",
       failedBody:
-        "Klarna avbröt eller nekade betalningen. Du kan försöka igen från shoppen.",
+        "Betalningen avbröts eller nekades. Du kan försöka igen från shoppen.",
       tryAgain: "Försök igen",
       backToShop: "Tillbaka till shoppen",
       contactUs: "Kontakta oss",
@@ -221,7 +225,7 @@ export const shop = {
         "We could not fetch your order right now. Please try again shortly, or email info@roots.nu.",
       failedTitle: "Your payment did not go through",
       failedBody:
-        "Klarna cancelled or declined the payment. You can try again from the shop.",
+        "The payment was cancelled or declined. You can try again from the shop.",
       tryAgain: "Try again",
       backToShop: "Back to the shop",
       contactUs: "Contact us",

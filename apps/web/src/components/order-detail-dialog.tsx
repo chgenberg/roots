@@ -69,11 +69,12 @@ export interface OrderDetail {
   order: {
     id: string;
     status: string;
-    paymentMethod: "KLARNA" | "DIRECT_TO_LEADER";
+    paymentMethod: "KLARNA" | "STRIPE" | "DIRECT_TO_LEADER";
     deliveryType: "BULK" | "DIRECT";
     totalOre: number;
     shippingOre: number;
     klarnaOrderId: string | null;
+    stripeCheckoutSessionId?: string | null;
     note: string | null;
     createdAt: string;
     updatedAt: string;
@@ -167,6 +168,7 @@ export function OrderDetailDialog({
   const dateLocale = appCommon[locale].dateLocale;
   const paymentLabels: Record<string, string> = {
     KLARNA: "Klarna",
+    STRIPE: "Stripe",
     DIRECT_TO_LEADER: t.paymentDirectToLeader,
   };
   const deliveryLabels: Record<string, string> = {
@@ -427,6 +429,11 @@ export function OrderDetailDialog({
                   {deliveryLabels[detail.order.deliveryType] ||
                     detail.order.deliveryType}
                 </Badge>
+                {detail.order.stripeCheckoutSessionId && (
+                  <Badge variant="outline" className="font-mono text-[10px]">
+                    Stripe {detail.order.stripeCheckoutSessionId.slice(0, 12)}
+                  </Badge>
+                )}
                 {detail.order.klarnaOrderId && (
                   <Badge variant="outline" className="font-mono text-[10px]">
                     Klarna {detail.order.klarnaOrderId.slice(0, 10)}
@@ -690,7 +697,7 @@ export function OrderDetailDialog({
                       </div>
 
                       {/* Skillnaden mellan de två är om pengar hunnit röra
-                          sig. Klarna-betalda ordrar kan bara återbetalas. */}
+                          sig. Stripe-betalda ordrar kan bara återbetalas. */}
                       {isRevenue && (
                         <div className="flex flex-wrap gap-2">
                           {(
@@ -707,7 +714,8 @@ export function OrderDetailDialog({
                           ).map((opt) => {
                             const blocked =
                               opt.kind === "CANCELLED" &&
-                              detail.order.paymentMethod === "KLARNA";
+                              (detail.order.paymentMethod === "STRIPE" ||
+                                detail.order.paymentMethod === "KLARNA");
                             if (blocked) return null;
                             return (
                               <Button

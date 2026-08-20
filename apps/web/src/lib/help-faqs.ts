@@ -18,7 +18,7 @@ const PUBLIC_FAQS: Record<Locale, HelpFaq[]> = {
     {
       question: "Vad är Roots?",
       answer:
-        "En plattform för insamlings­kampanjer där föreningar säljer produkter via personliga shopar. Betalning via Klarna eller direkt till lagansvarig.",
+        "En plattform för insamlings­kampanjer där föreningar säljer produkter via personliga shopar. Betalning via Stripe eller direkt till lagansvarig.",
     },
     {
       question: "Hur startar vi en kampanj?",
@@ -33,7 +33,7 @@ const PUBLIC_FAQS: Record<Locale, HelpFaq[]> = {
     {
       question: "Är det GDPR-säkert?",
       answer:
-        "Ja. All data lagras inom EU, betalningar hanteras av Klarna, och vi loggar alla användaråtgärder för spårbarhet.",
+        "Ja. All data lagras inom EU, betalningar hanteras av Stripe, och vi loggar alla användaråtgärder för spårbarhet.",
     },
     {
       question: "Vad är en personlig shop?",
@@ -60,7 +60,7 @@ const PUBLIC_FAQS: Record<Locale, HelpFaq[]> = {
     {
       question: "What is Roots?",
       answer:
-        "A fundraising platform where clubs sell products through personal shops. Payment via Klarna or directly to the team leader.",
+        "A fundraising platform where clubs sell products through personal shops. Payment via Stripe or directly to the team leader.",
     },
     {
       question: "How do we start a campaign?",
@@ -75,7 +75,7 @@ const PUBLIC_FAQS: Record<Locale, HelpFaq[]> = {
     {
       question: "Is it GDPR-safe?",
       answer:
-        "Yes. All data is stored within the EU, payments are handled by Klarna, and we log user actions for auditability.",
+        "Yes. All data is stored within the EU, payments are handled by Stripe, and we log user actions for auditability.",
     },
     {
       question: "What is a personal shop?",

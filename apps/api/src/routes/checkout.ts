@@ -12,15 +12,18 @@ import {
 } from "@roots/db/schema";
 import {
   createCheckoutSession,
-  getCheckoutOrder,
-  acknowledgeOrder,
-  uiLocaleFromMerchantRef2,
-} from "../lib/payments/klarna";
+  getCheckoutSession,
+  getCheckoutUrl,
+  constructStripeEvent,
+  snapshotFromWebhookEvent,
+  isStripePaidEvent,
+  isStripeFailEvent,
+  type StripeSessionSnapshot,
+} from "../lib/payments/stripe";
 import {
   localizedProductName,
   shippingLineName,
 } from "../lib/product-i18n";
-import { verifyKlarnaSignature } from "../lib/payments/klarna-webhook";
 import { getEmailSender } from "../lib/email";
 import { orderConfirmationEmail } from "../lib/email/templates";
 import { childLogger } from "../lib/logger";
@@ -50,33 +53,16 @@ const log = childLogger("checkout");
 
 export const checkout = new Hono();
 
-// P2.26 (audit 2026-05-26): fall tillbaka på roots.se i prod så
-// Klarna-confirmation-redirect inte pekar på localhost.
 const SITE_URL = (
   process.env.NEXT_PUBLIC_SITE_URL ||
   (process.env.NODE_ENV === "production"
-    ? "https://roots.se"
-    : "http://localhost:3003")
+    ? "https://roots.nu"
+    : "http://localhost:3004")
 ).replace(/\/$/, "");
-
-// Klarna production webhook IPs.
-// See: https://docs.klarna.com/api/webhooks/#ip-addresses
-// Populate before going live with Klarna's published IP ranges.
-const KLARNA_ALLOWED_IPS = new Set(
-  (process.env.KLARNA_WEBHOOK_IPS || "")
-    .split(",")
-    .map((ip) => ip.trim())
-    .filter(Boolean)
-);
-
-// Shared secret used for HMAC-SHA256 verification of Klarna's push
-// notifications. The verifier lives in ../lib/payments/klarna-webhook.ts
-// so it can be unit-tested without touching the route.
-const KLARNA_WEBHOOK_SECRET = process.env.KLARNA_WEBHOOK_SECRET || "";
 
 /**
  * MASTERPLAN_01 KC1.7 + P2.17 (audit 2026-05-26): order-confirmation
- * måste skickas oavsett om PAID-transitionen sker via Klarna-webhook
+ * måste skickas oavsett om PAID-transitionen sker via Stripe-webhook
  * eller /confirm-polling, men aldrig dubbelt — inte ens med två
  * API-replicas som race:ar på samma PAID-händelse.
  *
@@ -189,6 +175,159 @@ async function sendOrderConfirmationIfNeeded(
   // inte tillbaka och kunden får aldrig sitt kvitto.
 }
 
+async function markOrderPaidFromStripe(opts: {
+  order: typeof customerOrders.$inferSelect;
+  snapshot: StripeSessionSnapshot;
+  source: "stripe_webhook" | "confirm_polling";
+  header: (n: string) => string | undefined;
+}): Promise<"paid" | "already" | "mismatch"> {
+  const { order, snapshot, source, header } = opts;
+
+  if (
+    snapshot.amountTotalOre !== null &&
+    snapshot.amountTotalOre !== order.totalOre
+  ) {
+    log.error(
+      {
+        orderId: order.id,
+        stripeAmount: snapshot.amountTotalOre,
+        expectedAmount: order.totalOre,
+        source,
+      },
+      "Stripe amount mismatch — refusing PAID transition"
+    );
+    if (order.status === "PENDING") {
+      await db
+        .update(customerOrders)
+        .set({ status: "FAILED", updatedAt: new Date() })
+        .where(
+          and(
+            eq(customerOrders.id, order.id),
+            eq(customerOrders.status, "PENDING")
+          )
+        );
+    }
+    void auditLog({
+      userId: null,
+      action: "order.failed",
+      entityType: "customer_order",
+      entityId: order.id,
+      meta: {
+        ...requestContext(header),
+        reason: "stripe_amount_mismatch",
+        source,
+        stripeSessionId: snapshot.sessionId,
+        stripeAmountOre: snapshot.amountTotalOre,
+        expectedAmountOre: order.totalOre,
+        orgId: order.orgId,
+      },
+    });
+    return "mismatch";
+  }
+
+  if (snapshot.currency && snapshot.currency !== "SEK") {
+    log.error(
+      { orderId: order.id, currency: snapshot.currency, source },
+      "Stripe currency mismatch — refusing PAID transition"
+    );
+    return "mismatch";
+  }
+
+  const updated = await db
+    .update(customerOrders)
+    .set({
+      status: "PAID",
+      selectedPaymentMethod: snapshot.selectedPaymentMethod,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(eq(customerOrders.id, order.id), eq(customerOrders.status, "PENDING"))
+    )
+    .returning({ id: customerOrders.id });
+
+  if (updated.length === 0) return "already";
+
+  void auditLog({
+    userId: null,
+    action: "order.paid",
+    entityType: "customer_order",
+    entityId: order.id,
+    meta: {
+      ...requestContext(header),
+      source,
+      stripeSessionId: snapshot.sessionId,
+      orgId: order.orgId,
+      totalOre: order.totalOre,
+      stripeAmountOre: snapshot.amountTotalOre,
+    },
+  });
+
+  sendOrderConfirmationIfNeeded(order.id, snapshot.locale).catch(() => {});
+  return "paid";
+}
+
+async function markOrderFailedFromStripe(opts: {
+  order: typeof customerOrders.$inferSelect;
+  snapshot: StripeSessionSnapshot;
+  source: "stripe_webhook" | "confirm_polling";
+  reason: "stripe_expired" | "stripe_payment_failed";
+  header: (n: string) => string | undefined;
+}): Promise<"failed" | "already"> {
+  const { order, snapshot, source, reason, header } = opts;
+  if (order.status !== "PENDING") return "already";
+
+  const updated = await db
+    .update(customerOrders)
+    .set({ status: "FAILED", updatedAt: new Date() })
+    .where(
+      and(eq(customerOrders.id, order.id), eq(customerOrders.status, "PENDING"))
+    )
+    .returning({ id: customerOrders.id });
+
+  if (updated.length === 0) return "already";
+
+  void auditLog({
+    userId: null,
+    action: "order.failed",
+    entityType: "customer_order",
+    entityId: order.id,
+    meta: {
+      ...requestContext(header),
+      reason,
+      source,
+      stripeSessionId: snapshot.sessionId,
+      orgId: order.orgId,
+    },
+  });
+  return "failed";
+}
+
+async function findOrderForStripeSession(
+  snapshot: StripeSessionSnapshot
+): Promise<typeof customerOrders.$inferSelect | null> {
+  const [bySession] = await db
+    .select()
+    .from(customerOrders)
+    .where(eq(customerOrders.stripeCheckoutSessionId, snapshot.sessionId))
+    .limit(1);
+  if (bySession) return bySession;
+
+  if (!snapshot.orderId) return null;
+  const [byOrder] = await db
+    .select()
+    .from(customerOrders)
+    .where(eq(customerOrders.id, snapshot.orderId))
+    .limit(1);
+  if (!byOrder) return null;
+  if (
+    byOrder.stripeCheckoutSessionId &&
+    byOrder.stripeCheckoutSessionId !== snapshot.sessionId
+  ) {
+    return null;
+  }
+  return byOrder;
+}
+
 checkout.post("/create", async (c) => {
   // P2.42 (audit 2026-05-26): rate-limit publika checkout-create.
   // 60/h/IP är generöst för familjedelad WiFi men stoppar abuse.
@@ -219,7 +358,7 @@ checkout.post("/create", async (c) => {
   // P2.13 (audit 2026-05-26): klient-skickad Idempotency-Key (RFC-stil)
   // eller fallback till hash av request body. Två POST /create från
   // samma klient med samma nyckel returnerar exakt samma order utan
-  // att spawn:a en ny Klarna-session.
+  // att spawn:a en ny Stripe-session.
   //
   // Scout fix 2026-05-26 (DB CRIT-001 / Money MONEY-001+002): tidigare
   // var idempotency-nyckeln helt klient-styrd och global över hela
@@ -270,12 +409,13 @@ checkout.post("/create", async (c) => {
           409
         );
       }
+      const existingUrl = existingByKey.stripeCheckoutSessionId
+        ? await getCheckoutUrl(existingByKey.stripeCheckoutSessionId)
+        : null;
       return c.json({
         orderId: existingByKey.id,
-        klarnaOrderId: existingByKey.klarnaOrderId,
-        // htmlSnippet kan vi inte återhämta från Klarna utan ett nytt
-        // session-anrop; klienten kan poll:a /confirm för status.
-        htmlSnippet: null,
+        stripeSessionId: existingByKey.stripeCheckoutSessionId,
+        checkoutUrl: existingUrl,
         viewToken: issueOrderViewToken(existingByKey.id),
         idempotent: true,
       });
@@ -310,7 +450,7 @@ checkout.post("/create", async (c) => {
     }
 
     // MASTERPLAN_01 KC4.3: validera e-postformat innan vi skapar order /
-    // skickar till Klarna. Tidigare accepterades "foo" → bekräftelse-
+    // skickar till Stripe. Tidigare accepterades "foo" → bekräftelse-
     // mail studsar tyst och supportern får aldrig kvitto.
     const trimmedEmail = String(customerEmail).trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail) || trimmedEmail.length > 254) {
@@ -319,8 +459,8 @@ checkout.post("/create", async (c) => {
 
     // MASTERPLAN_01 KC4.3: vid DIRECT-leverans MÅSTE adress, postnummer
     // och ort finnas. Tidigare accepterades null på alla tre →
-    // Klarna-ordern skapades men varan kunde inte skickas. Vi blockerar
-    // INNAN Klarna anropas så ingen fastnar i halv-betalt limbo.
+    // Stripe-sessionen skapades men varan kunde inte skickas. Vi blockerar
+    // INNAN Stripe anropas så ingen fastnar i halv-betalt limbo.
     if (deliveryType === "DIRECT") {
       const missingKeys: Array<"fieldAddress" | "fieldCity" | "fieldPostalCode"> =
         [];
@@ -561,14 +701,9 @@ checkout.post("/create", async (c) => {
       }
     }
 
-    const totalTax = orderLines.reduce(
-      (sum, l) => sum + l.total_tax_amount,
-      0
-    );
-
     // MASTERPLAN_01 KC4.3: normalisera adress-fält så databasen aldrig
     // får t.ex. "  112 34  " — försämrar både matchning, Fortnox-export
-    // och Klarna-validering.
+    // och Stripe-validering.
     const normAddr = (v: unknown) =>
       typeof v === "string" && v.trim().length > 0 ? v.trim() : null;
     const normPostal = (v: unknown) =>
@@ -592,7 +727,7 @@ checkout.post("/create", async (c) => {
             shippingCity: normAddr(shippingCity),
             shippingPostalCode: normPostal(shippingPostalCode),
             deliveryType: requestedDelivery,
-            paymentMethod: "KLARNA",
+            paymentMethod: "STRIPE",
             status: "DRAFT",
             totalOre,
             shippingOre,
@@ -653,10 +788,13 @@ checkout.post("/create", async (c) => {
               409
             );
           }
+          const winnerUrl = winner.stripeCheckoutSessionId
+            ? await getCheckoutUrl(winner.stripeCheckoutSessionId)
+            : null;
           return c.json({
             orderId: winner.id,
-            klarnaOrderId: winner.klarnaOrderId,
-            htmlSnippet: null,
+            stripeSessionId: winner.stripeCheckoutSessionId,
+            checkoutUrl: winnerUrl,
             viewToken: issueOrderViewToken(winner.id),
             idempotent: true,
           });
@@ -665,33 +803,30 @@ checkout.post("/create", async (c) => {
       throw err;
     }
 
-    let klarnaSession;
+    let stripeSession;
     try {
-      klarnaSession = await createCheckoutSession({
-        purchaseCountry: "SE",
-        purchaseCurrency: "SEK",
-        locale: locale === "en" ? "en-GB" : "sv-SE",
-        orderAmount: totalOre,
-        orderTaxAmount: totalTax,
-        orderLines,
-        merchantUrls: {
-          terms: `${SITE_URL}${localePrefix}/villkor`,
-          checkout: `${SITE_URL}${localePrefix}/shop/${sellerSlug}/kassa`,
-          confirmation: `${SITE_URL}${localePrefix}/shop/${sellerSlug}/bekraftelse?order_id=${order.id}`,
-          push: `${process.env.API_URL || "http://localhost:4000"}/v1/checkout/webhook/{checkout.order.id}`,
+      stripeSession = await createCheckoutSession({
+        orderId: order.id,
+        customerEmail: trimmedEmail.toLowerCase(),
+        locale,
+        lineItems: orderLines.map((line) => ({
+          name: line.name,
+          quantity: line.quantity,
+          unitAmountOre: line.unit_price,
+        })),
+        successUrl: `${SITE_URL}${localePrefix}/shop/${sellerSlug}/bekraftelse?order_id=${order.id}&session_id={CHECKOUT_SESSION_ID}`,
+        cancelUrl: `${SITE_URL}${localePrefix}/shop/${sellerSlug}/kassa?cancelled=1`,
+        metadata: {
+          sellerId: seller.id,
+          locale,
         },
-        merchantReference1: order.id,
-        // Encode UI locale so the Klarna webhook can send the confirmation email in EN.
-        merchantReference2: `${seller.id}|${locale}`,
       });
-    } catch (klarnaErr) {
+    } catch (stripeErr) {
       await db
         .update(customerOrders)
         .set({ status: "FAILED", updatedAt: new Date() })
         .where(eq(customerOrders.id, order.id));
 
-      // MASTERPLAN_01 KC8.4: audit-log failed checkout-creation så ops
-      // kan se i admin om Klarna-staging är nere utan att läsa pino-logs.
       void auditLog({
         userId: null,
         action: "order.failed",
@@ -699,30 +834,25 @@ checkout.post("/create", async (c) => {
         entityId: order.id,
         meta: {
           ...requestContext((n) => c.req.header(n)),
-          reason: "klarna_session_creation_failed",
+          reason: "stripe_session_creation_failed",
           orgId: team.orgId,
           totalOre,
         },
       });
 
-      log.error({ err: klarnaErr }, "Klarna session creation failed");
+      log.error({ err: stripeErr }, "Stripe session creation failed");
       return c.json({ error: uiError(locale, "paymentInitFailed") }, 502);
     }
 
     await db
       .update(customerOrders)
       .set({
-        klarnaOrderId: klarnaSession.orderId,
+        stripeCheckoutSessionId: stripeSession.sessionId,
         status: "PENDING",
         updatedAt: new Date(),
       })
       .where(eq(customerOrders.id, order.id));
 
-    // MASTERPLAN_01 KC8.4: order.created — den verkliga "checkout
-    // initierad"-händelsen (inte DB-INSERT, eftersom DRAFT-rader rensas
-    // av Klarna-failure ovan). Säljarens user-id loggas i meta så vi
-    // kan svara "hur många orders gjorde Anna förra helgen?" via en
-    // ren audit-fråga utan att joina customer_orders.
     void auditLog({
       userId: null,
       action: "order.created",
@@ -733,7 +863,7 @@ checkout.post("/create", async (c) => {
         orgId: team.orgId,
         sellerId: seller.id,
         campaignId: seller.campaignId,
-        klarnaOrderId: klarnaSession.orderId,
+        stripeSessionId: stripeSession.sessionId,
         totalOre,
         itemCount: dbOrderLines.length,
       },
@@ -741,11 +871,8 @@ checkout.post("/create", async (c) => {
 
     return c.json({
       orderId: order.id,
-      klarnaOrderId: klarnaSession.orderId,
-      htmlSnippet: klarnaSession.htmlSnippet,
-      // P1.5: ge frontend en token så bekräftelse-sidan kan länka
-      // vidare till `/shop/[slug]/order/[orderId]?t=…` utan att
-      // exponera /order-status öppet.
+      stripeSessionId: stripeSession.sessionId,
+      checkoutUrl: stripeSession.checkoutUrl,
       viewToken: issueOrderViewToken(order.id),
     });
   } catch (err) {
@@ -754,221 +881,121 @@ checkout.post("/create", async (c) => {
   }
 });
 
-checkout.post("/webhook/:klarnaOrderId", async (c) => {
-  const klarnaOrderId = c.req.param("klarnaOrderId");
-
-  // Connection-audit P0 #3: fail-closed when neither HMAC signing nor
-  // IP allowlist is configured in production. Previously this was a
-  // bare endpoint that anyone could POST to and flip orders to PAID.
+checkout.post("/webhook/stripe", async (c) => {
   const isProd = process.env.NODE_ENV === "production";
-  const hasSecret = KLARNA_WEBHOOK_SECRET.length > 0;
-  const hasIpAllowlist = KLARNA_ALLOWED_IPS.size > 0;
-  // P2.19 (audit 2026-05-26): tidigare föll dev/test igenom med en
-  // helt öppen endpoint. En forskare/scanner som råkar pinga staging
-  // kunde flippa orders till PAID. Kräv explicit opt-in om man vill
-  // ha öppen webhook utanför prod.
-  const devAllowUnsigned = process.env.ROOTS_ALLOW_UNSIGNED_KLARNA_WEBHOOK === "true";
+  const hasSecret = Boolean(process.env.STRIPE_WEBHOOK_SECRET?.trim());
+  const devAllowUnsigned =
+    process.env.ROOTS_ALLOW_UNSIGNED_STRIPE_WEBHOOK === "true";
 
-  if (!hasSecret && !hasIpAllowlist) {
+  if (!hasSecret) {
     if (isProd) {
       log.error(
-        "Klarna webhook called in production with neither KLARNA_WEBHOOK_SECRET nor KLARNA_WEBHOOK_IPS configured — refusing"
+        "Stripe webhook called in production without STRIPE_WEBHOOK_SECRET — refusing"
       );
       return c.json({ error: "Webhook not configured" }, 503);
     }
     if (!devAllowUnsigned) {
       log.warn(
-        "Klarna webhook hit in non-prod without secret/IP allowlist and without ROOTS_ALLOW_UNSIGNED_KLARNA_WEBHOOK=true — refusing"
+        "Stripe webhook hit in non-prod without STRIPE_WEBHOOK_SECRET and without ROOTS_ALLOW_UNSIGNED_STRIPE_WEBHOOK=true — refusing"
       );
       return c.json({ error: "Webhook not configured" }, 503);
     }
   }
 
-  // Read the raw body up-front so we can HMAC it before parsing JSON.
   const rawBody = await c.req.text();
-  const signatureHeader = c.req.header("klarna-signature") || "";
+  const signatureHeader = c.req.header("stripe-signature") || "";
 
-  // P2.18 (audit 2026-05-26): om båda mekanismerna är konfigurerade
-  // ska BÅDA passera — inte "OR". Det matchar defense-in-depth-
-  // intentionen: HMAC stoppar spoofed X-Forwarded-For och IP-listan
-  // stoppar lyckad nyckelkomprimering. Om bara en är konfigurerad
-  // räcker den (tidigare beteende).
+  let snapshot: StripeSessionSnapshot | null = null;
+  let eventId = "";
+  let eventType = "checkout.session.completed";
+
   if (hasSecret) {
-    if (!verifyKlarnaSignature(rawBody, signatureHeader, KLARNA_WEBHOOK_SECRET)) {
-      log.warn(
-        { hasHeader: signatureHeader.length > 0 },
-        "Rejected Klarna webhook: invalid signature"
-      );
+    try {
+      const event = constructStripeEvent(rawBody, signatureHeader);
+      eventId = event.id;
+      eventType = event.type;
+      if (!isStripePaidEvent(event.type) && !isStripeFailEvent(event.type)) {
+        return c.json({ received: true, ignored: event.type });
+      }
+      snapshot = snapshotFromWebhookEvent(event);
+    } catch (err) {
+      log.warn({ err }, "Rejected Stripe webhook: invalid signature or payload");
       return c.json({ error: "Invalid signature" }, 401);
     }
-  }
-  if (hasIpAllowlist) {
-    const clientIp =
-      c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "";
-    if (!KLARNA_ALLOWED_IPS.has(clientIp)) {
-      log.warn({ clientIp }, "Rejected webhook IP");
-      return c.json({ error: "Forbidden" }, 403);
+  } else {
+    try {
+      const parsed = JSON.parse(rawBody) as {
+        id?: string;
+        type?: string;
+        data?: { object?: { id?: string } };
+      };
+      eventId = typeof parsed.id === "string" ? parsed.id : "";
+      eventType =
+        typeof parsed.type === "string"
+          ? parsed.type
+          : "checkout.session.completed";
+      const sessionId = parsed.data?.object?.id;
+      if (!sessionId) {
+        return c.json({ error: "Missing session" }, 400);
+      }
+      snapshot = await getCheckoutSession(sessionId);
+    } catch (err) {
+      log.error({ err }, "Unsigned Stripe webhook payload invalid");
+      return c.json({ error: "Invalid payload" }, 400);
     }
   }
 
-  // P3.43 (audit 2026-05-26): Klarna ger oss inget eventId i payload,
-  // men signaturen är HMAC av body så unik per delivery. Med fallback
-  // till SHA256(body) om signaturen saknas. 24h TTL räcker — Klarna
-  // ger upp retry-stormar långt innan dess. Saves the duplicate
-  // getCheckoutOrder() round-trip när Klarna pushar samma event 3-4
-  // gånger innan vi hinner svara 200.
-  const dedupKey = signatureHeader
-    ? `${klarnaOrderId}:${signatureHeader}`
-    : `${klarnaOrderId}:${createHash("sha256").update(rawBody).digest("hex").slice(0, 32)}`;
-  if (await wasWebhookEventSeen("klarna", dedupKey)) {
+  if (!snapshot) {
+    return c.json({ received: true });
+  }
+
+  const dedupKey = eventId || `${snapshot.sessionId}:${createHash("sha256").update(rawBody).digest("hex").slice(0, 32)}`;
+  if (await wasWebhookEventSeen("stripe", dedupKey)) {
     return c.json({ received: true, duplicate: true });
   }
 
-  // Pre-push fix 2026-05-26: tidigare implementation markerade dedup-
-  // keyen INNAN bearbetning. Vid 5xx fastnade ordern i evig "duplicate"-
-  // loop eftersom Klarnas retries klassades som dups utan att vi
-  // någonsin lyckats processa. Tag/track om vi har "consumed" keyen
-  // så vi kan släppa den i catch-blocket vid fel.
-  let dedupConsumed = true;
+  const dedupConsumed = true;
 
   try {
-    const klarnaOrder = await getCheckoutOrder(klarnaOrderId);
+    const existingOrder = await findOrderForStripeSession(snapshot);
+    if (!existingOrder) {
+      return c.json({ received: true });
+    }
 
-    if (klarnaOrder.status === "checkout_complete") {
-      const [existingOrder] = await db
-        .select()
-        .from(customerOrders)
-        .where(eq(customerOrders.klarnaOrderId, klarnaOrderId))
-        .limit(1);
-
-      if (!existingOrder) {
-        return c.json({ received: true });
-      }
-
-      // P1.3 (audit 2026-05-26): verifiera att Klarna verkligen
-      // capturerade det belopp vi tror att ordern är värd. Tidigare
-      // räckte status === "checkout_complete" — en mismatch (manuell
-      // ändring i Klarna, race, kompromettat snippet) skulle flytas
-      // rakt in i settlement utan att någon märkte det.
-      if (
-        klarnaOrder.orderAmount !== null &&
-        klarnaOrder.orderAmount !== existingOrder.totalOre
-      ) {
-        log.error(
-          {
-            orderId: existingOrder.id,
-            klarnaOrderId,
-            klarnaAmount: klarnaOrder.orderAmount,
-            klarnaCurrency: klarnaOrder.purchaseCurrency,
-            expectedAmount: existingOrder.totalOre,
-          },
-          "Klarna order_amount mismatch — refusing PAID transition"
-        );
-        if (existingOrder.status === "PENDING") {
-          await db
-            .update(customerOrders)
-            .set({ status: "FAILED", updatedAt: new Date() })
-            .where(
-              and(
-                eq(customerOrders.id, existingOrder.id),
-                eq(customerOrders.status, "PENDING")
-              )
-            );
-        }
-        void auditLog({
-          userId: null,
-          action: "order.failed",
-          entityType: "customer_order",
-          entityId: existingOrder.id,
-          meta: {
-            ...requestContext((n) => c.req.header(n)),
-            reason: "klarna_amount_mismatch",
-            source: "klarna_webhook",
-            klarnaOrderId,
-            klarnaAmountOre: klarnaOrder.orderAmount,
-            klarnaCurrency: klarnaOrder.purchaseCurrency,
-            expectedAmountOre: existingOrder.totalOre,
-            orgId: existingOrder.orgId,
-          },
-        });
-        return c.json({ error: "Amount mismatch" }, 409);
-      }
-
-      if (
-        klarnaOrder.purchaseCurrency &&
-        klarnaOrder.purchaseCurrency !== "SEK"
-      ) {
-        log.error(
-          { orderId: existingOrder.id, currency: klarnaOrder.purchaseCurrency },
-          "Klarna currency mismatch — refusing PAID transition"
-        );
-        return c.json({ error: "Currency mismatch" }, 409);
-      }
-
-      // P1.3 + audit 2.14/2.15: konditional UPDATE så bara PENDING
-      // → PAID går igenom. FAILED/CANCELLED/REFUNDED kan därmed
-      // inte längre flippas tillbaka till PAID av en sen Klarna-push.
-      const updated = await db
-        .update(customerOrders)
-        .set({
-          status: "PAID",
-          selectedPaymentMethod: klarnaOrder.selectedPaymentMethod,
-          updatedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(customerOrders.klarnaOrderId, klarnaOrderId),
-            eq(customerOrders.status, "PENDING")
-          )
-        )
-        .returning({ id: customerOrders.id });
-
-      if (updated.length === 0) {
-        // Antingen redan PAID (idempotent retry) eller i ett status
-        // vi inte vill flippa från (FAILED/CANCELLED/REFUNDED).
-        // Båda är inte fel — vi ack:ar Klarna ändå för att stoppa
-        // retry-stormen, men hoppar audit + email.
-        await acknowledgeOrder(klarnaOrderId);
-        return c.json({ received: true });
-      }
-
-      await acknowledgeOrder(klarnaOrderId);
-
-      // MASTERPLAN_01 KC8.4: definitiv "pengar in"-händelse. Loggas
-      // även från /confirm-pollingen nedan — `source`-meta skiljer
-      // dem åt så vi kan se hur ofta webhooks faktiskt landar i tid
-      // vs hur ofta vi räddar oss via polling.
-      void auditLog({
-        userId: null,
-        action: "order.paid",
-        entityType: "customer_order",
-        entityId: existingOrder.id,
-        meta: {
-          ...requestContext((n) => c.req.header(n)),
-          source: "klarna_webhook",
-          klarnaOrderId,
-          orgId: existingOrder.orgId,
-          totalOre: existingOrder.totalOre,
-          klarnaAmountOre: klarnaOrder.orderAmount,
-        },
+    if (isStripeFailEvent(eventType) && !snapshot.paid) {
+      await markOrderFailedFromStripe({
+        order: existingOrder,
+        snapshot,
+        source: "stripe_webhook",
+        reason:
+          eventType === "checkout.session.expired"
+            ? "stripe_expired"
+            : "stripe_payment_failed",
+        header: (n) => c.req.header(n),
       });
+      return c.json({ received: true });
+    }
 
-      // Fire-and-forget; helpern är idempotent och loggar internt.
-      const emailLocale = uiLocaleFromMerchantRef2(
-        klarnaOrder.merchantReference2
-      );
-      sendOrderConfirmationIfNeeded(existingOrder.id, emailLocale).catch(
-        () => {}
-      );
+    if (!snapshot.paid) {
+      return c.json({ received: true });
+    }
+
+    const result = await markOrderPaidFromStripe({
+      order: existingOrder,
+      snapshot,
+      source: "stripe_webhook",
+      header: (n) => c.req.header(n),
+    });
+
+    if (result === "mismatch") {
+      return c.json({ error: "Amount mismatch" }, 409);
     }
 
     return c.json({ received: true });
   } catch (err) {
     log.error({ err }, "Webhook processing failed");
-    // Pre-push fix 2026-05-26: släpp dedup-keyen så Klarnas retry kan
-    // göra ett nytt försök. Annars sitter ordern fast i 24h.
     if (dedupConsumed) {
-      await clearWebhookEventSeen("klarna", dedupKey);
+      await clearWebhookEventSeen("stripe", dedupKey);
     }
     return c.json({ error: "Webhook processing failed" }, 500);
   }
@@ -989,101 +1016,30 @@ checkout.get("/confirm/:orderId", async (c) => {
       return c.json({ error: uiError(locale, "orderNotFound") }, 404);
     }
 
-    if (order.klarnaOrderId && order.status === "PENDING") {
+    if (order.stripeCheckoutSessionId && order.status === "PENDING") {
       try {
-        const klarnaOrder = await getCheckoutOrder(order.klarnaOrderId);
-        if (klarnaOrder.status === "checkout_complete") {
-          // P1.3: samma amount + currency-gate som i webhook-pathen
-          // ovan. Polling kan inte heller släppa förbi orders där
-          // Klarna säger en annan summa än vi räknade ut lokalt.
-          if (
-            klarnaOrder.orderAmount !== null &&
-            klarnaOrder.orderAmount !== order.totalOre
-          ) {
-            log.error(
-              {
-                orderId: order.id,
-                klarnaOrderId: order.klarnaOrderId,
-                klarnaAmount: klarnaOrder.orderAmount,
-                expectedAmount: order.totalOre,
-              },
-              "Klarna order_amount mismatch on confirm polling — refusing PAID transition"
-            );
-            await db
-              .update(customerOrders)
-              .set({ status: "FAILED", updatedAt: new Date() })
-              .where(
-                and(
-                  eq(customerOrders.id, orderId),
-                  eq(customerOrders.status, "PENDING")
-                )
-              );
-            order.status = "FAILED";
-            void auditLog({
-              userId: null,
-              action: "order.failed",
-              entityType: "customer_order",
-              entityId: order.id,
-              meta: {
-                ...requestContext((n) => c.req.header(n)),
-                reason: "klarna_amount_mismatch",
-                source: "confirm_polling",
-                klarnaOrderId: order.klarnaOrderId,
-                klarnaAmountOre: klarnaOrder.orderAmount,
-                expectedAmountOre: order.totalOre,
-                orgId: order.orgId,
-              },
-            });
-          } else if (
-            klarnaOrder.purchaseCurrency &&
-            klarnaOrder.purchaseCurrency !== "SEK"
-          ) {
-            log.error(
-              { orderId: order.id, currency: klarnaOrder.purchaseCurrency },
-              "Klarna currency mismatch on confirm polling — refusing PAID transition"
-            );
-          } else {
-            const updated = await db
-              .update(customerOrders)
-              .set({
-                status: "PAID",
-                selectedPaymentMethod: klarnaOrder.selectedPaymentMethod,
-                updatedAt: new Date(),
-              })
-              .where(
-                and(
-                  eq(customerOrders.id, orderId),
-                  eq(customerOrders.status, "PENDING")
-                )
-              )
-              .returning({ id: customerOrders.id });
-
-            if (updated.length > 0) {
-              await acknowledgeOrder(order.klarnaOrderId);
-              order.status = "PAID";
-
-              // MASTERPLAN_01 KC8.4: audit också från polling-pathen.
-              // source="confirm_polling" gör att vi kan mäta webhook-
-              // reliability i prod genom att räkna paid-rader per source.
-              void auditLog({
-                userId: null,
-                action: "order.paid",
-                entityType: "customer_order",
-                entityId: order.id,
-                meta: {
-                  ...requestContext((n) => c.req.header(n)),
-                  source: "confirm_polling",
-                  klarnaOrderId: order.klarnaOrderId,
-                  orgId: order.orgId,
-                  totalOre: order.totalOre,
-                  klarnaAmountOre: klarnaOrder.orderAmount,
-                },
-              });
-            }
-          }
+        const snapshot = await getCheckoutSession(order.stripeCheckoutSessionId);
+        if (snapshot.paid) {
+          const result = await markOrderPaidFromStripe({
+            order,
+            snapshot,
+            source: "confirm_polling",
+            header: (n) => c.req.header(n),
+          });
+          if (result === "paid") order.status = "PAID";
+          if (result === "mismatch") order.status = "FAILED";
+        } else if (snapshot.expired) {
+          const result = await markOrderFailedFromStripe({
+            order,
+            snapshot,
+            source: "confirm_polling",
+            reason: "stripe_expired",
+            header: (n) => c.req.header(n),
+          });
+          if (result === "failed") order.status = "FAILED";
         }
-      } catch (klarnaErr) {
-        log.error({ err: klarnaErr }, "Klarna confirmation check failed");
+      } catch (stripeErr) {
+        log.error({ err: stripeErr }, "Stripe confirmation check failed");
       }
     }
 

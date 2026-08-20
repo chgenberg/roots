@@ -53,6 +53,7 @@ export function paymentLabel(method: string, locale: Locale = "sv"): string {
   const m = method.toLowerCase();
   if (m === "swish" || m.includes("swish")) return t.swish;
   if (m === "card" || m.includes("card") || m.includes("kort")) return t.card;
+  if (m.includes("stripe")) return t.stripe;
   if (
     m.includes("klarna") ||
     m.includes("invoice") ||
@@ -60,7 +61,7 @@ export function paymentLabel(method: string, locale: Locale = "sv"): string {
     m.includes("pay_now") ||
     m.includes("pay")
   )
-    return t.klarna;
+    return t.stripe;
   if (m === "direct_to_leader" || m.includes("direct")) return t.viaTeam;
   if (m === "cash" || m.includes("kontant") || m.includes("cash")) return t.cash;
   if (m === "okänd" || m === "unknown" || !m) return t.unknown;

@@ -31,6 +31,7 @@ export const customerOrderStatusEnum = pgEnum("customer_order_status", [
 
 export const customerPaymentMethodEnum = pgEnum("customer_payment_method", [
   "KLARNA",
+  "STRIPE",
   "DIRECT_TO_LEADER",
 ]);
 
@@ -67,14 +68,13 @@ export const customerOrders = pgTable(
       .default("BULK"),
     paymentMethod: customerPaymentMethodEnum("payment_method")
       .notNull()
-      .default("KLARNA"),
-    // Den faktiska betalinstrument-typen som kunden valde inne i Klarna
-    // (t.ex. "swish", "card", "pay_later"). Klarna är processorn;
-    // detta fält säger HUR kunden betalade. Sätts från Klarnas order-
-    // snapshot (initial_payment_method). För manuella ordrar lagda av
-    // säljaren själv används t.ex. "swish" eller "cash".
+      .default("STRIPE"),
+    // Det betalinstrument kunden valde (t.ex. "card", "swish", "cash").
     selectedPaymentMethod: varchar("selected_payment_method", { length: 40 }),
     klarnaOrderId: varchar("klarna_order_id", { length: 255 }),
+    stripeCheckoutSessionId: varchar("stripe_checkout_session_id", {
+      length: 255,
+    }),
     status: customerOrderStatusEnum("status").notNull().default("PENDING"),
     totalOre: integer("total_ore").notNull(),
     shippingOre: integer("shipping_ore").notNull().default(0),
@@ -129,6 +129,9 @@ export const customerOrders = pgTable(
     index("customer_orders_org_id_idx").on(table.orgId),
     index("customer_orders_status_idx").on(table.status),
     index("customer_orders_klarna_order_id_idx").on(table.klarnaOrderId),
+    index("customer_orders_stripe_session_idx").on(
+      table.stripeCheckoutSessionId
+    ),
     // P3.21 (audit 2026-05-26): notification + dashboard queries gör
     // ofta WHERE org_id = ? AND status = ? ORDER BY created_at DESC.
     // Pre-push fix: matcha SQL-migrationen 0011 (DESC på created_at).

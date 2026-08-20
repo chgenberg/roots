@@ -30,9 +30,8 @@ const FULL_PROD_ENV: NodeJS.ProcessEnv = {
   // MASTERPLAN_01 KC8.1: dessa adderades till RECOMMENDED_IN_PROD och
   // måste därför finnas i full-env-baselinen för att testet ska räknas
   // som "alla recommended satta".
-  KLARNA_USERNAME: "real-klarna-user",
-  KLARNA_PASSWORD: "real-klarna-pass",
-  KLARNA_WEBHOOK_SECRET: "real-klarna-webhook",
+  STRIPE_SECRET_KEY: "sk_test_real_stripe_secret",
+  STRIPE_WEBHOOK_SECRET: "whsec_real_stripe_webhook",
   FORTNOX_WEBHOOK_SECRET: "real-fortnox-webhook",
   // Audit 2.43: validator + runtime läser nu samma namn.
   FORTNOX_ACCESS_TOKEN: "real-fortnox-token",
@@ -112,25 +111,21 @@ describe("checkEnv (production)", () => {
     expect(r.conditionalMissing.join("\n")).not.toMatch(/RESEND_API_KEY/);
   });
 
-  // Post-deploy fix 2026-05-26: KLARNA_WEBHOOK_SECRET är CONDITIONAL —
-  // required ENDAST när Klarna är aktivt (KLARNA_USERNAME satt).
-  // Utan Klarna har vi inget att HMAC-verifiera.
-  it("rejects boot when Klarna is active but KLARNA_WEBHOOK_SECRET is missing", () => {
+  it("rejects boot when Stripe is active but STRIPE_WEBHOOK_SECRET is missing", () => {
     const env = { ...FULL_PROD_ENV };
-    delete env.KLARNA_WEBHOOK_SECRET;
+    delete env.STRIPE_WEBHOOK_SECRET;
     const r = checkEnv(env, true);
     expect(r.ok).toBe(false);
-    expect(r.conditionalMissing.join("\n")).toMatch(/KLARNA_WEBHOOK_SECRET/);
+    expect(r.conditionalMissing.join("\n")).toMatch(/STRIPE_WEBHOOK_SECRET/);
   });
 
-  it("allows boot without KLARNA_WEBHOOK_SECRET when Klarna is not configured (no KLARNA_USERNAME)", () => {
+  it("allows boot without STRIPE_WEBHOOK_SECRET when Stripe is not configured", () => {
     const env = { ...FULL_PROD_ENV };
-    delete env.KLARNA_USERNAME;
-    delete env.KLARNA_PASSWORD;
-    delete env.KLARNA_WEBHOOK_SECRET;
+    delete env.STRIPE_SECRET_KEY;
+    delete env.STRIPE_WEBHOOK_SECRET;
     const r = checkEnv(env, true);
     expect(r.ok).toBe(true);
-    expect(r.conditionalMissing.join("\n")).not.toMatch(/KLARNA_WEBHOOK_SECRET/);
+    expect(r.conditionalMissing.join("\n")).not.toMatch(/STRIPE_WEBHOOK_SECRET/);
   });
 
   it("treats placeholder recommended vars same as missing for the warning list", () => {
@@ -235,8 +230,8 @@ describe("checkEnv (production)", () => {
 
   it.each([
     "REDIS_DISABLED",
-    "ROOTS_KLARNA_STUB",
-    "ROOTS_ALLOW_UNSIGNED_KLARNA_WEBHOOK",
+    "ROOTS_STRIPE_STUB",
+    "ROOTS_ALLOW_UNSIGNED_STRIPE_WEBHOOK",
     "ROOTS_ALLOW_DEMO_WRITES",
     "SCHEDULER_DISABLED",
   ])("rejects the dev override %s=true in production", (name) => {

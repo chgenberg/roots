@@ -66,7 +66,7 @@ Varje säljare har en egen shop på `https://roots.se/shop/{slug}`. Shopparna ä
 
 1. Föreningen startar en kampanj.
 2. Säljare får personlig shop-länk / QR.
-3. Supportrar köper Roots-produkter online (Klarna/Swish m.m.).
+3. Supportrar köper Roots-produkter online (Stripe/Swish m.m.).
 4. Ungefär 35 % går till föreningen.
 
 ## För AI-assistenter

@@ -612,9 +612,13 @@ const ERRORS = {
     sv: "Kunde inte skapa kontot",
     en: "Could not create the account",
   },
+  stripeRefundManualStep: {
+    sv: "Återbetalningen måste också utföras i Stripe Dashboard.",
+    en: "The refund must also be completed in the Stripe Dashboard.",
+  },
   klarnaRefundManualStep: {
-    sv: "Återbetalningen måste också utföras i Klarnas portal.",
-    en: "The refund must also be completed in Klarna’s portal.",
+    sv: "Återbetalningen måste också utföras i Stripe Dashboard.",
+    en: "The refund must also be completed in the Stripe Dashboard.",
   },
   settlementInvoiceLine: {
     sv: "Roots-andel kampanj {name} (avtalad fee)",
@@ -639,7 +643,7 @@ const ERRORS = {
   reasonMax500: { sv: "Skälet får vara högst 500 tecken.", en: "The reason may be at most 500 characters." },
   statusCancelledOrRefunded: { sv: "status måste vara CANCELLED eller REFUNDED.", en: "status must be CANCELLED or REFUNDED." },
   orderCancelledOrRefundedLocked: { sv: "Ordern är avbokad eller återbetald och kan inte ändras. Registrera en ny order istället.", en: "The order is cancelled or refunded and cannot be changed. Register a new order instead." },
-  orderPaidUseRefund: { sv: "Ordern är betald via Klarna. Använd återbetalning istället för avbokning.", en: "The order is paid via Klarna. Use a refund instead of cancellation." },
+  orderPaidUseRefund: { sv: "Ordern är betald via Stripe. Använd återbetalning istället för avbokning.", en: "The order is paid via Stripe. Use a refund instead of cancellation." },
   teamPayoutAlreadyInvoicedCancel: {
     sv: "Lagets utbetalning är redan fakturerad eller genomförd. Ordern räknades in i den, så avbokningen måste hanteras manuellt i bokföringen också.",
     en: "The team's payout is already invoiced or completed. The order was included, so the cancellation must also be handled manually in the accounts.",

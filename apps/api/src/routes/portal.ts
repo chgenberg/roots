@@ -2198,18 +2198,15 @@ portal.get("/system", async (c) => {
     0
   );
 
-  const klarnaConfigured =
-    !!process.env.KLARNA_USERNAME && !!process.env.KLARNA_PASSWORD;
+  const stripeConfigured = !!process.env.STRIPE_SECRET_KEY;
   pushService(
-    locale === "en" ? "Payments (Klarna)" : "Betalning (Klarna)",
-    klarnaConfigured,
+    locale === "en" ? "Payments (Stripe)" : "Betalning (Stripe)",
+    stripeConfigured,
     0
   );
 
-  const klarnaWebhookProtected =
-    !!process.env.KLARNA_WEBHOOK_SECRET ||
-    !!process.env.KLARNA_WEBHOOK_IPS;
-  pushService("Klarna webhook", klarnaWebhookProtected, 0);
+  const stripeWebhookProtected = !!process.env.STRIPE_WEBHOOK_SECRET;
+  pushService("Stripe webhook", stripeWebhookProtected, 0);
 
   const fortnoxEnabled = process.env.FORTNOX_ENABLED === "true";
   const fortnoxConfigured =

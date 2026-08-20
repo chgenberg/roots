@@ -26,7 +26,7 @@ async function start() {
   // touches the DB or Redis. If a required prod var is missing or still
   // holds an .env.example placeholder we exit(1) here so the orchestrator
   // rolls the deploy back. No DB queries get executed against the wrong
-  // database, no Klarna webhooks get signed with the dev secret.
+  // database, no Stripe webhooks get signed with the dev secret.
   validateEnvOrExit();
 
   // Kör väntande migrationer INNAN vi tar emot HTTP-trafik. Ett fel kraschar
