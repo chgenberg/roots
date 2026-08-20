@@ -17,7 +17,3 @@ ALTER TABLE "customer_orders"
 
 CREATE INDEX IF NOT EXISTS "customer_orders_stripe_session_idx"
   ON "customer_orders" ("stripe_checkout_session_id");
---> statement-breakpoint
-
-ALTER TABLE "customer_orders"
-  ALTER COLUMN "payment_method" SET DEFAULT 'STRIPE';
