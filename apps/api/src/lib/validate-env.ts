@@ -64,8 +64,8 @@ const REQUIRED_IN_PROD: ReadonlyArray<EnvVar> = [
   // FEATURE_EMAIL_DISABLED inte är "true". Annars blev en "Stripe+mail
   // off"-deploy en boot-loop bara för att man inte hunnit konfa Resend.
   //
-  // STRIPE_WEBHOOK_SECRET hanteras likadant — krävs ENDAST när Stripe
-  // faktiskt är aktiverat (STRIPE_SECRET_KEY satt).
+  // STRIPE_WEBHOOK_SECRET varnas när Stripe är på, men fäller inte boot —
+  // webhook-routen är fail-closed och bekräftelsepollningen räcker för PAID.
 ];
 
 /**
@@ -387,9 +387,9 @@ export function checkEnv(
     if (stripeKey) {
       const hmac = env.STRIPE_WEBHOOK_SECRET;
       if (!hmac || hmac.trim() === "" || looksLikePlaceholder(hmac)) {
-        conditionalMissing.push(
-          "STRIPE_WEBHOOK_SECRET (HMAC-verifiering av Stripe webhooks) — krävs när STRIPE_SECRET_KEY är satt. " +
-            "Utan HMAC kan vem som helst markera ordrar som PAID."
+        recommendedMissing.push(
+          "STRIPE_WEBHOOK_SECRET (HMAC-verifiering av Stripe webhooks). " +
+            "Utan den startar API:t, men webhooken är avstängd — ordrar markeras PAID via bekräftelsepollning mot Stripe."
         );
       }
     }

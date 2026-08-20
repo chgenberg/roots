@@ -111,12 +111,13 @@ describe("checkEnv (production)", () => {
     expect(r.conditionalMissing.join("\n")).not.toMatch(/RESEND_API_KEY/);
   });
 
-  it("rejects boot when Stripe is active but STRIPE_WEBHOOK_SECRET is missing", () => {
+  it("allows boot and warns when Stripe is active but STRIPE_WEBHOOK_SECRET is missing", () => {
     const env = { ...FULL_PROD_ENV };
     delete env.STRIPE_WEBHOOK_SECRET;
     const r = checkEnv(env, true);
-    expect(r.ok).toBe(false);
-    expect(r.conditionalMissing.join("\n")).toMatch(/STRIPE_WEBHOOK_SECRET/);
+    expect(r.ok).toBe(true);
+    expect(r.recommendedMissing.join("\n")).toMatch(/STRIPE_WEBHOOK_SECRET/);
+    expect(r.conditionalMissing.join("\n")).not.toMatch(/STRIPE_WEBHOOK_SECRET/);
   });
 
   it("allows boot without STRIPE_WEBHOOK_SECRET when Stripe is not configured", () => {
