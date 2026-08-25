@@ -9,3 +9,4 @@ export * from "./portal";
 export * from "./calculator";
 export * from "./pricing";
 export * from "./legal";
+export * from "./reviewer";

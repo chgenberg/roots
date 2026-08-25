@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { isReviewerEmail, REVIEWER_HOME } from "@roots/contracts";
 import { HAIR_ANALYSIS_ENABLED } from "@/lib/feature-flags";
 import { LOCALE_HEADER } from "@/i18n/request-locale";
 import {
@@ -45,7 +46,8 @@ const PROTECTED_ROUTES: Record<string, string[]> = {
  * sida som inte tillåter deras roll. Måste matcha roleHome() i
  * apps/web/src/app/(auth)/login/page.tsx — håll dem synkade.
  */
-function roleHome(role: string | undefined): string {
+function roleHome(role: string | undefined, email?: string): string {
+  if (isReviewerEmail(email)) return REVIEWER_HOME;
   switch (role) {
     case "ASSOCIATION_ADMIN":
       return "/forening";
@@ -82,6 +84,10 @@ const GATE_BYPASS_PREFIXES = [
   // säljare skickar till föreningar — den måste fungera utan förhands-
   // visningslösenord även före lansering.
   "/kalkylator",
+  // Feedback-kontot ska kunna logga in utan preview-lösenordet. Portalen
+  // och övriga sidor är fortfarande bakom grinden.
+  "/login",
+  "/feedback",
   "/api",
   "/trpc",
   "/_next",
@@ -239,11 +245,13 @@ export async function middleware(request: NextRequest) {
   // logged-out visitors to /login. Same risk for any future route
   // that shares a leading substring with a protected prefix.
   // Locale prefix is stripped first so /en never shields a portal path.
+  const isFeedbackPath =
+    barePath === REVIEWER_HOME || barePath.startsWith(`${REVIEWER_HOME}/`);
   const matchedPrefix = Object.keys(PROTECTED_ROUTES).find(
     (prefix) => barePath === prefix || barePath.startsWith(prefix + "/")
   );
 
-  if (!matchedPrefix) {
+  if (!matchedPrefix && !isFeedbackPath) {
     return withLocaleHeaders(request, pathname);
   }
 
@@ -281,8 +289,26 @@ export async function middleware(request: NextRequest) {
     }
 
     const data = await res.json();
-    const role = data?.result?.data?.json?.role ?? data?.result?.data?.role;
-    const allowedRoles = PROTECTED_ROUTES[matchedPrefix];
+    const payload = data?.result?.data?.json ?? data?.result?.data ?? {};
+    const role = payload.role;
+    const email = typeof payload.email === "string" ? payload.email : "";
+    const reviewer = isReviewerEmail(email);
+
+    if (isFeedbackPath) {
+      if (!role && !reviewer) {
+        const loginUrl = new URL(withLocale("/login", locale), request.url);
+        loginUrl.searchParams.set("next", pathname);
+        return NextResponse.redirect(loginUrl);
+      }
+      if (!reviewer) {
+        return NextResponse.redirect(
+          new URL(withLocale(roleHome(role, email), locale), request.url)
+        );
+      }
+      return withLocaleHeaders(request, pathname);
+    }
+
+    const allowedRoles = matchedPrefix ? PROTECTED_ROUTES[matchedPrefix] : [];
 
     if (!role) {
       const loginUrl = new URL(withLocale("/login", locale), request.url);
@@ -290,12 +316,18 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(loginUrl);
     }
 
+    if (reviewer) {
+      return NextResponse.redirect(
+        new URL(withLocale(REVIEWER_HOME, locale), request.url)
+      );
+    }
+
     if (!allowedRoles.includes(role)) {
       // MASTERPLAN_01 KC2.2: hellre redirecta till deras egen home än
       // visa "Forbidden"-vägg. En SELLER som klickar en gammal länk
       // till /portal/saljare ska landa på /min-shop, inte en blank
       // 403-sida. Om vi inte vet vart de hör hemma → /login.
-      const home = roleHome(role);
+      const home = roleHome(role, email);
       if (home === barePath) {
         return new NextResponse("Forbidden", { status: 403 });
       }

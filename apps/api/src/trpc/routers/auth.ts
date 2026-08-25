@@ -1,3 +1,6 @@
+import { eq } from "drizzle-orm";
+import { db } from "@roots/db";
+import { users } from "@roots/db/schema";
 import { router, publicProcedure } from "../init";
 import { isAuthenticated } from "../middleware/auth";
 import { destroySession } from "../../lib/session";
@@ -18,10 +21,24 @@ const authedProcedure = publicProcedure.use(isAuthenticated);
  */
 export const authRouter = router({
   me: authedProcedure.query(async ({ ctx }) => {
+    let email = "";
+    if (ctx.userId) {
+      try {
+        const [row] = await db
+          .select({ email: users.email })
+          .from(users)
+          .where(eq(users.id, ctx.userId))
+          .limit(1);
+        email = row?.email ?? "";
+      } catch {
+        // Middleware can still authorize on role if the lookup blinks.
+      }
+    }
     return {
       userId: ctx.userId,
       role: ctx.role,
       orgId: ctx.orgId,
+      email,
     };
   }),
 

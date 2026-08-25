@@ -10,6 +10,7 @@ import { initSentry, captureException, flushSentry } from "./lib/sentry";
 import { connectRedis } from "./lib/redis";
 import { startScheduler, stopScheduler } from "./lib/scheduler";
 import { registerScheduledTasks } from "./lib/scheduled-tasks";
+import { ensureReviewerAccount } from "./lib/ensure-reviewer";
 
 const log = childLogger("server");
 
@@ -34,6 +35,11 @@ async function start() {
   // schemat; sätt RUN_MIGRATIONS_ON_BOOT=false bara om något annat steg
   // faktiskt applicerar dem.
   await runBootMigrations({ role: "api" });
+  try {
+    await ensureReviewerAccount();
+  } catch (err) {
+    log.error({ err }, "ensureReviewerAccount failed — feedback login may be missing");
+  }
 
   // Öppna Redis-socketen innan trafik släpps in, annars avvisas det första
   // kommandot (sessioner, rate-limit och /readyz) medan handskakningen pågår.

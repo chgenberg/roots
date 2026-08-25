@@ -20,6 +20,7 @@ import { LocaleLink } from "@/components/locale-link";
 import { auth } from "@/i18n/dictionaries/auth";
 import { tFill } from "@/i18n/format";
 import { useLocale } from "@/i18n/locale-context";
+import { isReviewerEmail, REVIEWER_HOME } from "@roots/contracts";
 
 /**
  * MASTERPLAN_01 KC2.3: middleware sätter `?next=/where-they-tried-to-go`
@@ -52,7 +53,8 @@ function pickSafeNext(raw: string | null): string | null {
   return raw;
 }
 
-function roleHome(role: string | undefined): string {
+function roleHome(role: string | undefined, email?: string): string {
+  if (isReviewerEmail(email)) return REVIEWER_HOME;
   switch (role) {
     case "ASSOCIATION_ADMIN":
       return "/forening";
@@ -116,7 +118,7 @@ function LoginPageInner() {
     try {
       const { ok, data } = await apiFetch<{
         error?: string;
-        user?: { role: string };
+        user?: { role: string; email?: string };
         mfaRequired?: boolean;
         challenge?: string;
         backupCodesRemaining?: number;
@@ -140,7 +142,11 @@ function LoginPageInner() {
 
       // Honour `?next=` only when provided. Fallback to role-home so
       // a normal login (utan deep-link) lands rätt.
-      router.push(safeNext ?? href(roleHome(data.user?.role)));
+      router.push(
+        isReviewerEmail(data.user?.email)
+          ? href(REVIEWER_HOME)
+          : (safeNext ?? href(roleHome(data.user?.role, data.user?.email)))
+      );
     } catch {
       setError(t.errorServer);
     } finally {
@@ -156,7 +162,7 @@ function LoginPageInner() {
     try {
       const { ok, data } = await apiFetch<{
         error?: string;
-        user?: { role: string };
+        user?: { role: string; email?: string };
       }>("/v1/auth/login/mfa", {
         method: "POST",
         body: { challenge, code, locale },
@@ -167,7 +173,11 @@ function LoginPageInner() {
         setCode("");
         return;
       }
-      router.push(safeNext ?? href(roleHome(data.user?.role)));
+      router.push(
+        isReviewerEmail(data.user?.email)
+          ? href(REVIEWER_HOME)
+          : (safeNext ?? href(roleHome(data.user?.role, data.user?.email)))
+      );
     } catch {
       setError(t.errorServer);
     } finally {

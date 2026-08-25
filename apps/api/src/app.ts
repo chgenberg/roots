@@ -24,6 +24,7 @@ import { calculator } from "./routes/calculator";
 import { association } from "./routes/association";
 import { sales } from "./routes/sales";
 import { admin } from "./routes/admin";
+import { reviewer } from "./routes/reviewer";
 import { notifications } from "./routes/notifications";
 import { preview } from "./routes/preview";
 import { clientErrors } from "./routes/client-errors";
@@ -71,6 +72,8 @@ const largeLimits: Array<[RegExp, ReturnType<typeof bodyLimitFor>]> = [
   [/^\/v1\/ai\/hair-analysis$/, bodyLimitFor(8)],
   // Säljar-importen tar upp till 2000 rader.
   [/^\/v1\/dashboard\/team\/[^/]+\/sellers\/import$/, bodyLimitFor(4)],
+  // Feedback-skärmdumpar (PNG/JPEG upp till 3.5 MB).
+  [/^\/v1\/reviewer\/upload$/, bodyLimitFor(4)],
 ];
 
 app.use("*", (c, next) => {
@@ -263,6 +266,7 @@ app.route("/v1/calculator", calculator);
 app.route("/v1/association", association);
 app.route("/v1/sales", sales);
 app.route("/v1/admin", admin);
+app.route("/v1/reviewer", reviewer);
 app.route("/v1/notifications", notifications);
 app.route("/v1/preview", preview);
 app.route("/v1/telemetry", clientErrors);

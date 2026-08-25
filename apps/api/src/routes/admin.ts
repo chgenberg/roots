@@ -15,10 +15,10 @@
 
 import { Hono } from "hono";
 import type { Context } from "hono";
-import { and, desc, eq, gte, like, lt, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, like, lt, lte, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { db } from "@roots/db";
-import { auditLogs, users, organizations } from "@roots/db/schema";
+import { auditLogs, users, organizations, reviewerThreads, reviewerMessages } from "@roots/db/schema";
 import type { SessionData } from "../lib/session";
 import { requireSession } from "../lib/http-session";
 import { childLogger } from "../lib/logger";
@@ -287,6 +287,103 @@ admin.post("/organizations/:orgId/approve", async (c) => {
     log.error({ err, orgId }, "organization approval failed");
     return c.json({ error: uiError(locale, "couldNotUpdateAssociation") }, 500);
   }
+});
+
+function parseReviewerUrls(raw: string): string[] {
+  try {
+    const v = JSON.parse(raw) as unknown;
+    return Array.isArray(v) ? v.filter((u): u is string => typeof u === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+admin.get("/feedback", async (c) => {
+  const guard = await requireInternalAdmin(c);
+  if (!guard.ok) return c.json({ error: guard.error }, guard.status);
+
+  const threads = await db
+    .select()
+    .from(reviewerThreads)
+    .where(inArray(reviewerThreads.status, ["submitted", "done"]))
+    .orderBy(desc(reviewerThreads.updatedAt));
+
+  const threadIds = threads.map((t) => t.id);
+  const userIds = [...new Set(threads.map((t) => t.userId))];
+  const messages =
+    threadIds.length === 0
+      ? []
+      : await db
+          .select()
+          .from(reviewerMessages)
+          .where(inArray(reviewerMessages.threadId, threadIds))
+          .orderBy(asc(reviewerMessages.createdAt));
+  const authors =
+    userIds.length === 0
+      ? []
+      : await db
+          .select({
+            id: users.id,
+            email: users.email,
+            contactName: users.contactName,
+          })
+          .from(users)
+          .where(inArray(users.id, userIds));
+  const authorById = new Map(authors.map((u) => [u.id, u]));
+  const messagesByThread = new Map<string, typeof messages>();
+  for (const m of messages) {
+    const list = messagesByThread.get(m.threadId) ?? [];
+    list.push(m);
+    messagesByThread.set(m.threadId, list);
+  }
+
+  return c.json({
+    threads: threads.map((t) => {
+      const author = authorById.get(t.userId);
+      return {
+        id: t.id,
+        title: t.title,
+        status: t.status,
+        cursorPrompt: t.cursorPrompt,
+        updatedAt: t.updatedAt.toISOString(),
+        fromName: author?.contactName || author?.email || "Feedback",
+        messages: (messagesByThread.get(t.id) ?? []).map((m) => ({
+          id: m.id,
+          role: m.role,
+          body: m.body,
+          imageUrls: parseReviewerUrls(m.imageUrls),
+        })),
+      };
+    }),
+  });
+});
+
+admin.patch("/feedback", async (c) => {
+  const guard = await requireInternalAdmin(c);
+  if (!guard.ok) return c.json({ error: guard.error }, guard.status);
+
+  const body = (await c.req.json().catch(() => null)) as {
+    id?: unknown;
+    action?: unknown;
+  } | null;
+  const id = typeof body?.id === "string" ? body.id : "";
+  if (!id) return c.json({ error: "MISSING_ID" }, 400);
+  if (body?.action !== "done" && body?.action !== "submitted") {
+    return c.json({ error: "INVALID_ACTION" }, 400);
+  }
+
+  const updated = await db
+    .update(reviewerThreads)
+    .set({ status: body.action, updatedAt: new Date() })
+    .where(
+      and(
+        eq(reviewerThreads.id, id),
+        inArray(reviewerThreads.status, ["submitted", "done"])
+      )
+    )
+    .returning({ id: reviewerThreads.id });
+  if (updated.length === 0) return c.json({ error: "NOT_FOUND" }, 404);
+  return c.json({ ok: true });
 });
 
 // keep `lte`/`requireInternalAdmin`-helpers from being tree-shaken if
