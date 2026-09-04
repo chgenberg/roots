@@ -13,11 +13,11 @@ export async function ForForeningar() {
   const { forClubs } = getHome(locale);
 
   return (
-    <section className="relative overflow-hidden bg-brand-100 py-24 pb-32 md:py-32 md:pb-40">
+    <section className="relative overflow-hidden bg-brand-100 py-20 pb-24 md:py-28 md:pb-32">
       <RootsGrassAccent className="right-[4%] top-[4%]" />
       <RootsGrassDivider
         variant="dark"
-        className="absolute inset-x-0 bottom-0 h-14 opacity-70 md:h-20 lg:h-24"
+        className="absolute inset-x-0 bottom-0 h-10 opacity-50 md:h-14"
       />
 
       <div className="relative mx-auto max-w-[1280px] px-6 md:px-10">

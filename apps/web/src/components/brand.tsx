@@ -172,7 +172,7 @@ export function RootsGrassAccent({
     <div
       aria-hidden
       className={cn(
-        "pointer-events-none absolute h-32 w-56 select-none md:h-40 md:w-72",
+        "pointer-events-none absolute h-24 w-40 select-none md:h-32 md:w-56",
         className
       )}
     >

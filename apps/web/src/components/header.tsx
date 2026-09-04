@@ -66,7 +66,7 @@ function NavLink({
       href={href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex h-10 items-center whitespace-nowrap rounded-full px-3 text-sm tracking-wide transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "font-display flex h-10 items-center whitespace-nowrap rounded-full px-3 text-sm font-normal tracking-wide transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         active
           ? "bg-brand-200 font-medium text-foreground"
           : "text-muted-foreground hover:bg-brand-50 hover:text-foreground"
@@ -142,16 +142,16 @@ export function Header() {
             scrolled ? "py-2" : "py-3"
           )}
         >
-          <div className="relative mx-auto flex max-w-[1400px] items-center px-4 lg:px-8">
+          <div className="relative mx-auto grid max-w-[1400px] grid-cols-[1fr_auto_1fr] items-center px-4 xl:px-8">
             <LocaleLink
               href="/"
               aria-label={t.aria.home}
-              className="relative z-[60] flex h-12 items-center px-1 transition-opacity duration-200 hover:opacity-70 lg:hidden"
+              className="relative z-[60] flex h-12 items-center px-1 transition-opacity duration-200 hover:opacity-70 xl:hidden"
             >
               <RootsLogo variant="auto" priority className="h-7 w-[72px]" />
             </LocaleLink>
 
-            <nav className="absolute left-1/2 top-1/2 hidden -translate-x-1/2 -translate-y-1/2 lg:block">
+            <nav className="col-start-2 hidden xl:block">
               <div className={cn(PILL, "flex items-center gap-1")}>
                 {NAV_LEFT.map((item) => (
                   <NavLink
@@ -181,7 +181,7 @@ export function Header() {
               </div>
             </nav>
 
-            <div className={cn(PILL, "ml-auto hidden items-center gap-0.5 lg:flex")}>
+            <div className={cn(PILL, "col-start-3 hidden items-center justify-self-end gap-0.5 xl:flex")}>
               <LocaleLink
                 href="/sa-fungerar-det#rakna"
                 aria-label={t.aria.calcCta}
@@ -200,7 +200,7 @@ export function Header() {
               </Link>
               <LocaleLink
                 href="/kontakt?intent=demo"
-                className="flex h-10 items-center whitespace-nowrap rounded-full px-3 text-sm text-muted-foreground transition-colors duration-200 hover:bg-brand-50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="hidden h-10 items-center whitespace-nowrap rounded-full px-3 text-sm text-muted-foreground transition-colors duration-200 hover:bg-brand-50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring 2xl:flex"
               >
                 {t.contactCta}
               </LocaleLink>
@@ -211,7 +211,7 @@ export function Header() {
               onClick={() => setMenuOpen(!menuOpen)}
               className={cn(
                 PILL,
-                "relative z-[60] ml-auto inline-flex h-12 w-12 items-center justify-center lg:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                "relative z-[60] col-start-3 inline-flex h-12 w-12 items-center justify-self-end xl:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               )}
               aria-label={menuOpen ? t.aria.closeMenu : t.aria.openMenu}
               aria-expanded={menuOpen}
@@ -236,7 +236,7 @@ export function Header() {
         aria-label={t.aria.navMenu}
         inert={!menuOpen}
         className={cn(
-          "fixed inset-0 z-[55] flex flex-col bg-background transition-opacity duration-200 ease-out lg:hidden",
+          "fixed inset-0 z-[55] flex flex-col bg-background transition-opacity duration-200 ease-out xl:hidden",
           menuOpen
             ? "pointer-events-auto opacity-100"
             : "pointer-events-none opacity-0"
@@ -255,7 +255,7 @@ export function Header() {
                   "text-4xl font-light tracking-tight transition-colors duration-200",
                   isActive(item.href)
                     ? "text-foreground"
-                    : "text-muted-foreground group-hover:text-foreground"
+                    : "text-foreground/55 group-hover:text-foreground"
                 )}
               >
                 {t.nav[item.key]}

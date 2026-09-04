@@ -9,7 +9,7 @@ const PRIMARY_CLASS =
   "group relative inline-flex h-11 cursor-pointer items-center gap-2 rounded-full bg-white px-6 text-sm font-semibold text-neutral-900 shadow-sm transition-transform duration-300 motion-safe:hover:scale-[1.03] hover:bg-neutral-100 motion-safe:active:scale-[0.98]";
 
 const SECONDARY_CLASS =
-  "inline-flex h-11 items-center px-4 text-sm font-medium text-white/90 transition-colors duration-200 hover:text-white";
+  "inline-flex h-11 items-center rounded-full border border-white/70 bg-black/30 px-5 text-sm font-medium text-white backdrop-blur-[2px] transition-colors duration-200 hover:bg-black/40";
 
 export function HeroLead({
   ctaHairAnalysis,
@@ -21,17 +21,13 @@ export function HeroLead({
   ctaClub: string;
 }) {
   const productsLink = (
-    <LocaleLink
-      href="/produkter"
-      className={SECONDARY_CLASS}
-      style={{ textShadow: "0 1px 3px rgba(0,0,0,0.35)" }}
-    >
+    <LocaleLink href="/produkter" className={SECONDARY_CLASS}>
       {ctaProducts}
     </LocaleLink>
   );
 
   return (
-    <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
+    <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
       {HAIR_ANALYSIS_ENABLED ? (
         <>
           <HairAnalysisLeadDialog

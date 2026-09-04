@@ -12,7 +12,7 @@ export async function ProductsPreview() {
   const { products } = getHome(locale);
 
   return (
-    <section className="py-10 md:py-14" id="produkter">
+    <section className="py-20 md:py-28" id="produkter">
       <div className="mx-auto max-w-[1280px] px-6 md:px-10">
         <div className="mx-auto max-w-2xl text-center">
           <SectionEyebrow className="mb-4">{products.badge}</SectionEyebrow>

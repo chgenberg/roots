@@ -10,7 +10,7 @@ export async function HeroSection() {
 
   return (
     <section className="px-3 pb-2 pt-2 md:px-5 md:pb-3 md:pt-3">
-      <div className="relative h-[calc(100dvh-5rem)] min-h-[500px] overflow-hidden rounded-xl">
+      <div className="relative h-[min(32rem,calc(100dvh-11rem))] min-h-[24rem] overflow-hidden rounded-xl md:min-h-[26rem]">
         <div className="absolute inset-0 hidden lg:block">
           <Image
             src="/images/sport-hero.jpg"
@@ -33,17 +33,21 @@ export async function HeroSection() {
           />
         </div>
 
-        <div className="absolute inset-0 bg-gradient-to-r from-black/40 via-black/15 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/55 via-black/28 to-transparent" />
 
-        <div className="relative flex h-full flex-col justify-start p-6 pt-10 md:p-10 md:pt-14">
-          <div className="max-w-md">
-            <h1 className="text-[length:var(--font-size-hero)] font-bold leading-[1.1] tracking-tight text-white">
-              {hero.titleLine1}
-              <br />
-              {hero.titleLine2}
+        <div className="relative flex h-full items-start p-6 pt-8 md:p-10 md:pt-12 lg:px-14 lg:pt-14">
+          <div className="max-w-lg">
+            <h1
+              className="text-[clamp(1.45rem,1.15rem+1vw,2rem)] leading-[1.22] tracking-tight text-white"
+              style={{ textShadow: "0 1px 16px rgba(0,0,0,0.28)" }}
+            >
+              <span className="block">{hero.titleLine1}</span>
+              <span className="mt-2 block max-w-md text-[clamp(1rem,0.92rem+0.3vw,1.15rem)] font-normal leading-snug text-white/90">
+                {hero.titleLine2}
+              </span>
             </h1>
             <p
-              className="mt-3 max-w-xs text-sm leading-relaxed text-white/90 md:text-base"
+              className="mt-3 max-w-md text-sm leading-relaxed text-white/85 md:text-[0.95rem]"
               style={{ textShadow: "0 1px 3px rgba(0,0,0,0.35)" }}
             >
               {hero.body}
@@ -60,7 +64,7 @@ export async function HeroSection() {
 
         <RootsGrassDivider
           variant="neutral"
-          className="absolute inset-x-0 bottom-0 h-10 opacity-50 md:h-14 lg:h-16"
+          className="absolute inset-x-0 bottom-0 h-8 opacity-40 md:h-10 lg:h-12"
           aria-hidden
         />
       </div>

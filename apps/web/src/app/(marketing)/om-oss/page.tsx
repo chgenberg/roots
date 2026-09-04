@@ -45,11 +45,11 @@ export default async function OmOssPage() {
         locale={locale}
       />
 
-      <section className="relative overflow-hidden bg-brand-50 py-20 md:py-28">
+      <section className="relative overflow-hidden bg-brand-50 py-16 md:py-20">
         <div className="mx-auto max-w-[1280px] px-6 md:px-10">
           <div className="mx-auto max-w-2xl text-center">
             <SectionEyebrow>{t.eyebrow}</SectionEyebrow>
-            <h1 className="mt-4 text-[length:var(--font-size-hero)] font-bold tracking-tight">
+            <h1 className="mt-3 text-4xl tracking-tight md:text-5xl">
               {t.brand}
             </h1>
             <p className="mt-5 text-lg leading-relaxed text-muted-foreground md:text-xl">
@@ -72,11 +72,11 @@ export default async function OmOssPage() {
         </div>
       </section>
 
-      <section className="relative overflow-hidden bg-brand-100 py-24 pb-32 md:py-32 md:pb-40">
+      <section className="relative overflow-hidden bg-brand-100 py-20 pb-24 md:py-28 md:pb-32">
         <RootsGrassAccent className="right-[4%] top-[6%]" />
         <RootsGrassDivider
           variant="dark"
-          className="absolute inset-x-0 bottom-0 h-14 opacity-70 md:h-20 lg:h-24"
+          className="absolute inset-x-0 bottom-0 h-10 opacity-50 md:h-14"
         />
         <div className="relative mx-auto max-w-[1280px] px-6 md:px-10">
           <div className="mx-auto max-w-2xl text-center">

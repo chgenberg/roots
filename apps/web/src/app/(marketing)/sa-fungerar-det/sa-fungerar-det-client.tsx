@@ -361,7 +361,7 @@ export function SaFungerarDetClient() {
         <div className="mx-auto max-w-[1100px] px-6 md:px-10">
           <div className="mx-auto mb-10 max-w-2xl text-center">
             <SectionEyebrow className="mb-4">{t.badge}</SectionEyebrow>
-            <h1 className="text-[length:var(--font-size-hero)] font-bold leading-[1.05] tracking-tight">
+            <h1 className="text-3xl leading-[1.15] tracking-tight md:text-4xl">
               {t.calcTitle}
             </h1>
             <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-muted-foreground">

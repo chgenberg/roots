@@ -41,7 +41,7 @@ export default function HaranalysPage() {
         <div className="mx-auto max-w-[1280px] px-6 md:px-10">
           <div className="mx-auto max-w-2xl text-center">
             <SectionEyebrow className="mb-4">{t.badge}</SectionEyebrow>
-            <h1 className="text-[length:var(--font-size-hero)] font-bold tracking-tight">
+            <h1 className="text-3xl tracking-tight md:text-4xl">
               {t.heroTitle}
             </h1>
             <p className="mt-6 text-lg leading-relaxed text-muted-foreground md:text-xl">

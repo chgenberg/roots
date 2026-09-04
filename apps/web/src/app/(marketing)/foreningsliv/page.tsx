@@ -43,18 +43,18 @@ export default async function ForeningslivPage() {
         locale={locale}
       />
 
-      <section className="relative overflow-hidden bg-brand-100 py-20 pb-28 md:py-28 md:pb-36">
+      <section className="relative overflow-hidden bg-brand-100 py-14 pb-20 md:py-20 md:pb-24">
         <RootsGrassAccent className="right-[4%] top-[8%]" />
         <RootsGrassDivider
           variant="dark"
-          className="absolute inset-x-0 bottom-0 h-14 opacity-70 md:h-20 lg:h-24"
+          className="absolute inset-x-0 bottom-0 h-10 opacity-50 md:h-14"
         />
         <div className="relative mx-auto grid max-w-[1280px] items-center gap-12 px-6 md:px-10 lg:grid-cols-2 lg:gap-20">
           <div className="max-w-lg">
             <SectionEyebrow className="mb-4">{t.badge}</SectionEyebrow>
-            <h1 className="text-[length:var(--font-size-hero)] font-bold leading-[1.05] tracking-tight">
+            <h1 className="text-3xl leading-[1.15] tracking-tight md:text-4xl">
               {t.heroTitleLead}
-              <span className="block text-brand-500">{t.heroTitleAccent}</span>
+              <span className="block text-brand-700">{t.heroTitleAccent}</span>
             </h1>
             <p className="mt-6 text-lg leading-relaxed text-muted-foreground">
               {t.heroBody}

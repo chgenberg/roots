@@ -70,10 +70,10 @@ export default async function ProdukterPage() {
           url: withLocale(`/produkter/${p.slug}`, locale),
         }))}
       />
-      <section className="bg-brand-50/40 py-20 md:py-28">
+      <section className="bg-brand-50/40 py-16 md:py-20">
         <div className="mx-auto max-w-[1280px] px-6 md:px-10">
           <div className="mx-auto max-w-2xl text-center">
-            <h1 className="text-[length:var(--font-size-hero)] font-bold tracking-tight">
+            <h1 className="text-3xl tracking-tight md:text-4xl">
               {t.heroTitle}
             </h1>
             <p className="mt-4 text-lg text-muted-foreground">{t.heroBody}</p>
