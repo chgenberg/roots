@@ -8,6 +8,7 @@ type FooterGroup = { title: string; links: FooterLink[] };
 type ChromeCopy = {
   nav: Record<NavKey, string>;
   calcCta: string;
+  contactCta: string;
   aria: {
     login: string;
     bookDemo: string;
@@ -44,6 +45,7 @@ export const chrome: Record<Locale, ChromeCopy> = {
       about: "Om oss",
     },
     calcCta: "Räkna på intäkten",
+    contactCta: "Kontakta oss",
     aria: {
       login: "Logga in",
       bookDemo: "Boka demo",
@@ -121,11 +123,12 @@ export const chrome: Record<Locale, ChromeCopy> = {
       guides: "Guides",
       about: "About us",
     },
-    calcCta: "Calculate earnings",
+    calcCta: "Calculate the revenue",
+    contactCta: "Contact us",
     aria: {
       login: "Log in",
       bookDemo: "Book a demo",
-      calcCta: "Calculate earnings",
+      calcCta: "Calculate the revenue",
       openMenu: "Open menu",
       closeMenu: "Close menu",
       home: "Roots — home",
@@ -153,7 +156,7 @@ export const chrome: Record<Locale, ChromeCopy> = {
           links: [
             { href: "/foreningsliv", label: "For clubs" },
             { href: "/sa-fungerar-det", label: "How it works" },
-            { href: "/sa-fungerar-det#rakna", label: "Calculate earnings" },
+            { href: "/sa-fungerar-det#rakna", label: "Calculate the revenue" },
             { href: "/om-oss", label: "About us" },
             { href: "/kontakt", label: "Contact" },
             { href: "/om-oss#press", label: "Press" },

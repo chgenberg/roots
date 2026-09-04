@@ -51,6 +51,7 @@ export async function HeroSection() {
             <HeroLead
               ctaHairAnalysis={hero.ctaHairAnalysis}
               ctaProducts={hero.ctaProducts}
+              ctaClub={hero.ctaClub}
             />
           </div>
         </div>

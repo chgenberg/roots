@@ -1,16 +1,16 @@
-import Image from "next/image";
-import { ArrowRight, Heart, Leaf, Shield } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { BreadcrumbJsonLd, WebPageJsonLd } from "@/components/json-ld";
 import { LocaleLink } from "@/components/locale-link";
 import { Button } from "@/components/ui/button";
 import { pageMetadata } from "@/lib/seo";
-import { TeamSection } from "@/components/sections/team";
+import { TeamGroupPhoto, TeamPortraits } from "@/components/sections/team";
+import { SectionEyebrow } from "@/components/section-eyebrow";
+import { RootsGrassAccent, RootsGrassDivider } from "@/components/brand";
 import { getPage } from "@/i18n/get-dictionary";
 import { getRequestLocale } from "@/i18n/request-locale";
+import { marketingUi } from "@/i18n/dictionaries/marketing-ui";
 import { withLocale } from "@/i18n/paths";
 import type { Metadata } from "next";
-
-const VALUE_ICONS = [Heart, Leaf, Shield] as const;
 
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await getRequestLocale();
@@ -26,12 +26,8 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function OmOssPage() {
   const locale = await getRequestLocale();
   const t = getPage("omOss", locale);
+  const team = marketingUi[locale].team;
   const homeLabel = getPage("produkter", locale).breadcrumbHome;
-
-  const values = t.values.map((v, i) => ({
-    ...v,
-    icon: VALUE_ICONS[i] ?? Heart,
-  }));
 
   return (
     <>
@@ -48,16 +44,11 @@ export default async function OmOssPage() {
         url={withLocale("/om-oss", locale)}
         locale={locale}
       />
-      <section className="relative overflow-hidden">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 bg-[linear-gradient(165deg,#FAF6EF_0%,#F1EBE2_48%,#EDF1E9_100%)]"
-        />
-        <div className="relative mx-auto max-w-[1280px] px-6 pb-6 pt-20 md:px-10 md:pb-8 md:pt-28">
+
+      <section className="relative overflow-hidden bg-brand-50 py-20 md:py-28">
+        <div className="mx-auto max-w-[1280px] px-6 md:px-10">
           <div className="mx-auto max-w-2xl text-center">
-            <p className="text-xs font-medium uppercase tracking-[0.2em] text-brand-700">
-              {t.eyebrow}
-            </p>
+            <SectionEyebrow>{t.eyebrow}</SectionEyebrow>
             <h1 className="mt-4 text-[length:var(--font-size-hero)] font-bold tracking-tight">
               {t.brand}
             </h1>
@@ -81,59 +72,23 @@ export default async function OmOssPage() {
         </div>
       </section>
 
-      <TeamSection />
-
-      <section className="py-24 md:py-32">
-        <div className="mx-auto grid max-w-[1280px] items-center gap-12 px-6 md:px-10 lg:grid-cols-2 lg:gap-20">
-          <div className="relative">
-            <div className="group relative aspect-[4/3] overflow-hidden rounded-2xl">
-              <Image
-                src="/images/sport-paddock.jpg"
-                alt={t.storyImageAlt}
-                fill
-                className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.02]"
-                sizes="(max-width: 1024px) 100vw, 50vw"
-              />
-              <div className="pointer-events-none absolute inset-0 ring-1 ring-inset ring-brand-900/10" />
-            </div>
-          </div>
-
-          <div className="max-w-lg">
-            <p className="text-xs font-medium uppercase tracking-[0.18em] text-brand-700">
-              {t.storyEyebrow}
-            </p>
-            <h2 className="mt-3 text-3xl font-bold tracking-tight">
-              {t.storyTitle}
-            </h2>
-            <div className="mt-6 space-y-4 text-base leading-relaxed text-muted-foreground">
-              {t.storyParagraphs.map((p) => (
-                <p key={p.slice(0, 24)}>{p}</p>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="border-y border-brand-200/60 bg-brand-50/40 py-24 md:py-32">
-        <div className="mx-auto max-w-[1280px] px-6 md:px-10">
+      <section className="relative overflow-hidden bg-brand-100 py-24 pb-32 md:py-32 md:pb-40">
+        <RootsGrassAccent className="right-[4%] top-[6%]" />
+        <RootsGrassDivider
+          variant="dark"
+          className="absolute inset-x-0 bottom-0 h-14 opacity-70 md:h-20 lg:h-24"
+        />
+        <div className="relative mx-auto max-w-[1280px] px-6 md:px-10">
           <div className="mx-auto max-w-2xl text-center">
-            <p className="text-xs font-medium uppercase tracking-[0.18em] text-brand-700">
-              {t.valuesEyebrow}
-            </p>
+            <SectionEyebrow>{t.valuesEyebrow}</SectionEyebrow>
             <h2 className="mt-3 text-3xl font-bold tracking-tight">
               {t.valuesTitle}
             </h2>
           </div>
-
           <div className="mt-14 grid gap-10 md:grid-cols-3 md:gap-8">
-            {values.map((v) => (
-              <div key={v.title} className="text-center md:text-left">
-                <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-brand-700/10 md:mx-0">
-                  <v.icon className="h-5 w-5 text-brand-700" />
-                </div>
-                <h3 className="mt-4 text-lg font-semibold tracking-tight">
-                  {v.title}
-                </h3>
+            {t.values.map((v) => (
+              <div key={v.title}>
+                <h3 className="text-lg font-semibold tracking-tight">{v.title}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                   {v.description}
                 </p>
@@ -143,12 +98,41 @@ export default async function OmOssPage() {
         </div>
       </section>
 
-      <section className="py-20 md:py-24">
+      <section id="teamet" className="py-24 md:py-32">
+        <div className="mx-auto max-w-[1280px] px-6 md:px-10">
+          <div className="grid gap-12 lg:grid-cols-2 lg:gap-20">
+            <div className="max-w-lg">
+              <SectionEyebrow>{t.storyEyebrow}</SectionEyebrow>
+              <h2 className="mt-3 text-3xl font-bold tracking-tight">
+                {t.storyTitle}
+              </h2>
+              <div className="mt-6 space-y-4 text-base leading-relaxed text-muted-foreground">
+                {t.storyParagraphs.map((p) => (
+                  <p key={p.slice(0, 24)}>{p}</p>
+                ))}
+              </div>
+            </div>
+            <div className="max-w-lg">
+              <SectionEyebrow>{team.badge}</SectionEyebrow>
+              <h2 className="mt-3 text-3xl font-bold tracking-tight">
+                {team.title}
+              </h2>
+              <p className="mt-6 text-base leading-relaxed text-muted-foreground">
+                {team.body}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-16">
+            <TeamPortraits />
+          </div>
+        </div>
+      </section>
+
+      <section className="border-t border-brand-200/60 py-20 md:py-24">
         <div className="mx-auto grid max-w-[1280px] gap-12 px-6 md:grid-cols-2 md:gap-16 md:px-10">
           <div id="press">
-            <p className="text-xs font-medium uppercase tracking-[0.18em] text-brand-700">
-              {t.pressEyebrow}
-            </p>
+            <SectionEyebrow>{t.pressEyebrow}</SectionEyebrow>
             <h2 className="mt-3 text-2xl font-bold tracking-tight">
               {t.pressTitle}
             </h2>
@@ -164,9 +148,7 @@ export default async function OmOssPage() {
             </p>
           </div>
           <div id="jobb">
-            <p className="text-xs font-medium uppercase tracking-[0.18em] text-brand-700">
-              {t.jobsEyebrow}
-            </p>
+            <SectionEyebrow>{t.jobsEyebrow}</SectionEyebrow>
             <h2 className="mt-3 text-2xl font-bold tracking-tight">
               {t.jobsTitle}
             </h2>
@@ -182,6 +164,10 @@ export default async function OmOssPage() {
             </p>
           </div>
         </div>
+      </section>
+
+      <section className="px-6 pb-20 md:px-10 md:pb-28">
+        <TeamGroupPhoto className="mx-auto max-w-3xl" />
       </section>
     </>
   );

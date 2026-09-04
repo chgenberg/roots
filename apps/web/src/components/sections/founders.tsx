@@ -1,8 +1,8 @@
 import Image from "next/image";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import { LocaleLink } from "@/components/locale-link";
+import { SectionEyebrow } from "@/components/section-eyebrow";
 import { getHome } from "@/i18n/get-dictionary";
 import { getRequestLocale } from "@/i18n/request-locale";
 
@@ -26,9 +26,7 @@ export async function FoundersSection() {
         </div>
 
         <div className="max-w-lg">
-          <Badge variant="secondary" className="mb-4">
-            {founders.badge}
-          </Badge>
+          <SectionEyebrow className="mb-4">{founders.badge}</SectionEyebrow>
           <h2 className="text-3xl font-bold tracking-tight">{founders.title}</h2>
           <div className="mt-6 space-y-4 text-base leading-relaxed text-muted-foreground">
             {founders.paragraphs.map((p) => (

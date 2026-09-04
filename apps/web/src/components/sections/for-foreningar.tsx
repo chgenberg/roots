@@ -1,58 +1,74 @@
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Users, TrendingUp, Package, ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { LocaleLink } from "@/components/locale-link";
+import { SectionEyebrow } from "@/components/section-eyebrow";
+import { RootsGrassAccent, RootsGrassDivider } from "@/components/brand";
 import { getHome } from "@/i18n/get-dictionary";
 import { getRequestLocale } from "@/i18n/request-locale";
-
-const ICONS = [Users, TrendingUp, Package];
 
 export async function ForForeningar() {
   const locale = await getRequestLocale();
   const { forClubs } = getHome(locale);
 
   return (
-    <section className="relative overflow-hidden bg-brand-50/40 py-24 md:py-32">
-      <div
-        className="pointer-events-none absolute right-[8%] top-[15%] h-48 w-48 animate-float rounded-full border border-brand-200/30 motion-reduce:animate-none"
-        aria-hidden="true"
+    <section className="relative overflow-hidden bg-brand-100 py-24 pb-32 md:py-32 md:pb-40">
+      <RootsGrassAccent className="right-[4%] top-[4%]" />
+      <RootsGrassDivider
+        variant="dark"
+        className="absolute inset-x-0 bottom-0 h-14 opacity-70 md:h-20 lg:h-24"
       />
 
-      <div className="mx-auto max-w-[1280px] px-6 md:px-10">
+      <div className="relative mx-auto max-w-[1280px] px-6 md:px-10">
         <div className="mx-auto max-w-2xl text-center">
-          <Badge variant="secondary" className="mb-4">
-            {forClubs.badge}
-          </Badge>
+          <SectionEyebrow className="mb-4">{forClubs.badge}</SectionEyebrow>
           <h2 className="text-3xl font-bold tracking-tight">{forClubs.title}</h2>
           <p className="mt-4 text-lg text-muted-foreground">{forClubs.body}</p>
         </div>
 
         <div className="mt-16 grid gap-6 md:grid-cols-3">
-          {forClubs.benefits.map((benefit, i) => {
-            const Icon = ICONS[i] ?? Users;
-            return (
-              <Card
-                key={benefit.title}
-                className="border-0 bg-card shadow-[var(--shadow-card)] transition-shadow duration-200 hover:shadow-[var(--shadow-elevated)]"
-              >
-                <CardContent className="p-6">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-50">
-                    <Icon className="h-6 w-6 text-foreground" />
-                  </div>
-                  <h3 className="mt-4 text-lg font-semibold">{benefit.title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                    {benefit.description}
-                  </p>
-                </CardContent>
-              </Card>
-            );
-          })}
+          {forClubs.benefits.map((benefit) => (
+            <Card
+              key={benefit.title}
+              className="border-0 bg-card shadow-[var(--shadow-card)] transition-shadow duration-200 hover:shadow-[var(--shadow-elevated)]"
+            >
+              <CardContent className="p-6">
+                <h3 className="text-lg font-semibold">{benefit.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                  {benefit.description}
+                </p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        <div className="mt-16 grid gap-6 md:grid-cols-2">
+          <div className="group relative aspect-[4/3] overflow-hidden rounded-3xl">
+            <Image
+              src="/images/club-youth-selling.png"
+              alt={forClubs.sellingAlt}
+              fill
+              className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.02]"
+              sizes="(max-width: 768px) 100vw, 50vw"
+            />
+            <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-inset ring-black/5" />
+          </div>
+          <div className="group relative aspect-[4/3] overflow-hidden rounded-3xl">
+            <Image
+              src="/images/club-camp-cup.png"
+              alt={forClubs.campAlt}
+              fill
+              className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.02]"
+              sizes="(max-width: 768px) 100vw, 50vw"
+            />
+            <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-inset ring-black/5" />
+          </div>
         </div>
 
         <div className="mt-16 flex flex-wrap justify-center gap-4">
           <Button size="lg" pulse asChild>
-            <LocaleLink href="/foreningsliv">
+            <LocaleLink href="/registrera" localeNeutral>
               {forClubs.cta}
               <ArrowRight className="ml-1 h-4 w-4" />
             </LocaleLink>

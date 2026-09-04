@@ -23,7 +23,7 @@ export function Footer() {
       <div className="mx-auto max-w-[1280px] px-6 py-16 md:px-10">
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-5">
           <div className="sm:col-span-2 lg:col-span-1">
-            <RootsLogo variant="auto" className="h-8 w-[80px]" />
+            <RootsLogo variant="auto" className="block h-8 w-[57px]" />
             <p className="mt-4 max-w-[25ch] text-sm leading-relaxed text-muted-foreground">
               {t.footer.tagline}
             </p>

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useFocusTrap } from "@/lib/use-focus-trap";
-import { ArrowRight, User, CalendarCheck, Search } from "lucide-react";
+import { ArrowRight, User, Search } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SearchTrigger } from "@/components/search-dialog";
 import { AnnouncementBar } from "@/components/announcement-bar";
@@ -68,8 +68,8 @@ function NavLink({
       className={cn(
         "flex h-10 items-center whitespace-nowrap rounded-full px-3 text-sm tracking-wide transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         active
-          ? "bg-brand-50 text-foreground"
-          : "text-muted-foreground hover:bg-brand-50/70 hover:text-foreground"
+          ? "bg-brand-200 font-medium text-foreground"
+          : "text-muted-foreground hover:bg-brand-50 hover:text-foreground"
       )}
     >
       {label}
@@ -146,10 +146,7 @@ export function Header() {
             <LocaleLink
               href="/"
               aria-label={t.aria.home}
-              className={cn(
-                PILL,
-                "relative z-[60] flex h-12 items-center px-5 transition-opacity duration-200 hover:opacity-70 lg:hidden"
-              )}
+              className="relative z-[60] flex h-12 items-center px-1 transition-opacity duration-200 hover:opacity-70 lg:hidden"
             >
               <RootsLogo variant="auto" priority className="h-7 w-[72px]" />
             </LocaleLink>
@@ -168,7 +165,7 @@ export function Header() {
                 <LocaleLink
                   href="/"
                   aria-label={t.aria.home}
-                  className="mx-1 flex h-10 items-center rounded-full border border-border/50 px-4 transition-opacity duration-200 hover:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="mx-1 flex h-10 items-center px-2 transition-opacity duration-200 hover:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <RootsLogo variant="auto" priority className="h-6 w-[64px]" />
                 </LocaleLink>
@@ -203,10 +200,9 @@ export function Header() {
               </Link>
               <LocaleLink
                 href="/kontakt?intent=demo"
-                className="group flex h-10 w-10 items-center justify-center rounded-full transition-colors duration-200 hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                aria-label={t.aria.bookDemo}
+                className="flex h-10 items-center whitespace-nowrap rounded-full px-3 text-sm text-muted-foreground transition-colors duration-200 hover:bg-brand-50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <CalendarCheck className="h-[18px] w-[18px] text-muted-foreground transition-colors duration-200 group-hover:text-foreground" />
+                {t.contactCta}
               </LocaleLink>
               <LanguageSwitcher />
             </div>

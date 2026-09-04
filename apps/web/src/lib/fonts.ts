@@ -63,6 +63,11 @@ export const alanSans = localFont({
       style: "normal",
     },
     {
+      path: "../../public/fonts/alan-sans/AlanSans-Regular.ttf",
+      weight: "400",
+      style: "normal",
+    },
+    {
       path: "../../public/fonts/alan-sans/AlanSans-Medium.ttf",
       weight: "500",
       style: "normal",

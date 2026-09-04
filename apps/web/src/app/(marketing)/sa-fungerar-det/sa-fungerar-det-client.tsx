@@ -7,8 +7,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { LocaleLink } from "@/components/locale-link";
+import { SectionEyebrow } from "@/components/section-eyebrow";
+import { RootsGrassAccent } from "@/components/brand";
 import { apiFetch } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useLocale } from "@/i18n/locale-context";
@@ -356,15 +357,10 @@ export function SaFungerarDetClient() {
         id="rakna"
         className="relative scroll-mt-24 overflow-hidden bg-brand-50/40 py-16 md:py-24"
       >
-        <div
-          className="pointer-events-none absolute -top-16 right-[8%] h-48 w-48 rounded-full border border-brand-200/30 animate-float motion-reduce:animate-none"
-          aria-hidden="true"
-        />
+        <RootsGrassAccent className="-top-2 right-[6%]" />
         <div className="mx-auto max-w-[1100px] px-6 md:px-10">
           <div className="mx-auto mb-10 max-w-2xl text-center">
-            <Badge variant="secondary" className="mb-4">
-              {t.badge}
-            </Badge>
+            <SectionEyebrow className="mb-4">{t.badge}</SectionEyebrow>
             <h1 className="text-[length:var(--font-size-hero)] font-bold leading-[1.05] tracking-tight">
               {t.calcTitle}
             </h1>

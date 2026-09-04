@@ -65,7 +65,7 @@ export function RootsLogo({
           src={LOGO_SRC.black}
           alt="Roots"
           fill
-          className="object-contain dark:hidden"
+          className="object-contain object-left dark:hidden"
           priority={priority}
           sizes="(max-width: 768px) 80px, 120px"
         />
@@ -74,7 +74,7 @@ export function RootsLogo({
           alt=""
           aria-hidden="true"
           fill
-          className="hidden object-contain dark:block"
+          className="hidden object-contain object-left dark:block"
           priority={priority}
           sizes="(max-width: 768px) 80px, 120px"
         />
@@ -155,6 +155,33 @@ export function RootsGrassDivider({
         fill
         className="object-contain object-bottom"
         sizes="100vw"
+      />
+    </div>
+  );
+}
+
+/** Small grass cluster — replaces the old floating circle ornaments. */
+export function RootsGrassAccent({
+  variant = "dark",
+  className,
+}: {
+  variant?: keyof typeof ELEMENT_SRC;
+  className?: string;
+}) {
+  return (
+    <div
+      aria-hidden
+      className={cn(
+        "pointer-events-none absolute h-32 w-56 select-none md:h-40 md:w-72",
+        className
+      )}
+    >
+      <Image
+        src={ELEMENT_SRC[variant]}
+        alt=""
+        fill
+        className="object-contain object-bottom opacity-70"
+        sizes="288px"
       />
     </div>
   );

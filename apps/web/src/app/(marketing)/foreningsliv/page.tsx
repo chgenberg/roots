@@ -1,7 +1,7 @@
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { SectionEyebrow } from "@/components/section-eyebrow";
 import { BreadcrumbJsonLd, WebPageJsonLd } from "@/components/json-ld";
 import { LocaleLink } from "@/components/locale-link";
 import { pageMetadata } from "@/lib/seo";
@@ -9,9 +9,8 @@ import { getPage } from "@/i18n/get-dictionary";
 import { getRequestLocale } from "@/i18n/request-locale";
 import { withLocale } from "@/i18n/paths";
 import type { Metadata } from "next";
-import { ArrowRight, Users, ShieldCheck, Truck, BarChart3 } from "lucide-react";
-
-const FEATURE_ICONS = [Users, ShieldCheck, Truck, BarChart3] as const;
+import { RootsGrassAccent, RootsGrassDivider } from "@/components/brand";
+import { ArrowRight } from "lucide-react";
 
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await getRequestLocale();
@@ -29,11 +28,6 @@ export default async function ForeningslivPage() {
   const t = getPage("foreningsliv", locale);
   const homeLabel = getPage("produkter", locale).breadcrumbHome;
 
-  const features = t.features.map((f, i) => ({
-    ...f,
-    icon: FEATURE_ICONS[i] ?? Users,
-  }));
-
   return (
     <>
       <BreadcrumbJsonLd
@@ -48,16 +42,16 @@ export default async function ForeningslivPage() {
         url={withLocale("/foreningsliv", locale)}
         locale={locale}
       />
-      <section className="relative overflow-hidden bg-brand-50/40 py-20 md:py-28">
-        <div
-          className="pointer-events-none absolute -bottom-20 left-[10%] h-40 w-40 rounded-full border border-brand-200/30 animate-float motion-reduce:animate-none"
-          aria-hidden="true"
+
+      <section className="relative overflow-hidden bg-brand-100 py-20 pb-28 md:py-28 md:pb-36">
+        <RootsGrassAccent className="right-[4%] top-[8%]" />
+        <RootsGrassDivider
+          variant="dark"
+          className="absolute inset-x-0 bottom-0 h-14 opacity-70 md:h-20 lg:h-24"
         />
-        <div className="mx-auto grid max-w-[1280px] items-center gap-12 px-6 md:px-10 lg:grid-cols-2 lg:gap-20">
+        <div className="relative mx-auto grid max-w-[1280px] items-center gap-12 px-6 md:px-10 lg:grid-cols-2 lg:gap-20">
           <div className="max-w-lg">
-            <Badge variant="secondary" className="mb-4">
-              {t.badge}
-            </Badge>
+            <SectionEyebrow className="mb-4">{t.badge}</SectionEyebrow>
             <h1 className="text-[length:var(--font-size-hero)] font-bold leading-[1.05] tracking-tight">
               {t.heroTitleLead}
               <span className="block text-brand-500">{t.heroTitleAccent}</span>
@@ -102,7 +96,7 @@ export default async function ForeningslivPage() {
             {t.steps.map((s) => (
               <div key={s.step} className="relative">
                 <span
-                  className="text-5xl font-bold text-brand-200"
+                  className="font-display text-5xl font-semibold text-brand-700"
                   aria-hidden="true"
                 >
                   {s.step}
@@ -126,7 +120,33 @@ export default async function ForeningslivPage() {
         </div>
       </section>
 
-      <section className="px-6 md:px-10">
+      <section className="pb-16 md:pb-20">
+        <div className="mx-auto max-w-[1280px] px-6 md:px-10">
+          <div className="mx-auto max-w-2xl text-center">
+            <h2 className="text-3xl font-bold tracking-tight">
+              {t.featuresTitle}
+            </h2>
+          </div>
+
+          <div className="mt-16 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+            {t.features.map((f) => (
+              <Card
+                key={f.title}
+                className="border-0 shadow-sm hover:shadow-md transition-shadow duration-200"
+              >
+                <CardContent className="p-6">
+                  <h3 className="font-semibold">{f.title}</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {f.description}
+                  </p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="px-6 pb-24 md:px-10 md:pb-32">
         <div className="group relative mx-auto max-w-[1280px] overflow-hidden rounded-3xl">
           <div className="relative aspect-[16/10]">
             <Image
@@ -139,33 +159,27 @@ export default async function ForeningslivPage() {
           </div>
           <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-inset ring-black/5" />
         </div>
-      </section>
 
-      <section className="py-24 md:py-32">
-        <div className="mx-auto max-w-[1280px] px-6 md:px-10">
-          <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-3xl font-bold tracking-tight">
-              {t.featuresTitle}
-            </h2>
+        <div className="mx-auto mt-6 grid max-w-[1280px] gap-6 md:grid-cols-2">
+          <div className="group relative aspect-[4/3] overflow-hidden rounded-3xl">
+            <Image
+              src="/images/club-youth-selling.png"
+              alt={t.sellingImageAlt}
+              fill
+              className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.02]"
+              sizes="(max-width: 768px) 100vw, 50vw"
+            />
+            <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-inset ring-black/5" />
           </div>
-
-          <div className="mt-16 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-            {features.map((f) => (
-              <Card
-                key={f.title}
-                className="border-0 shadow-sm hover:shadow-md transition-shadow duration-200"
-              >
-                <CardContent className="p-6">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-50">
-                    <f.icon className="h-5 w-5 text-foreground" />
-                  </div>
-                  <h3 className="mt-4 font-semibold">{f.title}</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {f.description}
-                  </p>
-                </CardContent>
-              </Card>
-            ))}
+          <div className="group relative aspect-[4/3] overflow-hidden rounded-3xl">
+            <Image
+              src="/images/club-camp-cup.png"
+              alt={t.campImageAlt}
+              fill
+              className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.02]"
+              sizes="(max-width: 768px) 100vw, 50vw"
+            />
+            <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-inset ring-black/5" />
           </div>
         </div>
       </section>

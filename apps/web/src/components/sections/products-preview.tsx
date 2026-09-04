@@ -1,7 +1,7 @@
 import Image from "next/image";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { ArrowUpRight } from "lucide-react";
+import { SectionEyebrow } from "@/components/section-eyebrow";
 import { BUNDLE_SLUG } from "@/lib/product-catalog";
 import { LocaleLink } from "@/components/locale-link";
 import { getHome } from "@/i18n/get-dictionary";
@@ -15,9 +15,7 @@ export async function ProductsPreview() {
     <section className="py-10 md:py-14" id="produkter">
       <div className="mx-auto max-w-[1280px] px-6 md:px-10">
         <div className="mx-auto max-w-2xl text-center">
-          <Badge variant="secondary" className="mb-4">
-            {products.badge}
-          </Badge>
+          <SectionEyebrow className="mb-4">{products.badge}</SectionEyebrow>
           <h2 className="text-3xl font-bold tracking-tight">{products.title}</h2>
           <p className="mt-4 text-lg text-muted-foreground">{products.body}</p>
         </div>
@@ -38,11 +36,6 @@ export async function ProductsPreview() {
                     className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
                     sizes="(max-width: 768px) 100vw, 33vw"
                   />
-                  {product.badge && (
-                    <div className="absolute left-4 top-4">
-                      <Badge variant="default">{product.badge}</Badge>
-                    </div>
-                  )}
                 </div>
                 <CardContent className="p-5">
                   <div className="flex items-start justify-between">

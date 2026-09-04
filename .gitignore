@@ -18,6 +18,7 @@ public/Personal/
 
 # Genererad output — inte källkod.
 scripts/roots-shots/out/
+scripts/roots-walkthrough/out/
 docs/**/_cache/
 
 # Presentationerna byggs ur kollegans Master Source med

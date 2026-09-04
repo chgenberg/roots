@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { SectionEyebrow } from "@/components/section-eyebrow";
 import { Card, CardContent } from "@/components/ui/card";
 import { HairAnalysisLeadDialog } from "@/components/hair-analysis-lead-dialog";
 import {
@@ -14,6 +14,7 @@ import {
   ArrowRight,
   ChevronDown,
 } from "lucide-react";
+import { RootsGrassAccent } from "@/components/brand";
 import { useLocale } from "@/i18n/locale-context";
 import { pages } from "@/i18n/dictionaries/pages";
 
@@ -34,20 +35,12 @@ export default function HaranalysPage() {
   return (
     <>
       <section className="relative overflow-hidden bg-brand-50/40 py-24 md:py-32">
-        <div
-          className="pointer-events-none absolute left-[10%] top-[20%] h-64 w-64 rounded-full bg-brand-100/40 blur-3xl"
-          aria-hidden="true"
-        />
-        <div
-          className="pointer-events-none absolute right-[5%] bottom-[10%] h-48 w-48 rounded-full bg-brand-200/30 blur-2xl"
-          aria-hidden="true"
-        />
+        <RootsGrassAccent className="left-[6%] top-[12%]" />
+        <RootsGrassAccent variant="neutral" className="bottom-[6%] right-[4%]" />
 
         <div className="mx-auto max-w-[1280px] px-6 md:px-10">
           <div className="mx-auto max-w-2xl text-center">
-            <Badge variant="secondary" className="mb-4">
-              {t.badge}
-            </Badge>
+            <SectionEyebrow className="mb-4">{t.badge}</SectionEyebrow>
             <h1 className="text-[length:var(--font-size-hero)] font-bold tracking-tight">
               {t.heroTitle}
             </h1>
@@ -124,9 +117,7 @@ export default function HaranalysPage() {
       <section className="bg-brand-50/40 py-24 md:py-32">
         <div className="mx-auto max-w-[1280px] px-6 md:px-10">
           <div className="mx-auto max-w-2xl text-center">
-            <Badge variant="secondary" className="mb-4">
-              {t.howBadge}
-            </Badge>
+            <SectionEyebrow className="mb-4">{t.howBadge}</SectionEyebrow>
             <h2 className="text-3xl font-bold tracking-tight">{t.howTitle}</h2>
           </div>
 

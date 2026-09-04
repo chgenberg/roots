@@ -29,6 +29,11 @@ export const pages = {
         "Sulfatsnålt & silikonfritt",
         "Unisex — för alla",
       ],
+      principles: [
+        { value: "SyriCalm®", label: "lugnande aktiv i varje produkt" },
+        { value: "0", label: "sulfater, silikoner, parabener" },
+        { value: "Norden", label: "formulerat & tillverkat" },
+      ],
       readMore: "Läs mer",
       ctaTitle: "Beställ nu och stötta din förening",
       ctaBody:
@@ -50,6 +55,11 @@ export const pages = {
         "Low-sulphate & silicone-free",
         "Unisex — for everyone",
       ],
+      principles: [
+        { value: "SyriCalm®", label: "soothing active in every product" },
+        { value: "0", label: "sulphates, silicones, parabens" },
+        { value: "Nordics", label: "formulated & manufactured" },
+      ],
       readMore: "Learn more",
       ctaTitle: "Order now and support your club",
       ctaBody:
@@ -63,18 +73,18 @@ export const pages = {
     sv: {
       title: "Föreningsliv",
       description:
-        "Stärk er förening med Roots. Sälj naturlig hårvård och generera intäkter till laget — enkelt, snabbt och utan startavgift.",
+        "Stärk er förening med Roots. Sälj naturlig hårvård och generera intäkt till laget — enkelt, snabbt och utan startavgift.",
       badge: "För föreningar",
       heroTitleLead: "Gör föreningslivet",
       heroTitleAccent: "starkare",
       heroBody:
-        "Roots är byggt för föreningar. Beställ naturlig hårvård direkt i vår portal, säkerställ att en del av vinsten går tillbaka till er klubb, och ge era medlemmar produkter de älskar.",
+        "Roots är byggt för föreningar. Beställ naturlig hårvård direkt i vår portal, säkerställ att en del av intäkten går tillbaka till er klubb, och ge era medlemmar produkter de älskar.",
       heroImageAlt: "Roots produkter i föreningens omklädningsrum",
       ctaPrimary: "Anslut din förening",
       ctaSecondary: "Kontakta oss",
-      ctaCalc: "Räkna på er förtjänst",
-      ctaAfterSteps: "Räkna på er förtjänst",
-      bottomCalcCta: "Se vad Roots kan ge er förening",
+      ctaCalc: "Räkna på intäkten",
+      ctaAfterSteps: "Räkna på intäkten",
+      bottomCalcCta: "Räkna på intäkten",
       stepsTitle: "Så här fungerar det",
       stepsSubtitle: "Från registrering till leverans — i fyra enkla steg.",
       steps: [
@@ -96,10 +106,14 @@ export const pages = {
         {
           step: "04",
           title: "Intäkt",
-          description: "Del av vinsten går tillbaka till föreningslivet.",
+          description: "Del av intäkten går tillbaka till föreningslivet.",
         },
       ],
       midImageAlt: "Roots produkter i duschen — redo att användas",
+      sellingImageAlt:
+        "Ungdomar i föreningsdräkt säljer Roots vid planen — flaskor och QR-kod på bordet",
+      campImageAlt:
+        "Lag på läger samlade vid stugor, med Roots-flaskor i förgrunden",
       featuresTitle: "Vad ni får",
       features: [
         {
@@ -116,13 +130,13 @@ export const pages = {
         },
         {
           title: "Intäktsrapport",
-          description: "Full transparens över hur vinsten fördelas.",
+          description: "Full transparens över hur intäkten fördelas.",
         },
       ],
       bottomTitle: "Redo att börja?",
       bottomBody:
         "Anslut din förening idag och ge era medlemmar tillgång till naturlig, nordisk hårvård.",
-      bottomCta: "Registrera din förening",
+      bottomCta: "Anslut din förening",
     },
     en: {
       title: "For clubs",
@@ -136,9 +150,9 @@ export const pages = {
       heroImageAlt: "Roots products in the club changing room",
       ctaPrimary: "Register your club",
       ctaSecondary: "Contact us",
-      ctaCalc: "Calculate your earnings",
-      ctaAfterSteps: "Calculate your earnings",
-      bottomCalcCta: "See what Roots can give your club",
+      ctaCalc: "Calculate the revenue",
+      ctaAfterSteps: "Calculate the revenue",
+      bottomCalcCta: "Calculate the revenue",
       stepsTitle: "How it works",
       stepsSubtitle: "From registration to delivery — in four simple steps.",
       steps: [
@@ -161,10 +175,14 @@ export const pages = {
         {
           step: "04",
           title: "Revenue",
-          description: "A share of the profit goes back into club fundraising.",
+          description: "A share of the revenue goes back into club fundraising.",
         },
       ],
       midImageAlt: "Roots products in the shower — ready to use",
+      sellingImageAlt:
+        "Youth in club kit selling Roots by the pitch — bottles and a QR code on the table",
+      campImageAlt:
+        "A team at camp gathered by the cabins, with Roots bottles in the foreground",
       featuresTitle: "What you get",
       features: [
         {
@@ -181,7 +199,7 @@ export const pages = {
         },
         {
           title: "Revenue report",
-          description: "Full transparency on how profit is shared.",
+          description: "Full transparency on how revenue is shared.",
         },
       ],
       bottomTitle: "Ready to start?",
@@ -203,8 +221,8 @@ export const pages = {
       heroTitle: "Så fungerar det",
       heroBody:
         "Tre enkla steg — från att föreningen kommer igång till att medlemmen säljer i mobilen. Se hur det går till och räkna ut vad det kan ge er förening.",
-      ctaCalc: "Räkna på er förtjänst",
-      ctaMid: "Räkna på er förtjänst",
+      ctaCalc: "Räkna på intäkten",
+      ctaMid: "Räkna på intäkten",
       ctaBottom: "Se vad Roots kan ge er förening",
       ctaDemo: "Boka en demo",
       demoEyebrow: "Se det i praktiken",
@@ -253,13 +271,13 @@ export const pages = {
           ],
         },
       ],
-      calcEyebrow: "Räkna på er förtjänst",
+      calcEyebrow: "Räkna på intäkten",
       calcTitle: "Vad kan er förening tjäna?",
       calcBody:
-        "Dra i reglagen så uppdateras förtjänsten i realtid. Två siffror — resten räknar Roots.",
+        "Dra i reglagen så uppdateras intäkten i realtid. Två siffror — resten räknar Roots.",
       calcBullets: [
         "Justera antal säljare och snittförsäljning",
-        "Se förtjänsten och hur långt ni når mot målet",
+        "Se intäkten och hur långt ni når mot målet",
         "Dela resultatet — vi hjälper er igång",
       ],
       calcTryBelow: "Prova själv nedan",
@@ -294,8 +312,8 @@ export const pages = {
       heroTitle: "How it works",
       heroBody:
         "Three simple steps — from the club signing up to members selling on their phone. See how it works and calculate what it could mean for your club.",
-      ctaCalc: "Calculate your earnings",
-      ctaMid: "Calculate your earnings",
+      ctaCalc: "Calculate the revenue",
+      ctaMid: "Calculate the revenue",
       ctaBottom: "See what Roots can give your club",
       ctaDemo: "Book a demo",
       demoEyebrow: "See it in action",
@@ -344,7 +362,7 @@ export const pages = {
           ],
         },
       ],
-      calcEyebrow: "Calculate your earnings",
+      calcEyebrow: "Calculate the revenue",
       calcTitle: "What could your club earn?",
       calcBody:
         "Drag the sliders and earnings update in real time. Two numbers — Roots does the rest.",
@@ -394,7 +412,7 @@ export const pages = {
         "Så vi skapade Roots. Tre naturliga produkter, utvecklade i Norden, med en affärsmodell som kanaliserar intäkter tillbaka till föreningslivet.",
       ],
       storyImageAlt: "Nordisk känsla — ren och naturlig",
-      valuesEyebrow: "Värderingar",
+      valuesEyebrow: "Manifest",
       valuesTitle: "Det vi står för",
       values: [
         {
@@ -405,7 +423,7 @@ export const pages = {
         {
           title: "Naturligt, inte perfekt",
           description:
-            "Vi tror inte på 100% ekologiska certifieringar för certifieringens skull. Vi tror på ingredienser som fungerar och är så naturliga som möjligt.",
+            "Vi väljer ingredienser som fungerar och är så naturliga som möjligt — inte certifieringar för certifieringens skull.",
         },
         {
           title: "Transparens",
@@ -439,7 +457,7 @@ export const pages = {
         "So we created Roots. Three natural products, developed in the Nordics, with a business model that directs revenue back into club fundraising.",
       ],
       storyImageAlt: "Nordic feel — clean and natural",
-      valuesEyebrow: "Values",
+      valuesEyebrow: "Manifesto",
       valuesTitle: "What we stand for",
       values: [
         {

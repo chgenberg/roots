@@ -2,7 +2,7 @@ import Image from "next/image";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowUpRight, Leaf, Droplets, Sparkles } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import { BreadcrumbJsonLd, ItemListJsonLd, WebPageJsonLd } from "@/components/json-ld";
 import { LocaleLink } from "@/components/locale-link";
 import { pageMetadata } from "@/lib/seo";
@@ -11,8 +11,6 @@ import { getPage, getProduct, getProductListingExtras } from "@/i18n/get-diction
 import { getRequestLocale } from "@/i18n/request-locale";
 import { withLocale } from "@/i18n/paths";
 import type { Metadata } from "next";
-
-const VALUE_ICONS = [Leaf, Droplets, Sparkles] as const;
 
 const PRODUCT_SLUGS = ["shampoo", "conditioner", "body-wash", BUNDLE_SLUG] as const;
 
@@ -50,11 +48,6 @@ export default async function ProdukterPage() {
     };
   });
 
-  const values = t.values.map((label, i) => ({
-    icon: VALUE_ICONS[i] ?? Leaf,
-    label,
-  }));
-
   return (
     <>
       <BreadcrumbJsonLd
@@ -86,14 +79,16 @@ export default async function ProdukterPage() {
             <p className="mt-4 text-lg text-muted-foreground">{t.heroBody}</p>
           </div>
 
-          <div className="mt-12 flex flex-wrap items-center justify-center gap-6">
-            {values.map((v) => (
+          <div className="mt-12 flex flex-col items-center justify-center gap-8 md:flex-row md:gap-0 md:divide-x md:divide-border">
+            {t.principles.map((p) => (
               <div
-                key={v.label}
-                className="flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-sm text-card-foreground shadow-sm"
+                key={p.label}
+                className="flex flex-col items-center text-center md:flex-1 md:px-8"
               >
-                <v.icon className="h-4 w-4 text-muted-foreground" />
-                {v.label}
+                <p className="text-3xl font-semibold tracking-tight md:text-4xl">
+                  {p.value}
+                </p>
+                <p className="mt-2 text-sm text-muted-foreground">{p.label}</p>
               </div>
             ))}
           </div>

@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogClose } from "@/components/ui/dialog";
+import { X } from "lucide-react";
 import * as VisuallyHiddenPrimitive from "@radix-ui/react-visually-hidden";
 import { cn } from "@/lib/utils";
 import { HAIR_ANALYSIS_ENABLED } from "@/lib/feature-flags";
@@ -15,6 +16,7 @@ import {
 } from "lucide-react";
 import { useLocale } from "@/i18n/locale-context";
 import { marketingUi } from "@/i18n/dictionaries/marketing-ui";
+import { errors } from "@/i18n/dictionaries/errors";
 import { getGuides } from "@/lib/guides";
 import { withLocale } from "@/i18n/paths";
 
@@ -162,7 +164,7 @@ export function SearchDialog() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="max-w-lg gap-0 overflow-hidden p-0">
+      <DialogContent hideClose className="top-[18%] max-w-lg translate-y-0 gap-0 overflow-hidden p-0 sm:top-[20%]">
         {/* P3.64 (audit 2026-05-26): Radix kräver DialogTitle för
             skärmläsare. Vi visar inte titeln visuellt (har sökfält
             med aria-label) men lägger den i VisuallyHidden. */}
@@ -184,6 +186,10 @@ export function SearchDialog() {
           <kbd className="hidden shrink-0 items-center gap-0.5 rounded-md border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground sm:flex">
             <Command className="h-2.5 w-2.5" />K
           </kbd>
+          <DialogClose className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-brand-50 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring">
+            <X className="h-4 w-4" />
+            <span className="sr-only">{errors[locale].close}</span>
+          </DialogClose>
         </div>
 
         <div ref={listRef} className="max-h-[min(60vh,400px)] overflow-y-auto p-2">

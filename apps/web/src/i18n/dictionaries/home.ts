@@ -14,11 +14,6 @@ type Benefit = {
   description: string;
 };
 
-type Principle = {
-  value: string;
-  label: string;
-};
-
 type Achievement = {
   title: string;
   stat: string;
@@ -33,6 +28,7 @@ type HomeCopy = {
     altMobile: string;
     ctaHairAnalysis: string;
     ctaProducts: string;
+    ctaClub: string;
   };
   products: {
     badge: string;
@@ -52,9 +48,8 @@ type HomeCopy = {
     benefits: Benefit[];
     cta: string;
     ctaCalc: string;
-  };
-  socialProof: {
-    principles: Principle[];
+    sellingAlt: string;
+    campAlt: string;
   };
   gamification: {
     badge: string;
@@ -75,8 +70,8 @@ type HomeCopy = {
 export const home: Record<Locale, HomeCopy> = {
   sv: {
     hero: {
-      titleLine1: "Naturlig hårvård.",
-      titleLine2: "Ren känsla.",
+      titleLine1: "Allt som växer börjar med starka rötter",
+      titleLine2: "Naturlig hårvård som ger tillbaka till föreningslivet",
       body: "Tre produkter för föreningslivet — utan sulfater, silikoner eller parabener.",
       altDesktop:
         "Roots-produkterna vid fotbollsplanen — Schampoo, Conditioner och Body Wash",
@@ -84,16 +79,17 @@ export const home: Record<Locale, HomeCopy> = {
         "Roots — Roots Schampoo, Roots Conditioner och Roots Body Wash",
       ctaHairAnalysis: "Starta din håranalys",
       ctaProducts: "Se produkterna",
+      ctaClub: "Räkna på intäkten",
     },
     products: {
       badge: "Sortiment",
-      title: "Tre produkter. Inget mer.",
-      body: "Vi tror på enkelhet. Varje produkt är noggrant formulerad med forskningsförankrade aktiver — för hela familjen.",
+      title: "Tre produkter är allt som behövs",
+      body: "Schampo, balsam och body wash. Det föreningen säljer — och det laget faktiskt använder.",
       items: [
         {
           slug: "shampoo",
           name: "Roots Schampoo",
-          tagline: "Rengör på riktigt — SyriCalm® lugnar hårbotten",
+          tagline: "Rengör på riktigt — efter match och träning",
           image: "/images/sport-schampoo.jpg",
           price: "199 kr",
           badge: "Schampo",
@@ -101,7 +97,7 @@ export const home: Record<Locale, HomeCopy> = {
         {
           slug: "conditioner",
           name: "Roots Conditioner",
-          tagline: "Mjukt, följsamt hår — Pro-Vitamin B5 & antioxidanter",
+          tagline: "Mjukt, följsamt hår — samma rutin för hela laget",
           image: "/images/sport-conditioner.jpg",
           price: "199 kr",
           badge: "Balsam",
@@ -109,7 +105,7 @@ export const home: Record<Locale, HomeCopy> = {
         {
           slug: "body-wash",
           name: "Roots Body Wash",
-          tagline: "Respekterar huden — SyriCalm® lugnar och stärker",
+          tagline: "Skonsam dusch — från omklädningsrummet till hemmet",
           image: "/images/sport-body-wash.jpg",
           price: "179 kr",
           badge: "Body Wash",
@@ -134,7 +130,7 @@ export const home: Record<Locale, HomeCopy> = {
         {
           title: "Stöd till föreningen",
           description:
-            "En del av intäkterna går tillbaka till föreningslivet. Ni stärker varandra.",
+            "En del av intäkten går tillbaka till föreningslivet. Ni stärker varandra.",
         },
         {
           title: "Direktleverans",
@@ -143,14 +139,11 @@ export const home: Record<Locale, HomeCopy> = {
         },
       ],
       cta: "Anslut din förening",
-      ctaCalc: "Räkna på er förtjänst",
-    },
-    socialProof: {
-      principles: [
-        { value: "SyriCalm®", label: "lugnande aktiv i varje produkt" },
-        { value: "0", label: "sulfater, silikoner, parabener" },
-        { value: "Norden", label: "formulerat & tillverkat" },
-      ],
+      ctaCalc: "Räkna på intäkten",
+      sellingAlt:
+        "Ungdomar i föreningsdräkt säljer Roots vid planen — flaskor och QR-kod på bordet",
+      campAlt:
+        "Lag på läger samlade vid stugor, med Roots-flaskor i förgrunden",
     },
     gamification: {
       badge: "Milstolpar",
@@ -194,16 +187,17 @@ export const home: Record<Locale, HomeCopy> = {
         "Roots — Roots Schampoo, Roots Conditioner and Roots Body Wash",
       ctaHairAnalysis: "Start your hair analysis",
       ctaProducts: "Browse products",
+      ctaClub: "Calculate the revenue",
     },
     products: {
       badge: "Range",
       title: "Three products. Nothing more.",
-      body: "We believe in simplicity. Each product is carefully formulated with research-backed actives — for the whole family.",
+      body: "Shampoo, conditioner and body wash. What the club sells — and what the team actually uses.",
       items: [
         {
           slug: "shampoo",
           name: "Roots Schampoo",
-          tagline: "Cleanses thoroughly — SyriCalm® soothes the scalp",
+          tagline: "Cleanses thoroughly — after matches and training",
           image: "/images/sport-schampoo.jpg",
           price: "SEK 199",
           badge: "Shampoo",
@@ -211,7 +205,7 @@ export const home: Record<Locale, HomeCopy> = {
         {
           slug: "conditioner",
           name: "Roots Conditioner",
-          tagline: "Soft, manageable hair — Pro-Vitamin B5 & antioxidants",
+          tagline: "Soft, manageable hair — one routine for the whole team",
           image: "/images/sport-conditioner.jpg",
           price: "SEK 199",
           badge: "Conditioner",
@@ -219,7 +213,7 @@ export const home: Record<Locale, HomeCopy> = {
         {
           slug: "body-wash",
           name: "Roots Body Wash",
-          tagline: "Gentle on skin — SyriCalm® soothes and strengthens",
+          tagline: "A gentle shower — from the changing room to home",
           image: "/images/sport-body-wash.jpg",
           price: "SEK 179",
           badge: "Body Wash",
@@ -253,14 +247,11 @@ export const home: Record<Locale, HomeCopy> = {
         },
       ],
       cta: "Register your club",
-      ctaCalc: "Calculate your earnings",
-    },
-    socialProof: {
-      principles: [
-        { value: "SyriCalm®", label: "soothing active in every product" },
-        { value: "0", label: "sulphates, silicones, parabens" },
-        { value: "Nordics", label: "formulated & manufactured" },
-      ],
+      ctaCalc: "Calculate the revenue",
+      sellingAlt:
+        "Youth in club kit selling Roots by the pitch — bottles and a QR code on the table",
+      campAlt:
+        "A team at camp gathered by the cabins, with Roots bottles in the foreground",
     },
     gamification: {
       badge: "Milestones",

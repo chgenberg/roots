@@ -58,7 +58,7 @@ export const products: Record<
       tagline:
         "Schampo som rengör på riktigt — och lämnar hårbotten i ro",
       description:
-        "Ett mjukt men effektivt schampo som löser smuts och fett utan att skala bort hårbottnens naturliga balans. Sockerbaserade, sulfatsnåla tvättämnen rengör skonsamt medan SyriCalm® — en forskningsförankrad nordisk aktiv av vass (Phragmites Communis) och svamp (Poria Cocos) — lugnar och stärker hårbotten. Polyquaternium reder ut och ger naturlig glans. Håret känns rent, lätt och levande, dag efter dag.",
+        "Ett mjukt men effektivt schampo som löser smuts och fett utan att skala bort hårbottnens naturliga balans. Sockerbaserade, sulfatsnåla ingredienser rengör skonsamt medan SyriCalm® — en forskningsförankrad nordisk aktiv av vass (Phragmites Communis) och svamp (Poria Cocos) — lugnar och stärker hårbotten. Polyquaternium reder ut och ger naturlig glans. Håret känns rent, lätt och levande, dag efter dag.",
       priceSek: 199,
       priceOre: 19900,
       volume: "250 ml",
@@ -140,7 +140,7 @@ export const products: Record<
       tagline:
         "Body wash som respekterar huden — istället för att störa den",
       description:
-        "En skonsam kroppstvätt med krämigt lödder som rengör utan att torka ut. Milda tvättämnen och ett Panthenol-derivat lämnar huden len och återfuktad, medan SyriCalm® — av vass (Phragmites Communis) och svamp (Poria Cocos) — lugnar och stärker hudens naturliga skyddsbarriär. Huden känns ren, mjuk och i balans efter varje dusch.",
+        "En skonsam kroppstvätt med krämigt lödder som rengör utan att torka ut. Milda ingredienser och ett Panthenol-derivat lämnar huden len och återfuktad, medan SyriCalm® — av vass (Phragmites Communis) och svamp (Poria Cocos) — lugnar och stärker hudens naturliga skyddsbarriär. Huden känns ren, mjuk och i balans efter varje dusch.",
       priceSek: 179,
       priceOre: 17900,
       volume: "250 ml",
@@ -261,7 +261,7 @@ export const productListingExtras: Record<
   "body-wash": {
     sv: {
       listingTagline:
-        "En skonsam kroppstvätt som rengör utan att torka ut. Milda tvättämnen och SyriCalm® lämnar huden len, återfuktad och i balans.",
+        "En skonsam kroppstvätt som rengör utan att torka ut. Milda ingredienser och SyriCalm® lämnar huden len, återfuktad och i balans.",
       listingHighlights: ["Sulfatsnålt", "SyriCalm®", "Panthenol (B5)"],
     },
     en: {

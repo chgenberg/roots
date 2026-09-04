@@ -633,7 +633,7 @@ export const portalPages = {
       typeBodyWash: "Body Wash",
       typeBundle: "Paket — alla tre",
       descShampoo:
-        "Milt schampo med SyriCalm® och sockerbaserade, sulfatsnåla tvättämnen",
+        "Milt schampo med SyriCalm® och sockerbaserade, sulfatsnåla ingredienser",
       descConditioner:
         "Närande balsam med SyriCalm®, Pro-Vitamin B5 & E-vitamin",
       descBodyWash:

@@ -136,7 +136,7 @@ export const marketingUi = {
         { label: "For clubs", href: "/foreningsliv", category: "pages" },
         { label: "Guides", href: "/guider", category: "pages" },
         { label: "How it works", href: "/sa-fungerar-det", category: "pages" },
-        { label: "Calculate earnings", href: "/sa-fungerar-det#rakna", category: "pages" },
+        { label: "Calculate the revenue", href: "/sa-fungerar-det#rakna", category: "pages" },
         { label: "Help", href: "/hjalp", category: "pages" },
         { label: "About us", href: "/om-oss", category: "pages" },
         { label: "Contact", href: "/kontakt", category: "pages" },
