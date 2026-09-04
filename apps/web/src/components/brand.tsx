@@ -143,9 +143,9 @@ export function RootsGrassDivider({
       aria-hidden={ariaHidden}
       className={cn(
         "pointer-events-none relative w-full select-none",
-        // Default aspect ratio from the source PNG (≈3.4:1). We render
-        // it as a band that gracefully scales. Override via className.
-        "h-12 md:h-16 lg:h-20",
+        // Cropped wordmark-as-grass. Tall enough that the blades read as
+        // a horizon, not a tiny stamp. Override height via className.
+        "h-24 md:h-36 lg:h-44",
         className
       )}
     >

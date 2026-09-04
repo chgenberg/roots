@@ -9,7 +9,7 @@ import { getPage } from "@/i18n/get-dictionary";
 import { getRequestLocale } from "@/i18n/request-locale";
 import { withLocale } from "@/i18n/paths";
 import type { Metadata } from "next";
-import { RootsGrassAccent, RootsGrassDivider } from "@/components/brand";
+import { RootsGrassDivider } from "@/components/brand";
 import { ArrowRight } from "lucide-react";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -43,11 +43,10 @@ export default async function ForeningslivPage() {
         locale={locale}
       />
 
-      <section className="relative overflow-hidden bg-brand-100 py-14 pb-20 md:py-20 md:pb-24">
-        <RootsGrassAccent className="right-[4%] top-[8%]" />
+      <section className="relative overflow-hidden bg-brand-100 py-14 pb-36 md:py-20 md:pb-48">
         <RootsGrassDivider
           variant="dark"
-          className="absolute inset-x-0 bottom-0 h-10 opacity-50 md:h-14"
+          className="absolute inset-x-0 bottom-0 opacity-60"
         />
         <div className="relative mx-auto grid max-w-[1280px] items-center gap-12 px-6 md:px-10 lg:grid-cols-2 lg:gap-20">
           <div className="max-w-lg">

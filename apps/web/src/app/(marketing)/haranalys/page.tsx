@@ -14,7 +14,7 @@ import {
   ArrowRight,
   ChevronDown,
 } from "lucide-react";
-import { RootsGrassAccent } from "@/components/brand";
+import { RootsGrassDivider } from "@/components/brand";
 import { useLocale } from "@/i18n/locale-context";
 import { pages } from "@/i18n/dictionaries/pages";
 
@@ -34,11 +34,13 @@ export default function HaranalysPage() {
 
   return (
     <>
-      <section className="relative overflow-hidden bg-brand-50/40 py-24 md:py-32">
-        <RootsGrassAccent className="left-[6%] top-[12%]" />
-        <RootsGrassAccent variant="neutral" className="bottom-[6%] right-[4%]" />
+      <section className="relative overflow-hidden bg-brand-50/40 py-24 pb-32 md:py-32 md:pb-40">
+        <RootsGrassDivider
+          variant="dark"
+          className="absolute inset-x-0 bottom-0 opacity-60"
+        />
 
-        <div className="mx-auto max-w-[1280px] px-6 md:px-10">
+        <div className="relative mx-auto max-w-[1280px] px-6 md:px-10">
           <div className="mx-auto max-w-2xl text-center">
             <SectionEyebrow className="mb-4">{t.badge}</SectionEyebrow>
             <h1 className="text-3xl tracking-tight md:text-4xl">

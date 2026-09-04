@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ArrowRight } from "lucide-react";
 import { LocaleLink } from "@/components/locale-link";
 import { SectionEyebrow } from "@/components/section-eyebrow";
-import { RootsGrassAccent, RootsGrassDivider } from "@/components/brand";
+import { RootsGrassDivider } from "@/components/brand";
 import { getHome } from "@/i18n/get-dictionary";
 import { getRequestLocale } from "@/i18n/request-locale";
 
@@ -13,11 +13,10 @@ export async function ForForeningar() {
   const { forClubs } = getHome(locale);
 
   return (
-    <section className="relative overflow-hidden bg-brand-100 py-20 pb-24 md:py-28 md:pb-32">
-      <RootsGrassAccent className="right-[4%] top-[4%]" />
+    <section className="relative overflow-hidden bg-brand-100 py-20 pb-36 md:py-28 md:pb-48">
       <RootsGrassDivider
         variant="dark"
-        className="absolute inset-x-0 bottom-0 h-10 opacity-50 md:h-14"
+        className="absolute inset-x-0 bottom-0 opacity-60"
       />
 
       <div className="relative mx-auto max-w-[1280px] px-6 md:px-10">

@@ -64,7 +64,7 @@ export async function HeroSection() {
 
         <RootsGrassDivider
           variant="neutral"
-          className="absolute inset-x-0 bottom-0 h-8 opacity-40 md:h-10 lg:h-12"
+          className="absolute inset-x-0 bottom-0 opacity-50"
           aria-hidden
         />
       </div>

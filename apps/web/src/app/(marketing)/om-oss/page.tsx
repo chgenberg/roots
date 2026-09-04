@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { pageMetadata } from "@/lib/seo";
 import { TeamGroupPhoto, TeamPortraits } from "@/components/sections/team";
 import { SectionEyebrow } from "@/components/section-eyebrow";
-import { RootsGrassAccent, RootsGrassDivider } from "@/components/brand";
+import { RootsGrassDivider } from "@/components/brand";
 import { getPage } from "@/i18n/get-dictionary";
 import { getRequestLocale } from "@/i18n/request-locale";
 import { marketingUi } from "@/i18n/dictionaries/marketing-ui";
@@ -72,11 +72,10 @@ export default async function OmOssPage() {
         </div>
       </section>
 
-      <section className="relative overflow-hidden bg-brand-100 py-20 pb-24 md:py-28 md:pb-32">
-        <RootsGrassAccent className="right-[4%] top-[6%]" />
+      <section className="relative overflow-hidden bg-brand-100 py-20 pb-32 md:py-28 md:pb-40">
         <RootsGrassDivider
           variant="dark"
-          className="absolute inset-x-0 bottom-0 h-10 opacity-50 md:h-14"
+          className="absolute inset-x-0 bottom-0 opacity-60"
         />
         <div className="relative mx-auto max-w-[1280px] px-6 md:px-10">
           <div className="mx-auto max-w-2xl text-center">
