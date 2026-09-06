@@ -9,6 +9,7 @@
  *   POST /v1/internal/cron/deletion-purge     — anonymisera due users
  *   POST /v1/internal/cron/lead-retention     — radera utgångna leads
  *   POST /v1/internal/cron/monitoring-check   — larma om nedtid och tysta jobb
+ *   POST /v1/internal/cron/orchestrator-heartbeat — agentens puls (kort + Hands)
  *   GET  /v1/internal/cron/status             — tillståndet i klartext
  *
  * Loggar varje run i audit_logs så ops kan svara "när kördes purge
@@ -26,6 +27,7 @@ import { internalCronFailRateLimit } from "../lib/rate-limit";
 import { recordJobRun, getJobStatuses } from "../lib/monitoring/heartbeat";
 import { runMonitoringCheck } from "../lib/monitoring/alerts";
 import { checkReadiness } from "../lib/health-checks";
+import { runHeartbeat } from "../lib/orchestrator/heartbeat";
 
 const log = childLogger("internal-cron");
 
@@ -179,6 +181,50 @@ internalCron.post("/monitoring-check", async (c) => {
   } catch (err) {
     log.error({ err }, "monitoring-check cron failed");
     return c.json({ error: "check failed" }, 500);
+  }
+});
+
+/**
+ * POST /v1/internal/cron/orchestrator-heartbeat — agentens puls.
+ * Samma arbete som det schemalagda jobbet. Extern cron är en extra väg
+ * när API-processen inte kör schemaläggaren.
+ */
+internalCron.post("/orchestrator-heartbeat", async (c) => {
+  const auth = await authorize(c);
+  if (!auth.ok) {
+    const message =
+      auth.status === 503
+        ? "Cron disabled"
+        : auth.status === 429
+          ? "Too many failed attempts"
+          : "Unauthorized";
+    return c.json({ error: message }, auth.status);
+  }
+
+  try {
+    const result = await runHeartbeat();
+    if (result.ok) {
+      await recordJobRun("orchestrator-heartbeat", {
+        trigger: "cron",
+        findings: result.findings,
+        summary: result.summary,
+      });
+    }
+    void auditLog({
+      userId: null,
+      action: "cron.orchestrator_heartbeat",
+      meta: {
+        ...requestContext((n) => c.req.header(n)),
+        summary: result.summary,
+        findings: result.findings,
+        opened: result.opened,
+        resolved: result.resolved,
+      },
+    });
+    return c.json(result, result.ok ? 200 : 500);
+  } catch (err) {
+    log.error({ err }, "orchestrator-heartbeat cron failed");
+    return c.json({ error: "heartbeat failed" }, 500);
   }
 });
 

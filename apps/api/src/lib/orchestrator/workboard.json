@@ -1,0 +1,37 @@
+{
+  "updatedAt": "2026-09-06T11:06:00.000Z",
+  "cards": [
+    {
+      "id": "wb-agent-os-boot",
+      "title": "Agent-OS inkopplat i Roots",
+      "body": "Fas 1 (Cursor) och fas 2 (admin-tavla + puls) är på plats. Kartan är graph.ts. Utbetalning och Fortnox-skick är irreversible.",
+      "status": "done",
+      "domainId": "admin",
+      "playbook": "",
+      "files": [
+        "apps/api/src/lib/orchestrator/graph.ts",
+        "apps/web/src/app/(portal)/portal/agenten/page.tsx"
+      ],
+      "gate": "none",
+      "source": "cursor",
+      "createdAt": "2026-09-06T10:45:00.000Z",
+      "updatedAt": "2026-09-06T10:58:00.000Z"
+    },
+    {
+      "id": "wb-agent-os-deploy",
+      "title": "Deploy Agent-OS",
+      "body": "Pre-push-jakt + push till main. Grind deploy kräver ren bug-hunt och explicit ja.",
+      "status": "done",
+      "domainId": "admin",
+      "playbook": "",
+      "files": [
+        "apps/api/src/app.ts",
+        "apps/api/src/lib/orchestrator/admin-board.ts"
+      ],
+      "gate": "deploy",
+      "source": "cursor",
+      "createdAt": "2026-09-06T11:06:00.000Z",
+      "updatedAt": "2026-09-06T11:08:00.000Z"
+    }
+  ]
+}

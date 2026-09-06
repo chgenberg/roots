@@ -31,6 +31,7 @@ export const portal = {
     navOrders: "Beställningar",
     navKpiStats: "KPI & Statistik",
     navSystem: "System",
+    navAgenten: "Agenten",
     navAuditLog: "Audit-log",
   },
   en: {
@@ -63,6 +64,7 @@ export const portal = {
     navOrders: "Orders",
     navKpiStats: "KPI & statistics",
     navSystem: "System",
+    navAgenten: "The agent",
     navAuditLog: "Audit log",
   },
 } as const satisfies Record<Locale, Record<string, string>>;

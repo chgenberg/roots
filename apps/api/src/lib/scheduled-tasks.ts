@@ -4,6 +4,7 @@ import { purgeExpiredHairAnalysisLeads } from "./lead-retention";
 import { recordJobRun } from "./monitoring/heartbeat";
 import { runMonitoringCheck } from "./monitoring/alerts";
 import { auditLog } from "./audit";
+import { runHeartbeat } from "./orchestrator/heartbeat";
 
 /**
  * Alla periodiska jobb samlade på ett ställe.
@@ -79,5 +80,23 @@ export function registerScheduledTasks(): void {
     name: "monitoring-check",
     intervalMs: 5 * 60 * 1000,
     run: () => runMonitoringCheck(),
+  });
+
+  // Agentens puls. Öppnar larmkort, löser villkor som försvunnit, kör
+  // bara Hands med grind none. Aldrig deploy, utbetalning eller mejlpaus.
+  registerScheduledTask({
+    name: "orchestrator-heartbeat",
+    intervalMs: 15 * 60 * 1000,
+    run: async () => {
+      const result = await runHeartbeat();
+      if (result.ok) {
+        await recordJobRun("orchestrator-heartbeat", {
+          trigger: "scheduler",
+          findings: result.findings,
+          summary: result.summary,
+        });
+      }
+      return result;
+    },
   });
 }

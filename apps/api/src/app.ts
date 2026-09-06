@@ -24,6 +24,7 @@ import { calculator } from "./routes/calculator";
 import { association } from "./routes/association";
 import { sales } from "./routes/sales";
 import { admin } from "./routes/admin";
+import { orchestratorAdmin } from "./routes/orchestrator";
 import { reviewer } from "./routes/reviewer";
 import { notifications } from "./routes/notifications";
 import { preview } from "./routes/preview";
@@ -165,6 +166,7 @@ const CSRF_EXEMPT_PATHS = [
   "/v1/internal/cron/deletion-purge",
   "/v1/internal/cron/lead-retention",
   "/v1/internal/cron/monitoring-check",
+  "/v1/internal/cron/orchestrator-heartbeat",
   // Felrapportering från webben. Ett fel kan inträffa innan sidan hunnit
   // hämta en CSRF-token — och en global-error-boundary har ofta ingen
   // fungerande app kvar att hämta den med. Att kräva token här skulle
@@ -266,6 +268,7 @@ app.route("/v1/calculator", calculator);
 app.route("/v1/association", association);
 app.route("/v1/sales", sales);
 app.route("/v1/admin", admin);
+app.route("/v1/admin", orchestratorAdmin);
 app.route("/v1/reviewer", reviewer);
 app.route("/v1/notifications", notifications);
 app.route("/v1/preview", preview);

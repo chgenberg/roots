@@ -29,6 +29,7 @@ import {
   HelpCircle,
   Calculator,
   Inbox,
+  Network,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -93,6 +94,7 @@ function buildAdminNav(t: (typeof portalDict)[Locale]): NavItem[] {
     { href: "/portal/bestallningar", label: t.navOrders, icon: ShoppingCart },
     { href: "/portal/statistik", label: t.navKpiStats, icon: BarChart3 },
     { href: "/portal/system", label: t.navSystem, icon: Activity },
+    { href: "/portal/agenten", label: t.navAgenten, icon: Network },
     { href: "/portal/audit-log", label: t.navAuditLog, icon: ShieldCheck },
     { href: "/portal/ai", label: t.navAi, icon: MessageCircle },
     { href: "/portal/installningar", label: t.navSettings, icon: Settings },

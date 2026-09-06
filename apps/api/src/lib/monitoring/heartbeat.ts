@@ -54,6 +54,13 @@ export const MONITORED_JOBS: JobExpectation[] = [
     intervalHours: 24,
     graceHours: 12,
   },
+  {
+    name: "orchestrator-heartbeat",
+    description:
+      "Agentens puls. Tystnar den syns inte larmkort på tavlan i /portal/agenten.",
+    intervalHours: 0.25,
+    graceHours: 0.75,
+  },
 ];
 
 const KEY_PREFIX = "heartbeat:job:";

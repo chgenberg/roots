@@ -827,6 +827,26 @@ const ERRORS = {
     sv: "Okänt lag",
     en: "Unknown team",
   },
+  orchestratorCardNotFound: {
+    sv: "Kortet finns inte.",
+    en: "The card was not found.",
+  },
+  orchestratorInvalidAction: {
+    sv: "Ogiltig åtgärd på tavlan.",
+    en: "Invalid board action.",
+  },
+  orchestratorCouldNotLoad: {
+    sv: "Kunde inte hämta agentens tavla.",
+    en: "Could not load the agent's board.",
+  },
+  orchestratorCouldNotUpdate: {
+    sv: "Kunde inte uppdatera kortet.",
+    en: "Could not update the card.",
+  },
+  orchestratorTablesMissing: {
+    sv: "Orchestrator-tabeller saknas. Kör migrationen.",
+    en: "Orchestrator tables are missing. Run the migration.",
+  },
 } as const satisfies Record<string, Pair>;
 
 export type ErrorKey = keyof typeof ERRORS;
