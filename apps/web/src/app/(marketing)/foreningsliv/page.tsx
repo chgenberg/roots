@@ -71,12 +71,12 @@ export default async function ForeningslivPage() {
             </div>
           </div>
 
-          <div className="group relative aspect-[4/3] overflow-hidden rounded-3xl shadow-2xl shadow-brand-900/10">
+          <div className="group relative aspect-[5/4] overflow-hidden rounded-3xl shadow-2xl shadow-brand-900/10 md:aspect-[4/3]">
             <Image
               src="/images/sport-hockey.jpg"
               alt={t.heroImageAlt}
               fill
-              className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.02]"
+              className="object-cover object-[center_45%] transition-transform duration-700 ease-out group-hover:scale-[1.02]"
               sizes="(max-width: 1024px) 100vw, 50vw"
             />
             <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-inset ring-black/5" />
@@ -147,12 +147,19 @@ export default async function ForeningslivPage() {
 
       <section className="px-6 pb-24 md:px-10 md:pb-32">
         <div className="group relative mx-auto max-w-[1280px] overflow-hidden rounded-3xl">
-          <div className="relative aspect-[16/10]">
+          <div className="relative aspect-[4/5] md:aspect-[16/10]">
+            <Image
+              src="/images/sport-hero-mobile.jpg"
+              alt={t.midImageAlt}
+              fill
+              className="object-cover object-center transition-transform duration-700 ease-out group-hover:scale-[1.02] md:hidden"
+              sizes="100vw"
+            />
             <Image
               src="/images/sport-hero.jpg"
               alt={t.midImageAlt}
               fill
-              className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.02]"
+              className="hidden object-cover transition-transform duration-700 ease-out group-hover:scale-[1.02] md:block"
               sizes="100vw"
             />
           </div>
@@ -165,7 +172,7 @@ export default async function ForeningslivPage() {
               src="/images/club-youth-selling.png"
               alt={t.sellingImageAlt}
               fill
-              className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.02]"
+              className="object-cover object-[center_40%] transition-transform duration-700 ease-out group-hover:scale-[1.02]"
               sizes="(max-width: 768px) 100vw, 50vw"
             />
             <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-inset ring-black/5" />
@@ -175,7 +182,7 @@ export default async function ForeningslivPage() {
               src="/images/club-camp-cup.png"
               alt={t.campImageAlt}
               fill
-              className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.02]"
+              className="object-cover object-[center_40%] transition-transform duration-700 ease-out group-hover:scale-[1.02]"
               sizes="(max-width: 768px) 100vw, 50vw"
             />
             <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-inset ring-black/5" />

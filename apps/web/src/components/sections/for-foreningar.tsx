@@ -48,7 +48,7 @@ export async function ForForeningar() {
               src="/images/club-youth-selling.png"
               alt={forClubs.sellingAlt}
               fill
-              className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.02]"
+              className="object-cover object-[center_40%] transition-transform duration-700 ease-out group-hover:scale-[1.02]"
               sizes="(max-width: 768px) 100vw, 50vw"
             />
             <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-inset ring-black/5" />
@@ -58,7 +58,7 @@ export async function ForForeningar() {
               src="/images/club-camp-cup.png"
               alt={forClubs.campAlt}
               fill
-              className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.02]"
+              className="object-cover object-[center_40%] transition-transform duration-700 ease-out group-hover:scale-[1.02]"
               sizes="(max-width: 768px) 100vw, 50vw"
             />
             <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-inset ring-black/5" />

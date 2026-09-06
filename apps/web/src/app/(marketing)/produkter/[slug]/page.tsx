@@ -201,7 +201,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
         includes={includes}
       />
 
-      <section className="py-16 md:py-24">
+      <section className="py-16 pb-28 md:py-24 lg:pb-24">
         <div className="mx-auto max-w-[1280px] px-6 md:px-10">
           <Breadcrumbs
             items={[
@@ -220,23 +220,23 @@ export default async function ProductDetailPage({ params }: PageProps) {
 
           <div className="grid gap-12 lg:grid-cols-2 lg:gap-20">
             <div className="flex flex-col gap-4">
-              <div className="group relative aspect-[4/3] overflow-hidden rounded-3xl bg-brand-50 shadow-xl shadow-brand-900/5">
+              <div className="group relative aspect-[4/5] overflow-hidden rounded-3xl bg-brand-50 shadow-xl shadow-brand-900/5 md:aspect-[4/3]">
                 <Image
                   src={image}
                   alt={name}
                   fill
-                  className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.02]"
+                  className="object-cover object-center transition-transform duration-700 ease-out group-hover:scale-[1.02]"
                   priority
                   sizes="(max-width: 1024px) 100vw, 50vw"
                 />
                 <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-inset ring-black/5" />
               </div>
-              <div className="group relative aspect-[3/2] overflow-hidden rounded-3xl bg-brand-50 shadow-xl shadow-brand-900/5">
+              <div className="group relative aspect-[4/3] overflow-hidden rounded-3xl bg-brand-50 shadow-xl shadow-brand-900/5 md:aspect-[3/2]">
                 <Image
                   src={image2}
                   alt={`${name} ${product.ui.inUseAltSuffix}`}
                   fill
-                  className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.02]"
+                  className="object-cover object-center transition-transform duration-700 ease-out group-hover:scale-[1.02]"
                   sizes="(max-width: 1024px) 100vw, 50vw"
                 />
                 <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-inset ring-black/5" />

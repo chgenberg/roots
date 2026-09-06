@@ -138,8 +138,10 @@ export function Header() {
 
         <header
           className={cn(
-            "transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
-            scrolled ? "py-2" : "py-3"
+            "border-b transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
+            scrolled
+              ? "border-border/50 bg-background/92 py-2 backdrop-blur-xl"
+              : "border-transparent bg-background/85 py-3 backdrop-blur-md xl:bg-transparent xl:backdrop-blur-none"
           )}
         >
           <div className="relative mx-auto grid max-w-[1400px] grid-cols-[1fr_auto_1fr] items-center px-4 xl:px-8">

@@ -104,13 +104,13 @@ export default async function GuiderIndexPage() {
                       className="group flex gap-4 rounded-2xl border border-transparent bg-background/80 p-3 transition-colors hover:border-brand-200/80 hover:bg-brand-50/50 sm:p-4"
                     >
                       {guide.heroImage ? (
-                        <div className="relative hidden h-20 w-28 shrink-0 overflow-hidden rounded-xl sm:block">
+                        <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl sm:h-20 sm:w-28">
                           <Image
                             src={guide.heroImage}
                             alt=""
                             fill
                             className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-                            sizes="112px"
+                            sizes="(max-width: 640px) 64px, 112px"
                           />
                         </div>
                       ) : null}

@@ -106,7 +106,7 @@ export default async function GuideArticlePage({ params }: PageProps) {
 
       {guide.heroImage ? (
         <div className="mx-auto max-w-3xl px-6 pt-10 md:px-10">
-          <div className="relative aspect-[16/9] overflow-hidden rounded-2xl">
+          <div className="relative aspect-[4/3] overflow-hidden rounded-2xl md:aspect-[16/9]">
             <Image
               src={guide.heroImage}
               alt=""

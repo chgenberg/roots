@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { usePathname } from "next/navigation";
 import { createPortal } from "react-dom";
 import {
   MessageCircle,
@@ -133,7 +134,11 @@ function MessageBody({
 
 export function ChatWidget() {
   const { locale } = useLocale();
+  const pathname = usePathname();
   const t = marketingUi[locale].chat;
+  const aboveMobileBuyBar = /\/produkter\/[^/]+/.test(
+    (pathname || "").replace(/^\/en(?=\/|$)/, "")
+  );
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>(() => [
@@ -569,7 +574,10 @@ export function ChatWidget() {
         type="button"
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          "fixed bottom-6 right-6 z-30 flex h-12 w-12 items-center justify-center rounded-full shadow-lg transition-all duration-200 hover:shadow-xl active:scale-95",
+          "fixed right-4 z-30 flex h-12 w-12 items-center justify-center rounded-full shadow-lg transition-all duration-200 hover:shadow-xl active:scale-95 sm:bottom-6 sm:right-6",
+          aboveMobileBuyBar
+            ? "bottom-[5.75rem]"
+            : "bottom-[max(1rem,env(safe-area-inset-bottom))]",
           "bg-inverse-surface text-inverse-on-surface",
           open && "pointer-events-none opacity-0"
         )}
