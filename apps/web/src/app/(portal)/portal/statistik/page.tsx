@@ -11,10 +11,12 @@ import {
   ShoppingCart,
 } from "lucide-react";
 import { useState, useEffect, useMemo, type ComponentType } from "react";
+import { useRouter } from "next/navigation";
 import { portalFetch } from "@/lib/portal-api";
 import { publicProductHref } from "@/lib/product-catalog";
 import { LocaleLink } from "@/components/locale-link";
 import { useLocale } from "@/i18n/locale-context";
+import { usePortalUser } from "@/lib/portal-context";
 import { portalPages } from "@/i18n/dictionaries/portal-pages";
 import { tFill } from "@/i18n/format";
 
@@ -35,8 +37,11 @@ type TopProduct = {
 };
 
 export default function StatistikPage() {
-  const { locale } = useLocale();
+  const { locale, href } = useLocale();
+  const router = useRouter();
+  const user = usePortalUser();
   const t = portalPages.statistik[locale];
+  const isSalesRep = user.role === "SALES_REP";
 
   const kpiTemplate = useMemo(
     (): KpiCard[] => [
@@ -79,6 +84,16 @@ export default function StatistikPage() {
   }, [kpiTemplate]);
 
   useEffect(() => {
+    if (isSalesRep) {
+      router.replace(href("/portal/pipeline"));
+    }
+  }, [isSalesRep, router, href]);
+
+  useEffect(() => {
+    if (isSalesRep) {
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
     portalFetch<{
       monthlyData?: Array<{
@@ -157,10 +172,18 @@ export default function StatistikPage() {
     return () => {
       cancelled = true;
     };
-  }, [t]);
+  }, [t, isSalesRep]);
 
   const maxRevenue = Math.max(1, ...monthlyData.map((d) => d.revenue));
   const hasData = monthlyData.length > 0;
+
+  if (isSalesRep) {
+    return (
+      <div className="flex justify-center py-20">
+        <Skeleton className="h-8 w-48" />
+      </div>
+    );
+  }
 
   return (
     <div className="page-enter space-y-6">

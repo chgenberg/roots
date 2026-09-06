@@ -34,9 +34,9 @@ import { apiFetch, rootsFetch } from "@/lib/api";
 
 import { getBrowserApiBase } from "@/lib/api-base";
 import { formatKr, pluralSv } from "@/lib/format";
+import { getPublicSiteUrl } from "@/lib/site-url";
 
 const API_URL = getBrowserApiBase();
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
 interface Team {
   id: string;
@@ -44,7 +44,7 @@ interface Team {
   memberCount: number;
   totalSalesOre: number;
   orderCount: number;
-  inviteToken: string;
+  inviteToken?: string | null;
 }
 
 interface Campaign {
@@ -86,12 +86,25 @@ export default function TeamsManagementPage() {
       const res = await rootsFetch(`${API_URL}/v1/dashboard/association`);
       if (res.ok) {
         const data = await res.json();
-        setTeams(data.teams || []);
+        const list = (data.teams || []) as Team[];
         setCampaigns(data.campaigns || []);
         const active = (data.campaigns || []).find(
           (c: Campaign) => c.status === "ACTIVE"
         );
         if (active && !newCampaignId) setNewCampaignId(active.id);
+
+        const withTokens = await Promise.all(
+          list.map(async (team) => {
+            if (team.inviteToken) return team;
+            const tokRes = await rootsFetch(
+              `${API_URL}/v1/dashboard/team/${team.id}/invite-token`
+            );
+            if (!tokRes.ok) return team;
+            const tok = (await tokRes.json()) as { inviteToken?: string | null };
+            return { ...team, inviteToken: tok.inviteToken ?? null };
+          })
+        );
+        setTeams(withTokens);
       } else {
         setError(t.loadFailed);
       }
@@ -109,7 +122,7 @@ export default function TeamsManagementPage() {
 
   function copyInviteLink(token: string, isLeader: boolean) {
     const url = absoluteLocaleUrl(
-      SITE_URL,
+      getPublicSiteUrl(),
       isLeader
         ? `/registrera/lagansvarig/${token}`
         : `/registrera/saljare/${token}`,
@@ -193,7 +206,7 @@ export default function TeamsManagementPage() {
 
   const leaderInviteUrl = createdInvite
     ? absoluteLocaleUrl(
-        SITE_URL,
+        getPublicSiteUrl(),
         `/registrera/lagansvarig/${createdInvite.token}`,
         locale
       )
@@ -234,11 +247,14 @@ export default function TeamsManagementPage() {
       ) : (
         <div className="space-y-4">
           {teams.map((team) => {
-            const inviteUrl = absoluteLocaleUrl(
-              SITE_URL,
-              `/registrera/saljare/${team.inviteToken}`,
-              locale
-            );
+            const inviteToken = team.inviteToken || "";
+            const inviteUrl = inviteToken
+              ? absoluteLocaleUrl(
+                  getPublicSiteUrl(),
+                  `/registrera/saljare/${inviteToken}`,
+                  locale
+                )
+              : "";
             return (
               <Card key={team.id}>
                 <CardContent className="p-5">
@@ -263,24 +279,30 @@ export default function TeamsManagementPage() {
                     <p className="mb-2 text-xs font-medium text-muted-foreground">
                       {t.sellerInviteLink}
                     </p>
-                    <div className="flex gap-2">
-                      <Input
-                        readOnly
-                        value={inviteUrl}
-                        className="text-xs"
-                      />
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => copyInviteLink(team.inviteToken, false)}
-                      >
-                        {copiedToken === team.inviteToken ? (
-                          <CheckCircle2 className="h-4 w-4 text-success" />
-                        ) : (
-                          <Copy className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </div>
+                    {inviteToken ? (
+                      <div className="flex gap-2">
+                        <Input
+                          readOnly
+                          value={inviteUrl}
+                          className="text-xs"
+                        />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => copyInviteLink(inviteToken, false)}
+                        >
+                          {copiedToken === inviteToken ? (
+                            <CheckCircle2 className="h-4 w-4 text-success" />
+                          ) : (
+                            <Copy className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        {t.inviteMissing}
+                      </p>
+                    )}
                   </div>
                 </CardContent>
               </Card>

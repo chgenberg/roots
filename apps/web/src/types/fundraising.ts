@@ -33,7 +33,8 @@ export interface Team {
   totalSalesOre: number;
   orderCount: number;
   goalValue: number;
-  inviteToken: string;
+  inviteToken?: string | null;
+  hasInviteToken?: boolean;
 }
 
 export interface Seller {

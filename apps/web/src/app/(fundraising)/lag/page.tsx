@@ -31,11 +31,11 @@ import { getBrowserApiBase } from "@/lib/api-base";
 import { rootsFetch } from "@/lib/api";
 import { formatKr, formatKrValue, pluralSv } from "@/lib/format";
 import { orderStatusColor, orderStatusLabel } from "@/lib/order-status";
+import { getPublicSiteUrl } from "@/lib/site-url";
 
 const PODIUM_ICONS = ["🥇", "🥈", "🥉"];
 
 const API_URL = getBrowserApiBase();
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
 export default function TeamDashboard() {
   const { locale, href } = useLocale();
@@ -84,7 +84,7 @@ export default function TeamDashboard() {
   function copyInviteLink() {
     if (!data?.team?.inviteToken) return;
     const url = absoluteLocaleUrl(
-      SITE_URL,
+      getPublicSiteUrl(),
       `/registrera/saljare/${data.team.inviteToken}`,
       locale
     );
@@ -241,7 +241,7 @@ export default function TeamDashboard() {
               <Input
                 readOnly
                 value={absoluteLocaleUrl(
-                  SITE_URL,
+                  getPublicSiteUrl(),
                   `/registrera/saljare/${data.team.inviteToken}`,
                   locale
                 )}

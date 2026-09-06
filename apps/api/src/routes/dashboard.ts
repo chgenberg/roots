@@ -1030,6 +1030,62 @@ dashboard.post("/team/:teamId/sellers/import", async (c) => {
 });
 
 /**
+ * Hämta säljar-invite-token för ett lag.
+ *
+ * GET /association skickar bara `hasInviteToken` (P2.11) så en stulen
+ * admin-cookie inte automatiskt skördar alla tokens. Frontenden hämtar
+ * den faktiska tokenen här — annars blir kopieringsfältet
+ * `/registrera/saljare/undefined`.
+ */
+dashboard.get("/team/:teamId/invite-token", async (c) => {
+  const session = await requireSession(c);
+  const locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
+
+  const teamId = c.req.param("teamId");
+  if (!/^[0-9a-f-]{36}$/i.test(teamId)) {
+    return c.json({ error: uiError(locale, "invalidTeamId") }, 400);
+  }
+
+  try {
+    const [team] = await db
+      .select({
+        id: teams.id,
+        orgId: teams.orgId,
+        leaderId: teams.leaderId,
+        inviteToken: teams.inviteToken,
+        inviteTokenExpiresAt: teams.inviteTokenExpiresAt,
+        inviteTokenMaxUses: teams.inviteTokenMaxUses,
+        inviteTokenUseCount: teams.inviteTokenUseCount,
+      })
+      .from(teams)
+      .where(eq(teams.id, teamId))
+      .limit(1);
+    if (!team) return c.json({ error: uiError(locale, "teamNotFoundShort") }, 404);
+
+    const hasAccess =
+      session.role === "INTERNAL_ADMIN" ||
+      (session.role === "ASSOCIATION_ADMIN" && session.orgId === team.orgId) ||
+      (session.role === "TEAM_LEADER" && team.leaderId === session.userId);
+    if (!hasAccess) {
+      return c.json({ error: uiError(locale, "permissionDenied") }, 403);
+    }
+
+    return c.json({
+      teamId: team.id,
+      hasInviteToken: Boolean(team.inviteToken),
+      inviteToken: team.inviteToken || null,
+      expiresAt: team.inviteTokenExpiresAt?.toISOString() ?? null,
+      maxUses: team.inviteTokenMaxUses,
+      useCount: team.inviteTokenUseCount,
+    });
+  } catch (err) {
+    log.error({ err }, "team invite-token fetch failed");
+    return c.json({ error: uiError(locale, "couldNotFetchInviteLink") }, 500);
+  }
+});
+
+/**
  * MASTERPLAN_01 KC3.4: rotera säljar-invite-token för ett lag.
  *
  * Behörighet:

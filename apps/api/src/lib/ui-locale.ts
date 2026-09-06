@@ -568,6 +568,7 @@ const ERRORS = {
   max2000ImportRows: { sv: "Max 2000 rader per import.", en: "Maximum 2000 rows per import." },
   couldNotImportSellers: { sv: "Kunde inte importera säljare.", en: "Could not import sellers." },
   demoCannotRotateInviteTokens: { sv: "Demoläget kan inte rotera riktiga invite-tokens.", en: "Demo mode cannot rotate real invite tokens." },
+  couldNotFetchInviteLink: { sv: "Kunde inte hämta inbjudningslänken just nu.", en: "Could not fetch the invitation link right now." },
   expiresInDaysRange: { sv: "expiresInDays måste vara 0–365 (0 = ingen utgång).", en: "expiresInDays must be 0–365 (0 = no expiry)." },
   maxUsesRange: { sv: "maxUses måste vara mellan 1 och 10000 (eller utelämnat).", en: "maxUses must be between 1 and 10000 (or omitted)." },
   couldNotRotateInviteLink: { sv: "Kunde inte rotera inbjudningslänken just nu.", en: "Could not rotate the invitation link right now." },

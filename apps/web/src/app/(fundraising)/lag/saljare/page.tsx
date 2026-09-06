@@ -34,9 +34,9 @@ import type { TeamDashboard, Seller } from "@/types/fundraising";
 import { getBrowserApiBase } from "@/lib/api-base";
 import { apiFetch, rootsFetch } from "@/lib/api";
 import { formatKr, formatKrValue, pluralSv } from "@/lib/format";
+import { getPublicSiteUrl } from "@/lib/site-url";
 
 const API_URL = getBrowserApiBase();
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
 const PODIUM_ICONS = ["🥇", "🥈", "🥉"];
 
@@ -195,7 +195,7 @@ export default function TeamSellersPage() {
     try {
       navigator.clipboard.writeText(
         absoluteLocaleUrl(
-          SITE_URL,
+          getPublicSiteUrl(),
           `/registrera/saljare/${data.team.inviteToken}`,
           locale
         )
@@ -210,7 +210,7 @@ export default function TeamSellersPage() {
   function copyShopLink(slug: string) {
     try {
       navigator.clipboard.writeText(
-        absoluteLocaleUrl(SITE_URL, `/shop/${slug}`, locale)
+        absoluteLocaleUrl(getPublicSiteUrl(), `/shop/${slug}`, locale)
       );
       setCopiedShop(slug);
       setTimeout(() => setCopiedShop(null), 2000);
@@ -419,7 +419,7 @@ export default function TeamSellersPage() {
               <Input
                 readOnly
                 value={absoluteLocaleUrl(
-                  SITE_URL,
+                  getPublicSiteUrl(),
                   `/registrera/saljare/${data.team.inviteToken}`,
                   locale
                 )}
@@ -641,7 +641,7 @@ export default function TeamSellersPage() {
                         >
                           <a
                             href={absoluteLocaleUrl(
-                              SITE_URL,
+                              getPublicSiteUrl(),
                               `/shop/${seller.shopSlug}`,
                               locale
                             )}

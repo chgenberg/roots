@@ -54,7 +54,7 @@ interface TeamData {
   totalSalesOre: number;
   orderCount: number;
   goalValue: number;
-  inviteToken: string;
+  inviteToken?: string | null;
 }
 
 function AssociationDashboardInner() {
