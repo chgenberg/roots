@@ -55,9 +55,9 @@ import {
 import { useToast } from "@/components/ui/toast";
 import { apiFetch, rootsFetch } from "@/lib/api";
 import { getBrowserApiBase } from "@/lib/api-base";
+import { getPublicSiteUrl } from "@/lib/site-url";
 
 const API_URL = getBrowserApiBase();
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "";
 
 interface MeUser {
   email: string;
@@ -194,7 +194,7 @@ export default function InstallningarPage() {
       toast(t.bothRequired, "error");
       return;
     }
-    if (newPassword.length < 8) {
+    if (newPassword.length < 12) {
       toast(t.passwordMin, "error");
       return;
     }
@@ -235,10 +235,10 @@ export default function InstallningarPage() {
   }
 
   function copyShopLink() {
-    if (!sellerShopSlug || !SITE_URL) return;
+    if (!sellerShopSlug) return;
     try {
       navigator.clipboard.writeText(
-        absoluteLocaleUrl(SITE_URL, `/shop/${sellerShopSlug}`, locale)
+        absoluteLocaleUrl(getPublicSiteUrl(), `/shop/${sellerShopSlug}`, locale)
       );
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -275,7 +275,7 @@ export default function InstallningarPage() {
           ? t.roleSeller
           : me.role;
   const shopUrl = sellerShopSlug
-    ? absoluteLocaleUrl(SITE_URL, `/shop/${sellerShopSlug}`, locale)
+    ? absoluteLocaleUrl(getPublicSiteUrl(), `/shop/${sellerShopSlug}`, locale)
     : null;
 
   return (

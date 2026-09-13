@@ -23,6 +23,7 @@ import { apiFetch, rootsFetch } from "@/lib/api";
 import { useToast } from "@/components/ui/toast";
 import { getBrowserApiBase } from "@/lib/api-base";
 import { formatKr, formatKrValue, pluralSv } from "@/lib/format";
+import { LOCKED_MARGIN_PERCENT } from "@roots/contracts";
 
 const API_URL = getBrowserApiBase();
 
@@ -180,7 +181,7 @@ export default function SettlementPage() {
     activeOrEnded.find((c) => c.status === "ACTIVE") ||
     activeOrEnded.find((c) => c.status === "ENDED") ||
     activeOrEnded[0];
-  const marginPercent = campaign?.marginPercent || 25;
+  const marginPercent = campaign?.marginPercent || LOCKED_MARGIN_PERCENT;
   const totalSales = data?.stats?.totalSalesOre || 0;
   const teamShare = Math.round(totalSales * (marginPercent / 100));
   const rootsShare = totalSales - teamShare;

@@ -13,6 +13,7 @@ import {
 } from "@roots/db/schema";
 import {
   CreateCampaignSchema,
+  LOCKED_MARGIN_PERCENT,
   UpdateCampaignSchema,
   SetTeamGoalSchema,
 } from "@roots/contracts";
@@ -124,7 +125,7 @@ export const campaignsRouter = router({
           deliveryType: input.deliveryType,
           shippingThresholdOre: input.shippingThresholdOre ?? 0,
           shippingFeeOre: input.shippingFeeOre ?? 4900,
-          marginPercent: input.marginPercent,
+          marginPercent: LOCKED_MARGIN_PERCENT,
         })
         .returning();
 
@@ -176,7 +177,7 @@ export const campaignsRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const { id, ...updates } = input;
+      const { id, marginPercent: _ignoredMargin, ...updates } = input;
 
       // Samma spärr som i activate — annars vore `update({ status: "ACTIVE" })`
       // en väg runt den.

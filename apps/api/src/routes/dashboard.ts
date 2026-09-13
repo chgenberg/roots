@@ -14,7 +14,11 @@ import {
   products,
   payouts,
 } from "@roots/db/schema";
-import { REVENUE_ORDER_STATUSES, countsAsRevenue } from "@roots/contracts";
+import {
+  LOCKED_MARGIN_PERCENT,
+  REVENUE_ORDER_STATUSES,
+  countsAsRevenue,
+} from "@roots/contracts";
 import { isDemoSession } from "../lib/session";
 import { requireSession } from "../lib/http-session";
 import { getAchievedMilestones, getNextMilestone, getSellerGrade } from "../lib/milestones";
@@ -469,7 +473,7 @@ dashboard.get("/team/:teamId", async (c) => {
       .where(eq(campaigns.id, team.campaignId))
       .limit(1);
 
-    const marginPercent = campaign?.marginPercent ?? 25;
+    const marginPercent = campaign?.marginPercent ?? LOCKED_MARGIN_PERCENT;
     const teamEarningsOre = Math.round(totalSales * (marginPercent / 100));
     const goalOre = campaign?.goalType === "AMOUNT" && campaign?.goalValue ? campaign.goalValue * 100 : undefined;
     const goalPackages = campaign?.goalType === "PACKAGES" && campaign?.goalValue ? campaign.goalValue : undefined;
@@ -1289,7 +1293,7 @@ dashboard.get("/seller", async (c) => {
       locale
     );
 
-    const marginPercent = campaign?.marginPercent ?? 25;
+    const marginPercent = campaign?.marginPercent ?? LOCKED_MARGIN_PERCENT;
     const estimatedEarningsOre = Math.round(totalSalesOre * (marginPercent / 100));
 
     const demoCampaign = campaign

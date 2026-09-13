@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -84,6 +84,7 @@ function CheckoutPageInner() {
   const t = shop.checkout[locale];
 
   const [shopData, setShopData] = useState<CheckoutShop | null>(null);
+  const [shopError, setShopError] = useState(false);
 
   const [customerName, setCustomerName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
@@ -125,19 +126,24 @@ function CheckoutPageInner() {
       .filter((i) => Number.isFinite(i.qty) && i.qty > 0);
   }, [urlItems, cart, hydrated]);
 
-  useEffect(() => {
-    async function loadShop() {
-      try {
-        const res = await rootsFetch(`${API_URL}/v1/shop/by-slug/${slug}`);
-        if (!res.ok) return;
-        const data = (await res.json()) as CheckoutShop;
-        setShopData(data);
-      } catch {
-        // non-fatal: order summary will degrade to item count only
+  const loadShop = useCallback(async () => {
+    setShopError(false);
+    try {
+      const res = await rootsFetch(`${API_URL}/v1/shop/by-slug/${slug}`);
+      if (!res.ok) {
+        setShopError(true);
+        return;
       }
+      const data = (await res.json()) as CheckoutShop;
+      setShopData(data);
+    } catch {
+      setShopError(true);
     }
-    loadShop();
   }, [slug]);
+
+  useEffect(() => {
+    void loadShop();
+  }, [loadShop]);
 
   const resolvedLines = shopData
     ? items
@@ -269,7 +275,19 @@ function CheckoutPageInner() {
                   loader istället för en falsk "tom"-skylt — det är en
                   jättevanlig felkälla att se "Din varukorg är tom"
                   blink-fram precis innan items dyker upp. */}
-              {!hydrated || !shopData ? (
+              {shopError ? (
+                <div className="space-y-3">
+                  <p className="text-sm text-destructive">{t.shopLoadFailed}</p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void loadShop()}
+                  >
+                    {t.retry}
+                  </Button>
+                </div>
+              ) : !hydrated || !shopData ? (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   {t.fetchingCart}

@@ -103,7 +103,7 @@ export default function TeamLeaderClaimPage() {
       setFormError(t.invalidEmail);
       return;
     }
-    if (password.length < 8) {
+    if (password.length < 12) {
       setFormError(t.passwordTooShort);
       return;
     }

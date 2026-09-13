@@ -22,22 +22,15 @@ import {
   ArrowLeft,
   CheckCircle2,
 } from "lucide-react";
-import { apiFetch, rootsFetch } from "@/lib/api";
-import { getBrowserApiBase } from "@/lib/api-base";
+import { apiFetch } from "@/lib/api";
 import { LocaleLink } from "@/components/locale-link";
 import { auth } from "@/i18n/dictionaries/auth";
 import { tFill } from "@/i18n/format";
 import { useLocale } from "@/i18n/locale-context";
 
-const API_URL = getBrowserApiBase();
+const MIN_PASSWORD_LENGTH = 12;
 
 type RegistrationType = "association" | "team" | null;
-
-interface OrgSearchResult {
-  id: string;
-  name: string;
-  type: string;
-}
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -66,27 +59,7 @@ export default function RegisterPage() {
 
   // Team fields
   const [teamName, setTeamName] = useState("");
-  const [orgSearchQuery, setOrgSearchQuery] = useState("");
-  const [orgSearchResults, setOrgSearchResults] = useState<OrgSearchResult[]>(
-    []
-  );
-  const [selectedOrg, setSelectedOrg] = useState<OrgSearchResult | null>(null);
   const [newOrgName, setNewOrgName] = useState("");
-
-  async function searchOrganizations(query: string) {
-    setOrgSearchQuery(query);
-    if (query.length < 2) {
-      setOrgSearchResults([]);
-      return;
-    }
-    try {
-      const res = await rootsFetch(`${API_URL}/v1/auth/organizations/search?q=${encodeURIComponent(query)}`);
-      const data = await res.json();
-      setOrgSearchResults(data.organizations || []);
-    } catch {
-      setOrgSearchResults([]);
-    }
-  }
 
   async function handleSubmit() {
     setError("");
@@ -110,8 +83,7 @@ export default function RegisterPage() {
             }
           : {
               teamName,
-              orgName: selectedOrg ? undefined : newOrgName || undefined,
-              existingOrgId: selectedOrg?.id,
+              orgName: newOrgName || undefined,
               email,
               password,
               contactName,
@@ -335,7 +307,7 @@ export default function RegisterPage() {
           </div>
         )}
 
-        {/* TEAM Step 1: Team + org search */}
+        {/* TEAM Step 1: Team + new club (existing clubs use an invite) */}
         {type === "team" && step === 1 && (
           <div className="space-y-4">
             <div className="space-y-2">
@@ -349,61 +321,18 @@ export default function RegisterPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="orgSearch">{t.orgSearch}</Label>
+              <Label htmlFor="newOrgName">{t.newOrgName}</Label>
               <Input
-                id="orgSearch"
-                placeholder={t.orgSearchPlaceholder}
-                value={orgSearchQuery}
-                onChange={(e) => searchOrganizations(e.target.value)}
+                id="newOrgName"
+                placeholder={t.newOrgNamePlaceholder}
+                value={newOrgName}
+                onChange={(e) => setNewOrgName(e.target.value)}
               />
-              {orgSearchResults.length > 0 && (
-                <div className="mt-1 max-h-40 overflow-y-auto rounded-lg border bg-background">
-                  {orgSearchResults.map((org) => (
-                    <button
-                      key={org.id}
-                      onClick={() => {
-                        setSelectedOrg(org);
-                        setOrgSearchQuery(org.name);
-                        setOrgSearchResults([]);
-                      }}
-                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-brand-50"
-                    >
-                      <Building2 className="h-4 w-4 text-muted-foreground" />
-                      {org.name}
-                    </button>
-                  ))}
-                </div>
-              )}
-              {selectedOrg && (
-                <div className="flex items-center gap-2 rounded-lg bg-brand-50 p-2 text-sm">
-                  <CheckCircle2 className="h-4 w-4 text-success" />
-                  <span>{selectedOrg.name}</span>
-                  <button
-                    onClick={() => {
-                      setSelectedOrg(null);
-                      setOrgSearchQuery("");
-                    }}
-                    className="ml-auto text-muted-foreground hover:text-foreground"
-                  >
-                    {t.changeOrg}
-                  </button>
-                </div>
-              )}
+              <p className="text-xs text-muted-foreground">{t.existingClubNote}</p>
             </div>
-            {!selectedOrg && (
-              <div className="space-y-2">
-                <Label htmlFor="newOrgName">{t.newOrgName}</Label>
-                <Input
-                  id="newOrgName"
-                  placeholder={t.newOrgNamePlaceholder}
-                  value={newOrgName}
-                  onChange={(e) => setNewOrgName(e.target.value)}
-                />
-              </div>
-            )}
             <Button
               className="w-full"
-              disabled={!teamName}
+              disabled={!teamName.trim() || !newOrgName.trim()}
               onClick={() => setStep(2)}
             >
               {t.next}
@@ -518,7 +447,9 @@ export default function RegisterPage() {
             </div>
             <Button
               className="w-full"
-              disabled={loading || !email || password.length < 8}
+              disabled={
+                loading || !email || password.length < MIN_PASSWORD_LENGTH
+              }
               onClick={handleSubmit}
             >
               {loading ? (

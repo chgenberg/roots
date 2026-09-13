@@ -60,7 +60,7 @@ export const campaigns = pgTable(
     deliveryType: deliveryTypeEnum("delivery_type").notNull().default("BULK"),
     shippingThresholdOre: integer("shipping_threshold_ore").default(0),
     shippingFeeOre: integer("shipping_fee_ore").default(4900),
-    marginPercent: integer("margin_percent").notNull().default(25),
+    marginPercent: integer("margin_percent").notNull().default(35),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },

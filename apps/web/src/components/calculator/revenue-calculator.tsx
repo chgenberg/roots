@@ -16,13 +16,14 @@ import { formatKr } from "@/lib/format";
 import { downloadCalculatorPdf } from "@/lib/calculator-pdf";
 import { useLocale } from "@/i18n/locale-context";
 import { marketingUi } from "@/i18n/dictionaries/marketing-ui";
+import { tFill } from "@/i18n/format";
 
 const MEMBER_PRESETS = [20, 50, 100, 200, 300, 500] as const;
 const AVG_PRESETS = [1000, 1500, 2000, 2500, 3000, 4000] as const;
 
-function krLabel(kr: number, locale: string): string {
+function krLabel(kr: number, locale: string, suffix: string): string {
   const tag = locale === "en" ? "en-GB" : "sv-SE";
-  return `${Math.round(kr).toLocaleString(tag)} ${locale === "en" ? "SEK" : "kr"}`;
+  return `${Math.round(kr).toLocaleString(tag)} ${suffix}`;
 }
 
 interface SliderFieldProps {
@@ -174,7 +175,7 @@ export function RevenueCalculator({
   const [avgOrderKr, setAvgOrderKr] = useState(500);
 
   const result = useMemo(() => computeCalculator(inputs), [inputs]);
-  const money = (kr: number) => krLabel(kr, locale);
+  const money = (kr: number) => krLabel(kr, locale, t.currencySuffix);
   const packagesApprox = Math.max(
     0,
     Math.round(inputs.avgPerSellerKr / 399)
@@ -210,12 +211,10 @@ export function RevenueCalculator({
         <CardContent className="space-y-7 p-6 sm:p-7">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-700">
-              {locale === "en" ? "Your numbers" : "Era siffror"}
+              {t.yourNumbers}
             </p>
             <p className="mt-1 text-sm text-muted-foreground">
-              {locale === "en"
-                ? "Two sliders. The green number updates live."
-                : "Två reglage. Den gröna siffran uppdateras direkt."}
+              {t.numbersIntro}
             </p>
           </div>
 
@@ -231,7 +230,7 @@ export function RevenueCalculator({
               hint={t.sellersHint}
             />
             <PresetRow
-              label={locale === "en" ? "Quick pick" : "Snabbval"}
+              label={t.quickPick}
               values={MEMBER_PRESETS}
               format={(v) => String(v)}
               active={inputs.sellers}
@@ -248,25 +247,22 @@ export function RevenueCalculator({
                 max={5000}
                 step={50}
                 locale={locale}
-                suffix={locale === "en" ? "SEK" : "kr"}
+                suffix={t.currencySuffix}
                 onChange={(v) => set("avgPerSellerKr", v)}
                 hint={
                   avgProductKr
-                    ? locale === "en"
-                      ? `≈ ${packagesApprox} premium packs · a product is about ${avgProductKr} SEK`
-                      : `≈ ${packagesApprox} Premiumpaket · en produkt kostar ca ${avgProductKr} kr`
-                    : locale === "en"
-                      ? `≈ ${packagesApprox} premium packs at SEK 399`
-                      : `≈ ${packagesApprox} Premiumpaket à 399 kr`
+                    ? tFill(t.packsApprox, {
+                        n: String(packagesApprox),
+                        price: String(avgProductKr),
+                      })
+                    : tFill(t.packsApproxDefault, { n: String(packagesApprox) })
                 }
               />
               <PresetRow
-                label={locale === "en" ? "Quick pick" : "Snabbval"}
+                label={t.quickPick}
                 values={AVG_PRESETS}
                 format={(v) =>
-                  locale === "en"
-                    ? `${v.toLocaleString("en-GB")} SEK`
-                    : `${v.toLocaleString("sv-SE")} kr`
+                  `${v.toLocaleString(locale === "en" ? "en-GB" : "sv-SE")} ${t.currencySuffix}`
                 }
                 active={inputs.avgPerSellerKr}
                 onPick={(v) => set("avgPerSellerKr", v)}
@@ -289,7 +285,7 @@ export function RevenueCalculator({
                 max={5000}
                 step={50}
                 locale={locale}
-                suffix={locale === "en" ? "SEK" : "kr"}
+                suffix={t.currencySuffix}
                 onChange={(v) => applyAdvanced(ordersPerSeller, v)}
               />
               <p className="text-xs text-muted-foreground">
@@ -327,13 +323,7 @@ export function RevenueCalculator({
               onClick={() => setShowGoal((v) => !v)}
               className="text-xs font-medium text-brand-700 underline-offset-2 hover:underline"
             >
-              {showGoal
-                ? locale === "en"
-                  ? "Hide goal"
-                  : "Dölj mål"
-                : locale === "en"
-                  ? "Add a fundraising goal (optional)"
-                  : "Lägg till insamlingsmål (valfritt)"}
+              {showGoal ? t.hideGoal : t.addGoal}
             </button>
             {showGoal && (
               <div className="mt-4">
@@ -344,7 +334,7 @@ export function RevenueCalculator({
                   max={500000}
                   step={5000}
                   locale={locale}
-                  suffix={locale === "en" ? "SEK" : "kr"}
+                  suffix={t.currencySuffix}
                   onChange={(v) => set("goalKr", v)}
                 />
               </div>
@@ -357,7 +347,7 @@ export function RevenueCalculator({
         <Card className="overflow-hidden border-0 bg-brand-700 text-white shadow-sm">
           <CardContent className="p-6 sm:p-8">
             <p className="text-sm font-medium text-brand-100">
-              {locale === "en" ? "Your club earns" : "Er förening tjänar"}
+              {t.profit}
             </p>
             <p className="mt-2 text-5xl font-bold tabular-nums tracking-tight sm:text-6xl">
               {money(result.earningsKr)}

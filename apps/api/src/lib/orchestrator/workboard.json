@@ -1,6 +1,231 @@
 {
-  "updatedAt": "2026-09-06T11:06:00.000Z",
+  "updatedAt": "2026-09-13T21:50:00.000Z",
   "cards": [
+    {
+      "id": "wb-deploy-high-sep13",
+      "title": "Deploy HIGH-fixar",
+      "body": "Bug-hunt ren. Push till main efter ja.",
+      "status": "doing",
+      "domainId": "platform",
+      "playbook": "ops",
+      "files": ["apps/web/src/middleware.ts"],
+      "gate": "deploy",
+      "source": "cursor",
+      "createdAt": "2026-09-13T21:48:00.000Z",
+      "updatedAt": "2026-09-13T21:50:00.000Z"
+    },
+    {
+      "id": "wb-high-fixes-sep13",
+      "title": "HIGH från visuell audit",
+      "body": "Grind-allowlist, låst 35 %, portalorder-success, utbetalningsbekräftelse, lösen 12, agenten-copy, kassa/QR/kalender.",
+      "status": "done",
+      "domainId": "platform",
+      "playbook": "ops",
+      "files": [
+        "apps/web/src/middleware.ts",
+        "apps/web/src/app/(fundraising)/forening/page.tsx",
+        "apps/web/src/app/(portal)/portal/bestallningar/page.tsx"
+      ],
+      "gate": "none",
+      "source": "cursor",
+      "createdAt": "2026-09-13T21:30:00.000Z",
+      "updatedAt": "2026-09-13T21:45:00.000Z"
+    },
+    {
+      "id": "wb-site-visual-audit-sep13",
+      "title": "Visuell genomgång roots.nu",
+      "body": "Live-skärm + kodgranskning. Prod grindad. HIGH: glömt-lösen/registrera bakom grind, chatt säger AI, lösen 8 vs 12. 35 % OK. Canvas: site-visual-audit.",
+      "status": "done",
+      "domainId": "platform",
+      "playbook": "ops",
+      "files": ["apps/web/src/middleware.ts", "apps/web/src/components/chat-widget.tsx"],
+      "gate": "none",
+      "source": "cursor",
+      "createdAt": "2026-09-13T21:12:00.000Z",
+      "updatedAt": "2026-09-13T21:20:00.000Z"
+    },
+    {
+      "id": "wb-partner-fulltext-photos",
+      "title": "Partner-Word: full källtext + foto",
+      "body": "Hela texten ur 2027-docx i ny design. Foton inlagda. 35 % orörd.",
+      "status": "done",
+      "domainId": "fundraising",
+      "playbook": "club-campaign",
+      "files": ["docs/presentations/build_partner_avtal_docx.py"],
+      "gate": "none",
+      "source": "cursor",
+      "createdAt": "2026-09-09T08:38:00.000Z",
+      "updatedAt": "2026-09-09T08:52:00.000Z"
+    },
+    {
+      "id": "wb-partner-header-align",
+      "title": "Partner-Word: logga linjerar med bröd",
+      "body": "Sidhuvud-logga inset 18 mm, visuell genomgång av båda dokumenten.",
+      "status": "done",
+      "domainId": "fundraising",
+      "playbook": "club-campaign",
+      "files": ["docs/presentations/build_partner_avtal_docx.py"],
+      "gate": "none",
+      "source": "cursor",
+      "createdAt": "2026-09-09T08:04:00.000Z",
+      "updatedAt": "2026-09-09T08:10:00.000Z"
+    },
+    {
+      "id": "wb-partner-clean",
+      "title": "Partnerdokument: renare Word-variant",
+      "body": "Samma copy, editorial layout inspirerad av 2027m. Ink-huvud, forest-accent, ingen fototäck. 35 % orörd.",
+      "status": "done",
+      "domainId": "fundraising",
+      "playbook": "club-campaign",
+      "files": [
+        "docs/presentations/build_partner_avtal_docx.py"
+      ],
+      "gate": "none",
+      "source": "cursor",
+      "createdAt": "2026-09-09T07:50:00.000Z",
+      "updatedAt": "2026-09-09T07:58:00.000Z"
+    },
+    {
+      "id": "wb-partner-docx",
+      "title": "Partnerdokument som Word",
+      "body": "Samma design som A4-PDF: marknadsavtal + avsiktsförklaring som .docx på skrivbordet. 35 % orörd.",
+      "status": "done",
+      "domainId": "fundraising",
+      "playbook": "club-campaign",
+      "files": [
+        "docs/presentations/build_partner_avtal_docx.py"
+      ],
+      "gate": "none",
+      "source": "cursor",
+      "createdAt": "2026-09-09T07:31:00.000Z",
+      "updatedAt": "2026-09-09T07:48:00.000Z"
+    },
+    {
+      "id": "wb-presentations-skill",
+      "title": "Skill: roots-presentations",
+      "body": "Komplett skill + reference för 16:9 och A4. Vit yta, luft, Roots leder, LibreOffice-fällor.",
+      "status": "done",
+      "domainId": "fundraising",
+      "playbook": "club-campaign",
+      "files": [
+        ".cursor/skills/roots-presentations/SKILL.md",
+        ".cursor/skills/roots-presentations/reference.md"
+      ],
+      "gate": "none",
+      "source": "cursor",
+      "createdAt": "2026-09-08T22:40:00.000Z",
+      "updatedAt": "2026-09-08T22:42:00.000Z"
+    },
+    {
+      "id": "wb-partner-pdf-white",
+      "title": "Partner-PDF: vit bakgrund + mer luft",
+      "body": "Vit yta, större marginaler. Skill uppdaterad. 35 % orörd.",
+      "status": "done",
+      "domainId": "fundraising",
+      "playbook": "club-campaign",
+      "files": [
+        "docs/presentations/build_partner_avtal.py",
+        ".cursor/skills/roots-presentations/SKILL.md"
+      ],
+      "gate": "none",
+      "source": "cursor",
+      "createdAt": "2026-09-08T22:14:00.000Z",
+      "updatedAt": "2026-09-08T22:16:00.000Z"
+    },
+    {
+      "id": "wb-presentations-skill-loi",
+      "title": "Presentations-skill + LOI Roots leder",
+      "body": "Skill: luft, enkel layout, Roots leder. LOI samma röst. Fixa korsande streck. 35 % orörd.",
+      "status": "done",
+      "domainId": "fundraising",
+      "playbook": "club-campaign",
+      "files": [
+        ".cursor/skills/roots-presentations/SKILL.md",
+        "docs/presentations/build_partner_avtal.py"
+      ],
+      "gate": "none",
+      "source": "cursor",
+      "createdAt": "2026-09-08T22:03:00.000Z",
+      "updatedAt": "2026-09-08T22:10:00.000Z"
+    },
+    {
+      "id": "wb-partner-avtal-pdf",
+      "title": "Partner-PDF: marknadsavtal + avsiktsförklaring",
+      "body": "Två A4-PDF:er ur 2027-docx, brandbook. Skrivbordet. Ingen ny siffra. 35 % orörd.",
+      "status": "done",
+      "domainId": "fundraising",
+      "playbook": "club-campaign",
+      "files": [
+        "docs/presentations/build_partner_avtal.py"
+      ],
+      "gate": "none",
+      "source": "cursor",
+      "createdAt": "2026-09-08T21:12:00.000Z",
+      "updatedAt": "2026-09-08T21:28:00.000Z"
+    },
+    {
+      "id": "wb-komm-kedja-agenten",
+      "title": "PDF: kommunikationskedjan med agenten",
+      "body": "V2.1-briefen översatt till hur agenten, plattformen och grindarna kör M01–M22. Mejl är pausade. PDF till skrivbordet.",
+      "status": "done",
+      "domainId": "email",
+      "playbook": "club-campaign",
+      "files": [
+        "docs/presentations/deck_komm_agent.py",
+        "docs/presentations/build_decks.py"
+      ],
+      "gate": "none",
+      "source": "cursor",
+      "createdAt": "2026-09-07T23:20:00.000Z",
+      "updatedAt": "2026-09-07T23:28:00.000Z"
+    },
+    {
+      "id": "wb-runda-rekommendation-deck",
+      "title": "Deck: runda-rekommendation 2–3,5 sen 7",
+      "body": "Kort intern presentation av trappan. Inte nytt ängladeck. PDF till skrivbordet.",
+      "status": "done",
+      "domainId": "public",
+      "playbook": "",
+      "files": [
+        "docs/presentations/deck_runda.py",
+        "docs/presentations/build_decks.py"
+      ],
+      "gate": "none",
+      "source": "cursor",
+      "createdAt": "2026-09-06T22:16:00.000Z",
+      "updatedAt": "2026-09-06T22:20:00.000Z"
+    },
+    {
+      "id": "wb-investor-use-of-funds",
+      "title": "Användning 7 mkr in i ängladecket",
+      "body": "Investerarcase augusti 2026: 15 LOI-mål, 18 mån bro, 5 ASM + KAM + support, lagerloop. Namn som planerade rekryteringar.",
+      "status": "done",
+      "domainId": "public",
+      "playbook": "",
+      "files": [
+        "docs/presentations/deck_investor.py"
+      ],
+      "gate": "none",
+      "source": "cursor",
+      "createdAt": "2026-09-06T22:09:00.000Z",
+      "updatedAt": "2026-09-06T22:15:00.000Z"
+    },
+    {
+      "id": "wb-investor-pitch-deck",
+      "title": "Pitch-deck änglar / family office",
+      "body": "12 kärnslides + 4 appendix i deck_investor.py. PDF till skrivbordet. Inga nya multiplar. Pre-revenue märkt.",
+      "status": "done",
+      "domainId": "public",
+      "playbook": "",
+      "files": [
+        "docs/presentations/deck_investor.py",
+        "docs/presentations/build_decks.py"
+      ],
+      "gate": "none",
+      "source": "cursor",
+      "createdAt": "2026-09-06T21:27:00.000Z",
+      "updatedAt": "2026-09-06T21:35:00.000Z"
+    },
     {
       "id": "wb-agent-os-boot",
       "title": "Agent-OS inkopplat i Roots",

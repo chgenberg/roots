@@ -36,6 +36,7 @@ import { apiFetch, rootsFetch } from "@/lib/api";
 import type { AssociationDashboard as AssociationDashboardData, Campaign } from "@/types/fundraising";
 import { getBrowserApiBase } from "@/lib/api-base";
 import { formatKr, formatKrValue, pluralSv } from "@/lib/format";
+import { LOCKED_MARGIN_PERCENT } from "@roots/contracts";
 
 const API_URL = getBrowserApiBase();
 
@@ -101,7 +102,6 @@ function AssociationDashboardInner() {
     "BULK" | "DIRECT" | "BOTH"
   >("BULK");
   const [newAllowOutside, setNewAllowOutside] = useState(true);
-  const [newMargin, setNewMargin] = useState("25");
 
   const { toast } = useToast();
 
@@ -143,12 +143,6 @@ function AssociationDashboardInner() {
       toast(t.endAfterStart, "error");
       return;
     }
-    const margin = Number.parseInt(newMargin, 10);
-    if (!Number.isFinite(margin) || margin < 0 || margin > 100) {
-      toast(t.marginRange, "error");
-      return;
-    }
-
     setSubmitting(true);
     try {
       const res = await apiFetch<{
@@ -166,7 +160,7 @@ function AssociationDashboardInner() {
           deliveryDate: newDeliveryDate || undefined,
           allowSalesOutsidePeriod: newAllowOutside,
           deliveryType: newDeliveryType,
-          marginPercent: margin,
+          marginPercent: LOCKED_MARGIN_PERCENT,
         },
       });
       if (res.ok && res.data?.id) {
@@ -423,15 +417,12 @@ function AssociationDashboardInner() {
               </div>
               <div>
                 <Label htmlFor="margin">{t.marginPct}</Label>
-                <Input
+                <p
                   id="margin"
-                  type="number"
-                  min={0}
-                  max={100}
-                  step={1}
-                  value={newMargin}
-                  onChange={(e) => setNewMargin(e.target.value)}
-                />
+                  className="flex h-10 items-center rounded-md border border-input bg-muted/40 px-3 text-sm"
+                >
+                  {LOCKED_MARGIN_PERCENT} %
+                </p>
               </div>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">

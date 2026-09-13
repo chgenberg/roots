@@ -33,11 +33,6 @@ const BASE_API = getBrowserApiBase();
 const API_URL = `${BASE_API}/v1/ai/public-chat`;
 const STORAGE_KEY = "roots.publicChat.v1";
 
-/** Map suggestion chips that imply navigation to a path instead of chat. */
-const SUGGESTION_ROUTES: Record<string, string> = {
-  "Starta gratis håranalys": "/haranalys",
-  "Start a free hair analysis": "/haranalys",
-};
 
 function storageKey(locale: string) {
   return `${STORAGE_KEY}.${locale}`;
@@ -258,13 +253,6 @@ export function ChatWidget() {
     const text = rawText.trim();
     if (!text || streaming) return;
 
-    // Special-case chips that should navigate instead of chatting.
-    const route = SUGGESTION_ROUTES[text];
-    if (route) {
-      window.location.href = withLocale(route, locale);
-      return;
-    }
-
     const userMsg: Message = { role: "user", content: text };
     const history = messages.filter(
       (m) => !(m.role === "assistant" && m.content === t.welcome)
@@ -412,7 +400,7 @@ export function ChatWidget() {
             >
               <div className="flex items-center justify-between border-b border-border px-5 py-4">
                 <div className="min-w-0">
-                  <h2 className="text-sm font-semibold">Roots AI</h2>
+                  <h2 className="text-sm font-semibold">{t.title}</h2>
                   <p className="text-xs text-muted-foreground">{t.subtitle}</p>
                 </div>
                 <div className="flex items-center gap-1">

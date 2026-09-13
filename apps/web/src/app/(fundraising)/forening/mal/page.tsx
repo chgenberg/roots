@@ -138,6 +138,19 @@ export default function GoalsPage() {
         <p className="text-sm text-muted-foreground">{t.subtitle}</p>
       </div>
 
+      {!campaign && (
+        <Card className="border-warning-edge bg-warning-surface">
+          <CardContent className="p-4">
+            <p className="text-sm font-medium text-warning-strong">
+              {t.noActiveCampaign}
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {t.noActiveCampaignBody}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       {campaign && (
         <Card>
           <CardHeader>

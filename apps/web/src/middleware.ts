@@ -87,6 +87,11 @@ const GATE_BYPASS_PREFIXES = [
   // Feedback-kontot ska kunna logga in utan preview-lösenordet. Portalen
   // och övriga sidor är fortfarande bakom grinden.
   "/login",
+  "/registrera",
+  "/glomt-losenord",
+  "/aterstall-losenord",
+  "/integritet",
+  "/villkor",
   "/feedback",
   "/api",
   "/trpc",

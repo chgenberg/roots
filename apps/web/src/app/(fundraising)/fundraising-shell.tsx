@@ -265,6 +265,13 @@ export function FundraisingShell({ children }: { children: React.ReactNode }) {
             <RootsLogo variant="auto" className="h-6 w-[60px]" />
           </LocaleLink>
           <div className="flex items-center gap-1">
+            <LocaleLink
+              href="/hjalp"
+              aria-label={c.help}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-brand-50 hover:text-foreground"
+            >
+              <HelpCircle className="h-4 w-4" />
+            </LocaleLink>
             <LanguageSwitcher />
             <NotificationBell />
             <ThemeToggle />
@@ -323,6 +330,14 @@ export function FundraisingShell({ children }: { children: React.ReactNode }) {
                 </LocaleLink>
               );
             })}
+            <LocaleLink
+              href="/hjalp"
+              onClick={() => setMobileOpen(false)}
+              className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:bg-brand-50 hover:text-foreground"
+            >
+              <HelpCircle className="h-4 w-4" />
+              {c.help}
+            </LocaleLink>
             <button
               onClick={() => {
                 setMobileOpen(false);

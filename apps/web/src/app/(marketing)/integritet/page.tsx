@@ -41,7 +41,10 @@ export default async function IntegritetPage() {
 
       <div className="mt-10 space-y-10 text-base leading-relaxed text-muted-foreground [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:text-foreground [&_h2]:tracking-tight [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-1">
         {t.sections.map((section, idx) => (
-          <section key={section.heading}>
+          <section
+            key={section.heading}
+            id={/cookie/i.test(section.heading) ? "cookies" : undefined}
+          >
             <h2>{section.heading}</h2>
             {section.paragraphs?.map((p) => (
               <p key={p.slice(0, 40)} className="mt-3">

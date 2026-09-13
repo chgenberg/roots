@@ -46,6 +46,7 @@ import { portalPages, portalShared } from "@/i18n/dictionaries/portal-pages";
 import { displayProductName } from "@/i18n/product-name";
 import { tFill } from "@/i18n/format";
 import { appCommon } from "@/i18n/dictionaries/app-common";
+import { useToast } from "@/components/ui/toast";
 
 type PortalOrderProduct = {
   id: string;
@@ -135,6 +136,7 @@ export default function BestallningarPage() {
   const common = appCommon[locale];
   const statusLabels = shared.orderStatusDisplay;
   const bundleName = portalPages.produkter[locale].bundleName;
+  const { toast } = useToast();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [cart, setCart] = useState<Record<string, number>>({});
@@ -170,6 +172,7 @@ export default function BestallningarPage() {
         createdAt: string;
         totalOre: number;
         status: string;
+        itemsSummary?: string;
       }>;
     }>("/orders")
       .then((data) => {
@@ -177,7 +180,7 @@ export default function BestallningarPage() {
           (data.orders ?? []).map((o) => ({
             id: o.id,
             date: o.createdAt?.split("T")[0] ?? "",
-            items: "",
+            items: o.itemsSummary ?? "",
             total: `${formatKrValue(o.totalOre, locale)} ${shared.kr}`,
             status: mapApiStatus(o.status),
             createdAt: o.createdAt,
@@ -242,41 +245,48 @@ export default function BestallningarPage() {
         };
       }>("/orders", { method: "POST", body: { items } });
 
-      if (created.order) {
-        const itemStr = Object.entries(cart)
-          .map(([id, qty]) => {
-            const p = apiProducts.find((p) => p.id === id);
-            const name = p
-              ? displayProductName(locale, { slug: p.slug, name: p.name })
-              : "";
-            return `${qty} × ${name}`;
-          })
-          .join(", ");
-
-        const o = created.order!;
-        setOrders((prev) => [
-          {
-            id: o.id,
-            date:
-              o.createdAt?.split("T")[0] ??
-              new Date().toISOString().split("T")[0],
-            items: itemStr,
-            total: `${formatKrValue(o.totalOre, locale)} ${shared.kr}`,
-            status: "processing",
-            createdAt: o.createdAt ?? new Date().toISOString(),
-            totalOre: o.totalOre,
-            statusRaw: o.status,
-          },
-          ...prev,
-        ]);
+      if (!created.order) {
+        toast(t.createFailed, "error");
+        return;
       }
+
+      const itemStr = Object.entries(cart)
+        .map(([id, qty]) => {
+          const p = apiProducts.find((p) => p.id === id);
+          const name = p
+            ? displayProductName(locale, { slug: p.slug, name: p.name })
+            : "";
+          return `${qty} × ${name}`;
+        })
+        .join(", ");
+
+      const o = created.order;
+      setOrders((prev) => [
+        {
+          id: o.id,
+          date:
+            o.createdAt?.split("T")[0] ??
+            new Date().toISOString().split("T")[0],
+          items: itemStr,
+          total: `${formatKrValue(o.totalOre, locale)} ${shared.kr}`,
+          status: "processing",
+          createdAt: o.createdAt ?? new Date().toISOString(),
+          totalOre: o.totalOre,
+          statusRaw: o.status,
+        },
+        ...prev,
+      ]);
+      setCart({});
+      setSubmitted(true);
     } catch (err) {
       console.error("Order creation failed", err);
+      toast(
+        err instanceof Error && err.message ? err.message : t.createFailed,
+        "error"
+      );
+    } finally {
+      setSubmitting(false);
     }
-
-    setCart({});
-    setSubmitting(false);
-    setSubmitted(true);
   }
 
   function closeDialog() {

@@ -246,15 +246,31 @@ function CardColumn({
                       <Button
                         type="button"
                         size="sm"
+                        variant={
+                          card.gate === "money" || card.gate === "irreversible"
+                            ? "destructive"
+                            : "default"
+                        }
                         disabled={actingId === card.id}
-                        onClick={() => onApprove(card.id)}
+                        onClick={() => {
+                          if (
+                            (card.gate === "money" ||
+                              card.gate === "irreversible") &&
+                            !window.confirm(t.approveMoneyConfirm)
+                          ) {
+                            return;
+                          }
+                          onApprove(card.id);
+                        }}
                       >
                         {actingId === card.id ? (
                           <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                         ) : (
                           <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
                         )}
-                        {t.approve}
+                        {card.gate === "money" || card.gate === "irreversible"
+                          ? t.approveIrreversible
+                          : t.approve}
                       </Button>
                       <Button
                         type="button"

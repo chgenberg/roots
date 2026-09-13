@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { LOCKED_MARGIN_PERCENT } from "./calculator";
 
 export const CampaignStatusEnum = z.enum([
   "DRAFT",
@@ -31,7 +32,12 @@ export const CreateCampaignSchema = z.object({
   deliveryType: DeliveryTypeEnum.default("BULK"),
   shippingThresholdOre: z.number().int().optional(),
   shippingFeeOre: z.number().int().optional(),
-  marginPercent: z.number().int().min(0).max(100).default(25),
+  marginPercent: z
+    .number()
+    .int()
+    .min(0)
+    .max(100)
+    .default(LOCKED_MARGIN_PERCENT),
 });
 
 export type CreateCampaign = z.infer<typeof CreateCampaignSchema>;

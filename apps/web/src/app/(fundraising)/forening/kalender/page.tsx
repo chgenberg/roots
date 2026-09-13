@@ -37,6 +37,7 @@ export default function AssociationCalendarPage() {
   const dateLocale = appCommon[locale].dateLocale;
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [shippingId, setShippingId] = useState<string | null>(null);
   const { toast } = useToast();
 
@@ -61,16 +62,22 @@ export default function AssociationCalendarPage() {
   }
 
   const load = useCallback(async () => {
+    setError(null);
+    setLoading(true);
     try {
       const res = await rootsFetch(`${API_URL}/v1/dashboard/association`);
       if (res.ok) {
         const d = await res.json();
         setCampaigns(d.campaigns || []);
+      } else {
+        setError(t.loadFailed);
       }
+    } catch {
+      setError(t.loadFailed);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t.loadFailed]);
 
   useEffect(() => {
     load();
@@ -95,6 +102,17 @@ export default function AssociationCalendarPage() {
     return (
       <div className="flex items-center justify-center py-20">
         <Loader2 className="h-6 w-6 animate-spin text-brand-400" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-20">
+        <p className="text-sm text-destructive">{error}</p>
+        <Button variant="outline" onClick={() => void load()}>
+          {c.retry}
+        </Button>
       </div>
     );
   }

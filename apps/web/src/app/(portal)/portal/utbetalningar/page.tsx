@@ -219,8 +219,11 @@ export default function UtbetalningarPage() {
                     </div>
                     <Button
                       type="button"
-                      disabled={busy}
-                      onClick={() => void markPaid(p.id)}
+                      disabled={busy || !(refs[p.id] || "").trim()}
+                      onClick={() => {
+                        if (!window.confirm(t.confirmPaid)) return;
+                        void markPaid(p.id);
+                      }}
                     >
                       {busy ? (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />

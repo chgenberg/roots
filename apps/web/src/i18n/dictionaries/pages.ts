@@ -125,8 +125,8 @@ export const pages = {
           description: "Administrera beställningar och se statistik i realtid.",
         },
         {
-          title: "Fri frakt över 500 kr",
-          description: "Snabb leverans direkt till klubben.",
+          title: "Frakt enligt kassan",
+          description: "Fri frakt kan gälla över tröskeln som visas vid beställning.",
         },
         {
           title: "Intäktsrapport",
@@ -194,8 +194,8 @@ export const pages = {
           description: "Manage orders and see live statistics.",
         },
         {
-          title: "Free shipping over SEK 500",
-          description: "Fast delivery straight to the club.",
+          title: "Shipping shown at checkout",
+          description: "Free shipping may apply above the threshold shown when you order.",
         },
         {
           title: "Revenue report",
@@ -634,7 +634,7 @@ export const pages = {
           items: [
             {
               q: "Hur startar jag en ny kampanj?",
-              a: "Förening → Ny kampanj. Ange namn, mål, marginal och datum så aktiveras kampanjen direkt.",
+              a: "Förening → Ny kampanj. Ange namn, mål och datum — föreningens andel är alltid 35 %.",
             },
             {
               q: "Hur lägger jag till ett nytt lag?",
@@ -819,7 +819,7 @@ export const pages = {
           items: [
             {
               q: "How do I start a new campaign?",
-              a: "Club → New campaign. Enter name, goal, margin and dates and the campaign activates immediately.",
+              a: "Club → New campaign. Enter name, goal and dates — the club share is always 35%.",
             },
             {
               q: "How do I add a new team?",
@@ -1248,7 +1248,7 @@ export const pages = {
           bullets: [
             { text: "Vi levererar inom Sverige." },
             { text: "Normal leveranstid är 2–5 arbetsdagar." },
-            { text: "Fri frakt vid beställningar över 500 kr." },
+            { text: "Fri frakt kan gälla över en beloppsgräns som visas i kassan." },
             {
               text: "Vi ansvarar för varan tills du tagit emot den. Vid eventuell skada under transport — kontakta oss omgående.",
             },
@@ -1339,7 +1339,7 @@ export const pages = {
           bullets: [
             { text: "We deliver within Sweden." },
             { text: "Normal delivery time is 2–5 business days." },
-            { text: "Free shipping on orders over SEK 500." },
+            { text: "Free shipping may apply above a threshold shown at checkout." },
             {
               text: "We are responsible for the goods until you have received them. In case of damage in transit — contact us immediately.",
             },

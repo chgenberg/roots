@@ -38,9 +38,9 @@ import { getBrowserApiBase } from "@/lib/api-base";
 import { rootsFetch } from "@/lib/api";
 import { formatKr, formatKrValue } from "@/lib/format";
 import { orderStatusColor, orderStatusLabel } from "@/lib/order-status";
+import { getPublicSiteUrl } from "@/lib/site-url";
 
 const API_URL = getBrowserApiBase();
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
 export default function SellerDashboard() {
   const { locale, href } = useLocale();
@@ -67,7 +67,7 @@ export default function SellerDashboard() {
 
         if (d.seller?.shopSlug) {
           const url = absoluteLocaleUrl(
-            SITE_URL,
+            getPublicSiteUrl(),
             `/shop/${d.seller.shopSlug}`,
             locale
           );
@@ -100,7 +100,7 @@ export default function SellerDashboard() {
     if (!data?.seller?.shopSlug) return;
     try {
       navigator.clipboard.writeText(
-        absoluteLocaleUrl(SITE_URL, `/shop/${data.seller.shopSlug}`, locale)
+        absoluteLocaleUrl(getPublicSiteUrl(), `/shop/${data.seller.shopSlug}`, locale)
       );
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -112,7 +112,7 @@ export default function SellerDashboard() {
   function share() {
     if (!data?.seller?.shopSlug) return;
     const url = absoluteLocaleUrl(
-      SITE_URL,
+      getPublicSiteUrl(),
       `/shop/${data.seller.shopSlug}`,
       locale
     );
@@ -162,7 +162,7 @@ export default function SellerDashboard() {
   }
 
   const shopUrl = absoluteLocaleUrl(
-    SITE_URL,
+    getPublicSiteUrl(),
     `/shop/${data.seller.shopSlug}`,
     locale
   );

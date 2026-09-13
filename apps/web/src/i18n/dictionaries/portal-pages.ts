@@ -293,7 +293,7 @@ export const portalPages = {
       orderAgain: "Beställ igen",
       inviteMember: "Bjud in medlem",
       seeRevenueReport: "Se intäktsrapport",
-      aiTipTitle: "AI-tips",
+      aiTipTitle: "Tips från agenten",
       aiTipBody:
         "Baserat på ert ordermönster kan ni spara tid genom att samla beställningar till en kvartalsleverans.",
       salesHello: "Hej, {name}",
@@ -309,7 +309,7 @@ export const portalPages = {
       ordersCount: "{count} ordrar",
       viewPipeline: "Visa pipeline",
       createQuote: "Skapa offert",
-      aiInsightTitle: "AI-insikt",
+      aiInsightTitle: "Insikt från agenten",
       aiInsightBody:
         "{name} — öppna pipeline-sidan för att se uppföljningar som väntar på dig.",
       goToPipeline: "Gå till pipeline",
@@ -331,7 +331,7 @@ export const portalPages = {
       recentEventsEmpty:
         "Inga registrerade händelser ännu. Aktivitet loggas från audit-spåret så snart vi aktiverar audit-skrivning.",
       systemStatus: "Systemstatus",
-      aiSummaryTitle: "AI-sammanfattning",
+      aiSummaryTitle: "Sammanfattning från agenten",
       aiSummaryBody:
         "Öppna Statistik för att se veckovis trend och senaste konverteringsdata.",
       quickLinks: "Snabblänkar",
@@ -353,7 +353,7 @@ export const portalPages = {
       orderAgain: "Order again",
       inviteMember: "Invite member",
       seeRevenueReport: "View revenue report",
-      aiTipTitle: "AI tip",
+      aiTipTitle: "Tip from the agent",
       aiTipBody:
         "Based on your order pattern, you can save time by batching orders into a quarterly delivery.",
       salesHello: "Hi, {name}",
@@ -369,7 +369,7 @@ export const portalPages = {
       ordersCount: "{count} orders",
       viewPipeline: "View pipeline",
       createQuote: "Create quote",
-      aiInsightTitle: "AI insight",
+      aiInsightTitle: "Insight from the agent",
       aiInsightBody:
         "{name} — open the pipeline page to see follow-ups waiting for you.",
       goToPipeline: "Go to pipeline",
@@ -391,7 +391,7 @@ export const portalPages = {
       recentEventsEmpty:
         "No events recorded yet. Activity is logged from the audit trail once audit writing is enabled.",
       systemStatus: "System status",
-      aiSummaryTitle: "AI summary",
+      aiSummaryTitle: "Summary from the agent",
       aiSummaryBody:
         "Open Statistics to see weekly trends and the latest conversion data.",
       quickLinks: "Quick links",
@@ -414,6 +414,7 @@ export const portalPages = {
       productMany: "produkter",
       sending: "Skickar...",
       sendOrder: "Skicka beställning",
+      createFailed: "Beställningen kunde inte skapas. Försök igen.",
       totalOrders: "Totala beställningar",
       delivered: "Levererade",
       inProgress: "Pågående",
@@ -447,6 +448,7 @@ export const portalPages = {
       productMany: "products",
       sending: "Sending...",
       sendOrder: "Submit order",
+      createFailed: "The order could not be created. Please try again.",
       totalOrders: "Total orders",
       delivered: "Delivered",
       inProgress: "In progress",
@@ -669,15 +671,15 @@ export const portalPages = {
 
   ai: {
     sv: {
-      title: "Roots AI-assistent",
+      title: "Agenten",
       subtitle: "Fråga om vad som helst relaterat till Roots",
       newConversation: "Ny konversation",
-      conversationAria: "Konversation med Roots AI",
+      conversationAria: "Konversation med agenten",
       thinking: "Tänker...",
       placeholder: "Skriv ditt meddelande...",
       stopAria: "Stoppa generering",
       sendAria: "Skicka meddelande",
-      disclaimer: "AI-genererat svar — verifiera viktig information",
+      disclaimer: "Svar från agenten — verifiera viktig information",
       aborted: "Avbrutet.",
       genericError: "Något gick fel.",
       noResponse: "Ingen respons.",
@@ -729,15 +731,15 @@ export const portalPages = {
       ],
     },
     en: {
-      title: "Roots AI assistant",
+      title: "The agent",
       subtitle: "Ask anything related to Roots",
       newConversation: "New conversation",
-      conversationAria: "Conversation with Roots AI",
+      conversationAria: "Conversation with the agent",
       thinking: "Thinking...",
       placeholder: "Type your message...",
       stopAria: "Stop generation",
       sendAria: "Send message",
-      disclaimer: "AI-generated answer — verify important information",
+      disclaimer: "Reply from the agent — verify important information",
       aborted: "Stopped.",
       genericError: "Something went wrong.",
       noResponse: "No response.",
@@ -1298,6 +1300,8 @@ export const portalPages = {
       paymentRef: "Betalningsreferens",
       paymentRefPlaceholder: "t.ex. SEB 2026-08-07 / OCR",
       markPaid: "Markera utbetald",
+      confirmPaid:
+        "Markera utbetalningen som betald? Det går inte att ångra härifrån.",
       refRequired: "Ange betalningsreferens först.",
       markFail: "Kunde inte markera som utbetald.",
       markOk: "Utbetalningen är markerad som betald.",
@@ -1321,6 +1325,8 @@ export const portalPages = {
       paymentRef: "Payment reference",
       paymentRefPlaceholder: "e.g. SEB 2026-08-07 / OCR",
       markPaid: "Mark as paid out",
+      confirmPaid:
+        "Mark this payout as paid? This cannot be undone from here.",
       refRequired: "Enter a payment reference first.",
       markFail: "Could not mark as paid out.",
       markOk: "Payout marked as paid.",
@@ -1439,6 +1445,9 @@ export const portalPages = {
       emptyProgress: "Inget pågår just nu.",
       emptyDone: "Inget avslutat att visa.",
       approve: "Godkänn",
+      approveIrreversible: "Bekräfta irreversibelt",
+      approveMoneyConfirm:
+        "Det här är irreversibelt (pengar). Godkänn bara om du just har gjort det för hand. Fortsätt?",
       reject: "Avvisa",
       approveHint:
         "Agenten försöker laga det. Utbetalning och deploy körs aldrig från knappen.",
@@ -1467,6 +1476,9 @@ export const portalPages = {
       emptyProgress: "Nothing in progress.",
       emptyDone: "Nothing recently finished.",
       approve: "Approve",
+      approveIrreversible: "Confirm irreversible",
+      approveMoneyConfirm:
+        "This is irreversible (money). Approve only if you just did it by hand. Continue?",
       reject: "Reject",
       approveHint:
         "The agent will try to fix it. Payouts and deploy never run from this button.",

@@ -355,7 +355,38 @@ portal.get("/orders", async (c) => {
       orderList = [];
     }
 
-    return c.json({ orders: orderList });
+    const orderIds = orderList.map((o) => o.id);
+    const lines =
+      orderIds.length === 0
+        ? []
+        : await db
+            .select({
+              orderId: orderLines.orderId,
+              productName: products.name,
+              productSku: products.sku,
+              qty: orderLines.qty,
+            })
+            .from(orderLines)
+            .leftJoin(products, eq(orderLines.productId, products.id))
+            .where(inArray(orderLines.orderId, orderIds));
+
+    const itemsByOrder = new Map<string, string[]>();
+    for (const line of lines) {
+      const name = localizedProductName(locale, {
+        sku: line.productSku,
+        fallback: line.productName ?? uiError(locale, "unknownProduct"),
+      });
+      const list = itemsByOrder.get(line.orderId) ?? [];
+      list.push(`${line.qty} × ${name}`);
+      itemsByOrder.set(line.orderId, list);
+    }
+
+    return c.json({
+      orders: orderList.map((o) => ({
+        ...o,
+        itemsSummary: (itemsByOrder.get(o.id) ?? []).join(", "),
+      })),
+    });
   } catch (err) {
     log.error({ err }, "Failed to fetch orders");
     return c.json({ error: uiError(locale, "couldNotFetchOrders") }, 500);

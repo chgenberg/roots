@@ -16,7 +16,10 @@
 
 import { Hono } from "hono";
 import { eq, and, sql, gt, isNull, inArray } from "drizzle-orm";
-import { REVENUE_ORDER_STATUSES } from "@roots/contracts";
+import {
+  LOCKED_MARGIN_PERCENT,
+  REVENUE_ORDER_STATUSES,
+} from "@roots/contracts";
 import { isOrgApprovedForPublicSales } from "../lib/org-approval";
 import { hash } from "@node-rs/argon2";
 import { randomBytes } from "crypto";
@@ -286,14 +289,14 @@ association.get("/onboarding-status", async (c) => {
           ? "When your first seller closes an order it shows up here — then you are truly up and running."
           : "När er första säljare har stängt en order syns den här — då är ni igång på riktigt.",
         completed: firstSaleMade,
-        ctaHref: "/forening/avrakning",
+        ctaHref: firstSaleMade ? "/forening/statistik" : "/forening/lag",
         ctaLabel: firstSaleMade
           ? en
-            ? "View orders"
-            : "Visa beställningar"
+            ? "View sales"
+            : "Visa försäljning"
           : en
-            ? "Tips to get started"
-            : "Tips för att komma igång",
+            ? "Invite sellers"
+            : "Bjud in säljare",
       },
     ];
 
@@ -1036,10 +1039,7 @@ association.post("/campaigns", async (c) => {
       : body.deliveryType === "BOTH"
         ? "BOTH"
         : "BULK";
-  const marginPercent = Math.min(
-    100,
-    Math.max(0, Math.floor(body.marginPercent ?? 25))
-  );
+  const marginPercent = LOCKED_MARGIN_PERCENT;
 
   // Kampanjen skapas direkt som ACTIVE nedan, så den här vägen måste ha
   // samma spärr som tRPC-aktiveringen — annars är den ett kryphål.
