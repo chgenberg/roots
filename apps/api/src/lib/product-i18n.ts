@@ -5,7 +5,7 @@ const BY_SLUG: Record<string, { sv: string; en: string }> = {
   shampoo: { sv: "Roots Schampoo", en: "Roots Schampoo" },
   conditioner: { sv: "Roots Conditioner", en: "Roots Conditioner" },
   "body-wash": { sv: "Roots Body Wash", en: "Roots Body Wash" },
-  paket: { sv: "Roots Komplett paket", en: "Roots Complete pack" },
+  paket: { sv: "Roots Premiumpaket", en: "Roots Premium pack" },
 };
 
 /** Short shop/catalog blurbs (DB seeds are Swedish — overlay for EN). */
@@ -56,8 +56,8 @@ export function localizedProductName(
   if (opts.slug && BY_SLUG[opts.slug]) return BY_SLUG[opts.slug][locale];
   if (opts.sku && BY_SKU[opts.sku]) return BY_SKU[opts.sku][locale];
   // Fallback: map known Swedish bundle name when DB has no slug match.
-  if (locale === "en" && /komplett\s*paket/i.test(opts.fallback)) {
-    return BY_SLUG.paket.en;
+  if (/komplett\s*paket/i.test(opts.fallback)) {
+    return BY_SLUG.paket[locale];
   }
   return opts.fallback;
 }

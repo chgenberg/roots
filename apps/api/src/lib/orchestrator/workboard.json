@@ -1,11 +1,41 @@
 {
-  "updatedAt": "2026-09-13T21:50:00.000Z",
+  "updatedAt": "2026-09-15T19:10:00.000Z",
   "cards": [
+    {
+      "id": "wb-deploy-screens-sep15",
+      "title": "Deploy skärmdump-copy",
+      "body": "Bug-hunt ren. Push till main. Presentationer och walkthrough lämnas okommiterade.",
+      "status": "done",
+      "domainId": "platform",
+      "playbook": "ops",
+      "files": ["apps/web/next.config.ts", "apps/web/src/content/guides.ts"],
+      "gate": "deploy",
+      "source": "cursor",
+      "createdAt": "2026-09-15T19:10:00.000Z",
+      "updatedAt": "2026-09-15T19:10:00.000Z"
+    },
+    {
+      "id": "wb-calc-feedback-sep15",
+      "title": "Skärmdump-copy: Premium + guider",
+      "body": "Hint A, Komplett→Premium, godis-guide 301, 35 %-exempel, lagkassa. 35 % och 399 orörda.",
+      "status": "done",
+      "domainId": "public",
+      "playbook": "ops",
+      "files": [
+        "apps/web/src/components/calculator/revenue-calculator.tsx",
+        "apps/web/src/content/guides.ts",
+        "apps/web/next.config.ts"
+      ],
+      "gate": "none",
+      "source": "cursor",
+      "createdAt": "2026-09-15T17:00:00.000Z",
+      "updatedAt": "2026-09-15T19:10:00.000Z"
+    },
     {
       "id": "wb-deploy-high-sep13",
       "title": "Deploy HIGH-fixar",
-      "body": "Bug-hunt ren. Push till main efter ja.",
-      "status": "doing",
+      "body": "Bug-hunt ren. Pushad 4a55550 till main.",
+      "status": "done",
       "domainId": "platform",
       "playbook": "ops",
       "files": ["apps/web/src/middleware.ts"],

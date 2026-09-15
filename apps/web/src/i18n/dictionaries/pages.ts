@@ -18,10 +18,10 @@ export const pages = {
     sv: {
       title: "Produkter",
       description:
-        "Tre noggrant formulerade nordiska produkter med SyriCalm® och Pro-Vitamin B5 — var för sig eller som komplett paket. Sulfatsnålt, silikon- och parabenfritt.",
+        "Tre noggrant formulerade nordiska produkter med SyriCalm® och Pro-Vitamin B5 — var för sig eller som Premiumpaket. Sulfatsnålt, silikon- och parabenfritt.",
       heroTitle: "Våra produkter",
       heroBody:
-        "Tre noggrant formulerade nordiska produkter med forskningsförankrade aktiver — var för sig eller som komplett paket. Sulfatsnålt, silikon- och parabenfritt.",
+        "Tre noggrant formulerade nordiska produkter med forskningsförankrade aktiver — var för sig eller som Premiumpaket. Sulfatsnålt, silikon- och parabenfritt.",
       itemListName: "Roots produkter",
       breadcrumbHome: "Hem",
       values: [
@@ -44,10 +44,10 @@ export const pages = {
     en: {
       title: "Products",
       description:
-        "Three carefully formulated Nordic products with SyriCalm® and Pro-Vitamin B5 — individually or as a complete pack. Low-sulphate, silicone- and paraben-free.",
+        "Three carefully formulated Nordic products with SyriCalm® and Pro-Vitamin B5 — individually or as a Premium pack. Low-sulphate, silicone- and paraben-free.",
       heroTitle: "Our products",
       heroBody:
-        "Three carefully formulated Nordic products with research-backed actives — individually or as a complete pack. Low-sulphate, silicone- and paraben-free.",
+        "Three carefully formulated Nordic products with research-backed actives — individually or as a Premium pack. Low-sulphate, silicone- and paraben-free.",
       itemListName: "Roots products",
       breadcrumbHome: "Home",
       values: [

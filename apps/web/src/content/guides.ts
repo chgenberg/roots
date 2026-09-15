@@ -101,7 +101,7 @@ export const guideDefinitions: GuideDefinition[] = [
     sv: {
       title: "Vad är föreningsförsäljning — och varför premium hårvård?",
       description:
-        "En guide till modern föreningsförsäljning: hur premium hårvård skiljer sig från godis, och varför fler klubbar väljer produkter människor faktiskt vill använda.",
+        "En guide till modern föreningsförsäljning: personlig shop, QR och utbetalning — och varför fler klubbar väljer produkter människor faktiskt vill använda.",
       sections: [
         {
           heading: "Föreningsförsäljning i korthet",
@@ -118,10 +118,10 @@ export const guideDefinitions: GuideDefinition[] = [
           ],
         },
         {
-          heading: "Godis vs produkter man återkommer till",
+          heading: "Hur Roots gör insamlingen enkel",
           paragraphs: [
-            "Godisförsäljning kan ge snabb omsättning, men den bygger sällan lojalitet. Premiumvård kan bli en återkommande vana: samma person som köpte via lagets shop kan komma tillbaka nästa säsong. Det är mer hållbart för både föreningen och den som säljer.",
-            "Roots är byggt för just den typen av försäljning — digital shop, QR-kod och utbetalning till föreningen. Läs mer under [Föreningsliv](/foreningsliv) eller se flödet i [Så fungerar det](/sa-fungerar-det).",
+            "Varje säljare får en personlig shop och QR-kod. Kunden beställer online och får hemleverans — säljaren bär inte lådor och tar inte emot kontanter. Föreningen, laget eller klassen följer läget i portalen och får utbetalning enligt den fasta 35 %-modellen.",
+            "Premiumvård kan bli en återkommande vana: samma person som köpte via shoppen kan komma tillbaka nästa säsong. Läs mer under [Föreningsliv](/foreningsliv) eller se flödet i [Så fungerar det](/sa-fungerar-det).",
           ],
         },
         {
@@ -161,7 +161,7 @@ export const guideDefinitions: GuideDefinition[] = [
     en: {
       title: "What is club fundraising — and why premium hair care?",
       description:
-        "A guide to modern club fundraising: how premium hair care differs from candy, and why more clubs choose products people actually want to use.",
+        "A guide to modern club fundraising: personal shop, QR and payout — and why more clubs choose products people actually want to use.",
       sections: [
         {
           heading: "Club fundraising in brief",
@@ -178,10 +178,10 @@ export const guideDefinitions: GuideDefinition[] = [
           ],
         },
         {
-          heading: "Candy vs products people come back for",
+          heading: "How Roots makes fundraising simple",
           paragraphs: [
-            "Candy sales can drive quick turnover, but they rarely build loyalty. Premium care can become a recurring habit: the same person who bought through the team's shop may return next season. That is more sustainable for both the club and the seller.",
-            "Roots is built for exactly that kind of selling — digital shop, QR code and payout to the club. Read more under [For clubs](/foreningsliv) or see the flow in [How it works](/sa-fungerar-det).",
+            "Each seller gets a personal shop and QR code. The customer orders online and gets home delivery — the seller does not carry boxes or take cash. The club, team or class follows progress in the portal and receives payout according to the fixed 35% model.",
+            "Premium care can become a recurring habit: the same person who bought through the shop may return next season. Read more under [For clubs](/foreningsliv) or see the flow in [How it works](/sa-fungerar-det).",
           ],
         },
         {
@@ -219,7 +219,7 @@ export const guideDefinitions: GuideDefinition[] = [
       cta: { href: "/foreningsliv", label: "Read more about club fundraising" },
     },
     relatedSlugs: [
-      "jamfor-godisforsaljning",
+      "personlig-shop",
       "hur-mycket-tjanar-foreningen",
       "sa-fungerar-roots",
     ],
@@ -259,7 +259,7 @@ export const guideDefinitions: GuideDefinition[] = [
         {
           heading: "3. Säljaren får sin shop",
           paragraphs: [
-            "Varje säljare får en personlig shopsida med länk och QR-kod. Därifrån kan vänner, familj och kollegor beställa [produkterna](/produkter) — schampo, balsam, body wash eller komplett paket. Säljaren behöver inte ta betalt kontant eller bära runt på lådor.",
+            "Varje säljare får en personlig shopsida med länk och QR-kod. Därifrån kan vänner, familj och kollegor beställa [produkterna](/produkter) — schampo, balsam, body wash eller Premiumpaket. Säljaren behöver inte ta betalt kontant eller bära runt på lådor.",
             "Tips för hur man delar shoppen finns i guiden [Tips till säljare](/guider/tips-till-saljare) och mer om QR i [Personlig shop](/guider/personlig-shop).",
           ],
         },
@@ -321,7 +321,7 @@ export const guideDefinitions: GuideDefinition[] = [
         {
           heading: "3. The seller gets their shop",
           paragraphs: [
-            "Each seller gets a personal shop page with a link and QR code. From there friends, family and colleagues can order the [products](/produkter) — shampoo, conditioner, body wash or the Complete pack. The seller does not need to take cash or carry boxes around.",
+            "Each seller gets a personal shop page with a link and QR code. From there friends, family and colleagues can order the [products](/produkter) — shampoo, conditioner, body wash or the Premium pack. The seller does not need to take cash or carry boxes around.",
             "Tips for sharing the shop are in the guide [Tips for sellers](/guider/tips-till-saljare) and more on QR in [Personal shop](/guider/personlig-shop).",
           ],
         },
@@ -369,27 +369,27 @@ export const guideDefinitions: GuideDefinition[] = [
     sv: {
       title: "Hur mycket tjänar föreningen? 35 %-modellen förklarad",
       description:
-        "Föreningen behåller 35 % av försäljningen. Här är räkneexempel, vad som ingår — och hur ni sätter realistiska mål.",
+        "Föreningen, laget eller klassen behåller 35 % av försäljningen. Här är räkneexempel, vad som ingår — och hur ni sätter realistiska mål.",
       sections: [
         {
           heading: "Den fasta modellen: 35 %",
           paragraphs: [
-            "Hos Roots är föreningens marginal en fast affärsterm: **föreningen behåller 35 % av försäljningen**. Det är samma siffra i kalkylatorn, i portalen och i kommunikationen utåt — så att lagledare och säljare pratar samma språk.",
+            "Hos Roots är föreningens marginal en fast affärsterm: **föreningen, laget eller klassen behåller 35 % av försäljningen**. Det är samma siffra i kalkylatorn, i portalen och i kommunikationen utåt — så att lagledare och säljare pratar samma språk.",
             "Ni behöver inte förhandla fram en egen procentsats för att förstå erbjudandet. Fokusera i stället på antal aktiva säljare och hur mycket varje säljare i snitt omsätter under kampanjen.",
           ],
         },
         {
           heading: "Räkneexempel",
           paragraphs: [
-            "Exempel 1: Ett lag med 20 säljare där varje säljare i snitt säljer för 1 500 kr. Bruttoförsäljning: 30 000 kr. Föreningens andel (35 %): 10 500 kr.",
-            "Exempel 2: En större klubb med 40 säljare och 2 000 kr i snitt per säljare. Brutto: 80 000 kr. Föreningens andel: 28 000 kr.",
-            "Exempel 3: En kortare kampanj inför en cupresa — 15 säljare × 1 000 kr = 15 000 kr brutto → 5 250 kr till föreningen. Siffrorna är illustrationer; er faktiska försäljning beror på engagemang, timing och hur enkelt det är att dela shoppen.",
+            "Exempel 1: En förening, ett lag eller en klass med 20 säljare där varje säljare i snitt säljer för cirka 2 400 kr (6 Premiumpaket). Bruttoförsäljning: 48 000 kr. Andel (35 %): 16 800 kr.",
+            "Exempel 2: 300 medlemmar som säljer, cirka 2 400 kr per säljare. Brutto: 720 000 kr. Andel: 252 000 kr.",
+            "Exempel 3: 25 säljare × cirka 2 400 kr (6 Premiumpaket) = 60 000 kr brutto → 21 000 kr till föreningen, laget eller klassen. Siffrorna är illustrationer; er faktiska försäljning beror på engagemang, timing och hur enkelt det är att dela shoppen.",
           ],
         },
         {
           heading: "Vad påverkar resultatet mest?",
           paragraphs: [
-            "Tre saker: hur många som faktiskt delar sin länk, hur tydligt målet är (t.ex. ”cupresa i påsk”) och om produkten känns relevant. Premiumvård som [komplett paket](/produkter/paket) är lättare att tipsa om än engångsvaror — särskilt till vuxna i nätverket.",
+            "Tre saker: hur många som faktiskt delar sin länk, hur tydligt målet är (t.ex. ”cupresa i påsk”) och om produkten känns relevant. Premiumvård som [Premiumpaket](/produkter/paket) är lättare att tipsa om än engångsvaror — särskilt till vuxna i nätverket.",
             "Använd gärna räknesnurran på [Så fungerar det](/sa-fungerar-det) för att testa egna antaganden innan ni sätter mål internt.",
           ],
         },
@@ -430,27 +430,27 @@ export const guideDefinitions: GuideDefinition[] = [
     en: {
       title: "How much does the club earn? The 35% model explained",
       description:
-        "The club keeps 35% of sales. Here are examples, what is included — and how you set realistic goals.",
+        "The club, team or class keeps 35% of sales. Here are examples, what is included — and how you set realistic goals.",
       sections: [
         {
           heading: "The fixed model: 35%",
           paragraphs: [
-            "At Roots the club's margin is a fixed business term: **the club keeps 35% of sales**. It is the same figure in the calculator, the portal and all external messaging — so team leaders and sellers stay aligned.",
+            "At Roots the club's margin is a fixed business term: **the club, team or class keeps 35% of sales**. It is the same figure in the calculator, the portal and all external messaging — so team leaders and sellers stay aligned.",
             "You do not need to negotiate your own percentage to understand the offer. Focus instead on how many active sellers you have and how much each seller turns over on average during the campaign.",
           ],
         },
         {
           heading: "Worked examples",
           paragraphs: [
-            "Example 1: A team with 20 sellers where each seller averages SEK 1,500 in sales. Gross sales: SEK 30,000. Club share (35%): SEK 10,500.",
-            "Example 2: A larger club with 40 sellers and SEK 2,000 average per seller. Gross: SEK 80,000. Club share: SEK 28,000.",
-            "Example 3: A shorter campaign ahead of a tournament trip — 15 sellers × SEK 1,000 = SEK 15,000 gross → SEK 5,250 to the club. The figures are illustrations; your actual sales depend on engagement, timing and how easy it is to share the shop.",
+            "Example 1: A club, team or class with 20 sellers where each seller averages about SEK 2,400 (6 Premium packs). Gross sales: SEK 48,000. Share (35%): SEK 16,800.",
+            "Example 2: 300 members who sell, about SEK 2,400 per seller. Gross: SEK 720,000. Share: SEK 252,000.",
+            "Example 3: 25 sellers × about SEK 2,400 (6 Premium packs) = SEK 60,000 gross → SEK 21,000 to the club, team or class. The figures are illustrations; your actual sales depend on engagement, timing and how easy it is to share the shop.",
           ],
         },
         {
           heading: "What affects the result most?",
           paragraphs: [
-            "Three things: how many people actually share their link, how clear the goal is (e.g. “tournament trip at Easter”) and whether the product feels relevant. Premium care like the [Complete pack](/produkter/paket) is easier to recommend than one-off goods — especially to adults in the network.",
+            "Three things: how many people actually share their link, how clear the goal is (e.g. “tournament trip at Easter”) and whether the product feels relevant. Premium care like the [Premium pack](/produkter/paket) is easier to recommend than one-off goods — especially to adults in the network.",
             "You can use the calculator on [How it works](/sa-fungerar-det) to test your own assumptions before you set goals internally.",
           ],
         },
@@ -491,7 +491,7 @@ export const guideDefinitions: GuideDefinition[] = [
     relatedSlugs: [
       "sa-fungerar-roots",
       "foreningsforsaljning",
-      "jamfor-godisforsaljning",
+      "personlig-shop",
     ],
   },
   {
@@ -522,7 +522,7 @@ export const guideDefinitions: GuideDefinition[] = [
         {
           heading: "Vad kunden ser",
           paragraphs: [
-            "I shoppen finns Roots sortiment — bland annat [schampo](/produkter/shampoo), [balsam](/produkter/conditioner), [body wash](/produkter/body-wash) och [komplett paket](/produkter/paket). Aktuella priser syns alltid på produktsidorna och i shoppen.",
+            "I shoppen finns Roots sortiment — bland annat [schampo](/produkter/shampoo), [balsam](/produkter/conditioner), [body wash](/produkter/body-wash) och [Premiumpaket](/produkter/paket). Aktuella priser syns alltid på produktsidorna och i shoppen.",
             "Kunden får en tydlig checkout och leverans hem. Du som säljare behöver inte ta emot pengar eller packa ordrar.",
           ],
         },
@@ -578,7 +578,7 @@ export const guideDefinitions: GuideDefinition[] = [
         {
           heading: "What the customer sees",
           paragraphs: [
-            "The shop carries the Roots range — including [shampoo](/produkter/shampoo), [conditioner](/produkter/conditioner), [body wash](/produkter/body-wash) and the [Complete pack](/produkter/paket). Current prices always appear on the product pages and in the shop.",
+            "The shop carries the Roots range — including [shampoo](/produkter/shampoo), [conditioner](/produkter/conditioner), [body wash](/produkter/body-wash) and the [Premium pack](/produkter/paket). Current prices always appear on the product pages and in the shop.",
             "The customer gets a clear checkout and home delivery. As a seller you do not need to take money or pack orders.",
           ],
         },
@@ -763,143 +763,7 @@ export const guideDefinitions: GuideDefinition[] = [
     relatedSlugs: [
       "personlig-shop",
       "hur-mycket-tjanar-foreningen",
-      "jamfor-godisforsaljning",
-    ],
-  },
-  {
-    slug: "jamfor-godisforsaljning",
-    publishedAt: "2026-03-15",
-    updatedAt: "2026-08-01",
-    category: "forening",
-    heroImage: "/images/collection-2.jpg",
-    sv: {
-      title: "Godisförsäljning vs Roots — en ärlig jämförelse",
-      description:
-        "Traditionell godisförsäljning jämfört med digital försäljning av premium hårvård. Vad skiljer i tid, lager, image och intäkt?",
-      sections: [
-        {
-          heading: "Två sätt att samla in pengar",
-          paragraphs: [
-            "Många föreningar har växt upp med godislådor, kakburkar och dörrknackning. Det fungerar fortfarande i vissa miljöer — men det tar tid, kräver logistik och passar inte alla familjer.",
-            "Roots är ett alternativ där säljaren delar en länk eller QR, kunden beställer online och föreningen får sin andel. Jämförelsen nedan är till för att hjälpa er välja med öppna ögon.",
-          ],
-        },
-        {
-          heading: "Lager, tid och kontanter",
-          paragraphs: [
-            "Godis: någon måste beställa, lagra, bära hem, räkna och ofta hantera kontanter eller Swish manuellt. Roots: inget föreningslager hos säljaren, digital betalning, leverans till kunden.",
-            "Det frigör tid för träning och familjeliv — särskilt märkbart i lag med många småbarnsföräldrar.",
-          ],
-        },
-        {
-          heading: "Image och återköp",
-          paragraphs: [
-            "Godis är impuls. Hårvård är rutin. En förälder som gillar [Roots Schampoo](/produkter/shampoo) kan komma tillbaka nästa säsong. Det ger föreningen en mer långsiktig intäktskälla än en engångskampanj med påsar som tar slut.",
-            "Premiumpositionen gör också att fler vuxna i nätverket känner att köpet är relevant — inte bara en ”stötta laget”-plikt.",
-          ],
-        },
-        {
-          heading: "Intäkt och transparens",
-          paragraphs: [
-            "Med Roots gäller den tydliga 35 %-modellen för föreningen. Ni kan räkna innan ni sätter mål — se [Hur mycket tjänar föreningen?](/guider/hur-mycket-tjanar-foreningen) och [Så fungerar det](/sa-fungerar-det).",
-            "Godismarginaler varierar kraftigt mellan leverantörer. Oavsett modell: var öppna internt om vad som faktiskt landar i klubbkassan.",
-          ],
-        },
-        {
-          heading: "När godis fortfarande kan passa",
-          paragraphs: [
-            "Korta, lokala evenemang där folk förväntar sig något ätbart kan fortfarande fungera. Många klubbar kör hybrid: godis på matchdagen, Roots som säsongens huvudkampanj. Det viktiga är att välja medvetet — inte av vana.",
-            "Läs mer om föreningsmodellen under [Föreningsliv](/foreningsliv) eller [kontakta oss för en demo](/kontakt?intent=demo).",
-          ],
-        },
-        {
-          heading: "Välj efter er vardag, inte efter vana",
-          paragraphs: [
-            "Det finns ingen universell modell som passar alla lag. Ett litet lag med ett återkommande lokalt evenemang kan uppskatta den fysiska närvaron i traditionell försäljning, medan en större förening ofta vinner mycket på digital översikt och hemleverans. Jämför därför arbetsinsatsen lika noga som den möjliga intäkten.",
-            "Roots kan vara ett sätt att bredda föreningens verktyg utan att värdera ner det ni redan gör. När produkten känns relevant, flödet är enkelt och 35 %-andelen är tydlig blir det lättare för fler att vilja delta. Läs [vad föreningsförsäljning innebär](/guider/foreningsforsaljning) innan ni bestämmer nästa kampanj.",
-          ],
-        },
-      ],
-      faqs: [
-        {
-          question: "Måste vi sluta med godis helt?",
-          answer:
-            "Nej. Många kombinerar. Roots ersätter den tunga, lagerkrävande delen — inte nödvändigtvis varje fikabord.",
-        },
-        {
-          question: "Är Roots svårare att sälja till ungdomar?",
-          answer:
-            "Ungdomar säljer ofta till vuxna i sitt nätverk. Produkten riktar sig till vardagsrutinen hos den som faktiskt betalar — vilket ofta gör pitchen enklare.",
-        },
-      ],
-      cta: { href: "/foreningsliv", label: "Utforska föreningsliv" },
-    },
-    en: {
-      title: "Candy sales vs Roots — an honest comparison",
-      description:
-        "Traditional candy sales compared with digital sales of premium hair care. What differs in time, stock, image and revenue?",
-      sections: [
-        {
-          heading: "Two ways to raise money",
-          paragraphs: [
-            "Many clubs grew up with candy boxes, cake tins and door knocking. It still works in some settings — but it takes time, needs logistics and does not suit every family.",
-            "Roots is an alternative where the seller shares a link or QR, the customer orders online and the club gets its share. The comparison below is meant to help you choose with open eyes.",
-          ],
-        },
-        {
-          heading: "Stock, time and cash",
-          paragraphs: [
-            "Candy: someone must order, store, carry home, count and often handle cash or mobile payments manually. Roots: no club stock with the seller, digital payment, delivery to the customer.",
-            "That frees time for training and family life — especially noticeable in teams with many parents of young children.",
-          ],
-        },
-        {
-          heading: "Image and repeat purchases",
-          paragraphs: [
-            "Candy is impulse. Hair care is routine. A parent who likes [Roots Schampoo](/produkter/shampoo) may come back next season. That gives the club a more long-term revenue source than a one-off campaign with bags that run out.",
-            "The premium position also means more adults in the network feel the purchase is relevant — not only a “support the team” duty.",
-          ],
-        },
-        {
-          heading: "Revenue and transparency",
-          paragraphs: [
-            "With Roots the clear 35% model applies for the club. You can calculate before you set goals — see [How much does the club earn?](/guider/hur-mycket-tjanar-foreningen) and [How it works](/sa-fungerar-det).",
-            "Candy margins vary widely between suppliers. Whatever the model: be open internally about what actually lands in the club kitty.",
-          ],
-        },
-        {
-          heading: "When candy can still fit",
-          paragraphs: [
-            "Short, local events where people expect something edible can still work. Many clubs run a hybrid: candy on match day, Roots as the season's main campaign. The important thing is to choose deliberately — not out of habit.",
-            "Read more about the club model under [For clubs](/foreningsliv) or [contact us for a demo](/kontakt?intent=demo).",
-          ],
-        },
-        {
-          heading: "Choose for your everyday life, not out of habit",
-          paragraphs: [
-            "There is no universal model that suits every team. A small team with a recurring local event may appreciate the physical presence of traditional sales, while a larger club often gains a lot from digital overview and home delivery. Compare the effort as carefully as the possible revenue.",
-            "Roots can be a way to broaden the club's toolkit without dismissing what you already do. When the product feels relevant, the flow is simple and the 35% share is clear, more people want to take part. Read [what club fundraising means](/guider/foreningsforsaljning) before you decide on the next campaign.",
-          ],
-        },
-      ],
-      faqs: [
-        {
-          question: "Do we have to stop candy completely?",
-          answer:
-            "No. Many combine. Roots replaces the heavy, stock-heavy part — not necessarily every cake table.",
-        },
-        {
-          question: "Is Roots harder to sell to young people?",
-          answer:
-            "Young people often sell to adults in their network. The product speaks to the everyday routine of the person who actually pays — which often makes the pitch simpler.",
-        },
-      ],
-      cta: { href: "/foreningsliv", label: "Explore club fundraising" },
-    },
-    relatedSlugs: [
       "foreningsforsaljning",
-      "hur-mycket-tjanar-foreningen",
-      "tips-till-saljare",
     ],
   },
   {
@@ -937,7 +801,7 @@ export const guideDefinitions: GuideDefinition[] = [
         {
           heading: "Räkna på lagkassan",
           paragraphs: [
-            "Med 18 spelare/föräldrar som säljare och 1 500 kr i snitt per person landar bruttoförsäljningen på 27 000 kr. Föreningens andel på 35 % blir 9 450 kr — ofta ett meningsfullt bidrag till en cupresa.",
+            "Med 25 spelare/föräldrar som säljare och cirka 2 400 kr i snitt per person (6 Premiumpaket) landar bruttoförsäljningen på 60 000 kr. Föreningens andel på 35 % blir 21 000 kr — ofta ett meningsfullt bidrag till en cupresa.",
             "Testa egna tal i [räknesnurran](/sa-fungerar-det) och läs mer under [Föreningsliv](/foreningsliv).",
           ],
         },
@@ -993,7 +857,7 @@ export const guideDefinitions: GuideDefinition[] = [
         {
           heading: "Calculate the team fund",
           paragraphs: [
-            "With 18 players/parents as sellers and SEK 1,500 average per person, gross sales land at SEK 27,000. The club's 35% share becomes SEK 9,450 — often a meaningful contribution to a tournament trip.",
+            "With 25 players/parents as sellers and about SEK 2,400 average per person (6 Premium packs), gross sales land at SEK 60,000. The club's 35% share becomes SEK 21,000 — often a meaningful contribution to a tournament trip.",
             "Test your own numbers in the [calculator](/sa-fungerar-det) and read more under [For clubs](/foreningsliv).",
           ],
         },
@@ -1309,7 +1173,7 @@ export const guideDefinitions: GuideDefinition[] = [
         {
           heading: "Paket vs enstaka produkt",
           paragraphs: [
-            "Många som handlar via förening väljer [komplett paket](/produkter/paket) för att få samma språk genom hela duschen. Aktuellt pris ser du alltid på produktsidan — vi låser inte kampanjpriser i den här guiden.",
+            "Många som handlar via förening väljer [Premiumpaket](/produkter/paket) för att få samma språk genom hela duschen. Aktuellt pris ser du alltid på produktsidan — vi låser inte kampanjpriser i den här guiden.",
             "Välj mängd efter hårets längd och täthet, och koncentrera balsamet på längderna där det ofta gör mest nytta. En kort verkningstid medan du tvättar kroppen kan räcka för att göra steget enkelt att få in i vardagen.",
           ],
         },
@@ -1317,7 +1181,7 @@ export const guideDefinitions: GuideDefinition[] = [
           heading: "Följsamhet är en del av helheten",
           paragraphs: [
             "Hur håret känns efter duschen avgörs inte av en enda ingrediens. Tvättfrekvens, vattentemperatur, borstning och hur länge balsamet får verka spelar också roll. Beta Vulgaris och andra fuktstödjande ingredienser är därför en del av en genomtänkt kosmetisk formulering, inte ett löfte om samma resultat för alla.",
-            "Börja gärna enkelt och utvärdera rutinen över tid. Om längderna känns torra kan [Roots Conditioner](/produkter/conditioner) vara ett naturligt nästa steg efter schampo; om du vill samla rutinen finns [komplett paket](/produkter/paket). Se aktuellt pris på respektive produktsida.",
+            "Börja gärna enkelt och utvärdera rutinen över tid. Om längderna känns torra kan [Roots Conditioner](/produkter/conditioner) vara ett naturligt nästa steg efter schampo; om du vill samla rutinen finns [Premiumpaket](/produkter/paket). Se aktuellt pris på respektive produktsida.",
           ],
         },
       ],
@@ -1364,7 +1228,7 @@ export const guideDefinitions: GuideDefinition[] = [
         {
           heading: "Set vs single product",
           paragraphs: [
-            "Many who shop via club choose the [Complete pack](/produkter/paket) to get the same language through the whole shower. Current prices are always on the product page — we do not lock campaign prices in this guide.",
+            "Many who shop via club choose the [Premium pack](/produkter/paket) to get the same language through the whole shower. Current prices are always on the product page — we do not lock campaign prices in this guide.",
             "Choose amount by hair length and density, and concentrate conditioner on the lengths where it often helps most. A short leave-on time while you wash your body can be enough to make the step easy to fit into everyday life.",
           ],
         },
@@ -1372,7 +1236,7 @@ export const guideDefinitions: GuideDefinition[] = [
           heading: "Manageability is part of the whole",
           paragraphs: [
             "How hair feels after the shower is not decided by a single ingredient. Wash frequency, water temperature, brushing and how long conditioner is left on also matter. Beta Vulgaris and other moisture-supporting ingredients are therefore part of a considered cosmetic formula, not a promise of the same result for everyone.",
-            "Start simply and evaluate the routine over time. If lengths feel dry, [Roots Conditioner](/produkter/conditioner) can be a natural next step after shampoo; if you want to gather the routine there is the [Complete pack](/produkter/paket). See current prices on each product page.",
+            "Start simply and evaluate the routine over time. If lengths feel dry, [Roots Conditioner](/produkter/conditioner) can be a natural next step after shampoo; if you want to gather the routine there is the [Premium pack](/produkter/paket). See current prices on each product page.",
           ],
         },
       ],
@@ -1679,7 +1543,7 @@ export const guideDefinitions: GuideDefinition[] = [
         {
           heading: "Så väljer du i sortimentet",
           paragraphs: [
-            "Börja med [schampo](/produkter/shampoo) och [balsam](/produkter/conditioner), lägg till [body wash](/produkter/body-wash) om du vill ha samma språk på huden, eller ta [komplett paket](/produkter/paket). Priser uppdateras på produktsidorna.",
+            "Börja med [schampo](/produkter/shampoo) och [balsam](/produkter/conditioner), lägg till [body wash](/produkter/body-wash) om du vill ha samma språk på huden, eller ta [Premiumpaket](/produkter/paket). Priser uppdateras på produktsidorna.",
             "Nyfiken på ingredienserna? Fortsätt till [MultiMoist / Beta Vulgaris](/guider/multimoist).",
           ],
         },
@@ -1735,7 +1599,7 @@ export const guideDefinitions: GuideDefinition[] = [
         {
           heading: "How you choose in the range",
           paragraphs: [
-            "Start with [shampoo](/produkter/shampoo) and [conditioner](/produkter/conditioner), add [body wash](/produkter/body-wash) if you want the same language on the skin, or take the [Complete pack](/produkter/paket). Prices are updated on the product pages.",
+            "Start with [shampoo](/produkter/shampoo) and [conditioner](/produkter/conditioner), add [body wash](/produkter/body-wash) if you want the same language on the skin, or take the [Premium pack](/produkter/paket). Prices are updated on the product pages.",
             "Curious about the ingredients? Continue to [MultiMoist / Beta Vulgaris](/guider/multimoist).",
           ],
         },
@@ -1790,7 +1654,7 @@ export const guideDefinitions: GuideDefinition[] = [
           heading: "Tre steg i duschen",
           paragraphs: [
             "1) [Body wash](/produkter/body-wash) på kroppen — krämigt lödder, ingen känsla av uttorkning. 2) [Schampo](/produkter/shampoo) i hårbotten, massera kort, skölj. 3) [Balsam](/produkter/conditioner) på längderna om håret behöver det; botten behöver sällan lika mycket.",
-            "Aktuellt pris och storlekar syns på produktsidorna. Många lag säljer [komplett paket](/produkter/paket) just för den här rutinen.",
+            "Aktuellt pris och storlekar syns på produktsidorna. Många lag säljer [Premiumpaket](/produkter/paket) just för den här rutinen.",
           ],
         },
         {
@@ -1811,7 +1675,7 @@ export const guideDefinitions: GuideDefinition[] = [
           heading: "Gör rutinen möjlig även på trötta dagar",
           paragraphs: [
             "Efter ett sent träningspass är det sällan rätt tillfälle för en avancerad ritual. Förbered i stället väskan med det du använder och bestäm en enkel ordning som fungerar i hallens dusch. Det viktigaste är att du lämnar träningen ren och bekväm, utan att överbehandla hår eller hud.",
-            "På vilodagar kan samma produkter fortfarande vara en del av vardagen, men behovet kan se annorlunda ut. Anpassa mängd och frekvens efter din träning, ditt hår och din hud. För en sammanhållen rutin, utforska [Roots produkter](/produkter) eller [komplett paket](/produkter/paket).",
+            "På vilodagar kan samma produkter fortfarande vara en del av vardagen, men behovet kan se annorlunda ut. Anpassa mängd och frekvens efter din träning, ditt hår och din hud. För en sammanhållen rutin, utforska [Roots produkter](/produkter) eller [Premiumpaket](/produkter/paket).",
           ],
         },
       ],
@@ -1832,7 +1696,7 @@ export const guideDefinitions: GuideDefinition[] = [
             "Body wash är tänkt för kroppen. Ansiktet har ofta egna behov — använd det som passar din hud.",
         },
       ],
-      cta: { href: "/produkter/paket", label: "Se komplett paket" },
+      cta: { href: "/produkter/paket", label: "Se Premiumpaket" },
     },
     en: {
       title: "Hair and skin routine after training",
@@ -1850,7 +1714,7 @@ export const guideDefinitions: GuideDefinition[] = [
           heading: "Three steps in the shower",
           paragraphs: [
             "1) [Body wash](/produkter/body-wash) on the body — creamy lather, no stripped feel. 2) [Shampoo](/produkter/shampoo) on the scalp, massage briefly, rinse. 3) [Conditioner](/produkter/conditioner) on the lengths if hair needs it; the scalp rarely needs as much.",
-            "Current prices and sizes show on the product pages. Many teams sell the [Complete pack](/produkter/paket) exactly for this routine.",
+            "Current prices and sizes show on the product pages. Many teams sell the [Premium pack](/produkter/paket) exactly for this routine.",
           ],
         },
         {
@@ -1871,7 +1735,7 @@ export const guideDefinitions: GuideDefinition[] = [
           heading: "Make the routine possible even on tired days",
           paragraphs: [
             "After a late training session it is rarely the right time for an advanced ritual. Instead pack your bag with what you use and decide a simple order that works in the hall shower. The most important thing is that you leave training clean and comfortable, without over-treating hair or skin.",
-            "On rest days the same products can still be part of everyday life, but the need may look different. Adapt amount and frequency to your training, hair and skin. For a coherent routine, explore [Roots products](/produkter) or the [Complete pack](/produkter/paket).",
+            "On rest days the same products can still be part of everyday life, but the need may look different. Adapt amount and frequency to your training, hair and skin. For a coherent routine, explore [Roots products](/produkter) or the [Premium pack](/produkter/paket).",
           ],
         },
       ],
@@ -1892,7 +1756,7 @@ export const guideDefinitions: GuideDefinition[] = [
             "Body wash is intended for the body. The face often has its own needs — use what suits your skin.",
         },
       ],
-      cta: { href: "/produkter/paket", label: "See the Complete pack" },
+      cta: { href: "/produkter/paket", label: "See the Premium pack" },
     },
     relatedSlugs: [
       "for-fotbollslag",

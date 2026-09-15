@@ -121,8 +121,8 @@ function buildFallbackAnalysis(
     rootsProductRecommendation: {
       packageName: en ? "Roots Maintenance" : "Roots Underhåll",
       description: en
-        ? "The Roots Complete pack is a simple three-step routine for everyday maintenance."
-        : "Roots Complete Kit fungerar som en enkel trestegsrutin för dagligt underhåll.",
+        ? "The Roots Premium pack is a simple three-step routine for everyday maintenance."
+        : "Roots Premiumpaket fungerar som en enkel trestegsrutin för dagligt underhåll.",
     },
     disclaimer: en
       ? "Indicative information — does not replace professional care from a hairdresser or dermatologist."

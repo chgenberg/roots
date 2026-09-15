@@ -24,7 +24,7 @@ Aktuella priser finns alltid på produktsidorna. Vägledande sortiment:
 - Roots Schampoo (250 ml) — https://roots.se/produkter/shampoo
 - Roots Conditioner (250 ml) — https://roots.se/produkter/conditioner
 - Roots Body Wash (250 ml) — https://roots.se/produkter/body-wash
-- Roots Komplett / Premiumpaket — https://roots.se/produkter/paket
+- Roots Premiumpaket — https://roots.se/produkter/paket
 
 ## Viktiga URL:er
 
@@ -48,7 +48,6 @@ Aktuella priser finns alltid på produktsidorna. Vägledande sortiment:
 - https://roots.se/guider/hur-mycket-tjanar-foreningen
 - https://roots.se/guider/personlig-shop
 - https://roots.se/guider/tips-till-saljare
-- https://roots.se/guider/jamfor-godisforsaljning
 - https://roots.se/guider/for-fotbollslag
 - https://roots.se/guider/for-ishockeylag
 - https://roots.se/guider/syricalm

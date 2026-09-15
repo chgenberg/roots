@@ -6,6 +6,7 @@ Hållbart. Bara fakta som gäller över veckor. Aldrig hemligheter
 ## Hus
 
 - Namn: Roots (roots.nu). Insamling med schampoo. Klubbandel 35 %.
+- Paketet i UI heter Roots Premiumpaket (399 kr, tre flaskor). Inga Exclusive/Basic-SKU:er.
 - Vad agenten får göra själv: läsa kartan, lägga kort, larma, laga det
   som redan har en Hand med grind `none`.
 - Vad som alltid kräver ja: deploy, mejl med grind, pengar, allt irreversibelt.

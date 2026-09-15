@@ -642,7 +642,7 @@ export const portalPages = {
         "Skonsam kroppstvätt med SyriCalm® och Panthenol (B5)",
       descBundle:
         "Schampo, balsam och kroppstvätt tillsammans — 28 kr billigare än var för sig",
-      bundleName: "Roots Komplett paket",
+      bundleName: "Roots Premiumpaket",
     },
     en: {
       title: "Products",
@@ -665,7 +665,7 @@ export const portalPages = {
         "Gentle body wash with SyriCalm® and Panthenol (B5)",
       descBundle:
         "Shampoo, conditioner and body wash together — SEK 28 less than buying separately",
-      bundleName: "Roots Complete pack",
+      bundleName: "Roots Premium pack",
     },
   },
 

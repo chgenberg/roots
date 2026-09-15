@@ -145,7 +145,7 @@ export const hairAnalysis = {
       lifestyle: "Livsstilstips",
       nutrition: "Kost (allmänna råd)",
       packageLabel: "Rekommenderat paket",
-      packageFallback: "Roots Complete Kit",
+      packageFallback: "Roots Premiumpaket",
       seeProducts: "Se produkterna",
       bookCall: "Boka samtal",
       disclaimerFallback:
@@ -306,7 +306,7 @@ export const hairAnalysis = {
       lifestyle: "Lifestyle tips",
       nutrition: "Diet (general advice)",
       packageLabel: "Recommended pack",
-      packageFallback: "Roots Complete Kit",
+      packageFallback: "Roots Premium pack",
       seeProducts: "Browse products",
       bookCall: "Book a call",
       disclaimerFallback:

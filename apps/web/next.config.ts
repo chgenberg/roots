@@ -159,6 +159,20 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  async redirects() {
+    return [
+      {
+        source: "/guider/jamfor-godisforsaljning",
+        destination: "/guider/foreningsforsaljning",
+        permanent: true,
+      },
+      {
+        source: "/en/guider/jamfor-godisforsaljning",
+        destination: "/en/guider/foreningsforsaljning",
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

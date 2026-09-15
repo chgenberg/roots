@@ -113,8 +113,8 @@ export const home: Record<Locale, HomeCopy> = {
       ],
       bundle: {
         price: "399 kr",
-        label: "Komplett paket — alla tre",
-        alt: "Roots Komplett paket",
+        label: "Premiumpaket — alla tre",
+        alt: "Roots Premiumpaket",
       },
     },
     forClubs: {
@@ -221,8 +221,8 @@ export const home: Record<Locale, HomeCopy> = {
       ],
       bundle: {
         price: "SEK 399",
-        label: "Complete pack — all three",
-        alt: "Roots Complete pack",
+        label: "Premium pack — all three",
+        alt: "Roots Premium pack",
       },
     },
     forClubs: {

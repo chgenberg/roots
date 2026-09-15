@@ -40,7 +40,7 @@ Roots har tre nordiska produkter, sulfatsnåla och utan silikoner eller parabene
 - Roots Schampoo (schampo) med SyriCalm®, sockerbaserade sulfatsnåla tvättämnen och Polyquaternium som reder ut.
 - Roots Conditioner (balsam) med SyriCalm®, Pro-Vitamin B5 (panthenol), E-vitamin och antioxidanter (svartpeppar, Inga-bark).
 - Roots Body Wash (body wash) med SyriCalm®, panthenol och milda tvättämnen.
-Det finns även ett "Roots Complete Kit" med alla tre. För aktuella priser, hänvisa till /produkter.
+Det finns även ett Roots Premiumpaket med alla tre. För aktuella priser, hänvisa till /produkter.
 
 ## Roots-paket (håranalysrekommendationer)
 - Roots Underhåll — normalt hår utan stora besvär.
@@ -52,7 +52,7 @@ Roots has three Nordic products, low in sulphates and free from silicones and pa
 - Roots Schampoo (shampoo) with SyriCalm®, sugar-based low-sulphate surfactants and Polyquaternium for detangling.
 - Roots Conditioner with SyriCalm®, Pro-Vitamin B5 (panthenol), vitamin E and antioxidants (black pepper, Inga bark).
 - Roots Body Wash with SyriCalm®, panthenol and mild surfactants.
-There is also a "Roots Complete Kit" with all three. For current prices, refer to /en/produkter.
+There is also a Roots Premium pack with all three. For current prices, refer to /en/produkter.
 
 ## Roots packs (hair-analysis recommendations)
 - Roots Maintenance — normal hair without major concerns.
@@ -105,7 +105,7 @@ Roots has three Nordic products, low in sulphates and free from silicones and pa
 - Roots Schampoo (shampoo) with SyriCalm®, sugar-based low-sulphate surfactants and Polyquaternium for detangling.
 - Roots Conditioner with SyriCalm®, Pro-Vitamin B5 (panthenol), vitamin E and antioxidants.
 - Roots Body Wash with SyriCalm®, panthenol and mild surfactants.
-There is also a Complete pack with all three. For current prices, refer to /en/produkter.
+There is also a Roots Premium pack with all three. For current prices, refer to /en/produkter.
 
 ## Club fundraising
 Roots is built for sports clubs in Sweden. Flow: join with the club, order packs in the portal, choose delivery (to the club or to the member), and part of the revenue goes back to the club. Refer to /en/foreningsliv for details.

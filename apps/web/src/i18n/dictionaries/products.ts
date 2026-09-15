@@ -172,7 +172,7 @@ export const products: Record<
 
   paket: {
     sv: {
-      name: "Roots Komplett paket",
+      name: "Roots Premiumpaket",
       subtitle: "Paket — schampo, balsam & body wash",
       tagline: "Hela rutinen — schampo, balsam och kroppstvätt i ett paket",
       description:
@@ -195,7 +195,7 @@ export const products: Record<
       ui: { ...sharedUi.sv },
     },
     en: {
-      name: "Roots Complete pack",
+      name: "Roots Premium pack",
       subtitle: "Pack — shampoo, conditioner & body wash",
       tagline:
         "The full routine — shampoo, conditioner and body wash in one pack",
@@ -215,7 +215,7 @@ export const products: Record<
         { slug: "conditioner", label: "Roots Conditioner — 250 ml" },
         { slug: "body-wash", label: "Roots Body Wash — 250 ml" },
       ],
-      category: "Complete pack",
+      category: "Premium pack",
       ui: { ...sharedUi.en },
     },
   },

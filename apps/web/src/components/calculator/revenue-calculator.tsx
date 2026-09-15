@@ -151,7 +151,6 @@ interface RevenueCalculatorProps {
 
 export function RevenueCalculator({
   defaultInputs,
-  products,
   onChange,
   className,
 }: RevenueCalculatorProps) {
@@ -198,13 +197,6 @@ export function RevenueCalculator({
     set("avgPerSellerKr", Math.min(5_000, Math.round(orders * avg)));
   }
 
-  const avgProductKr =
-    products && products.length > 0
-      ? Math.round(
-          products.reduce((s, p) => s + p.priceOre, 0) / products.length / 100
-        )
-      : null;
-
   return (
     <div className={cn("grid gap-6 lg:grid-cols-5", className)}>
       <Card className="border-brand-100 lg:col-span-2">
@@ -249,14 +241,7 @@ export function RevenueCalculator({
                 locale={locale}
                 suffix={t.currencySuffix}
                 onChange={(v) => set("avgPerSellerKr", v)}
-                hint={
-                  avgProductKr
-                    ? tFill(t.packsApprox, {
-                        n: String(packagesApprox),
-                        price: String(avgProductKr),
-                      })
-                    : tFill(t.packsApproxDefault, { n: String(packagesApprox) })
-                }
+                hint={tFill(t.packsApproxDefault, { n: String(packagesApprox) })}
               />
               <PresetRow
                 label={t.quickPick}

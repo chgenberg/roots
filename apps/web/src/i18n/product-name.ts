@@ -11,7 +11,7 @@ const BY_SKU: Record<string, ProductSlug> = {
 
 /**
  * Display name for catalog products. Prefer slug/SKU; fall back to matching
- * known Swedish DB names (e.g. Roots Komplett paket) for English UI.
+ * known Swedish DB names (e.g. Roots Komplett paket) to Premium.
  */
 export function displayProductName(
   locale: Locale,
@@ -28,8 +28,8 @@ export function displayProductName(
   if (opts.sku && BY_SKU[opts.sku]) {
     return productDict[BY_SKU[opts.sku]][locale].name;
   }
-  if (locale === "en" && /komplett\s*paket/i.test(fallback)) {
-    return productDict.paket.en.name;
+  if (/komplett\s*paket/i.test(fallback)) {
+    return productDict.paket[locale].name;
   }
   return fallback;
 }
