@@ -34,15 +34,15 @@ function chatCopy(locale: string | undefined) {
       ? "You have sent too many messages. Please try again in a moment."
       : "Du har skickat för många meddelanden. Försök igen om en stund.",
     dailyCap: en
-      ? "Our AI assistant has reached today's capacity. Please try again after midnight."
-      : "Vår AI-assistent har nått dagens kapacitetstak. Försök igen efter midnatt.",
+      ? "The agent has reached today's capacity. Please try again after midnight."
+      : "Agenten har nått dagens kapacitetstak. Försök igen efter midnatt.",
     invalid: en ? "Invalid message." : "Ogiltigt meddelande.",
     tooLong: en
       ? `Messages may be at most ${MAX_MESSAGE_LENGTH} characters.`
       : `Meddelandet får vara max ${MAX_MESSAGE_LENGTH} tecken.`,
     fallback: en
-      ? "Our AI assistant is unavailable right now. Contact us at info@roots.nu and we will help you."
-      : "Vår AI-assistent är inte tillgänglig just nu. Kontakta oss på info@roots.nu så hjälper vi dig.",
+      ? "The agent is unavailable right now. Contact us at info@roots.nu and we will help you."
+      : "Agenten är inte tillgänglig just nu. Kontakta oss på info@roots.nu så hjälper vi dig.",
     streamError: en
       ? "Something went wrong. Please try again or contact info@roots.nu."
       : "Något gick fel. Försök igen eller kontakta info@roots.nu.",
@@ -50,8 +50,8 @@ function chatCopy(locale: string | undefined) {
       ? "Something went wrong. Please try again or contact us at info@roots.nu."
       : "Något gick fel. Försök igen eller kontakta oss på info@roots.nu.",
     disclaimer: en
-      ? "AI-generated reply — please verify important information"
-      : "AI-genererat svar — verifiera viktig information",
+      ? "Reply from the agent — please verify important information"
+      : "Svar från agenten — verifiera viktig information",
     claimsBlocked: en ? CLAIMS_BLOCKED_REPLY_EN : CLAIMS_BLOCKED_REPLY,
   };
 }

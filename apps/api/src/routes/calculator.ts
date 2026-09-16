@@ -60,11 +60,8 @@ function displayPublicLinkName(
   stored: string,
   locale: "sv" | "en"
 ): string {
-  if (
-    locale === "en" &&
-    (stored === PUBLIC_LINK_NAME_SV || stored === PUBLIC_LINK_NAME_EN)
-  ) {
-    return PUBLIC_LINK_NAME_EN;
+  if (stored === PUBLIC_LINK_NAME_SV || stored === PUBLIC_LINK_NAME_EN) {
+    return locale === "en" ? "your club" : "er förening";
   }
   return stored;
 }

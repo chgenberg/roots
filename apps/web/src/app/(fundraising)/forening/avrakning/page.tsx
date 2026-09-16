@@ -181,7 +181,7 @@ export default function SettlementPage() {
     activeOrEnded.find((c) => c.status === "ACTIVE") ||
     activeOrEnded.find((c) => c.status === "ENDED") ||
     activeOrEnded[0];
-  const marginPercent = campaign?.marginPercent || LOCKED_MARGIN_PERCENT;
+  const marginPercent = LOCKED_MARGIN_PERCENT;
   const totalSales = data?.stats?.totalSalesOre || 0;
   const teamShare = Math.round(totalSales * (marginPercent / 100));
   const rootsShare = totalSales - teamShare;
@@ -279,7 +279,7 @@ export default function SettlementPage() {
                       </Badge>
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {tFill(t.marginLabel, { n: c.marginPercent })}
+                      {tFill(t.marginLabel, { n: LOCKED_MARGIN_PERCENT })}
                       {c.endDate
                         ? ` · ${tFill(t.endDateLabel, { date: c.endDate })}`
                         : ""}

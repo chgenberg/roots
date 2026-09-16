@@ -1,8 +1,7 @@
 import type { MetadataRoute } from "next";
+import { resolveCanonicalSiteUrl } from "@roots/contracts";
 
-const BASE_URL = (
-  process.env.NEXT_PUBLIC_SITE_URL || "https://roots.se"
-).replace(/\/$/, "");
+const BASE_URL = resolveCanonicalSiteUrl();
 
 export default function robots(): MetadataRoute.Robots {
   return {

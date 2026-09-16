@@ -200,12 +200,6 @@ export function Header() {
               >
                 <User className="h-[18px] w-[18px] text-muted-foreground transition-colors duration-200 group-hover:text-foreground" />
               </Link>
-              <LocaleLink
-                href="/kontakt?intent=demo"
-                className="hidden h-10 items-center whitespace-nowrap rounded-full px-3 text-sm text-muted-foreground transition-colors duration-200 hover:bg-brand-50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring 2xl:flex"
-              >
-                {t.contactCta}
-              </LocaleLink>
               <LanguageSwitcher />
             </div>
 
@@ -275,7 +269,7 @@ export function Header() {
             <LocaleLink
               href="/sa-fungerar-det#rakna"
               onClick={() => setMenuOpen(false)}
-              className="flex items-center gap-2 rounded-md text-lg font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="inline-flex items-center gap-2 rounded-full bg-brand-700 px-4 py-2 text-sm font-medium text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {t.calcCta}
               <ArrowRight className="h-4 w-4" />

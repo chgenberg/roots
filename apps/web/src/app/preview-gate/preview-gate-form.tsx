@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ArrowRight, Check, Lock } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { GATE_PRIMARY_BTN } from "@/components/gate-room";
 import { preview } from "@/i18n/dictionaries/preview";
 import { useLocale } from "@/i18n/locale-context";
 
@@ -18,15 +19,11 @@ import { useLocale } from "@/i18n/locale-context";
 const FIELD_CLASS =
   // 16px text avoids iOS Safari's auto-zoom on focus; h-12 clears the
   // 44px minimum tap target.
-  "h-12 w-full rounded-xl border border-border bg-background px-4 text-base " +
+  "h-12 w-full min-w-0 rounded-xl border border-border bg-background px-4 text-base " +
   "transition-colors placeholder:text-muted-foreground/70 " +
   "focus:border-foreground focus:outline-none focus:ring-2 focus:ring-ring/20";
 
-const PRIMARY_BTN_CLASS =
-  "group inline-flex h-12 w-full items-center justify-center gap-2 rounded-full " +
-  "bg-inverse-surface px-6 text-[15px] font-medium text-inverse-on-surface " +
-  "transition-all hover:bg-inverse-surface-hover active:scale-[0.99] " +
-  "disabled:cursor-not-allowed disabled:opacity-60";
+const PRIMARY_BTN_CLASS = `group ${GATE_PRIMARY_BTN}`;
 
 /**
  * Where to send the visitor once they unlock.
@@ -145,7 +142,7 @@ function PasswordForm({ nextParam }: { nextParam: string | null }) {
           type="submit"
           disabled={loading}
           aria-label={t.unlockAria}
-          className="inline-flex h-12 shrink-0 items-center justify-center rounded-xl bg-inverse-surface px-4 text-inverse-on-surface transition-colors hover:bg-inverse-surface-hover disabled:opacity-60"
+          className="inline-flex h-12 shrink-0 items-center justify-center rounded-xl bg-brand-700 px-4 text-white transition-colors hover:bg-brand-800 disabled:opacity-60"
         >
           <ArrowRight className="h-4 w-4" aria-hidden />
         </button>
@@ -272,7 +269,7 @@ function WaitlistForm() {
         )}
       </button>
 
-      <p className="text-center text-xs leading-relaxed text-muted-foreground">
+      <p className="text-pretty text-center text-xs leading-relaxed text-muted-foreground">
         {t.privacyNote}
       </p>
     </form>

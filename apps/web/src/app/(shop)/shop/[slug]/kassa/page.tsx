@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -101,6 +101,11 @@ function CheckoutPageInner() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const paymentCancelled = searchParams.get("cancelled") === "1";
+  const idempotencyKeyRef = useRef(
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `checkout-${Date.now()}`
+  );
 
   // MASTERPLAN_01 KC4.1: hydra från sessionStorage när URL saknar
   // ?item_*. Tidigare visade kassan "tom varukorg" vid refresh /
@@ -190,10 +195,16 @@ function CheckoutPageInner() {
     try {
       // apiFetch attaches the CSRF token + credentials cookie so the API's
       // CSRF middleware in production accepts the POST.
-      const res = await apiFetch<{ checkoutUrl?: string; error?: string }>(
+      const res = await apiFetch<{
+        checkoutUrl?: string;
+        error?: string;
+        orderId?: string;
+        viewToken?: string;
+      }>(
         "/v1/checkout/create",
         {
           method: "POST",
+          headers: { "Idempotency-Key": idempotencyKeyRef.current },
           body: {
             sellerSlug: slug,
             customerName,
@@ -224,6 +235,16 @@ function CheckoutPageInner() {
       if (!checkoutUrl || !/^https?:\/\//i.test(checkoutUrl)) {
         setError(t.checkoutInitFailed);
         return;
+      }
+      if (res.data.orderId && res.data.viewToken) {
+        try {
+          sessionStorage.setItem(
+            `roots.orderView.${res.data.orderId}`,
+            res.data.viewToken
+          );
+        } catch {
+          /* private mode — Stripe-URL bär token */
+        }
       }
       window.location.href = checkoutUrl;
     } catch {

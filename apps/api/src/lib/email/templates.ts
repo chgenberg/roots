@@ -1,22 +1,18 @@
-import { vatOfGrossOre } from "@roots/contracts";
+import { vatOfGrossOre, resolveCanonicalSiteUrl } from "@roots/contracts";
 
 const BRAND_COLOR = "#1C1410";
 
 export type EmailLocale = "sv" | "en";
 
 function siteUrl(): string {
-  return (
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    process.env.SITE_URL ||
-    "https://roots.se"
-  );
+  return resolveCanonicalSiteUrl();
 }
 
 function siteHost(): string {
   try {
     return new URL(siteUrl()).host;
   } catch {
-    return "roots.se";
+    return "roots.nu";
   }
 }
 

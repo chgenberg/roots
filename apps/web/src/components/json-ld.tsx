@@ -1,5 +1,6 @@
 import { LEGAL_IDENTITY } from "@/lib/legal-identity";
 import type { Locale } from "@/i18n/config";
+import { resolveCanonicalSiteUrl } from "@roots/contracts";
 
 interface OrganizationLdProps {
   name?: string;
@@ -12,9 +13,7 @@ function schemaLanguage(locale: Locale = "sv"): string {
   return locale === "en" ? "en-GB" : "sv-SE";
 }
 
-const SITE_URL = (
-  process.env.NEXT_PUBLIC_SITE_URL || "https://roots.se"
-).replace(/\/$/, "");
+const SITE_URL = resolveCanonicalSiteUrl();
 
 const ORG_ID = `${SITE_URL}/#organization`;
 const WEBSITE_ID = `${SITE_URL}/#website`;

@@ -20,6 +20,7 @@ import {
 import { childLogger } from "../lib/logger";
 import { flags } from "../lib/flags";
 import { resolveUiLocale, type UiLocale } from "../lib/ui-locale";
+import type { PortalRole } from "@roots/contracts";
 
 const log = childLogger("ai-chat");
 
@@ -28,44 +29,56 @@ export const aiChat = new Hono();
 const COPY = {
   sv: {
     fallbacks: [
-      "Just nu är AI-assistenten inte tillgänglig. Kontakta oss på info@roots.nu så hjälper vi dig.",
-      "Vår AI-assistent är tillfälligt nedstängd. Du hittar vanliga frågor på vår hemsida, eller maila info@roots.nu.",
+      "Just nu är agenten inte tillgänglig. Kontakta oss på info@roots.nu så hjälper vi dig.",
+      "Agenten är tillfälligt nedstängd. Du hittar vanliga frågor på vår hemsida, eller maila info@roots.nu.",
     ],
-    disclaimer: "AI-genererat svar — verifiera viktig information",
+    disclaimer: "Svar från agenten — verifiera viktig information",
     notLoggedIn: "Inte inloggad.",
     sessionError: "Sessionsfel.",
     sessionExpired: "Sessionen har gått ut.",
+    notAllowed: "Den här chatten är bara för portalen.",
     rateLimited:
       "Du har skickat för många meddelanden. Försök igen om en stund.",
     dailyCap:
-      "AI-assistenten har nått dagens kapacitetstak. Försök igen efter midnatt.",
+      "Agenten har nått dagens kapacitetstak. Försök igen efter midnatt.",
     invalidMessage: "Ogiltigt meddelande.",
     messageMissingOrTooLong: "Meddelandet saknas eller är för långt.",
-    streamUnavailable: "AI tillfälligt otillgänglig.",
+    streamUnavailable: "Agenten tillfälligt otillgänglig.",
     claimsBlocked: CLAIMS_BLOCKED_REPLY,
   },
   en: {
     fallbacks: [
-      "The AI assistant is unavailable right now. Contact us at info@roots.nu and we will help you.",
-      "Our AI assistant is temporarily offline. You can find common questions on our website, or email info@roots.nu.",
+      "The agent is unavailable right now. Contact us at info@roots.nu and we will help you.",
+      "The agent is temporarily offline. You can find common questions on our website, or email info@roots.nu.",
     ],
-    disclaimer: "AI-generated reply — please verify important information",
+    disclaimer: "Reply from the agent — please verify important information",
     notLoggedIn: "Not signed in.",
     sessionError: "Session error.",
     sessionExpired: "Your session has expired.",
+    notAllowed: "This chat is only available in the portal.",
     rateLimited:
       "You have sent too many messages. Please try again in a moment.",
     dailyCap:
-      "The AI assistant has reached today's capacity. Please try again after midnight.",
+      "The agent has reached today's capacity. Please try again after midnight.",
     invalidMessage: "Invalid message.",
     messageMissingOrTooLong: "The message is missing or too long.",
-    streamUnavailable: "AI temporarily unavailable.",
+    streamUnavailable: "The agent is temporarily unavailable.",
     claimsBlocked: CLAIMS_BLOCKED_REPLY_EN,
   },
 } as const;
 
 function chatCopy(locale: UiLocale) {
   return COPY[locale];
+}
+
+function isPortalRole(role: string): role is PortalRole {
+  return (
+    role === "CLUB_ADMIN" ||
+    role === "CLUB_MEMBER" ||
+    role === "SALES_REP" ||
+    role === "SALES_ADMIN" ||
+    role === "INTERNAL_ADMIN"
+  );
 }
 
 function parseCookies(header: string): Record<string, string> {
@@ -129,6 +142,10 @@ aiChat.post("/chat", async (c) => {
   }
   if (!session) {
     return c.json({ error: copy.sessionExpired }, 401);
+  }
+
+  if (!isPortalRole(session.role)) {
+    return c.json({ error: copy.notAllowed }, 403);
   }
 
   const rateCheck = await aiRateLimit(session.userId);

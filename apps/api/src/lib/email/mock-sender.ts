@@ -12,7 +12,7 @@ export class MockEmailSender implements EmailSender {
       { to: message.to, subject: message.subject },
       `→ ${message.to} | ${message.subject} | ${message.html.slice(0, 80)}…`
     );
-    return { success: true, id: `mock_${Date.now()}` };
+    return { success: true, id: `mock_${Date.now()}`, mocked: true };
   }
 
   getSentEmails(): EmailMessage[] {

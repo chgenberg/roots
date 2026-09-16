@@ -18,6 +18,7 @@ import {
   type ProductSlug,
 } from "@/i18n/get-dictionary";
 import { getRequestLocale } from "@/i18n/request-locale";
+import { resolveCanonicalSiteUrl } from "@roots/contracts";
 import { withLocale } from "@/i18n/paths";
 
 const SKU_BY_SLUG: Record<ProductSlug, string> = {
@@ -159,9 +160,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
         : item.label,
   }));
 
-  const siteUrl = (
-    process.env.NEXT_PUBLIC_SITE_URL || "https://roots.se"
-  ).replace(/\/$/, "");
+  const siteUrl = resolveCanonicalSiteUrl();
   const productUrl = `${siteUrl}${withLocale(`/produkter/${slug}`, locale)}`;
 
   const includes =

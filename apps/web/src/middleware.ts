@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { isReviewerEmail, REVIEWER_HOME } from "@roots/contracts";
+import {
+  isReviewerEmail,
+  REVIEWER_HOME,
+  PREVIEW_COOKIE_NAME,
+  PREVIEW_TOKEN_HEX_LENGTH,
+  PREVIEW_TOKEN_PREFIX,
+} from "@roots/contracts";
 import { HAIR_ANALYSIS_ENABLED } from "@/lib/feature-flags";
 import { LOCALE_HEADER } from "@/i18n/request-locale";
 import {
@@ -26,6 +32,12 @@ const PROTECTED_ROUTES: Record<string, string[]> = {
   "/forening": ["ASSOCIATION_ADMIN", "INTERNAL_ADMIN"],
   "/lag": ["TEAM_LEADER", "ASSOCIATION_ADMIN", "INTERNAL_ADMIN"],
   "/min-shop": ["SELLER", "TEAM_LEADER", "ASSOCIATION_ADMIN", "INTERNAL_ADMIN"],
+  "/installningar": [
+    "SELLER",
+    "TEAM_LEADER",
+    "ASSOCIATION_ADMIN",
+    "INTERNAL_ADMIN",
+  ],
   // MASTERPLAN_01 KC2.2: /portal/* gate:ades tidigare bara client-side
   // via PortalUserProvider. En oinloggad besökare kunde se laddande
   // skelett-UI tills /me failade. En SELLER kunde navigera till
@@ -93,6 +105,8 @@ const GATE_BYPASS_PREFIXES = [
   "/integritet",
   "/villkor",
   "/feedback",
+  // GDPR-länk i utskick: avbryt radering måste nås utan preview-lösen.
+  "/konto",
   "/api",
   "/trpc",
   "/_next",
@@ -112,13 +126,9 @@ const GATE_BYPASS_PREFIXES = [
   "/readyz",
 ];
 
-const PREVIEW_COOKIE_NAME = "roots_preview";
-
 // Web Crypto deterministic token — must produce the same string as
-// apps/api/src/lib/preview-gate.ts. Sync-only flavour using the
-// SubtleCrypto API which is available on both the Edge and Node
-// runtimes; result is cached at module load to avoid recomputing on
-// every request.
+// apps/api/src/lib/preview-gate.ts. Prefix and length come from
+// @roots/contracts. SubtleCrypto so Edge och Node räknar lika.
 //
 // P1.7 (audit 2026-05-26): returnerar `null` när SITE_PREVIEW_PASSWORD
 // saknas så middleware:n kan ta säkert beslut. Tidigare defaultade vi
@@ -127,12 +137,12 @@ const PREVIEW_COOKIE_NAME = "roots_preview";
 async function computePreviewToken(): Promise<string | null> {
   const password = process.env.SITE_PREVIEW_PASSWORD?.trim();
   if (!password) return null;
-  const data = new TextEncoder().encode(`roots-preview-v1:${password}`);
+  const data = new TextEncoder().encode(`${PREVIEW_TOKEN_PREFIX}${password}`);
   const hash = await crypto.subtle.digest("SHA-256", data);
   return Array.from(new Uint8Array(hash))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("")
-    .slice(0, 40);
+    .slice(0, PREVIEW_TOKEN_HEX_LENGTH);
 }
 
 let cachedPreviewToken: string | null = null;

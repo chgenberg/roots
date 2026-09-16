@@ -12,6 +12,8 @@ export interface SendEmailResult {
   success: boolean;
   id?: string;
   error?: string;
+  /** Mock-provider — inget mejl lämnade huset. */
+  mocked?: boolean;
 }
 
 export interface EmailSender {

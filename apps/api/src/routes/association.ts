@@ -19,6 +19,7 @@ import { eq, and, sql, gt, isNull, inArray } from "drizzle-orm";
 import {
   LOCKED_MARGIN_PERCENT,
   REVENUE_ORDER_STATUSES,
+  resolveCanonicalSiteUrl,
 } from "@roots/contracts";
 import { isOrgApprovedForPublicSales } from "../lib/org-approval";
 import { hash } from "@node-rs/argon2";
@@ -40,7 +41,7 @@ import { teamInviteResendRateLimit } from "../lib/rate-limit";
 import { validatePassword } from "./auth";
 import { childLogger } from "../lib/logger";
 import { setCookie } from "hono/cookie";
-import { getEmailSender } from "../lib/email";
+import { getEmailSender, isRealEmailSend } from "../lib/email";
 import {
   teamLeaderInviteEmail,
   teamLeaderClaimedEmail,
@@ -52,12 +53,7 @@ import {
   localizeDemoOrgName,
   localizeDemoTeamName,
 } from "../lib/demo-i18n";
-
-const SITE_URL = (
-  process.env.NEXT_PUBLIC_SITE_URL ||
-  process.env.SITE_URL ||
-  "https://roots.se"
-).replace(/\/$/, "");
+const SITE_URL = resolveCanonicalSiteUrl();
 
 const log = childLogger("association");
 
@@ -470,30 +466,26 @@ association.post("/team-invites", async (c) => {
 
         const inviteUrl = `${SITE_URL}${withLocalePath(`/registrera/lagansvarig/${invite.token}`, locale)}`;
 
-        void getEmailSender()
-          .sendEmail({
-            to: invitedEmail,
-            ...teamLeaderInviteEmail({
-              inviterName,
-              orgName: localizeDemoOrgName(
-                locale,
-                org?.name ?? (locale === "en" ? "the club" : "föreningen")
-              ),
-              campaignName: localizeDemoCampaignName(
-                locale,
-                campaign.name,
-                campaign.slug
-              ),
-              teamName: localizeDemoTeamName(locale, invite.teamName),
-              inviteUrl,
-              expiresAt: invite.expiresAt,
+        const result = await getEmailSender().sendEmail({
+          to: invitedEmail,
+          ...teamLeaderInviteEmail({
+            inviterName,
+            orgName: localizeDemoOrgName(
               locale,
-            }),
-          })
-          .catch((err) =>
-            log.error({ err, inviteId: invite.id }, "team-leader invite email failed")
-          );
-        emailSent = true;
+              org?.name ?? (locale === "en" ? "the club" : "föreningen")
+            ),
+            campaignName: localizeDemoCampaignName(
+              locale,
+              campaign.name,
+              campaign.slug
+            ),
+            teamName: localizeDemoTeamName(locale, invite.teamName),
+            inviteUrl,
+            expiresAt: invite.expiresAt,
+            locale,
+          }),
+        });
+        emailSent = isRealEmailSend(result);
       } catch (err) {
         log.warn({ err, inviteId: invite.id }, "team-leader invite email prep failed");
       }
@@ -919,32 +911,32 @@ association.post("/team-invites/:id/resend", async (c) => {
         .where(eq(teamInvites.id, invite.id));
     }
 
-    void getEmailSender()
-      .sendEmail({
-        to: targetEmail,
-        ...teamLeaderInviteEmail({
-          inviterName,
-          orgName: localizeDemoOrgName(
-            locale,
-            org?.name ?? (locale === "en" ? "the club" : "föreningen")
-          ),
-          campaignName: localizeDemoCampaignName(
-            locale,
-            campaign?.name ??
-              (locale === "en" ? "the campaign" : "kampanjen")
-          ),
-          teamName: localizeDemoTeamName(locale, invite.teamName),
-          inviteUrl,
-          expiresAt: invite.expiresAt,
+    const result = await getEmailSender().sendEmail({
+      to: targetEmail,
+      ...teamLeaderInviteEmail({
+        inviterName,
+        orgName: localizeDemoOrgName(
           locale,
-        }),
-      })
-      .catch((err) =>
-        log.error(
-          { err, inviteId: invite.id },
-          "team-leader invite resend email failed"
-        )
+          org?.name ?? (locale === "en" ? "the club" : "föreningen")
+        ),
+        campaignName: localizeDemoCampaignName(
+          locale,
+          campaign?.name ??
+            (locale === "en" ? "the campaign" : "kampanjen")
+        ),
+        teamName: localizeDemoTeamName(locale, invite.teamName),
+        inviteUrl,
+        expiresAt: invite.expiresAt,
+        locale,
+      }),
+    });
+    const emailSent = isRealEmailSend(result);
+    if (!emailSent) {
+      log.error(
+        { inviteId: invite.id, error: result?.error },
+        "team-leader invite resend email failed"
       );
+    }
 
     void auditLog({
       userId: session.userId,
@@ -958,7 +950,7 @@ association.post("/team-invites/:id/resend", async (c) => {
       },
     });
 
-    return c.json({ ok: true, sentTo: targetEmail });
+    return c.json({ ok: true, sentTo: targetEmail, emailSent });
   } catch (err) {
     log.error({ err }, "team invite resend failed");
     return c.json({ error: uiError(locale, "couldNotSendInvite") }, 500);

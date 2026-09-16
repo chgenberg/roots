@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { eq, and, sql, isNull, inArray } from "drizzle-orm";
-import { REVENUE_ORDER_STATUSES } from "@roots/contracts";
+import { LOCKED_MARGIN_PERCENT, REVENUE_ORDER_STATUSES } from "@roots/contracts";
 import { db } from "@roots/db";
 import {
   campaigns,
@@ -139,7 +139,7 @@ settlement.post("/generate/:campaignId", async (c) => {
         const salesResult = await tx
           .select({
             total: sql<number>`COALESCE(SUM(${customerOrders.totalOre}), 0)`,
-            teamShare: sql<number>`COALESCE(SUM(ROUND(${customerOrders.totalOre} * COALESCE(${customerOrders.marginPercentAtSale}, ${campaign.marginPercent})::numeric / 100)), 0)`,
+            teamShare: sql<number>`COALESCE(SUM(ROUND(${customerOrders.totalOre} * COALESCE(${customerOrders.marginPercentAtSale}, ${LOCKED_MARGIN_PERCENT})::numeric / 100)), 0)`,
           })
           .from(customerOrders)
           .where(
@@ -401,7 +401,7 @@ settlement.get("/by-campaign/:campaignId", async (c) => {
         id: campaign.id,
         name: campaign.name,
         status: campaign.status,
-        marginPercent: campaign.marginPercent,
+        marginPercent: LOCKED_MARGIN_PERCENT,
       },
       payouts: payoutList.map((p) => ({
         id: p.id,

@@ -4,11 +4,10 @@ import { OrganizationJsonLd, SiteJsonLd } from "@/components/json-ld";
 import { Providers } from "./providers";
 import { inter, alanSans } from "@/lib/fonts";
 import { getRequestLocale } from "@/i18n/request-locale";
+import { resolveCanonicalSiteUrl } from "@roots/contracts";
 import "./globals.css";
 
-const siteUrl = (
-  process.env.NEXT_PUBLIC_SITE_URL || "https://roots.se"
-).replace(/\/$/, "");
+const siteUrl = resolveCanonicalSiteUrl();
 
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await getRequestLocale();

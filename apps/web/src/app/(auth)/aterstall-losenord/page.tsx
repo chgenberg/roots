@@ -17,7 +17,9 @@ import { Separator } from "@/components/ui/separator";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { LocaleLink } from "@/components/locale-link";
+import { GATE_CARD, GATE_PRIMARY_BTN, GateWordmark } from "@/components/gate-room";
 import { auth } from "@/i18n/dictionaries/auth";
+import { cn } from "@/lib/utils";
 import { tFill } from "@/i18n/format";
 import { useLocale } from "@/i18n/locale-context";
 
@@ -35,9 +37,10 @@ function Skeleton() {
   const { locale } = useLocale();
   const t = auth.reset[locale];
   return (
-    <Card className="w-full max-w-md shadow-lg">
+    <Card className={cn(GATE_CARD, "mx-auto max-w-md")}>
       <CardHeader className="text-center">
-        <CardTitle className="text-2xl">{t.title}</CardTitle>
+        <GateWordmark href="/" ariaLabel={auth.layout[locale].ariaHome} />
+        <CardTitle className="mt-6 text-2xl">{t.title}</CardTitle>
       </CardHeader>
       <CardContent>
         <div
@@ -94,9 +97,10 @@ function ResetPasswordInner() {
 
   if (!token) {
     return (
-      <Card className="w-full max-w-md shadow-lg">
+      <Card className={cn(GATE_CARD, "mx-auto max-w-md")}>
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">{t.missingTitle}</CardTitle>
+          <GateWordmark href="/" ariaLabel={auth.layout[locale].ariaHome} />
+          <CardTitle className="mt-6 text-2xl">{t.missingTitle}</CardTitle>
           <CardDescription>{t.missingDescription}</CardDescription>
         </CardHeader>
         <CardFooter className="justify-center pt-2 text-sm">
@@ -113,10 +117,11 @@ function ResetPasswordInner() {
 
   if (done) {
     return (
-      <Card className="w-full max-w-md shadow-lg">
+      <Card className={cn(GATE_CARD, "mx-auto max-w-md")}>
         <CardHeader className="text-center">
+          <GateWordmark href="/" ariaLabel={auth.layout[locale].ariaHome} />
           <CheckCircle2
-            className="mx-auto mb-2 h-8 w-8 text-muted-foreground"
+            className="mx-auto mb-2 mt-6 h-8 w-8 text-muted-foreground"
             aria-hidden="true"
           />
           <CardTitle className="text-2xl">{t.doneTitle}</CardTitle>
@@ -135,9 +140,10 @@ function ResetPasswordInner() {
   }
 
   return (
-    <Card className="w-full max-w-md shadow-lg">
+    <Card className={cn(GATE_CARD, "mx-auto max-w-md")}>
       <CardHeader className="text-center">
-        <CardTitle className="text-2xl">{t.title}</CardTitle>
+        <GateWordmark href="/" ariaLabel={auth.layout[locale].ariaHome} />
+        <CardTitle className="mt-6 text-2xl">{t.title}</CardTitle>
         <CardDescription>
           {tFill(t.description, { minLength: MIN_LENGTH })}
         </CardDescription>
@@ -173,7 +179,7 @@ function ResetPasswordInner() {
             </p>
           )}
 
-          <Button type="submit" className="w-full" disabled={loading}>
+          <Button type="submit" className={GATE_PRIMARY_BTN} disabled={loading}>
             {loading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

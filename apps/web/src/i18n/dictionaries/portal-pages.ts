@@ -671,7 +671,7 @@ export const portalPages = {
 
   ai: {
     sv: {
-      title: "Agenten",
+      title: "Chatt",
       subtitle: "Fråga om vad som helst relaterat till Roots",
       newConversation: "Ny konversation",
       conversationAria: "Konversation med agenten",
@@ -727,11 +727,11 @@ export const portalPages = {
       suggestionsAdmin: [
         "Vilka KPI:er ska jag titta på idag?",
         "Systemstatus — kort sammanfattning",
-        "Trender i håranalyskonvertering",
+        "Vad bör jag kolla i systemet idag?",
       ],
     },
     en: {
-      title: "The agent",
+      title: "Chat",
       subtitle: "Ask anything related to Roots",
       newConversation: "New conversation",
       conversationAria: "Conversation with the agent",
@@ -787,7 +787,7 @@ export const portalPages = {
       suggestionsAdmin: [
         "Which KPIs should I look at today?",
         "System status — short summary",
-        "Trends in hair analysis conversion",
+        "What should I check in the system today?",
       ],
     },
   },

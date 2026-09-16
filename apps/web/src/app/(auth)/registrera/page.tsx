@@ -24,7 +24,9 @@ import {
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { LocaleLink } from "@/components/locale-link";
+import { GATE_CARD, GATE_PRIMARY_BTN, GateWordmark } from "@/components/gate-room";
 import { auth } from "@/i18n/dictionaries/auth";
+import { cn } from "@/lib/utils";
 import { tFill } from "@/i18n/format";
 import { useLocale } from "@/i18n/locale-context";
 
@@ -128,8 +130,9 @@ export default function RegisterPage() {
 
   if (success) {
     return (
-      <Card className="w-full max-w-md shadow-lg">
+      <Card className={cn(GATE_CARD, "mx-auto max-w-md")}>
         <CardContent className="flex flex-col items-center gap-4 py-12">
+          <GateWordmark href="/" ariaLabel={auth.layout[locale].ariaHome} />
           <CheckCircle2 className="h-12 w-12 text-success" />
           <h2 className="text-xl font-semibold">{t.successTitle}</h2>
           <p className="text-sm text-muted-foreground text-center">
@@ -142,29 +145,33 @@ export default function RegisterPage() {
 
   if (!type) {
     return (
-      <Card className="w-full max-w-lg shadow-lg">
+      <Card className={cn(GATE_CARD, "mx-auto max-w-lg")}>
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">{t.chooserTitle}</CardTitle>
+          <GateWordmark href="/" ariaLabel={auth.layout[locale].ariaHome} />
+          <CardTitle className="mt-6 text-2xl">{t.chooserTitle}</CardTitle>
           <CardDescription>{t.chooserDescription}</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-4">
           <button
             onClick={() => {
               setType("association");
               setStep(1);
             }}
-            className="flex w-full items-center gap-4 rounded-xl border border-border p-5 text-left transition-all hover:border-brand-400 hover:bg-brand-50/50 hover:shadow-sm"
+            className="flex w-full items-start gap-4 rounded-2xl border-2 border-brand-700/20 bg-brand-50 p-6 text-left transition-all hover:border-brand-700/40 hover:shadow-sm"
           >
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-100">
-              <Building2 className="h-6 w-6 text-brand-700" />
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-brand-700 text-white">
+              <Building2 className="h-7 w-7" />
             </div>
-            <div className="flex-1">
-              <p className="font-semibold">{t.clubTitle}</p>
-              <p className="text-sm text-muted-foreground">
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-brand-700">
+                {t.clubRecommended}
+              </p>
+              <p className="mt-1 text-lg font-semibold">{t.clubTitle}</p>
+              <p className="mt-1 text-pretty text-sm leading-relaxed text-muted-foreground">
                 {t.clubDescription}
               </p>
             </div>
-            <ArrowRight className="h-5 w-5 text-muted-foreground" />
+            <ArrowRight className="mt-1 h-5 w-5 shrink-0 text-brand-700" />
           </button>
 
           <button
@@ -172,19 +179,23 @@ export default function RegisterPage() {
               setType("team");
               setStep(1);
             }}
-            className="flex w-full items-center gap-4 rounded-xl border border-border p-5 text-left transition-all hover:border-brand-400 hover:bg-brand-50/50 hover:shadow-sm"
+            className="flex w-full items-center gap-3 rounded-xl border border-border px-4 py-3.5 text-left transition-all hover:border-brand-400 hover:bg-brand-50/40"
           >
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-100">
-              <Users className="h-6 w-6 text-brand-700" />
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-100">
+              <Users className="h-4 w-4 text-brand-700" />
             </div>
-            <div className="flex-1">
-              <p className="font-semibold">{t.teamTitle}</p>
-              <p className="text-sm text-muted-foreground">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium">{t.teamTitle}</p>
+              <p className="text-pretty text-xs leading-relaxed text-muted-foreground">
                 {t.teamDescription}
               </p>
             </div>
-            <ArrowRight className="h-5 w-5 text-muted-foreground" />
+            <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />
           </button>
+
+          <p className="text-pretty text-center text-xs leading-relaxed text-muted-foreground">
+            {t.chooserHint}
+          </p>
         </CardContent>
         <Separator />
         <CardFooter className="justify-center pt-6 text-sm text-muted-foreground">
@@ -203,9 +214,10 @@ export default function RegisterPage() {
   const totalSteps = type === "association" ? 3 : 3;
 
   return (
-    <Card className="w-full max-w-lg shadow-lg">
+    <Card className={cn(GATE_CARD, "mx-auto max-w-lg")}>
       <CardHeader>
-        <div className="flex items-center justify-between">
+        <GateWordmark href="/" ariaLabel={auth.layout[locale].ariaHome} />
+        <div className="mt-6 flex items-center justify-between">
           <button
             onClick={() => {
               if (step === 1) {
@@ -297,7 +309,7 @@ export default function RegisterPage() {
               />
             </div>
             <Button
-              className="w-full"
+              className={GATE_PRIMARY_BTN}
               disabled={!orgName}
               onClick={() => setStep(2)}
             >
@@ -331,7 +343,7 @@ export default function RegisterPage() {
               <p className="text-xs text-muted-foreground">{t.existingClubNote}</p>
             </div>
             <Button
-              className="w-full"
+              className={GATE_PRIMARY_BTN}
               disabled={!teamName.trim() || !newOrgName.trim()}
               onClick={() => setStep(2)}
             >
@@ -407,7 +419,7 @@ export default function RegisterPage() {
               </div>
             </div>
             <Button
-              className="w-full"
+              className={GATE_PRIMARY_BTN}
               disabled={!contactName}
               onClick={() => setStep(3)}
             >
@@ -446,7 +458,7 @@ export default function RegisterPage() {
               <p className="text-xs text-muted-foreground">{t.passwordHint}</p>
             </div>
             <Button
-              className="w-full"
+              className={GATE_PRIMARY_BTN}
               disabled={
                 loading || !email || password.length < MIN_PASSWORD_LENGTH
               }

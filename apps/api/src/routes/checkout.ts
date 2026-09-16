@@ -39,7 +39,10 @@ import {
   VAT_RATE_BASIS_POINTS,
   vatOfGrossOre,
   TERMS_VERSION,
+  LOCKED_MARGIN_PERCENT,
+  resolveCanonicalSiteUrl,
 } from "@roots/contracts";
+import { isEmailPaused } from "../lib/orchestrator/probes";
 import { stockholmDateIso } from "../lib/date";
 import { wasWebhookEventSeen, clearWebhookEventSeen } from "../lib/webhook-dedup";
 import {
@@ -53,12 +56,7 @@ const log = childLogger("checkout");
 
 export const checkout = new Hono();
 
-const SITE_URL = (
-  process.env.NEXT_PUBLIC_SITE_URL ||
-  (process.env.NODE_ENV === "production"
-    ? "https://roots.nu"
-    : "http://localhost:3004")
-).replace(/\/$/, "");
+const SITE_URL = resolveCanonicalSiteUrl();
 
 /**
  * MASTERPLAN_01 KC1.7 + P2.17 (audit 2026-05-26): order-confirmation
@@ -84,6 +82,10 @@ async function sendOrderConfirmationIfNeeded(
   if (!order || !order.customerEmail) return;
   if (order.status !== "PAID" && order.status !== "CONFIRMED") return;
   if (order.confirmationEmailSentAt) return;
+  if (isEmailPaused()) {
+    log.info({ orderId }, "Order confirmation skipped — email paused");
+    return;
+  }
 
   // P2.17: atomisk "ta first dibs på mailet". Det är OK att vi sätter
   // sent_at innan mailet faktiskt går iväg — alternativet (sätt efter)
@@ -732,7 +734,7 @@ checkout.post("/create", async (c) => {
             totalOre,
             shippingOre,
             countsTowardStats,
-            marginPercentAtSale: campaign.marginPercent,
+            marginPercentAtSale: LOCKED_MARGIN_PERCENT,
             termsAcceptedAt: new Date(),
             termsVersion: TERMS_VERSION,
             note: note ? String(note).trim() : null,
@@ -814,7 +816,7 @@ checkout.post("/create", async (c) => {
           quantity: line.quantity,
           unitAmountOre: line.unit_price,
         })),
-        successUrl: `${SITE_URL}${localePrefix}/shop/${sellerSlug}/bekraftelse?order_id=${order.id}&session_id={CHECKOUT_SESSION_ID}`,
+        successUrl: `${SITE_URL}${localePrefix}/shop/${sellerSlug}/bekraftelse?order_id=${order.id}&t=${encodeURIComponent(issueOrderViewToken(order.id))}&session_id={CHECKOUT_SESSION_ID}`,
         cancelUrl: `${SITE_URL}${localePrefix}/shop/${sellerSlug}/kassa?cancelled=1`,
         metadata: {
           sellerId: seller.id,
@@ -1004,6 +1006,17 @@ checkout.post("/webhook/stripe", async (c) => {
 checkout.get("/confirm/:orderId", async (c) => {
   const orderId = c.req.param("orderId");
   const locale = resolveUiLocale(c);
+  const token = c.req.query("t");
+
+  // Samma grind som /order-status. Utan token kunde UUID:n ensam
+  // flytta PENDING → PAID och ge ut en viewToken.
+  if (!verifyOrderViewToken(orderId, token)) {
+    log.warn(
+      { orderId, hasToken: Boolean(token) },
+      "confirm rejected: invalid token"
+    );
+    return c.json({ error: uiError(locale, "invalidOrExpiredLink") }, 401);
+  }
 
   try {
     const [order] = await db

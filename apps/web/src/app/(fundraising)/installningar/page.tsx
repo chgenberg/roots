@@ -53,6 +53,8 @@ import {
   Loader2,
 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { LanguageSwitcher } from "@/components/language-switcher";
 import { apiFetch, rootsFetch } from "@/lib/api";
 import { getBrowserApiBase } from "@/lib/api-base";
 import { getPublicSiteUrl } from "@/lib/site-url";
@@ -336,6 +338,31 @@ export default function InstallningarPage() {
                 <Building2 className="h-4 w-4 text-muted-foreground" />
                 {me.orgName || "—"}
               </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">{t.appearance}</CardTitle>
+          <CardDescription>{t.appearanceDesc}</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap items-center gap-6">
+          <div>
+            <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+              {t.language}
+            </Label>
+            <div className="mt-2">
+              <LanguageSwitcher />
+            </div>
+          </div>
+          <div>
+            <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+              {t.theme}
+            </Label>
+            <div className="mt-2">
+              <ThemeToggle />
             </div>
           </div>
         </CardContent>

@@ -36,6 +36,7 @@ import { apiFetch, rootsFetch } from "@/lib/api";
 import type { AssociationDashboard as AssociationDashboardData, Campaign } from "@/types/fundraising";
 import { getBrowserApiBase } from "@/lib/api-base";
 import { formatKr, formatKrValue, pluralSv } from "@/lib/format";
+import { ForestHero, forestHeroActionClassName } from "@/components/forest-hero";
 import { LOCKED_MARGIN_PERCENT } from "@roots/contracts";
 
 const API_URL = getBrowserApiBase();
@@ -220,6 +221,14 @@ function AssociationDashboardInner() {
   const sortedTeams = [...teams].sort(
     (a, b) => b.totalSalesOre - a.totalSalesOre
   );
+  const clubShareOre = Math.round(
+    (totalSales * LOCKED_MARGIN_PERCENT) / 100
+  );
+  const nextStep = !activeCampaign
+    ? "campaign"
+    : teams.length === 0
+      ? "teams"
+      : "settlement";
 
   return (
     <div className="page-enter space-y-6">
@@ -236,11 +245,49 @@ function AssociationDashboardInner() {
               : t.noActiveCampaign}
           </p>
         </div>
-        <Button onClick={() => setCampaignDialogOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          {activeCampaign ? t.newCampaign : t.startCampaign}
-        </Button>
+        {activeCampaign ? (
+          <Button variant="outline" onClick={() => setCampaignDialogOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            {t.newCampaign}
+          </Button>
+        ) : null}
       </div>
+
+      <ForestHero
+        label={t.clubShare}
+        value={formatKr(clubShareOre, locale)}
+        hint={tFill(t.clubShareHint, {
+          pct: LOCKED_MARGIN_PERCENT,
+          gross: formatKr(totalSales, locale),
+        })}
+      >
+        {nextStep === "campaign" ? (
+          <button
+            type="button"
+            onClick={() => setCampaignDialogOpen(true)}
+            className={forestHeroActionClassName()}
+          >
+            {t.nextStartCampaign}
+            <ArrowRight className="h-4 w-4" />
+          </button>
+        ) : nextStep === "teams" ? (
+          <LocaleLink
+            href="/forening/lag"
+            className={forestHeroActionClassName()}
+          >
+            {t.nextInviteTeams}
+            <ArrowRight className="h-4 w-4" />
+          </LocaleLink>
+        ) : (
+          <LocaleLink
+            href="/forening/avrakning"
+            className={forestHeroActionClassName()}
+          >
+            {t.nextSettlement}
+            <ArrowRight className="h-4 w-4" />
+          </LocaleLink>
+        )}
+      </ForestHero>
 
       {/* KPIs */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">

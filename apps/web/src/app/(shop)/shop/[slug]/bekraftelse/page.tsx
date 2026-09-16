@@ -60,6 +60,7 @@ function ConfirmationPageInner() {
   const searchParams = useSearchParams();
   const slug = params.slug as string;
   const orderId = searchParams.get("order_id");
+  const urlToken = searchParams.get("t");
   const { locale, href } = useLocale();
   const t = shop.confirmation[locale];
   // MASTERPLAN_01 KC1.6: rensa cart efter lyckad bekräftelse så
@@ -102,13 +103,28 @@ function ConfirmationPageInner() {
         }
         return;
       }
+      let viewToken = urlToken;
+      if (!viewToken) {
+        try {
+          viewToken = sessionStorage.getItem(`roots.orderView.${orderId}`);
+        } catch {
+          viewToken = null;
+        }
+      }
+      if (!viewToken) {
+        if (!cancelled) {
+          setErrorKind("missing");
+          setLoading(false);
+        }
+        return;
+      }
       try {
         const res = await rootsFetch(
-          `${API_URL}/v1/checkout/confirm/${orderId}`,
+          `${API_URL}/v1/checkout/confirm/${orderId}?t=${encodeURIComponent(viewToken)}`,
           { signal: controller.signal }
         );
         if (cancelled) return;
-        if (res.status === 404) {
+        if (res.status === 401 || res.status === 404) {
           setErrorKind("not-found");
           setLoading(false);
           return;
@@ -164,7 +180,7 @@ function ConfirmationPageInner() {
       controller.abort();
       if (timer) clearTimeout(timer);
     };
-  }, [orderId, clearCart, cartHydrated]);
+  }, [orderId, urlToken, clearCart, cartHydrated]);
 
   if (loading) {
     return (

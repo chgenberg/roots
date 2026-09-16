@@ -1,3 +1,5 @@
+import { resolveCanonicalSiteUrl } from "@roots/contracts";
+
 /**
  * Origin for copy-paste public links (seller invites, shop URLs).
  * Prefer the current browser origin so local ports and preview hosts
@@ -7,5 +9,5 @@ export function getPublicSiteUrl(): string {
   if (typeof window !== "undefined" && window.location?.origin) {
     return window.location.origin;
   }
-  return process.env.NEXT_PUBLIC_SITE_URL || "https://roots.nu";
+  return resolveCanonicalSiteUrl();
 }

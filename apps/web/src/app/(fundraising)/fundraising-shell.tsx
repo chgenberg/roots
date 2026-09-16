@@ -22,6 +22,7 @@ import {
   Settings,
   HelpCircle,
   Sparkles,
+  User,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getBrowserApiBase } from "@/lib/api-base";
@@ -265,23 +266,21 @@ export function FundraisingShell({ children }: { children: React.ReactNode }) {
             <RootsLogo variant="auto" className="h-6 w-[60px]" />
           </LocaleLink>
           <div className="flex items-center gap-1">
+            <NotificationBell />
             <LocaleLink
-              href="/hjalp"
-              aria-label={c.help}
+              href="/installningar"
+              aria-label={c.settings}
               className="inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-brand-50 hover:text-foreground"
             >
-              <HelpCircle className="h-4 w-4" />
+              <User className="h-4 w-4" />
             </LocaleLink>
-            <LanguageSwitcher />
-            <NotificationBell />
-            <ThemeToggle />
             <button
               ref={menuButtonRef}
               onClick={() => setMobileOpen(!mobileOpen)}
               aria-label={mobileOpen ? c.closeMenu : c.openMenu}
               aria-expanded={mobileOpen}
               aria-controls="fundraising-mobile-nav"
-              className="ml-1 inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:bg-brand-50 hover:text-foreground"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:bg-brand-50 hover:text-foreground"
             >
               {mobileOpen ? (
                 <X className="h-5 w-5" />
@@ -348,6 +347,10 @@ export function FundraisingShell({ children }: { children: React.ReactNode }) {
               <LogOut className="h-4 w-4" />
               {c.logout}
             </button>
+            <div className="flex items-center gap-2 px-2 pt-2">
+              <LanguageSwitcher />
+              <ThemeToggle />
+            </div>
           </nav>
         )}
 

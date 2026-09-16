@@ -159,13 +159,16 @@ export const auth = {
       metaDescription:
         "Skapa konto på Roots — registrera er förening eller lag för att börja sälja naturlig hårvård.",
       chooserTitle: "Kom igång med Roots",
-      chooserDescription: "Välj hur du vill registrera dig",
+      chooserDescription: "Börja med föreningen. Lag och klass läggs till sen.",
+      clubRecommended: "Vanligast",
       clubTitle: "Förening",
       clubDescription:
-        "Registrera din förening och hantera lag, mål och försäljning",
+        "Registrera föreningen och samla lag, mål och utbetalning på ett ställe.",
       teamTitle: "Lag eller klass",
       teamDescription:
-        "Registrera ditt lag eller din klass och börja sälja direkt",
+        "Eget lag eller egen klass, utan förening i Roots ännu.",
+      chooserHint:
+        "Har föreningen redan Roots? Be föreningsadmin om en inbjudningslänk.",
       alreadyHaveAccount: "Har ni redan konto?",
       loginLink: "Logga in",
       back: "Tillbaka",
@@ -219,12 +222,16 @@ export const auth = {
       metaDescription:
         "Create a Roots account — register your club or team to start selling natural hair care.",
       chooserTitle: "Get started with Roots",
-      chooserDescription: "Choose how you want to register",
+      chooserDescription: "Start with the club. Teams and classes are added later.",
+      clubRecommended: "Most common",
       clubTitle: "Club",
-      clubDescription: "Register your club and manage teams, goals and sales",
+      clubDescription:
+        "Register the club and keep teams, goals and payouts in one place.",
       teamTitle: "Team or class",
       teamDescription:
-        "Register your team or class and start selling straight away",
+        "Your own team or class, without a club already on Roots.",
+      chooserHint:
+        "Is the club already on Roots? Ask the club admin for an invite link.",
       alreadyHaveAccount: "Already have an account?",
       loginLink: "Sign in",
       back: "Back",

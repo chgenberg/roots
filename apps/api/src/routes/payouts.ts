@@ -44,6 +44,7 @@ import {
   payoutPaidEmail,
   withLocalePath,
 } from "../lib/email/templates";
+import { resolveCanonicalSiteUrl } from "@roots/contracts";
 import { resolveUiLocale, uiError, type UiLocale } from "../lib/ui-locale";
 import {
   localizeDemoCampaignName,
@@ -54,17 +55,7 @@ const log = childLogger("payouts");
 
 export const payoutsRoute = new Hono();
 
-// P2.26 (audit 2026-05-26): tidigare fallback:ade alla länkar till
-// http://localhost om varken NEXT_PUBLIC_SITE_URL eller SITE_URL var
-// satta — i prod betydde det att email-länkar kunde bli "click here
-// to view: http://localhost:3003/...". Fall tillbaka på roots.se.
-const SITE_URL = (
-  process.env.NEXT_PUBLIC_SITE_URL ||
-  process.env.SITE_URL ||
-  (process.env.NODE_ENV === "production"
-    ? "https://roots.se"
-    : "http://localhost:3003")
-).replace(/\/$/, "");
+const SITE_URL = resolveCanonicalSiteUrl();
 
 // Lokal helper-pattern matchar dashboard.ts/settlement.ts — vi exporterar
 // inte en delad `requireSession` ännu (skulle vara en egen story att

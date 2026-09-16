@@ -804,20 +804,20 @@ const ERRORS = {
     en: "Too many questions in a short time. Wait {seconds}s.",
   },
   aiDailyCapReached: {
-    sv: "AI-assistenten har nått dagens kapacitetstak. Försök igen efter midnatt.",
-    en: "The AI assistant has reached today's capacity. Please try again after midnight.",
+    sv: "Agenten har nått dagens kapacitetstak. Försök igen efter midnatt.",
+    en: "The agent has reached today's capacity. Please try again after midnight.",
   },
   aiNotActivated: {
-    sv: "AI-assistenten är inte aktiverad just nu. Kontakta support för hjälp.",
-    en: "The AI assistant is not activated right now. Contact support for help.",
+    sv: "Agenten är inte aktiverad just nu. Kontakta support för hjälp.",
+    en: "The agent is not activated right now. Contact support for help.",
   },
   aiUnavailableTryAgain: {
-    sv: "AI-assistenten är inte tillgänglig just nu. Försök igen eller maila info@roots.nu.",
-    en: "The AI assistant is unavailable right now. Try again or email info@roots.nu.",
+    sv: "Agenten är inte tillgänglig just nu. Försök igen eller maila info@roots.nu.",
+    en: "The agent is unavailable right now. Try again or email info@roots.nu.",
   },
   aiGeneratedDisclaimer: {
-    sv: "AI-genererat svar — verifiera viktig information",
-    en: "AI-generated reply — please verify important information",
+    sv: "Svar från agenten — verifiera viktig information",
+    en: "Reply from the agent — please verify important information",
   },
   mfaEnrollmentRequired: {
     sv: "Din roll kräver tvåfaktorsautentisering. Registrera en autentiseringsapp under Inställningar för att fortsätta.",

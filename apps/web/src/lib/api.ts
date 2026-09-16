@@ -62,13 +62,19 @@ export async function getCsrfToken(): Promise<string> {
 
 export async function apiFetch<T>(
   path: string,
-  options: { method?: string; body?: unknown; signal?: AbortSignal } = {}
+  options: {
+    method?: string;
+    body?: unknown;
+    signal?: AbortSignal;
+    headers?: Record<string, string>;
+  } = {}
 ): Promise<{ ok: boolean; status: number; data: T }> {
-  const { method = "GET", body, signal } = options;
+  const { method = "GET", body, signal, headers: extraHeaders } = options;
   const locale = getBrowserLocale();
 
   const headers: Record<string, string> = {
     "x-roots-locale": locale,
+    ...extraHeaders,
   };
   if (body) headers["Content-Type"] = "application/json";
 

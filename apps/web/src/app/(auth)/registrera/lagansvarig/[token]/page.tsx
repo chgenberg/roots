@@ -31,6 +31,8 @@ import { Loader2, CheckCircle2, ShieldAlert, Users } from "lucide-react";
 import { apiFetch, rootsFetch } from "@/lib/api";
 import { getBrowserApiBase } from "@/lib/api-base";
 import { LocaleLink } from "@/components/locale-link";
+import { GATE_CARD, GATE_PRIMARY_BTN } from "@/components/gate-room";
+import { cn } from "@/lib/utils";
 import { auth } from "@/i18n/dictionaries/auth";
 import { tFill } from "@/i18n/format";
 import { useLocale } from "@/i18n/locale-context";
@@ -144,7 +146,7 @@ export default function TeamLeaderClaimPage() {
 
   if (previewLoading) {
     return (
-      <Card className="w-full max-w-md">
+      <Card className={cn(GATE_CARD, "mx-auto max-w-md")}>
         <CardContent className="flex items-center justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin text-brand-400" />
         </CardContent>
@@ -154,7 +156,7 @@ export default function TeamLeaderClaimPage() {
 
   if (previewError || !preview) {
     return (
-      <Card className="w-full max-w-md shadow-lg">
+      <Card className={cn(GATE_CARD, "mx-auto max-w-md")}>
         <CardContent className="flex flex-col items-center gap-3 py-10">
           <ShieldAlert className="h-10 w-10 text-destructive" />
           <h2 className="text-xl font-semibold">{t.inviteErrorTitle}</h2>
@@ -171,7 +173,7 @@ export default function TeamLeaderClaimPage() {
 
   if (success) {
     return (
-      <Card className="w-full max-w-md shadow-lg">
+      <Card className={cn(GATE_CARD, "mx-auto max-w-md")}>
         <CardContent className="flex flex-col items-center gap-4 py-12">
           <CheckCircle2 className="h-12 w-12 text-success" />
           <h2 className="text-xl font-semibold">
@@ -186,7 +188,7 @@ export default function TeamLeaderClaimPage() {
   }
 
   return (
-    <Card className="w-full max-w-md shadow-lg">
+    <Card className={cn(GATE_CARD, "mx-auto max-w-md")}>
       <CardHeader>
         <div className="mb-2 flex items-center gap-2">
           <Users className="h-5 w-5 text-brand-600" />
@@ -259,7 +261,7 @@ export default function TeamLeaderClaimPage() {
             </p>
           )}
 
-          <Button type="submit" className="w-full" disabled={submitting}>
+          <Button type="submit" className={GATE_PRIMARY_BTN} disabled={submitting}>
             {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {t.submit}
           </Button>

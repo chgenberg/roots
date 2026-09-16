@@ -16,7 +16,9 @@ import { Separator } from "@/components/ui/separator";
 import { Loader2, MailCheck } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { LocaleLink } from "@/components/locale-link";
+import { GATE_CARD, GATE_PRIMARY_BTN, GateWordmark } from "@/components/gate-room";
 import { auth } from "@/i18n/dictionaries/auth";
+import { cn } from "@/lib/utils";
 import { tFill } from "@/i18n/format";
 import { useLocale } from "@/i18n/locale-context";
 
@@ -51,10 +53,11 @@ export default function ForgotPasswordPage() {
 
   if (sent) {
     return (
-      <Card className="w-full max-w-md shadow-lg">
+      <Card className={cn(GATE_CARD, "mx-auto max-w-md")}>
         <CardHeader className="text-center">
+          <GateWordmark href="/" ariaLabel={auth.layout[locale].ariaHome} />
           <MailCheck
-            className="mx-auto mb-2 h-8 w-8 text-muted-foreground"
+            className="mx-auto mb-2 mt-6 h-8 w-8 text-muted-foreground"
             aria-hidden="true"
           />
           <CardTitle className="text-2xl">{t.sentTitle}</CardTitle>
@@ -88,9 +91,10 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <Card className="w-full max-w-md shadow-lg">
+    <Card className={cn(GATE_CARD, "mx-auto max-w-md")}>
       <CardHeader className="text-center">
-        <CardTitle className="text-2xl">{t.title}</CardTitle>
+        <GateWordmark href="/" ariaLabel={auth.layout[locale].ariaHome} />
+        <CardTitle className="mt-6 text-2xl">{t.title}</CardTitle>
         <CardDescription>{t.description}</CardDescription>
       </CardHeader>
       <CardContent>
@@ -114,7 +118,7 @@ export default function ForgotPasswordPage() {
             </p>
           )}
 
-          <Button type="submit" className="w-full" disabled={loading}>
+          <Button type="submit" className={GATE_PRIMARY_BTN} disabled={loading}>
             {loading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

@@ -39,6 +39,7 @@ import { rootsFetch } from "@/lib/api";
 import { formatKr, formatKrValue } from "@/lib/format";
 import { orderStatusColor, orderStatusLabel } from "@/lib/order-status";
 import { getPublicSiteUrl } from "@/lib/site-url";
+import { LOCKED_MARGIN_PERCENT } from "@roots/contracts";
 
 const API_URL = getBrowserApiBase();
 
@@ -186,11 +187,57 @@ export default function SellerDashboard() {
             {data.campaign ? ` · ${data.campaign.name}` : ""}
           </p>
         </div>
-        <Button onClick={() => setManualOpen(true)}>
+        <Button variant="outline" onClick={() => setManualOpen(true)}>
           <PlusCircle className="mr-2 h-4 w-4" />
           {t.registerOrder}
         </Button>
       </div>
+
+      <section className="overflow-hidden rounded-2xl border border-brand-200 bg-brand-50/70 p-6 sm:p-8">
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-700">
+          {t.shareShop}
+        </p>
+        <p className="mt-2 text-sm text-muted-foreground">{t.shareHeroHint}</p>
+        <div className="mt-6 flex flex-col items-center gap-6 sm:flex-row sm:items-start">
+          {qrDataUrl ? (
+            <div className="rounded-2xl border border-brand-100 bg-white p-4">
+              {/* QR-koden genereras i klienten som en data-URL. next/image kan
+                  inte optimera data-URL:er, så <img> är rätt val här. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={qrDataUrl} alt={t.qrAlt} className="h-44 w-44" />
+            </div>
+          ) : null}
+          <div className="flex w-full min-w-0 flex-1 flex-col gap-3">
+            <div className="flex gap-2">
+              <Input readOnly value={shopUrl} className="text-xs" />
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={copyLink}
+                aria-label={t.copyLink}
+              >
+                {copied ? (
+                  <CheckCircle2 className="h-4 w-4 text-success" />
+                ) : (
+                  <Copy className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button onClick={share}>
+                <Share2 className="mr-2 h-4 w-4" />
+                {t.shareSocial}
+              </Button>
+              <Button variant="outline" asChild>
+                <a href={shopUrl} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  {t.openShop}
+                </a>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <Card>
@@ -216,11 +263,9 @@ export default function SellerDashboard() {
             <p className="mt-1 text-xl font-bold text-brand-700 sm:text-2xl">
               {formatKr(estimatedEarnings, locale)}
             </p>
-            {data.campaign?.marginPercent && (
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {tFill(c.percentMargin, { n: data.campaign.marginPercent })}
-              </p>
-            )}
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {tFill(c.percentMargin, { n: LOCKED_MARGIN_PERCENT })}
+            </p>
           </CardContent>
         </Card>
         {progress !== null && (
@@ -319,54 +364,6 @@ export default function SellerDashboard() {
           </CardContent>
         </Card>
       )}
-
-      {/* Share tools */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Share2 className="h-4 w-4" />
-            {t.shareShop}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex gap-2">
-            <Input readOnly value={shopUrl} className="text-xs" />
-            <Button size="sm" variant="outline" onClick={copyLink}>
-              {copied ? (
-                <CheckCircle2 className="h-4 w-4 text-success" />
-              ) : (
-                <Copy className="h-4 w-4" />
-              )}
-            </Button>
-          </div>
-          <div className="flex flex-col items-center gap-3 sm:flex-row sm:items-start">
-            {qrDataUrl && (
-              <div className="rounded-xl border p-3">
-                {/* QR-koden genereras i klienten som en data-URL. next/image kan
-                    inte optimera data-URL:er, så <img> är rätt val här. */}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={qrDataUrl}
-                  alt={t.qrAlt}
-                  className="h-40 w-40"
-                />
-              </div>
-            )}
-            <div className="flex flex-col gap-2">
-              <Button onClick={share}>
-                <Share2 className="mr-2 h-4 w-4" />
-                {t.shareSocial}
-              </Button>
-              <Button variant="outline" asChild>
-                <a href={shopUrl} target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  {t.openShop}
-                </a>
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Sprint E12: ready-made share copy. Sellers told us the hardest
           part isn't sharing — it's writing the message. Six pre-filled

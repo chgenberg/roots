@@ -1,3 +1,4 @@
+import { resolveCanonicalSiteUrl } from "@roots/contracts";
 import { getEmailSender } from "./email";
 import { childLogger } from "./logger";
 
@@ -8,12 +9,7 @@ function notifyEmail(): string {
 }
 
 function inboxUrl(): string {
-  const base = (
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    process.env.SITE_URL ||
-    "https://roots.nu"
-  ).replace(/\/$/, "");
-  return `${base}/portal/feedback`;
+  return `${resolveCanonicalSiteUrl()}/portal/feedback`;
 }
 
 export async function notifyFeedbackSubmitted(args: {

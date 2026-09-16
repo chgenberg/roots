@@ -24,6 +24,9 @@ export const shop = {
       breadcrumbHome: "Hem",
       breadcrumbShop: "Shop",
       buyFrom: "Köp av {name}",
+      sellingFor: "{name} säljer för {team}",
+      goalHeading: "Lagets mål",
+      recommended: "Rekommenderas",
       campaignEnded: "Säljperioden är avslutad",
       campaignNotStarted: "Säljperioden har inte startat ännu",
       campaignInactiveBody:
@@ -53,6 +56,9 @@ export const shop = {
       breadcrumbHome: "Home",
       breadcrumbShop: "Shop",
       buyFrom: "Buy from {name}",
+      sellingFor: "{name} is selling for {team}",
+      goalHeading: "The team's goal",
+      recommended: "Recommended",
       campaignEnded: "The sales period has ended",
       campaignNotStarted: "The sales period has not started yet",
       campaignInactiveBody:

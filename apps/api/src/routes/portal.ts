@@ -28,7 +28,9 @@ import type {
   IncomeResponse,
   PortalRole,
 } from "@roots/contracts";
+import { resolveCanonicalSiteUrl } from "@roots/contracts";
 import { resolveUiLocale, uiError } from "../lib/ui-locale";
+import { isEmailPaused } from "../lib/orchestrator/probes";
 import { localizedProductName } from "../lib/product-i18n";
 
 const log = childLogger("portal");
@@ -950,11 +952,7 @@ portal.post("/members/invite", async (c) => {
           blockingHash,
           INVITE_TTL_S
         );
-        const siteBase = (
-          process.env.NEXT_PUBLIC_SITE_URL ||
-          process.env.SITE_URL ||
-          "https://roots.se"
-        ).replace(/\/$/, "");
+        const siteBase = resolveCanonicalSiteUrl();
         await getEmailSender().sendEmail({
           to: created.email,
           ...memberInviteEmail({
@@ -2222,7 +2220,7 @@ portal.get("/system", async (c) => {
   // ops kan se vid en blick vad som är degraderat utan att läsa loggar.
   // Vi pingar inte providers (skulle slå mot rate-limits) — bara
   // env-konfiguration.
-  const emailConfigured = !!process.env.RESEND_API_KEY;
+  const emailConfigured = !!process.env.RESEND_API_KEY && !isEmailPaused();
   pushService(
     locale === "en" ? "Email (Resend)" : "E-post (Resend)",
     emailConfigured,
@@ -2242,7 +2240,7 @@ portal.get("/system", async (c) => {
   const fortnoxEnabled = process.env.FORTNOX_ENABLED === "true";
   const fortnoxConfigured =
     !fortnoxEnabled ||
-    (!!process.env.FORTNOX_TOKEN && !!process.env.FORTNOX_CLIENT_SECRET);
+    (!!process.env.FORTNOX_ACCESS_TOKEN && !!process.env.FORTNOX_CLIENT_SECRET);
   pushService(
     locale === "en"
       ? fortnoxEnabled

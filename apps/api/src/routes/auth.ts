@@ -67,6 +67,7 @@ import {
 import {
   GUARDIAN_CONSENT_AGE,
   GUARDIAN_CONSENT_VERSION,
+  resolveCanonicalSiteUrl,
 } from "@roots/contracts";
 import {
   resolveUiLocale,
@@ -1034,8 +1035,7 @@ auth.post("/change-password", async (c) => {
 // är HMAC-signerad och bunden till nuvarande passwordHash, så den blir
 // ogiltig i samma sekund lösenordet byts (engångsanvändning utan tabell).
 
-const SITE_BASE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || "https://roots.se";
+const SITE_BASE_URL = resolveCanonicalSiteUrl();
 
 auth.post("/forgot-password", async (c) => {
   let body: { email?: string; locale?: string };
@@ -1348,10 +1348,7 @@ auth.post("/delete-account", async (c) => {
     void (async () => {
       try {
         const token = issueDeletionCancelToken(user.id);
-        const siteUrl =
-          process.env.NEXT_PUBLIC_SITE_URL ||
-          process.env.SITE_URL ||
-          "https://roots.se";
+        const siteUrl = resolveCanonicalSiteUrl();
         const cancelUrl = `${siteUrl}${withLocalePath("/konto/avbryt-radering", locale)}?token=${encodeURIComponent(token)}`;
         await getEmailSender().sendEmail({
           to: user.email,

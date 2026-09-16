@@ -17,6 +17,8 @@ import { Loader2, CheckCircle2, ShoppingBag, ExternalLink, LayoutDashboard } fro
 import { apiFetch } from "@/lib/api";
 import { GUARDIAN_CONSENT_AGE } from "@roots/contracts";
 import { LocaleLink } from "@/components/locale-link";
+import { GATE_CARD, GATE_PRIMARY_BTN } from "@/components/gate-room";
+import { cn } from "@/lib/utils";
 import { auth } from "@/i18n/dictionaries/auth";
 import { tFill } from "@/i18n/format";
 import { useLocale } from "@/i18n/locale-context";
@@ -106,7 +108,7 @@ export default function SellerRegistrationPage() {
 
   if (success) {
     return (
-      <Card className="w-full max-w-md shadow-lg">
+      <Card className={cn(GATE_CARD, "mx-auto max-w-md")}>
         <CardContent className="flex flex-col items-center gap-4 py-10">
           <CheckCircle2 className="h-12 w-12 text-success" />
           <h2 className="text-xl font-semibold">
@@ -151,7 +153,7 @@ export default function SellerRegistrationPage() {
   }
 
   return (
-    <Card className="w-full max-w-md shadow-lg">
+    <Card className={cn(GATE_CARD, "mx-auto max-w-md")}>
       <CardHeader className="text-center">
         <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-brand-100">
           <ShoppingBag className="h-6 w-6 text-brand-700" />
@@ -291,7 +293,7 @@ export default function SellerRegistrationPage() {
 
           <Button
             type="submit"
-            className="w-full"
+            className={GATE_PRIMARY_BTN}
             disabled={
               loading ||
               !displayName ||

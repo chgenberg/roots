@@ -21,7 +21,7 @@ import {
   Trophy,
   Award,
   Star,
-  TrendingUp,
+  ArrowRight,
 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { GradeBadge } from "@/components/seller-grade";
@@ -32,6 +32,8 @@ import { rootsFetch } from "@/lib/api";
 import { formatKr, formatKrValue, pluralSv } from "@/lib/format";
 import { orderStatusColor, orderStatusLabel } from "@/lib/order-status";
 import { getPublicSiteUrl } from "@/lib/site-url";
+import { ForestHero, forestHeroActionClassName } from "@/components/forest-hero";
+import { LOCKED_MARGIN_PERCENT } from "@roots/contracts";
 
 const PODIUM_ICONS = ["🥇", "🥈", "🥉"];
 
@@ -129,7 +131,7 @@ export default function TeamDashboard() {
   const sellers = data?.sellers || [];
   const totalSales = data?.stats?.totalSalesOre || 0;
   const teamEarnings = data?.stats?.teamEarningsOre || 0;
-  const marginPercent = data?.stats?.marginPercent || 0;
+  const marginPercent = LOCKED_MARGIN_PERCENT;
   const orders = data?.orders || [];
   const milestones = data?.milestones;
   const sortedSellers = [...sellers].sort(
@@ -147,29 +149,38 @@ export default function TeamDashboard() {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+      <ForestHero
+        label={t.teamEarnings}
+        value={formatKr(teamEarnings, locale)}
+        hint={tFill(t.teamEarningsHint, {
+          pct: marginPercent,
+          gross: formatKr(totalSales, locale),
+        })}
+      >
+        {sellers.length === 0 && data.team?.inviteToken ? (
+          <button
+            type="button"
+            onClick={copyInviteLink}
+            className={forestHeroActionClassName()}
+          >
+            {copied ? <CheckCircle2 className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+            {t.nextInvite}
+          </button>
+        ) : (
+          <LocaleLink href="/lag/saljare" className={forestHeroActionClassName()}>
+            {t.nextSellers}
+            <ArrowRight className="h-4 w-4" />
+          </LocaleLink>
+        )}
+      </ForestHero>
+
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
         <Card>
           <CardContent className="p-4 sm:p-5">
             <p className="text-xs text-muted-foreground sm:text-sm">{c.totalSales}</p>
             <p className="mt-1 text-xl font-bold sm:text-2xl">
               {formatKr(totalSales, locale)}
             </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 sm:p-5">
-            <div className="flex items-center gap-1.5">
-              <TrendingUp className="h-3.5 w-3.5 shrink-0 text-brand-400" />
-              <p className="text-xs text-muted-foreground sm:text-sm">{t.teamEarnings}</p>
-            </div>
-            <p className="mt-1 text-xl font-bold text-brand-700 sm:text-2xl">
-              {formatKr(teamEarnings, locale)}
-            </p>
-            {marginPercent > 0 && (
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {tFill(c.percentMargin, { n: marginPercent })}
-              </p>
-            )}
           </CardContent>
         </Card>
         <Card>

@@ -26,7 +26,7 @@ type ChromeCopy = {
     copyright: string;
     groups: FooterGroup[];
   };
-  announcement: string[];
+  announcement: string;
   mobileMenu: {
     search: string;
     bookDemo: string;
@@ -54,7 +54,7 @@ export const chrome: Record<Locale, ChromeCopy> = {
       closeMenu: "Stäng meny",
       home: "Roots — startsida",
       navMenu: "Navigeringsmeny",
-      announcement: "Aktuellt från Roots",
+      announcement: "Föreningens andel",
       instagram: "Roots på Instagram",
       linkedin: "Roots på LinkedIn",
     },
@@ -101,13 +101,7 @@ export const chrome: Record<Locale, ChromeCopy> = {
         },
       ],
     },
-    announcement: [
-      "Föreningen behåller 35 % av försäljningen",
-      "Utan sulfater, silikoner och parabener",
-      "Utvecklat i Norden",
-      "Inga uppstartsavgifter för föreningen",
-      "Intäkterna går tillbaka till föreningslivet",
-    ],
+    announcement: "Föreningen behåller 35 %.",
     mobileMenu: {
       search: "Sök",
       bookDemo: "Boka demo",
@@ -133,7 +127,7 @@ export const chrome: Record<Locale, ChromeCopy> = {
       closeMenu: "Close menu",
       home: "Roots — home",
       navMenu: "Navigation menu",
-      announcement: "Latest from Roots",
+      announcement: "Club share",
       instagram: "Roots on Instagram",
       linkedin: "Roots on LinkedIn",
     },
@@ -180,13 +174,7 @@ export const chrome: Record<Locale, ChromeCopy> = {
         },
       ],
     },
-    announcement: [
-      "The club keeps 35% of sales",
-      "Free from sulphates, silicones and parabens",
-      "Developed in the Nordics",
-      "No start-up fees for the club",
-      "Revenue goes back to sports clubs",
-    ],
+    announcement: "The club keeps 35%.",
     mobileMenu: {
       search: "Search",
       bookDemo: "Book a demo",

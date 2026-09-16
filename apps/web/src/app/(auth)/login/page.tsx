@@ -17,7 +17,9 @@ import { Separator } from "@/components/ui/separator";
 import { Loader2 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { LocaleLink } from "@/components/locale-link";
+import { GATE_CARD, GATE_PRIMARY_BTN, GateWordmark } from "@/components/gate-room";
 import { auth } from "@/i18n/dictionaries/auth";
+import { cn } from "@/lib/utils";
 import { tFill } from "@/i18n/format";
 import { useLocale } from "@/i18n/locale-context";
 import { isReviewerEmail, REVIEWER_HOME } from "@roots/contracts";
@@ -82,9 +84,10 @@ function LoginPageSkeleton() {
   const { locale } = useLocale();
   const t = auth.login[locale];
   return (
-    <Card className="w-full max-w-md shadow-lg">
+    <Card className={cn(GATE_CARD, "mx-auto max-w-md")}>
       <CardHeader className="text-center">
-        <CardTitle className="text-2xl">{t.title}</CardTitle>
+        <GateWordmark href="/" ariaLabel={auth.layout[locale].ariaHome} />
+        <CardTitle className="mt-6 text-2xl">{t.title}</CardTitle>
         <CardDescription>{t.description}</CardDescription>
       </CardHeader>
       <CardContent>
@@ -187,9 +190,10 @@ function LoginPageInner() {
 
   if (challenge) {
     return (
-      <Card className="w-full max-w-md shadow-lg">
+      <Card className={cn(GATE_CARD, "mx-auto max-w-md")}>
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">{t.mfaTitle}</CardTitle>
+          <GateWordmark href="/" ariaLabel={auth.layout[locale].ariaHome} />
+          <CardTitle className="mt-6 text-2xl">{t.mfaTitle}</CardTitle>
           <CardDescription>{t.mfaDescription}</CardDescription>
         </CardHeader>
         <CardContent>
@@ -221,7 +225,7 @@ function LoginPageInner() {
               </p>
             )}
 
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" className={GATE_PRIMARY_BTN} disabled={loading}>
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -251,9 +255,10 @@ function LoginPageInner() {
   }
 
   return (
-    <Card className="w-full max-w-md shadow-lg">
+    <Card className={cn(GATE_CARD, "mx-auto max-w-md")}>
       <CardHeader className="text-center">
-        <CardTitle className="text-2xl">{t.title}</CardTitle>
+        <GateWordmark href="/" ariaLabel={auth.layout[locale].ariaHome} />
+        <CardTitle className="mt-6 text-2xl">{t.title}</CardTitle>
         <CardDescription>{t.description}</CardDescription>
       </CardHeader>
       <CardContent>
@@ -295,7 +300,7 @@ function LoginPageInner() {
             <p role="alert" className="text-sm text-destructive">{error}</p>
           )}
 
-          <Button type="submit" className="w-full" disabled={loading}>
+          <Button type="submit" className={GATE_PRIMARY_BTN} disabled={loading}>
             {loading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

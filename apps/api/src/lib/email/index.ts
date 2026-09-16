@@ -1,9 +1,9 @@
-import type { EmailSender } from "./types";
+import type { EmailSender, SendEmailResult } from "./types";
 import { MockEmailSender } from "./mock-sender";
 import { ResendEmailSender } from "./resend-sender";
 import { childLogger } from "../logger";
 
-export type { EmailSender, EmailMessage } from "./types";
+export type { EmailSender, EmailMessage, SendEmailResult } from "./types";
 
 const log = childLogger("email");
 
@@ -56,4 +56,11 @@ export function getEmailSender(): EmailSender {
 
 export function resetEmailSender(): void {
   _sender = null;
+}
+
+/** Sant bara när ett riktigt utskick gick igenom — inte mock eller paus. */
+export function isRealEmailSend(
+  result: SendEmailResult | null | undefined
+): boolean {
+  return Boolean(result?.success && !result.mocked);
 }

@@ -8,6 +8,7 @@ import {
   computeCalculator,
   CalculatorInputsSchema,
   type CalculatorInputs,
+  resolveCanonicalSiteUrl,
 } from "@roots/contracts";
 import { isDemoSession } from "../lib/session";
 import type { SessionData } from "../lib/session";
@@ -20,11 +21,7 @@ const log = childLogger("calculator-admin");
 
 export const calculatorAdmin = new Hono();
 
-const SITE_URL = (
-  process.env.NEXT_PUBLIC_SITE_URL ||
-  process.env.SITE_URL ||
-  "https://roots.se"
-).replace(/\/$/, "");
+const SITE_URL = resolveCanonicalSiteUrl();
 
 const SALES_ROLES = new Set(["SALES_REP", "SALES_ADMIN", "INTERNAL_ADMIN"]);
 

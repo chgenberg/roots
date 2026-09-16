@@ -1,6 +1,161 @@
 {
-  "updatedAt": "2026-09-15T19:10:00.000Z",
+  "updatedAt": "2026-09-16T11:15:00.000Z",
   "cards": [
+    {
+      "id": "wb-deploy-sep16",
+      "title": "Pre-push: masterplan fas 1–5 kod",
+      "body": "Hunt utan CRITICAL/HIGH. Typecheck, 53 riktade tester, lint 0 errors. Push till main. Ingen mejl-/Stripe-/grind-lyft.",
+      "status": "done",
+      "domainId": "platform",
+      "playbook": "ops",
+      "files": [
+        "apps/web/src/middleware.ts",
+        "apps/api/src/routes/checkout.ts",
+        "apps/api/src/lib/validate-env.ts"
+      ],
+      "gate": "deploy",
+      "source": "cursor",
+      "createdAt": "2026-09-16T11:14:00.000Z",
+      "updatedAt": "2026-09-16T11:20:00.000Z"
+    },
+    {
+      "id": "wb-masterplan-f5-ops-sep16",
+      "title": "Masterplan fas 5: ops-koll inför öppning",
+      "body": "Railway läst utan värden. Preview-lösen matchar. Mejl pausad, Resend saknas. Stripe test utan webhook. Boot-krav skärpt till sk_live_. Ingen env-lyft, ingen deploy.",
+      "status": "done",
+      "domainId": "platform",
+      "playbook": "ops",
+      "files": [
+        "docs/runbooks/deploy.md"
+      ],
+      "gate": "none",
+      "source": "cursor",
+      "createdAt": "2026-09-16T11:08:00.000Z",
+      "updatedAt": "2026-09-16T11:12:00.000Z"
+    },
+    {
+      "id": "wb-masterplan-f5-code-sep16",
+      "title": "Masterplan fas 5 kod: webhook-krav",
+      "body": "STRIPE_WEBHOOK_SECRET krävs vid boot när Stripe-nyckel finns. Samma preview-token-kontrakt web+API. Ingen env-lyft, ingen deploy, FEATURE_EMAIL_DISABLED orörd.",
+      "status": "done",
+      "domainId": "money",
+      "playbook": "ops",
+      "files": [
+        "apps/api/src/lib/validate-env.ts",
+        "packages/contracts/src/site.ts",
+        "apps/web/src/middleware.ts",
+        "apps/api/src/lib/preview-gate.ts"
+      ],
+      "gate": "none",
+      "source": "cursor",
+      "createdAt": "2026-09-16T10:59:00.000Z",
+      "updatedAt": "2026-09-16T11:05:00.000Z"
+    },
+    {
+      "id": "wb-masterplan-f4-sep16",
+      "title": "Masterplan fas 4: UX arbete",
+      "body": "Förening/lag en skogssiffra, min shop Dela-hero, shop öppnar med mål + säljare, stilla 35 %-rad i chrome. Ingen deploy.",
+      "status": "done",
+      "domainId": "public",
+      "playbook": "ops",
+      "files": [
+        "apps/web/src/app/(fundraising)/forening/page.tsx",
+        "apps/web/src/app/(fundraising)/lag/page.tsx",
+        "apps/web/src/app/(fundraising)/min-shop/page.tsx",
+        "apps/web/src/app/(shop)/shop/[slug]/page.tsx",
+        "apps/web/src/components/announcement-bar.tsx"
+      ],
+      "gate": "none",
+      "source": "cursor",
+      "createdAt": "2026-09-16T09:52:00.000Z",
+      "updatedAt": "2026-09-16T10:20:00.000Z"
+    },
+    {
+      "id": "wb-masterplan-f3-sep16",
+      "title": "Masterplan fas 3: UX ingång",
+      "body": "Auth i samma rum som waitlist, skogs-CTA, registrera med förening primär, waitlist-mobil utan klippt text. Ingen deploy.",
+      "status": "done",
+      "domainId": "public",
+      "playbook": "ops",
+      "files": [
+        "apps/web/src/components/gate-room.tsx",
+        "apps/web/src/app/(auth)/layout.tsx",
+        "apps/web/src/app/preview-gate/page.tsx",
+        "apps/web/src/app/(auth)/registrera/page.tsx"
+      ],
+      "gate": "none",
+      "source": "cursor",
+      "createdAt": "2026-09-16T09:10:00.000Z",
+      "updatedAt": "2026-09-16T09:20:00.000Z"
+    },
+    {
+      "id": "wb-masterplan-f2-sep16",
+      "title": "Masterplan fas 2: pengar och tokens",
+      "body": "/confirm-token, Idempotency-Key i kassan, kanonisk SITE_URL, inbjudan emailSent bara vid riktig send. Ingen deploy, ingen Stripe-lyft.",
+      "status": "done",
+      "domainId": "money",
+      "playbook": "ops",
+      "files": [
+        "apps/api/src/routes/checkout.ts",
+        "apps/web/src/app/(shop)/shop/[slug]/kassa/page.tsx",
+        "apps/api/src/routes/association.ts"
+      ],
+      "gate": "none",
+      "source": "cursor",
+      "createdAt": "2026-09-16T08:55:00.000Z",
+      "updatedAt": "2026-09-16T09:05:00.000Z"
+    },
+    {
+      "id": "wb-masterplan-f1-sep16",
+      "title": "Masterplan fas 1: sanning i ytan",
+      "body": "Allowlist, installningar, agenten-copy, 35 % läsväg, mock-mejl, kalkylator-H1. Ingen deploy.",
+      "status": "done",
+      "domainId": "platform",
+      "playbook": "ops",
+      "files": [
+        "apps/web/src/middleware.ts",
+        "apps/api/src/routes/ai-chat.ts",
+        "apps/api/src/routes/checkout.ts"
+      ],
+      "gate": "none",
+      "source": "cursor",
+      "createdAt": "2026-09-16T08:40:00.000Z",
+      "updatedAt": "2026-09-16T08:50:00.000Z"
+    },
+    {
+      "id": "wb-ux-visual-sep16",
+      "title": "UX-plan: visuella förbättringar",
+      "body": "22 live-skärmar. Canvas: ux-visual-plan. Auth-brott + kalkylator-titel + dashboard-hero.",
+      "status": "done",
+      "domainId": "public",
+      "playbook": "ops",
+      "files": [
+        "apps/web/src/app/globals.css",
+        "apps/web/src/app/(fundraising)/fundraising-shell.tsx",
+        "apps/web/src/app/(portal)/portal/portal-shell.tsx"
+      ],
+      "gate": "none",
+      "source": "cursor",
+      "createdAt": "2026-09-16T08:35:00.000Z",
+      "updatedAt": "2026-09-16T08:35:00.000Z"
+    },
+    {
+      "id": "wb-prod-readiness-sep16",
+      "title": "Produktionsklar: masterplan",
+      "body": "Swarm klar. 11 HIGH + 3 grindar. Canvas: prod-readiness. Ingen deploy.",
+      "status": "done",
+      "domainId": "platform",
+      "playbook": "ops",
+      "files": [
+        "apps/web/src/middleware.ts",
+        "apps/api/src/app.ts",
+        "apps/api/src/lib/validate-env.ts"
+      ],
+      "gate": "none",
+      "source": "cursor",
+      "createdAt": "2026-09-16T08:25:00.000Z",
+      "updatedAt": "2026-09-16T08:32:00.000Z"
+    },
     {
       "id": "wb-deploy-screens-sep15",
       "title": "Deploy skärmdump-copy",

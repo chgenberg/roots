@@ -57,6 +57,7 @@ describe.skipIf(!HAS_DB)("pengavägen (integration)", () => {
   };
   const shopSlug = `e2e-saljare-${run}`;
   const orderIds: string[] = [];
+  const viewTokens: Record<string, string> = {};
 
   // Kampanjmarginal och kampanjpris sätts medvetet till värden som inte är
   // "runda", så en förväxling med produktens ordinarie pris eller en
@@ -386,8 +387,9 @@ describe.skipIf(!HAS_DB)("pengavägen (integration)", () => {
       }),
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { orderId: string };
+    const body = (await res.json()) as { orderId: string; viewToken?: string };
     orderIds.push(body.orderId);
+    if (body.viewToken) viewTokens[body.orderId] = body.viewToken;
 
     const [order] = await db
       .select()
@@ -446,7 +448,13 @@ describe.skipIf(!HAS_DB)("pengavägen (integration)", () => {
 
   it("flyttar ordern till PAID via bekräftelsepollningen", async () => {
     const orderId = orderIds[0];
-    const res = await request(`/v1/checkout/confirm/${orderId}`);
+    const token = viewTokens[orderId];
+    expect(token).toBeTruthy();
+    const denied = await request(`/v1/checkout/confirm/${orderId}`);
+    expect(denied.status).toBe(401);
+    const res = await request(
+      `/v1/checkout/confirm/${orderId}?t=${encodeURIComponent(token)}`
+    );
     expect(res.status).toBe(200);
     const body = (await res.json()) as { status: string };
     expect(body.status).toBe("PAID");

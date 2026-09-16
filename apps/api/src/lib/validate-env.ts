@@ -64,8 +64,9 @@ const REQUIRED_IN_PROD: ReadonlyArray<EnvVar> = [
   // FEATURE_EMAIL_DISABLED inte är "true". Annars blev en "Stripe+mail
   // off"-deploy en boot-loop bara för att man inte hunnit konfa Resend.
   //
-  // STRIPE_WEBHOOK_SECRET varnas när Stripe är på, men fäller inte boot —
-  // webhook-routen är fail-closed och bekräftelsepollningen räcker för PAID.
+  // STRIPE_WEBHOOK_SECRET krävs när STRIPE_SECRET_KEY är sk_live_ —
+  // se checkEnv. Testnyckel varnas. Utan secret blir ordrar PAID bara
+  // om bekräftelsesidan öppnas.
 ];
 
 /**
@@ -205,7 +206,7 @@ function crossCheck(env: NodeJS.ProcessEnv): string[] {
     const site = originOf(siteUrl);
     if (!site) {
       conflicts.push(
-        `NEXT_PUBLIC_SITE_URL är inte en giltig absolut URL ("${siteUrl}"). Förväntat format: https://roots.se`
+        `NEXT_PUBLIC_SITE_URL är inte en giltig absolut URL ("${siteUrl}"). Förväntat format: https://roots.nu`
       );
     } else {
       if (!site.startsWith("https://")) {
@@ -386,10 +387,17 @@ export function checkEnv(
     const stripeKey = env.STRIPE_SECRET_KEY?.trim();
     if (stripeKey) {
       const hmac = env.STRIPE_WEBHOOK_SECRET;
-      if (!hmac || hmac.trim() === "" || looksLikePlaceholder(hmac)) {
+      const webhookMissing =
+        !hmac || hmac.trim() === "" || looksLikePlaceholder(hmac);
+      if (webhookMissing && stripeKey.startsWith("sk_live_")) {
+        conditionalMissing.push(
+          "STRIPE_WEBHOOK_SECRET (HMAC-verifiering av Stripe webhooks) — krävs när STRIPE_SECRET_KEY är sk_live_. " +
+            "Utan den markeras ordrar PAID bara om bekräftelsesidan öppnas."
+        );
+      } else if (webhookMissing) {
         recommendedMissing.push(
           "STRIPE_WEBHOOK_SECRET (HMAC-verifiering av Stripe webhooks). " +
-            "Utan den startar API:t, men webhooken är avstängd — ordrar markeras PAID via bekräftelsepollning mot Stripe."
+            "Testnyckel får boota utan den; live-nyckel får inte."
         );
       }
     }

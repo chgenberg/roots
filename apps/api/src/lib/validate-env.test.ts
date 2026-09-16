@@ -111,7 +111,19 @@ describe("checkEnv (production)", () => {
     expect(r.conditionalMissing.join("\n")).not.toMatch(/RESEND_API_KEY/);
   });
 
-  it("allows boot and warns when Stripe is active but STRIPE_WEBHOOK_SECRET is missing", () => {
+  it("refuses boot when a live Stripe key is set without STRIPE_WEBHOOK_SECRET", () => {
+    const env: NodeJS.ProcessEnv = {
+      ...FULL_PROD_ENV,
+      STRIPE_SECRET_KEY: "sk_live_real_stripe_secret",
+    };
+    delete env.STRIPE_WEBHOOK_SECRET;
+    const r = checkEnv(env, true);
+    expect(r.ok).toBe(false);
+    expect(r.conditionalMissing.join("\n")).toMatch(/STRIPE_WEBHOOK_SECRET/);
+    expect(r.recommendedMissing.join("\n")).not.toMatch(/STRIPE_WEBHOOK_SECRET/);
+  });
+
+  it("allows boot and warns when a test Stripe key is set without STRIPE_WEBHOOK_SECRET", () => {
     const env = { ...FULL_PROD_ENV };
     delete env.STRIPE_WEBHOOK_SECRET;
     const r = checkEnv(env, true);

@@ -27,7 +27,11 @@ Hållbart. Bara fakta som gäller över veckor. Aldrig hemligheter
 
 ## Drift
 
-- Prod (roots.nu) ligger bakom preview-gate. Öppet utan cookie: `/login`, `/registrera`, `/glomt-losenord`, `/aterstall-losenord`, `/integritet`, `/villkor`, `/kalkylator`, `/feedback`.
+- Prod (roots.nu) ligger bakom preview-gate. Öppet utan cookie: `/login`, `/registrera`, `/glomt-losenord`, `/aterstall-losenord`, `/integritet`, `/villkor`, `/kalkylator`, `/feedback`, `/konto`.
+- `/installningar` är rollgrindad (säljare/lag/förening/intern).
+- Preview-cookie och token-hash: `PREVIEW_COOKIE_NAME`, `PREVIEW_TOKEN_PREFIX`, `PREVIEW_TOKEN_HEX_LENGTH` i `@roots/contracts`.
+- Boot: `STRIPE_WEBHOOK_SECRET` krävs i prod bara när `STRIPE_SECRET_KEY` är `sk_live_`. Testnyckel varnas.
+- Kanonisk sajt-URL är `https://roots.nu`. `roots.se` är inte fallback. Helper: `resolveCanonicalSiteUrl()`.
 - Cursor-tavla: `apps/api/src/lib/orchestrator/workboard.json`.
 - Prod-tavla: `orchestrator_cards` / `orchestrator_runs` (Drizzle).
 - Puls: var 15:e minut i API:t, plus

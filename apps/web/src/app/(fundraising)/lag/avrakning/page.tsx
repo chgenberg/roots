@@ -19,7 +19,7 @@ import {
   Package,
   Clock,
 } from "lucide-react";
-import { countsAsRevenue } from "@roots/contracts";
+import { countsAsRevenue, LOCKED_MARGIN_PERCENT } from "@roots/contracts";
 import type { TeamDashboard, CustomerOrder } from "@/types/fundraising";
 import { OrderDetailDialog } from "@/components/order-detail-dialog";
 
@@ -90,7 +90,7 @@ export default function TeamSettlementPage() {
   }
 
   const orders: CustomerOrder[] = data.orders || [];
-  const marginPercent = data.stats?.marginPercent || 0;
+  const marginPercent = LOCKED_MARGIN_PERCENT;
   const totalSales = data.stats?.totalSalesOre || 0;
   const teamEarnings = data.stats?.teamEarningsOre || 0;
   const rootsShare = totalSales - teamEarnings;

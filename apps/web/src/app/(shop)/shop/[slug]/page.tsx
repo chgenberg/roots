@@ -13,8 +13,6 @@ import {
   ShoppingBag,
   Plus,
   Minus,
-  Truck,
-  Heart,
   Loader2,
   Package,
   AlertCircle,
@@ -26,6 +24,7 @@ import { useCart } from "@/lib/use-cart";
 import { BreadcrumbJsonLd, ProductJsonLd } from "@/components/json-ld";
 import { LocaleLink } from "@/components/locale-link";
 import { formatKr } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import {
   productImage,
   byCatalogOrder,
@@ -138,10 +137,15 @@ export default function SellerShopPage() {
       }, 0)
     : 0;
 
-  // API:et sorterar på namn; paketet hör sist så supportern ser de enskilda
-  // produkterna först.
+  // Premiumpaketet först — det självklara valet. Flaskorna som tillval.
   const sortedProducts = useMemo(
-    () => [...(shopData?.products ?? [])].sort(byCatalogOrder),
+    () =>
+      [...(shopData?.products ?? [])].sort((a, b) => {
+        const aBundle = isBundleSlug(a.slug) ? 0 : 1;
+        const bBundle = isBundleSlug(b.slug) ? 0 : 1;
+        if (aBundle !== bBundle) return aBundle - bBundle;
+        return byCatalogOrder(a, b);
+      }),
     [shopData?.products]
   );
 
@@ -163,17 +167,31 @@ export default function SellerShopPage() {
   const campaignStatus = shopData?.campaign?.status ?? null;
   const campaignAcceptsOrders = campaignStatus === "ACTIVE";
 
-  const goalProgress =
-    shopData?.seller.individualGoal && shopData.seller.individualGoal > 0
+  const campaignGoal = shopData?.campaign?.goalValue ?? 0;
+  const isPackageGoal = shopData?.campaign?.goalType === "PACKAGES";
+  const campaignProgress =
+    campaignGoal > 0
       ? Math.min(
           100,
           Math.round(
-            (shopData.stats.totalSoldOre /
-              (shopData.seller.individualGoal * 100)) *
-              100
+            isPackageGoal
+              ? ((shopData?.stats.orderCount ?? 0) / campaignGoal) * 100
+              : ((shopData?.stats.totalSoldOre ?? 0) / (campaignGoal * 100)) *
+                  100
           )
         )
       : null;
+  const sellerGoal = shopData?.seller.individualGoal ?? 0;
+  const sellerProgress =
+    sellerGoal > 0
+      ? Math.min(
+          100,
+          Math.round(
+            ((shopData?.stats.totalSoldOre ?? 0) / (sellerGoal * 100)) * 100
+          )
+        )
+      : null;
+  const goalProgress = campaignProgress ?? sellerProgress;
 
   if (loading) {
     return (
@@ -225,24 +243,6 @@ export default function SellerShopPage() {
           />
         );
       })}
-      {/* Header */}
-      <header className="border-b bg-background">
-        <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4">
-          <div>
-            <p className="text-sm text-muted-foreground">
-              {shopData.team?.name}
-              {shopData.organization ? ` · ${shopData.organization.name}` : ""}
-            </p>
-            <h1 className="text-lg font-semibold">
-              {tFill(t.buyFrom, { name: shopData.seller.displayName })}
-            </h1>
-          </div>
-          <Badge variant="secondary" className="text-xs">
-            Roots
-          </Badge>
-        </div>
-      </header>
-
       <main className="mx-auto max-w-3xl px-4 py-8">
         {/* Campaign status banner — shown when the campaign is not accepting
             orders so supporters see this up-front rather than at checkout. */}
@@ -265,43 +265,66 @@ export default function SellerShopPage() {
           </div>
         )}
 
-        {/* Campaign story */}
-        {shopData.campaign?.story && (
-          <Card className="mb-6 overflow-hidden">
-            <CardContent className="p-5">
-              <div className="flex items-start gap-3">
-                <Heart className="mt-0.5 h-5 w-5 shrink-0 text-brand-500" />
-                <div>
-                  <p className="font-medium">{shopData.campaign.name}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {shopData.campaign.story}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Progress bar */}
-        {goalProgress !== null && (
-          <div className="mb-6">
-            <div className="mb-2 flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">
-                {t.progressTowardsGoal}
-              </span>
-              <span className="font-medium">{goalProgress}%</span>
-            </div>
-            <div className="h-2.5 overflow-hidden rounded-full bg-brand-100">
-              <div
-                className="h-full rounded-full bg-brand-700 transition-all duration-700"
-                style={{ width: `${goalProgress}%` }}
-              />
-            </div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {tFill(t.ordersSoFar, { count: shopData.stats.orderCount })}
+        <section className="mb-8 rounded-2xl border border-brand-100 bg-background p-6 sm:p-8">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-700">
+            {[shopData.team?.name, shopData.organization?.name]
+              .filter(Boolean)
+              .join(" · ") || "Roots"}
+          </p>
+          <h1 className="mt-2 text-3xl font-bold tracking-tight">
+            {shopData.team?.name
+              ? tFill(t.sellingFor, {
+                  name: shopData.seller.displayName,
+                  team: shopData.team.name,
+                })
+              : tFill(t.buyFrom, { name: shopData.seller.displayName })}
+          </h1>
+          {shopData.campaign?.story ? (
+            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+              {shopData.campaign.story}
             </p>
-          </div>
-        )}
+          ) : shopData.campaign?.name ? (
+            <p className="mt-3 text-sm text-muted-foreground">
+              {shopData.campaign.name}
+            </p>
+          ) : null}
+
+          {goalProgress !== null ? (
+            <div className="mt-6">
+              <div className="mb-2 flex items-center justify-between text-sm">
+                <span className="font-medium">
+                  {shopData.campaign?.name || t.goalHeading}
+                </span>
+                <span className="tabular-nums">{goalProgress}%</span>
+              </div>
+              <div className="h-2.5 overflow-hidden rounded-full bg-brand-100">
+                <div
+                  className="h-full rounded-full bg-brand-700 transition-all duration-700"
+                  style={{ width: `${goalProgress}%` }}
+                />
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {tFill(t.ordersSoFar, { count: shopData.stats.orderCount })}
+              </p>
+            </div>
+          ) : null}
+
+          <p className="mt-6 text-sm text-muted-foreground">
+            {shopData.campaign?.deliveryType === "BULK"
+              ? t.deliveryBulk
+              : shopData.campaign?.deliveryType === "BOTH"
+                ? t.deliveryChoice
+                : t.deliveryDirect}
+            {shopData.campaign?.shippingThresholdOre
+              ? tFill(t.freeShippingOver, {
+                  amount: formatKr(
+                    shopData.campaign.shippingThresholdOre,
+                    locale
+                  ),
+                })
+              : ""}
+          </p>
+        </section>
 
         {/* Products */}
         <h2 className="mb-4 text-lg font-semibold">{t.productsHeading}</h2>
@@ -316,7 +339,13 @@ export default function SellerShopPage() {
               copy?.description ?? product.description;
 
             return (
-              <Card key={product.id} className="overflow-hidden">
+              <Card
+                key={product.id}
+                className={cn(
+                  "overflow-hidden",
+                  isBundle && "ring-2 ring-brand-700/25"
+                )}
+              >
                 <div className="flex">
                   <div className="relative h-32 w-32 shrink-0 bg-brand-50 sm:h-40 sm:w-40">
                     <Image
@@ -330,6 +359,14 @@ export default function SellerShopPage() {
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="font-semibold">{displayName}</h3>
+                        {isBundle ? (
+                          <Badge
+                            variant="secondary"
+                            className="bg-brand-700 text-white"
+                          >
+                            {t.recommended}
+                          </Badge>
+                        ) : null}
                         {isBundle && bundleSavingOre > 0 && (
                           <Badge
                             variant="secondary"
@@ -397,29 +434,6 @@ export default function SellerShopPage() {
               </Card>
             );
           })}
-        </div>
-
-        {/* Delivery info */}
-        <div className="mt-6 flex items-start gap-3 rounded-xl border bg-background p-4">
-          <Truck className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
-          <div className="text-sm">
-            <p className="font-medium">{t.deliveryHeading}</p>
-            <p className="text-muted-foreground">
-              {shopData.campaign?.deliveryType === "BULK"
-                ? t.deliveryBulk
-                : shopData.campaign?.deliveryType === "DIRECT"
-                  ? t.deliveryDirect
-                  : t.deliveryChoice}
-              {shopData.campaign?.shippingThresholdOre
-                ? tFill(t.freeShippingOver, {
-                    amount: formatKr(
-                      shopData.campaign.shippingThresholdOre,
-                      locale
-                    ),
-                  })
-                : ""}
-            </p>
-          </div>
         </div>
       </main>
 

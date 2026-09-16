@@ -18,6 +18,11 @@
  */
 
 import { createHash } from "node:crypto";
+import {
+  PREVIEW_COOKIE_NAME,
+  PREVIEW_TOKEN_HEX_LENGTH,
+  PREVIEW_TOKEN_PREFIX,
+} from "@roots/contracts";
 
 /**
  * P1.7 (audit 2026-05-26): gaten får inte längre använda ett
@@ -51,12 +56,12 @@ export function getPreviewPassword(): string {
 export function getPreviewToken(password?: string): string {
   const pw = password ?? getPreviewPassword();
   return createHash("sha256")
-    .update(`roots-preview-v1:${pw}`)
+    .update(`${PREVIEW_TOKEN_PREFIX}${pw}`)
     .digest("hex")
-    .slice(0, 40);
+    .slice(0, PREVIEW_TOKEN_HEX_LENGTH);
 }
 
-export const PREVIEW_COOKIE_NAME = "roots_preview";
+export { PREVIEW_COOKIE_NAME };
 
 // 30-day rolling unlock. Long enough for an investor to bookmark the
 // site and return without re-typing the password, short enough that
