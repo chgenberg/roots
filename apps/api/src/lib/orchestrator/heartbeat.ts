@@ -3,6 +3,8 @@
  * Never deploy or irreversible Hands here.
  */
 
+import { noteConductorEvent, processDueConductorJobs } from "./conductor-rules";
+import type { ConductorEvent } from "./conductor-catalog";
 import { runSafeHands } from "./hands";
 import {
   probeEmailPaused,
@@ -110,6 +112,10 @@ export async function runHeartbeat(): Promise<HeartbeatResult> {
         if (colon > 0) prefixes.add(seed.key.slice(0, colon + 1));
         const r = await upsertOpen(seed);
         if (r === "opened") opened.push(seed.key);
+        const event = eventForProbeKey(seed.key);
+        if (event) {
+          await noteConductorEvent(event, seed.key);
+        }
       }
     }
 
@@ -128,7 +134,8 @@ export async function runHeartbeat(): Promise<HeartbeatResult> {
       }
     }
 
-    const fixed = await runSafeHands([...liveKeys]);
+    const army = await processDueConductorJobs();
+    const fixed = await runSafeHands([...liveKeys, ...army]);
     for (const key of fixed) liveKeys.delete(key);
 
     const findings = liveKeys.size;
@@ -159,6 +166,14 @@ export async function runHeartbeat(): Promise<HeartbeatResult> {
       at,
     };
   }
+}
+
+function eventForProbeKey(key: string): ConductorEvent | null {
+  if (key === "email-paused") return "email.paused";
+  if (key === "pending-payouts") return "payout.pending";
+  if (key === "pending-org-review") return "org.pending";
+  if (key.startsWith("stale-job:")) return "job.stale";
+  return null;
 }
 
 export { latestHeartbeatRun };

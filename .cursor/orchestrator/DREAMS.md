@@ -12,6 +12,6 @@ OS:et och chatten på `/portal/ai` hålls isär.
 ## 2026-09-16
 
 Ringen från Billboardbee kom in: fem anställda med samma figurer,
-utbildning i chatten och När→gör-utkast på `/portal/agenten`. Kartan
-och tavlan ligger kvar under. Hands kör fortfarande inte PAID, Fortnox,
-deploy eller lyft av mejlpaus.
+utbildning i chatten och När→gör på `/portal/agenten`. Godkända regler
+lägger kort och utkast. Kartan och tavlan ligger kvar under. Hands kör
+fortfarande inte PAID, Fortnox-skick, deploy eller lyft av mejlpaus.

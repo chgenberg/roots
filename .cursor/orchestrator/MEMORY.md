@@ -36,4 +36,4 @@ Hållbart. Bara fakta som gäller över veckor. Aldrig hemligheter
 - Prod-tavla: `orchestrator_cards` / `orchestrator_runs` (Drizzle).
 - Puls: var 15:e minut i API:t, plus
   `POST /v1/internal/cron/orchestrator-heartbeat` med `INTERNAL_CRON_TOKEN`.
-- Admin-yta: `/portal/agenten`, bara INTERNAL_ADMIN. Ringen med Agent1–16, fem sådda bord (Förening, Orderliv, Pengar, Mejl, Drift). Chatten går via samma OpenAI-nyckel som portalchatten när `AI_ENABLED` är på. Mallar om nyckeln saknas. Utbildning i chatten. När→gör-utkast. PAID/Fortnox/deploy/mejlpaus körs aldrig från ringen.
+- Admin-yta: `/portal/agenten`, bara INTERNAL_ADMIN. Ringen med Agent1–16, fem sådda bord (Förening, Orderliv, Pengar, Mejl, Drift). Chatten går via samma OpenAI-nyckel som portalchatten när `AI_ENABLED` är på. Mallar om nyckeln saknas. Godkända När→gör-regler lägger kort (mejlutkast, Fortnox-utkast). PAID/Fortnox-skick/deploy/mejlpaus körs aldrig från ringen.

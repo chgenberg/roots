@@ -31,6 +31,13 @@ function timeoutForPath(backendPath: string): number {
     return HAIR_ANALYSIS_TIMEOUT_MS;
   }
   if (backendPath.startsWith("/v1/ai/")) return AI_TIMEOUT_MS;
+  if (
+    backendPath.includes("/conductor-desks/") &&
+    (backendPath.endsWith("/chat") || backendPath.endsWith("/group"))
+  ) {
+    return AI_TIMEOUT_MS;
+  }
+  if (backendPath.endsWith("/conductor-desks/group")) return AI_TIMEOUT_MS;
   return DEFAULT_TIMEOUT_MS;
 }
 

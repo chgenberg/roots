@@ -20,6 +20,7 @@ import { childLogger } from "../lib/logger";
 import { resolveUiLocale, uiError } from "../lib/ui-locale";
 import { localizeZodFlatten } from "../lib/zod-i18n";
 import { localizedProductName } from "../lib/product-i18n";
+import { noteConductorEvent } from "../lib/orchestrator/conductor-rules";
 
 const log = childLogger("calculator");
 
@@ -199,17 +200,22 @@ calculator.post("/public/lead", async (c) => {
     const idempotencyKey =
       c.req.header("idempotency-key") || parsed.data.idempotencyKey || undefined;
 
-    await db.insert(calculatorLeads).values({
-      calculatorLinkId: link.id,
-      email: parsed.data.email,
-      contactName: parsed.data.contactName,
-      message: parsed.data.message,
-      inputsSnapshot: parsed.data.inputs,
-      computedEarningsOre: Math.round(result.earningsKr * 100),
-      newsletterConsent: parsed.data.newsletterConsent ?? false,
-      ipAddress: ip,
-      idempotencyKey,
-    });
+    const [lead] = await db
+      .insert(calculatorLeads)
+      .values({
+        calculatorLinkId: link.id,
+        email: parsed.data.email,
+        contactName: parsed.data.contactName,
+        message: parsed.data.message,
+        inputsSnapshot: parsed.data.inputs,
+        computedEarningsOre: Math.round(result.earningsKr * 100),
+        newsletterConsent: parsed.data.newsletterConsent ?? false,
+        ipAddress: ip,
+        idempotencyKey,
+      })
+      .returning({ id: calculatorLeads.id });
+
+    if (lead) void noteConductorEvent("calculator.lead", lead.id);
 
     return c.json({ ok: true });
   } catch (err) {
@@ -338,17 +344,22 @@ calculator.post("/by-token/:token/lead", async (c) => {
     const idempotencyKey =
       c.req.header("idempotency-key") || parsed.data.idempotencyKey || undefined;
 
-    await db.insert(calculatorLeads).values({
-      calculatorLinkId: link.id,
-      email: parsed.data.email,
-      contactName: parsed.data.contactName,
-      message: parsed.data.message,
-      inputsSnapshot: parsed.data.inputs,
-      computedEarningsOre: Math.round(result.earningsKr * 100),
-      newsletterConsent: parsed.data.newsletterConsent ?? false,
-      ipAddress: ip,
-      idempotencyKey,
-    });
+    const [lead] = await db
+      .insert(calculatorLeads)
+      .values({
+        calculatorLinkId: link.id,
+        email: parsed.data.email,
+        contactName: parsed.data.contactName,
+        message: parsed.data.message,
+        inputsSnapshot: parsed.data.inputs,
+        computedEarningsOre: Math.round(result.earningsKr * 100),
+        newsletterConsent: parsed.data.newsletterConsent ?? false,
+        ipAddress: ip,
+        idempotencyKey,
+      })
+      .returning({ id: calculatorLeads.id });
+
+    if (lead) void noteConductorEvent("calculator.lead", lead.id);
 
     return c.json({ ok: true });
   } catch (err) {

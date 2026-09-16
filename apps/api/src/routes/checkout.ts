@@ -28,6 +28,7 @@ import { getEmailSender } from "../lib/email";
 import { orderConfirmationEmail } from "../lib/email/templates";
 import { childLogger } from "../lib/logger";
 import { auditLog, requestContext } from "../lib/audit";
+import { noteConductorEvent } from "../lib/orchestrator/conductor-rules";
 import {
   issueOrderViewToken,
   verifyOrderViewToken,
@@ -224,6 +225,7 @@ async function markOrderPaidFromStripe(opts: {
         orgId: order.orgId,
       },
     });
+    void noteConductorEvent("order.failed", order.id);
     return "mismatch";
   }
 
@@ -265,6 +267,7 @@ async function markOrderPaidFromStripe(opts: {
   });
 
   sendOrderConfirmationIfNeeded(order.id, snapshot.locale).catch(() => {});
+  void noteConductorEvent("order.paid", order.id);
   return "paid";
 }
 
@@ -288,6 +291,7 @@ async function markOrderFailedFromStripe(opts: {
 
   if (updated.length === 0) return "already";
 
+  void noteConductorEvent("order.failed", order.id);
   void auditLog({
     userId: null,
     action: "order.failed",
@@ -841,6 +845,7 @@ checkout.post("/create", async (c) => {
           totalOre,
         },
       });
+      void noteConductorEvent("order.failed", order.id);
 
       log.error({ err: stripeErr }, "Stripe session creation failed");
       return c.json({ error: uiError(locale, "paymentInitFailed") }, 502);
@@ -855,6 +860,7 @@ checkout.post("/create", async (c) => {
       })
       .where(eq(customerOrders.id, order.id));
 
+    void noteConductorEvent("order.created", order.id);
     void auditLog({
       userId: null,
       action: "order.created",

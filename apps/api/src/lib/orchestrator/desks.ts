@@ -11,7 +11,12 @@ import {
   type ConductorAction,
   type ConductorEvent,
 } from "./conductor-catalog";
-import { listDesks, createDesk, updateDesk } from "./conductor-store";
+import {
+  attachOrphanRules,
+  listDesks,
+  createDesk,
+  updateDesk,
+} from "./conductor-store";
 
 export type SeedDesk = {
   key: string;
@@ -68,6 +73,7 @@ export async function ensureSeededDesks(): Promise<void> {
     });
   }
   await ensurePortraits();
+  await attachOrphanRules();
 }
 
 export async function ensurePortraits(): Promise<void> {

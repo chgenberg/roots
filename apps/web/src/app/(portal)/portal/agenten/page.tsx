@@ -409,11 +409,12 @@ export default function AgentenPage() {
         <LoadError message={error} onRetry={() => void load()} />
       )}
 
+      <AdminDesks />
+
       {loading && !board ? (
         <p className="text-sm text-muted-foreground">{t.loading}</p>
       ) : board ? (
         <>
-          <AdminDesks />
           <AdminDeskMap />
 
           <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">

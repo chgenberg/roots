@@ -59,6 +59,7 @@ function DeskRuleCard(props: {
   busy: string | null;
   onApprove: () => void;
   onToggle: () => void;
+  onRun: () => void;
   onCadence: (cadence: ConductorCadence) => void;
   onRemove: () => void;
 }) {
@@ -76,6 +77,9 @@ function DeskRuleCard(props: {
           ? " · Pengar"
           : ""}
         {rule.gate === "email" ? " · Mejl" : ""}
+        {rule.lastRanAt
+          ? ` · Senast ${new Date(rule.lastRanAt).toLocaleString("sv-SE")}`
+          : ""}
       </p>
       <label className="mt-3 block">
         <span className="mb-1 block text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
@@ -115,6 +119,16 @@ function DeskRuleCard(props: {
             {rule.enabled ? "Slå av" : "Slå på"}
           </button>
         )}
+        {rule.approvedAt && rule.enabled ? (
+          <button
+            type="button"
+            disabled={props.busy === `run-${rule.id}`}
+            onClick={props.onRun}
+            className="h-9 rounded-full border border-border px-3.5 text-[13px] disabled:opacity-50"
+          >
+            Kör nu
+          </button>
+        ) : null}
         <button
           type="button"
           disabled={props.busy === rule.id}
@@ -285,11 +299,17 @@ export function AdminDesks() {
     setBusy("chat");
     setDraft("");
     try {
-      await apiFetch(`/v1/admin/conductor-desks/${open.id}/chat`, {
+      const res = await apiFetch(`/v1/admin/conductor-desks/${open.id}/chat`, {
         method: "POST",
         body: { text },
       });
+      if (!res.ok) {
+        setDraft(text);
+        return;
+      }
       await load();
+    } catch {
+      setDraft(text);
     } finally {
       setBusy(null);
     }
@@ -301,9 +321,28 @@ export function AdminDesks() {
     setBusy("chat");
     setDraft("");
     try {
-      await apiFetch("/v1/admin/conductor-desks/group", {
+      const res = await apiFetch("/v1/admin/conductor-desks/group", {
         method: "POST",
         body: { text },
+      });
+      if (!res.ok) {
+        setDraft(text);
+        return;
+      }
+      await load();
+    } catch {
+      setDraft(text);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function runRule(id: string) {
+    setBusy(`run-${id}`);
+    try {
+      await apiFetch(`/v1/admin/conductor-rules/${id}/run`, {
+        method: "POST",
+        body: {},
       });
       await load();
     } finally {
@@ -604,6 +643,7 @@ export function AdminDesks() {
                             busy={busy}
                             onApprove={() => void patchRule(rule.id, "approve")}
                             onToggle={() => void patchRule(rule.id, "toggle")}
+                            onRun={() => void runRule(rule.id)}
                             onCadence={(cadence) =>
                               void setCadence(rule.id, cadence)
                             }

@@ -1,6 +1,40 @@
 {
-  "updatedAt": "2026-09-16T11:50:00.000Z",
+  "updatedAt": "2026-09-16T13:28:00.000Z",
   "cards": [
+    {
+      "id": "wb-conductor-run-sep16",
+      "title": "Körare: ringen skriver tavlan",
+      "body": "Godkända regler öppnar kort. Mejl- och Fortnox-utkast. Kör nu. Ingen skick, ingen PAID. Ingen env-lyft.",
+      "status": "done",
+      "domainId": "admin",
+      "playbook": "ops",
+      "files": [
+        "apps/api/src/lib/orchestrator/conductor-rules.ts",
+        "apps/api/src/lib/orchestrator/heartbeat.ts",
+        "apps/web/src/components/admin-desks.tsx"
+      ],
+      "gate": "none",
+      "source": "cursor",
+      "createdAt": "2026-09-16T13:16:00.000Z",
+      "updatedAt": "2026-09-16T13:28:00.000Z"
+    },
+    {
+      "id": "wb-army-prod-gap-sep16",
+      "title": "Koll: ringen mot produktion",
+      "body": "Körare inne. Kort och utkast. Canvas: army-prod-gaps. Ingen env-lyft.",
+      "status": "done",
+      "domainId": "admin",
+      "playbook": "ops",
+      "files": [
+        "apps/api/src/lib/orchestrator/conductor-catalog.ts",
+        "apps/api/src/lib/orchestrator/hands.ts",
+        "apps/web/src/components/admin-desks.tsx"
+      ],
+      "gate": "none",
+      "source": "cursor",
+      "createdAt": "2026-09-16T13:14:00.000Z",
+      "updatedAt": "2026-09-16T13:14:00.000Z"
+    },
     {
       "id": "wb-deploy-army-sep16",
       "title": "Deploy: ringen + skrivbords-LLM",

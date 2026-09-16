@@ -76,6 +76,7 @@ import {
 } from "../lib/ui-locale";
 import { childLogger } from "../lib/logger";
 import { auditLog, requestContext } from "../lib/audit";
+import { noteConductorEvent } from "../lib/orchestrator/conductor-rules";
 import { scheduleOrgNormalize } from "../lib/jobs/schedule-org-normalize";
 import { shopSlug as makeShopSlug } from "../lib/slug";
 
@@ -1722,6 +1723,7 @@ auth.post("/register/association", async (c) => {
     const sessionId = await createSession(sessionData);
     setCookie(c, SESSION_COOKIE_NAME, sessionId, SESSION_COOKIE_OPTIONS);
 
+    void noteConductorEvent("org.pending", org.id);
     void auditLog({
       userId: user.id,
       action: "auth.register.association",
@@ -1894,6 +1896,7 @@ auth.post("/register/team-leader", async (c) => {
     // Enqueue AFTER tx commits — see note in /register/association above.
     if (newlyCreatedOrgId) {
       scheduleOrgNormalize(newlyCreatedOrgId);
+      void noteConductorEvent("org.pending", newlyCreatedOrgId);
     }
 
     const sessionData: SessionData = {

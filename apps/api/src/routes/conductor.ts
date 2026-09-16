@@ -8,6 +8,7 @@
  *   POST   /v1/admin/conductor-desks/:id/chat
  *   POST   /v1/admin/conductor-desks/group
  *   PATCH  /v1/admin/conductor-rules/:id
+ *   POST   /v1/admin/conductor-rules/:id/run
  *   DELETE /v1/admin/conductor-rules/:id
  */
 
@@ -30,6 +31,7 @@ import {
 } from "@roots/contracts";
 import { DESK_ACCENTS, ensureSeededDesks } from "../lib/orchestrator/desks";
 import { ingestDeskChat, noteRuleLesson } from "../lib/orchestrator/desk-chat";
+import { runRuleNow } from "../lib/orchestrator/conductor-rules";
 import { ingestGroupChat } from "../lib/orchestrator/group-chat";
 import {
   conductorTablesMissing,
@@ -296,6 +298,24 @@ conductorAdmin.patch("/conductor-rules/:id", async (c) => {
   }
   const updated = await updateRule(row.id, { cadence: parsed.data.cadence });
   return c.json({ ok: true, id: updated?.id, cadence: updated?.cadence });
+});
+
+conductorAdmin.post("/conductor-rules/:id/run", async (c) => {
+  const guard = await requireInternalAdmin(c);
+  if (!guard.ok) return c.json({ error: guard.error }, guard.status);
+  const row = await getRule(c.req.param("id"));
+  if (!row) return c.json({ error: "NOT_FOUND" }, 404);
+  let entityId: string | undefined;
+  try {
+    const body = (await c.req.json()) as { entityId?: unknown };
+    if (typeof body.entityId === "string" && body.entityId.trim()) {
+      entityId = body.entityId.trim().slice(0, 80);
+    }
+  } catch {
+    // Tom kropp är ok — köraren tar ett manuellt id.
+  }
+  const result = await runRuleNow({ ruleId: row.id, entityId });
+  return c.json(result, result.ok ? 200 : 409);
 });
 
 conductorAdmin.delete("/conductor-rules/:id", async (c) => {

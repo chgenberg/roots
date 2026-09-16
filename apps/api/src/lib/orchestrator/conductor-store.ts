@@ -14,7 +14,7 @@ export type MessageRow = typeof conductorMessages.$inferSelect;
 
 export function conductorTablesMissing(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err);
-  return /conductor_desks|conductor_messages|conductor_rules|conductor_traces|does not exist/i.test(
+  return /conductor_desks|conductor_messages|conductor_rules|conductor_jobs|conductor_traces|does not exist/i.test(
     msg
   );
 }
@@ -24,6 +24,15 @@ export async function listDesks(): Promise<DeskRow[]> {
     .select()
     .from(conductorDesks)
     .orderBy(asc(conductorDesks.createdAt));
+}
+
+export async function getDeskByKey(key: string): Promise<DeskRow | null> {
+  const [row] = await db
+    .select()
+    .from(conductorDesks)
+    .where(eq(conductorDesks.key, key))
+    .limit(1);
+  return row ?? null;
 }
 
 export async function getDesk(id: string): Promise<DeskRow | null> {

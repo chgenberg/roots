@@ -18,13 +18,13 @@ describe("conductor catalog", () => {
     expect(deskKeyForRule(draft.trigger, draft.action)).toBe("forening");
   });
 
-  it("keeps Fortnox drafts on Pengar and irreversible", () => {
+  it("keeps Fortnox drafts on Pengar and money", () => {
     const draft = draftRuleFromText(
       "När en avräkning är redo, skriv Fortnox-utkast."
     );
     expect(draft.trigger).toBe("settlement.ready");
     expect(draft.action).toBe("fortnox.draft");
-    expect(defaultGateFor(draft.action)).toBe("irreversible");
+    expect(defaultGateFor(draft.action)).toBe("money");
     expect(actionAllowedForDesk("pengar", "Pengar", "fortnox.draft")).toBe(true);
     expect(actionAllowedForDesk("mejl", "Mejl", "fortnox.draft")).toBe(false);
   });

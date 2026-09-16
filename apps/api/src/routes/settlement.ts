@@ -17,6 +17,7 @@ import type { SessionData } from "../lib/session";
 import { getSessionId } from "../lib/http-session";
 import { childLogger } from "../lib/logger";
 import { auditLog, requestContext } from "../lib/audit";
+import { noteConductorEvent } from "../lib/orchestrator/conductor-rules";
 import { redis } from "../lib/redis";
 import { resolveUiLocale, uiError, uiErrorFill } from "../lib/ui-locale";
 
@@ -333,6 +334,10 @@ settlement.post("/generate/:campaignId", async (c) => {
       .map((r) => r.payoutId)
       .filter((id): id is string => typeof id === "string");
 
+    void noteConductorEvent("settlement.ready", campaignId);
+    for (const payoutId of payoutIds) {
+      void noteConductorEvent("payout.pending", payoutId);
+    }
     void auditLog({
       userId: session.userId,
       action: "campaign.status.changed",

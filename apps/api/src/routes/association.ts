@@ -37,6 +37,7 @@ import { isDemoSession, SESSION_COOKIE_NAME, SESSION_COOKIE_OPTIONS, createSessi
 import type { SessionData } from "../lib/session";
 import { requireSession } from "../lib/http-session";
 import { auditLog, requestContext } from "../lib/audit";
+import { noteConductorEvent } from "../lib/orchestrator/conductor-rules";
 import { teamInviteResendRateLimit } from "../lib/rate-limit";
 import { validatePassword } from "./auth";
 import { childLogger } from "../lib/logger";
@@ -426,6 +427,7 @@ association.post("/team-invites", async (c) => {
       })
       .returning();
 
+    void noteConductorEvent("invite.created", invite.id);
     void auditLog({
       userId: session.userId,
       action: "association.team_invite.created",
@@ -1292,6 +1294,7 @@ association.post("/campaigns/:id/end", async (c) => {
       .where(eq(campaigns.id, campaignId))
       .returning();
 
+    void noteConductorEvent("campaign.ended", campaignId);
     void auditLog({
       userId: session.userId,
       action: "campaign.status.changed",

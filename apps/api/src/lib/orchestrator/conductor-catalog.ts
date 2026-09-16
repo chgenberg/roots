@@ -62,7 +62,7 @@ export function actionLabel(action: string): string {
 
 export function defaultGateFor(action: ConductorAction): Gate {
   if (action === "email.draft") return "email";
-  if (action === "fortnox.draft") return "irreversible";
+  if (action === "fortnox.draft") return "money";
   return "none";
 }
 

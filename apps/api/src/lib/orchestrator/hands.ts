@@ -11,7 +11,9 @@ export type HandResult = {
 };
 
 /** Per-prefix caps. Add a row when you add a Hand. */
-const CAPS: { test: (key: string) => boolean; max: number }[] = [];
+const CAPS: { test: (key: string) => boolean; max: number }[] = [
+  { test: (key) => key.startsWith("rule-job:"), max: 8 },
+];
 
 export async function tryFixKey(_key: string): Promise<HandResult | null> {
   if (_key === "email-paused" || _key.startsWith("nightly-error:")) {
@@ -23,6 +25,10 @@ export async function tryFixKey(_key: string): Promise<HandResult | null> {
     _key.startsWith("stale-job:")
   ) {
     return null;
+  }
+  if (_key.startsWith("rule-job:")) {
+    const { executeRuleJob } = await import("./conductor-rules");
+    return executeRuleJob(_key.slice("rule-job:".length));
   }
   return null;
 }

@@ -75,6 +75,41 @@ export async function listOpenHeartbeatKeys(prefix: string): Promise<string[]> {
   return rows.map((r) => r.key);
 }
 
+export async function upsertArmyCard(data: {
+  key: string;
+  title: string;
+  body: string;
+  domainId: string;
+  gate: string;
+  playbook?: string;
+}): Promise<void> {
+  const existing = await findCardByKey(data.key);
+  const payload = {
+    title: data.title,
+    body: data.body,
+    domainId: data.domainId,
+    gate: data.gate,
+    filesJson: JSON.stringify([
+      "apps/api/src/lib/orchestrator/conductor-rules.ts",
+    ]),
+  };
+  if (existing) {
+    await reopenCard(data.key, payload);
+    return;
+  }
+  await db.insert(orchestratorCards).values({
+    key: data.key,
+    title: data.title,
+    body: data.body,
+    status: "inbox",
+    domainId: data.domainId,
+    playbook: data.playbook ?? "uppgifter",
+    gate: data.gate,
+    filesJson: payload.filesJson,
+    source: "admin",
+  });
+}
+
 export async function createHeartbeatCard(data: {
   key: string;
   title: string;

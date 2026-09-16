@@ -28,6 +28,7 @@ import { guardDrafts } from "./desk-guard";
 import {
   createRule,
   getDesk,
+  getDeskByKey,
   hasAgentGreeting,
   insertMessage,
   listRecentDeskMessages,
@@ -38,6 +39,18 @@ import {
   type RuleRow,
 } from "./conductor-store";
 
+async function deskForAction(
+  desk: { id: string; key: string; name: string },
+  action: "card.open" | "email.draft" | "fortnox.draft"
+): Promise<{ id: string; key: string; name: string }> {
+  if (actionAllowedForDesk(desk.key, desk.name, action)) return desk;
+  if (action === "fortnox.draft") {
+    const pengar = await getDeskByKey("pengar");
+    if (pengar) return pengar;
+  }
+  return desk;
+}
+
 export async function createDraftRule(
   desk: { id: string; key: string; name: string },
   userId: string,
@@ -47,24 +60,28 @@ export async function createDraftRule(
   if (
     hint &&
     isConductorEvent(hint.trigger) &&
-    isConductorAction(hint.action) &&
-    actionAllowedForDesk(desk.key, desk.name, hint.action)
+    isConductorAction(hint.action)
   ) {
+    const home = await deskForAction(desk, hint.action);
+    const action = actionAllowedForDesk(home.key, home.name, hint.action)
+      ? hint.action
+      : "card.open";
     return createRule({
       title: hint.title.slice(0, 80),
       trigger: hint.trigger,
-      action: hint.action,
-      gate: defaultGateFor(hint.action),
+      action,
+      gate: defaultGateFor(action),
       createdBy: userId,
-      deskId: desk.id,
+      deskId: home.id,
       actionJson: JSON.stringify(
-        hint.action === "card.open" ? { title: hint.title.slice(0, 80) } : {}
+        action === "card.open" ? { title: hint.title.slice(0, 80) } : {}
       ),
     });
   }
   const draft = draftRuleFromText(text);
   let action = isConductorAction(draft.action) ? draft.action : "card.open";
-  if (!actionAllowedForDesk(desk.key, desk.name, action)) action = "card.open";
+  const home = await deskForAction(desk, action);
+  if (!actionAllowedForDesk(home.key, home.name, action)) action = "card.open";
   const trigger = isConductorEvent(draft.trigger)
     ? draft.trigger
     : "order.created";
@@ -74,7 +91,7 @@ export async function createDraftRule(
     action,
     gate: defaultGateFor(action),
     createdBy: userId,
-    deskId: desk.id,
+    deskId: home.id,
     actionJson: JSON.stringify(draft.actionJson),
     filterJson: JSON.stringify(draft.filter),
   });
