@@ -8,3 +8,10 @@ Process — inte produktdrift. En paragraf bara när en lång session
 Agent-OS kopplades in i Roots: Cursor läser `graph.ts` och JSON-tavlan,
 admin följer samma karta på `/portal/agenten`, pulsen tickar i API:t.
 OS:et och chatten på `/portal/ai` hålls isär.
+
+## 2026-09-16
+
+Ringen från Billboardbee kom in: fem anställda med samma figurer,
+utbildning i chatten och När→gör-utkast på `/portal/agenten`. Kartan
+och tavlan ligger kvar under. Hands kör fortfarande inte PAID, Fortnox,
+deploy eller lyft av mejlpaus.

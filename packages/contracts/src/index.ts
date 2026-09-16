@@ -11,3 +11,4 @@ export * from "./pricing";
 export * from "./legal";
 export * from "./reviewer";
 export * from "./site";
+export * from "./desks";

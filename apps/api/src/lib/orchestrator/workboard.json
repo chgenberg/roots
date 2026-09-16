@@ -1,6 +1,57 @@
 {
-  "updatedAt": "2026-09-16T11:15:00.000Z",
+  "updatedAt": "2026-09-16T11:50:00.000Z",
   "cards": [
+    {
+      "id": "wb-deploy-army-sep16",
+      "title": "Deploy: ringen + skrivbords-LLM",
+      "body": "Hunt utan CRITICAL/HIGH. Typecheck grön. 91 riktade tester. Lint 0 errors. Push till main. Ingen mejl-/Stripe-/grind-lyft.",
+      "status": "done",
+      "domainId": "admin",
+      "playbook": "ops",
+      "files": [
+        "apps/web/src/components/admin-desks.tsx",
+        "apps/api/src/lib/orchestrator/desk-brain.ts",
+        "packages/db/drizzle/0022_conductor.sql"
+      ],
+      "gate": "deploy",
+      "source": "cursor",
+      "createdAt": "2026-09-16T11:49:00.000Z",
+      "updatedAt": "2026-09-16T11:50:00.000Z"
+    },
+    {
+      "id": "wb-desk-brain-sep16",
+      "title": "Ringen mot samma OpenAI-nyckel",
+      "body": "Skrivbordschatten tänker via chatCompletion. Mallar om nyckeln saknas. Ingen mejl-/PAID-/Fortnox-/deploy-körning.",
+      "status": "done",
+      "domainId": "admin",
+      "playbook": "ops",
+      "files": [
+        "apps/api/src/lib/orchestrator/desk-brain.ts",
+        "apps/api/src/lib/orchestrator/desk-chat.ts",
+        "apps/api/src/lib/ai/openclaw-client.ts"
+      ],
+      "gate": "none",
+      "source": "cursor",
+      "createdAt": "2026-09-16T11:42:00.000Z",
+      "updatedAt": "2026-09-16T11:48:00.000Z"
+    },
+    {
+      "id": "wb-agent-army-sep16",
+      "title": "Agentarmé från Billboardbee",
+      "body": "Porträtt, fem Roots-bord, ring, chatt och När→gör på /portal/agenten. Ingen mejl-/Stripe-/grind-lyft. Ingen Hand på PAID.",
+      "status": "done",
+      "domainId": "admin",
+      "playbook": "ops",
+      "files": [
+        "apps/web/src/components/admin-desks.tsx",
+        "apps/api/src/routes/conductor.ts",
+        "packages/db/src/schema/conductor.ts"
+      ],
+      "gate": "none",
+      "source": "cursor",
+      "createdAt": "2026-09-16T11:30:00.000Z",
+      "updatedAt": "2026-09-16T11:45:00.000Z"
+    },
     {
       "id": "wb-deploy-sep16",
       "title": "Pre-push: masterplan fas 1–5 kod",

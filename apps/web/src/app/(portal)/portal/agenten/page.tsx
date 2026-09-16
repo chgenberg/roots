@@ -23,6 +23,8 @@ import {
   ShieldAlert,
   X,
 } from "lucide-react";
+import { AdminDesks } from "@/components/admin-desks";
+import { AdminDeskMap } from "@/components/admin-desk-map";
 
 type Gate = "none" | "deploy" | "irreversible" | "email" | "money";
 type CardStatus = "inbox" | "ready" | "doing" | "blocked" | "done";
@@ -411,6 +413,9 @@ export default function AgentenPage() {
         <p className="text-sm text-muted-foreground">{t.loading}</p>
       ) : board ? (
         <>
+          <AdminDesks />
+          <AdminDeskMap />
+
           <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
             <Card>
               <CardContent className="p-4">

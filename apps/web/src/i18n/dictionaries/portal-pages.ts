@@ -1430,7 +1430,7 @@ export const portalPages = {
     sv: {
       title: "Agenten",
       subtitle:
-        "Kartan, tavlan och pulsen. Agenten är dirigent — inte en chatt.",
+        "Ringen, kartan och tavlan. Agenten är dirigent — du utbildar de anställda.",
       loadError: "Kunde inte hämta tavlan.",
       loading: "Hämtar tavlan…",
       permissionDenied: "Behörighet saknas — kräver INTERNAL_ADMIN.",
@@ -1461,7 +1461,7 @@ export const portalPages = {
     en: {
       title: "The agent",
       subtitle:
-        "Map, board and pulse. The agent conducts the site — it is not a chat.",
+        "Ring, map and board. The agent conducts — you train the desks.",
       loadError: "Could not load the board.",
       loading: "Loading the board…",
       permissionDenied: "Permission denied — INTERNAL_ADMIN required.",

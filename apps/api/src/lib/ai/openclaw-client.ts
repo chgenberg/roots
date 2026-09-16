@@ -18,6 +18,7 @@ export interface ChatCompletionOptions {
   model?: string;
   /** Override default request timeout (ms). */
   timeoutMs?: number;
+  maxTokens?: number;
 }
 
 export interface ChatMessage {
@@ -136,7 +137,7 @@ export async function chatCompletion(
       {
         model,
         messages,
-        max_completion_tokens: 1024,
+        max_completion_tokens: options.maxTokens ?? 1024,
       },
       controller.signal
     );
