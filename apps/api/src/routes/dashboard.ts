@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq, and, sql, inArray, gte } from "drizzle-orm";
+import { eq, and, sql, inArray, gte, desc } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { hash } from "@node-rs/argon2";
 import { db } from "@roots/db";
@@ -227,6 +227,13 @@ dashboard.get("/association", async (c) => {
       .innerJoin(teams, eq(teamGoals.teamId, teams.id))
       .where(eq(teams.orgId, orgId));
 
+    const recentOrders = await db
+      .select()
+      .from(customerOrders)
+      .where(eq(customerOrders.orgId, orgId))
+      .orderBy(desc(customerOrders.createdAt))
+      .limit(10);
+
     return c.json({
       campaigns: campaignList.map((camp) => {
         const demo = localizeDemoCampaignFields(locale, camp);
@@ -264,6 +271,21 @@ dashboard.get("/association", async (c) => {
       }),
       sellers: sellerList,
       stats: { totalSalesOre: totalSales, totalOrders },
+      orders: recentOrders.map((o) => ({
+        id: o.id,
+        customerName: o.customerName,
+        customerEmail: o.customerEmail,
+        totalOre: o.totalOre,
+        status: o.status,
+        paymentMethod: o.paymentMethod,
+        selectedPaymentMethod: o.selectedPaymentMethod,
+        deliveryType: o.deliveryType,
+        sellerId: o.sellerId,
+        isManual: o.isManual,
+        countsTowardStats: o.countsTowardStats,
+        createdAt: o.createdAt,
+        verifiedAt: o.verifiedAt,
+      })),
     });
   } catch (err) {
     log.error({ err }, "Failed to fetch association dashboard");

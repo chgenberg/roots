@@ -1,0 +1,13 @@
+{
+  "name": "roots-walkthrough",
+  "private": true,
+  "type": "module",
+  "description": "Lång desktop-instruktionsfilm mot produktion för föreningar.",
+  "scripts": {
+    "seed": "node seed-film-data.js",
+    "titles": "node titles.js",
+    "record": "node record.js",
+    "compose": "node compose.js",
+    "concat": "node concat.js"
+  }
+}

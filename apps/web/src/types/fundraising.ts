@@ -105,6 +105,7 @@ export interface AssociationDashboard {
     totalSalesOre: number;
     totalOrders: number;
   };
+  orders?: CustomerOrder[];
 }
 
 export interface TeamDashboard {

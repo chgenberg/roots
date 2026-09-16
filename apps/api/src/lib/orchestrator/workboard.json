@@ -1,6 +1,55 @@
 {
-  "updatedAt": "2026-09-16T13:28:00.000Z",
+  "updatedAt": "2026-09-16T17:00:00.000Z",
   "cards": [
+    {
+      "id": "wb-forening-orders-deploy-sep16",
+      "title": "Deploy: förening visar senaste ordrar",
+      "body": "Ja från Christopher. Hunt utan CRITICAL/HIGH. Typecheck grön. 71 tester. Lint 0 errors. Push till main. Ingen env-lyft.",
+      "status": "done",
+      "domainId": "admin",
+      "playbook": "ops",
+      "files": [
+        "apps/web/src/app/(fundraising)/forening/page.tsx",
+        "apps/api/src/routes/dashboard.ts"
+      ],
+      "gate": "deploy",
+      "source": "cursor",
+      "createdAt": "2026-09-16T16:59:00.000Z",
+      "updatedAt": "2026-09-16T17:00:00.000Z"
+    },
+    {
+      "id": "wb-person-luckor-sep16",
+      "title": "Luckor efter personkörning",
+      "body": "Förening visar Karin. Test-intern på allowlist. PENDING-kassor bort. Kampanj ACTIVE. Ingen PAID, ingen Fortnox, ingen env-lyft.",
+      "status": "done",
+      "domainId": "admin",
+      "playbook": "ops",
+      "files": [
+        "apps/web/src/app/(fundraising)/forening/page.tsx",
+        "apps/api/src/routes/dashboard.ts",
+        "scripts/roots-walkthrough/fix-person-luckor.js"
+      ],
+      "gate": "none",
+      "source": "cursor",
+      "createdAt": "2026-09-16T16:24:00.000Z",
+      "updatedAt": "2026-09-16T16:40:00.000Z"
+    },
+    {
+      "id": "wb-personkorning-sep16",
+      "title": "Personkörning testkonton i prod",
+      "body": "26 testkonton. Live PAID 399 kr, 35 %. Avräkning PENDING. Ingen Fortnox-skick, ingen env-lyft.",
+      "status": "done",
+      "domainId": "admin",
+      "playbook": "ops",
+      "files": [
+        "scripts/roots-walkthrough/reset-test-people.js",
+        "scripts/roots-walkthrough/run-person-prod.js"
+      ],
+      "gate": "none",
+      "source": "cursor",
+      "createdAt": "2026-09-16T16:00:00.000Z",
+      "updatedAt": "2026-09-16T16:10:00.000Z"
+    },
     {
       "id": "wb-conductor-run-sep16",
       "title": "Körare: ringen skriver tavlan",

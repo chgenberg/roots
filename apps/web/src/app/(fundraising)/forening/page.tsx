@@ -12,8 +12,10 @@ import { OnboardingBanner } from "@/components/onboarding-banner";
 import { MiniTrendCard } from "@/components/charts/mini-trend-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { OrderDetailDialog } from "@/components/order-detail-dialog";
 import {
   Dialog,
   DialogContent,
@@ -33,9 +35,10 @@ import {
 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { apiFetch, rootsFetch } from "@/lib/api";
-import type { AssociationDashboard as AssociationDashboardData, Campaign } from "@/types/fundraising";
+import type { AssociationDashboard as AssociationDashboardData, Campaign, CustomerOrder } from "@/types/fundraising";
 import { getBrowserApiBase } from "@/lib/api-base";
 import { formatKr, formatKrValue, pluralSv } from "@/lib/format";
+import { orderStatusColor, orderStatusLabel } from "@/lib/order-status";
 import { ForestHero, forestHeroActionClassName } from "@/components/forest-hero";
 import { LOCKED_MARGIN_PERCENT } from "@roots/contracts";
 
@@ -103,6 +106,8 @@ function AssociationDashboardInner() {
     "BULK" | "DIRECT" | "BOTH"
   >("BULK");
   const [newAllowOutside, setNewAllowOutside] = useState(true);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailOrderId, setDetailOrderId] = useState<string | null>(null);
 
   const { toast } = useToast();
 
@@ -321,6 +326,52 @@ function AssociationDashboardInner() {
         </Card>
       </div>
 
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">{c.recentOrders}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {(data?.orders || []).length === 0 ? (
+            <p className="text-sm text-muted-foreground">{c.noOrdersYet}</p>
+          ) : (
+            <div className="space-y-2">
+              {(data?.orders || []).slice(0, 10).map((order: CustomerOrder) => (
+                <button
+                  key={order.id}
+                  type="button"
+                  onClick={() => {
+                    setDetailOrderId(order.id);
+                    setDetailOpen(true);
+                  }}
+                  className="flex w-full items-center justify-between rounded-lg border p-3 text-left transition-colors hover:bg-brand-50/60"
+                  aria-label={tFill(c.viewOrderDetails, { name: order.customerName })}
+                >
+                  <div>
+                    <p className="text-sm font-medium">{order.customerName}</p>
+                    <div className="flex gap-2 mt-0.5">
+                      <Badge
+                        variant="secondary"
+                        className={`text-xs ${orderStatusColor(order.status)}`}
+                      >
+                        {orderStatusLabel(order.status, locale)}
+                      </Badge>
+                      {order.deliveryType === "DIRECT" && (
+                        <Badge variant="secondary" className="text-xs">
+                          {c.directDelivery}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  <p className="text-sm font-semibold">
+                    {formatKr(order.totalOre, locale)}
+                  </p>
+                </button>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Försäljningstrend */}
       <MiniTrendCard
         path="/v1/dashboard/association/stats"
@@ -428,6 +479,13 @@ function AssociationDashboardInner() {
           </Card>
         </LocaleLink>
       </div>
+
+      <OrderDetailDialog
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        orderId={detailOrderId}
+        onStatusChange={() => void load(true)}
+      />
 
       <Dialog open={campaignDialogOpen} onOpenChange={setCampaignDialogOpen}>
         <DialogContent>
