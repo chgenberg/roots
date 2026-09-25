@@ -147,12 +147,15 @@ interface RevenueCalculatorProps {
   products?: { name: string; priceOre: number }[];
   onChange?: (inputs: CalculatorInputs, result: CalculatorResult) => void;
   className?: string;
+  /** Föreningens namn i PDF-rubriken. */
+  associationName?: string;
 }
 
 export function RevenueCalculator({
   defaultInputs,
   onChange,
   className,
+  associationName,
 }: RevenueCalculatorProps) {
   const { locale } = useLocale();
   const t = marketingUi[locale].calculator;
@@ -344,7 +347,7 @@ export function RevenueCalculator({
             <button
               type="button"
               onClick={() =>
-                void downloadCalculatorPdf({ inputs, result, locale })
+                void downloadCalculatorPdf({ inputs, result, locale, associationName })
               }
               className="mt-6 inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/25"
             >

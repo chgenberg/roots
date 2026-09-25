@@ -145,6 +145,7 @@ export default function PublicCalculatorPage() {
         defaultInputs={data.presets ?? undefined}
         products={data.products}
         onChange={onCalcChange}
+        associationName={data.associationName}
       />
 
       <Card className="mt-10 border-brand-200">

@@ -164,7 +164,7 @@ export default function RaknesnurraPage() {
         </div>
       </div>
 
-      <RevenueCalculator onChange={onCalcChange} />
+      <RevenueCalculator onChange={onCalcChange} associationName={assocName} />
 
       <Card>
         <CardContent className="space-y-4 p-6">
