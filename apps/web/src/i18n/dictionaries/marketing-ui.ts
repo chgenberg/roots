@@ -102,6 +102,8 @@ export const marketingUi = {
       disclaimer:
         "En uppskattning utifrån era antaganden. Faktisk förtjänst beror på hur mycket föreningen säljer.",
       downloadPdf: "Ladda ner PDF till styrelsen",
+      pdfClubLabel: "Föreningens namn i PDF:en (valfritt)",
+      pdfClubPlaceholder: "T.ex. Hällesåker IF",
       yourNumbers: "Era siffror",
       numbersIntro: "Två reglage. Den gröna siffran uppdateras direkt.",
       quickPick: "Snabbval",
@@ -212,6 +214,8 @@ export const marketingUi = {
       disclaimer:
         "An estimate based on your assumptions. Actual earnings depend on how much the club sells.",
       downloadPdf: "Download a PDF for the board",
+      pdfClubLabel: "Club name in the PDF (optional)",
+      pdfClubPlaceholder: "E.g. Hällesåker IF",
       yourNumbers: "Your numbers",
       numbersIntro: "Two sliders. The green number updates live.",
       quickPick: "Quick pick",

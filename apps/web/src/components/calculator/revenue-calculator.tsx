@@ -175,6 +175,8 @@ export function RevenueCalculator({
   const [showGoal, setShowGoal] = useState(Boolean(inputs.goalKr));
   const [ordersPerSeller, setOrdersPerSeller] = useState(3);
   const [avgOrderKr, setAvgOrderKr] = useState(500);
+  const [pdfClubName, setPdfClubName] = useState("");
+  const knownClubName = associationName?.trim() ?? "";
 
   const result = useMemo(() => computeCalculator(inputs), [inputs]);
   const money = (kr: number) => krLabel(kr, locale, t.currencySuffix);
@@ -344,12 +346,40 @@ export function RevenueCalculator({
               {t.ofGross.replace("{gross}", money(result.grossKr))} ·{" "}
               {result.marginPercent}%
             </p>
+            {!knownClubName && (
+              <div className="mt-6 max-w-sm space-y-1.5">
+                <label
+                  htmlFor="pdf-club-name"
+                  className="text-xs font-medium text-brand-100"
+                >
+                  {t.pdfClubLabel}
+                </label>
+                <input
+                  id="pdf-club-name"
+                  type="text"
+                  value={pdfClubName}
+                  maxLength={80}
+                  autoComplete="organization"
+                  placeholder={t.pdfClubPlaceholder}
+                  onChange={(e) => setPdfClubName(e.target.value)}
+                  className="w-full rounded-lg border border-white/25 bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+                />
+              </div>
+            )}
             <button
               type="button"
               onClick={() =>
-                void downloadCalculatorPdf({ inputs, result, locale, associationName })
+                void downloadCalculatorPdf({
+                  inputs,
+                  result,
+                  locale,
+                  associationName: knownClubName || pdfClubName,
+                })
               }
-              className="mt-6 inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/25"
+              className={cn(
+                knownClubName ? "mt-6" : "mt-3",
+                "inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/25"
+              )}
             >
               <Download className="h-4 w-4" aria-hidden="true" />
               {t.downloadPdf}
