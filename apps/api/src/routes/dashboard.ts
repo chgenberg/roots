@@ -74,9 +74,9 @@ function canVerifyManualOrder(
 }
 
 /* ───────────────────────── Statistik / grafer ─────────────────────────
- * Tidsserie-data för dashboard-graferna. Alla aggregat filtrerar på
- * PAID + countsTowardStats=true (samma regel som KPI-aggregaten ovan) så
- * graferna och siffrorna alltid stämmer överens. Endpoints returnerar
+ * Tidsserie-data för dashboard-graferna. Alla aggregat räknar samma
+ * betalda ordrar som KPI:erna och avräkningen — även ordrar utanför
+ * säljperioden — så graferna och siffrorna alltid stämmer överens. Endpoints returnerar
  * självständig data så varje statistik-sida klarar sig med ETT anrop.
  * ------------------------------------------------------------------- */
 
@@ -85,10 +85,7 @@ const STATS_WINDOW_DAYS = 90;
 // över betalstatus i samma kolumn, så ett `= 'PAID'` tappade varje order
 // som hunnit markeras som skickad eller levererad. Grafer och KPI:er visade
 // då mindre än laget faktiskt sålt.
-const PAID_IN_STATS = and(
-  inArray(customerOrders.status, REVENUE_ORDER_STATUSES),
-  eq(customerOrders.countsTowardStats, true)
-);
+const PAID_IN_STATS = inArray(customerOrders.status, REVENUE_ORDER_STATUSES);
 
 /** Tidigaste datum vi tar med i tidsserien. */
 function statsSince(): Date {
@@ -211,9 +208,9 @@ dashboard.get("/association", async (c) => {
       .where(
         and(
           eq(customerOrders.orgId, orgId),
-          inArray(customerOrders.status, REVENUE_ORDER_STATUSES),
-          // Endast ordrar inom säljperioden räknas i statistik/topplistor.
-          eq(customerOrders.countsTowardStats, true)
+          // Samma urval som avräkningen: alla betalda ordrar, även
+          // webbshopsordrar utanför säljperioden.
+          inArray(customerOrders.status, REVENUE_ORDER_STATUSES)
         )
       )
       .groupBy(customerOrders.teamId);
@@ -460,8 +457,7 @@ dashboard.get("/team/:teamId", async (c) => {
       .where(
         and(
           eq(customerOrders.teamId, teamId),
-          inArray(customerOrders.status, REVENUE_ORDER_STATUSES),
-          eq(customerOrders.countsTowardStats, true)
+          inArray(customerOrders.status, REVENUE_ORDER_STATUSES)
         )
       )
       .groupBy(customerOrders.sellerId);
@@ -1286,8 +1282,7 @@ dashboard.get("/seller", async (c) => {
       .where(
         and(
           eq(customerOrders.sellerId, seller.id),
-          inArray(customerOrders.status, REVENUE_ORDER_STATUSES),
-          eq(customerOrders.countsTowardStats, true)
+          inArray(customerOrders.status, REVENUE_ORDER_STATUSES)
         )
       );
 

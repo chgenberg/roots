@@ -404,7 +404,7 @@ export const fundraisingPages = {
       deliveryBothOption: "Båda (kunden väljer)",
       allowOutside: "Tillåt försäljning utanför perioden",
       allowOutsideHint:
-        "Ordrar utanför säljperioden tas emot men räknas inte i topplistor/statistik. Avmarkera för att blockera försäljning mellan perioderna helt.",
+        "Ordrar utanför säljperioden tas emot och räknas med i försäljning och avräkning, som alla andra ordrar. Avmarkera för att blockera försäljning mellan perioderna helt.",
     },
     {
       title: "Club dashboard",
@@ -453,7 +453,7 @@ export const fundraisingPages = {
       deliveryBothOption: "Both (customer chooses)",
       allowOutside: "Allow sales outside the period",
       allowOutsideHint:
-        "Orders outside the sales period are accepted but do not count in leaderboards/statistics. Untick to block sales between periods entirely.",
+        "Orders outside the sales period are accepted and count toward sales and the payout statement like any other order. Untick to block sales between periods entirely.",
     }
   ),
 

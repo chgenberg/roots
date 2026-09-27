@@ -49,8 +49,8 @@ export const campaigns = pgTable(
     // Säljperiod-styrning. När `allowSalesOutsidePeriod` är false blockeras
     // checkout helt utanför start/end (föreningens "man kan inte sälja
     // mellan perioderna"). När den är true accepteras ordrar utanför
-    // perioden men flaggas `countsTowardStats=false` så de inte räknas i
-    // topplistor/statistik ("försäljningen kan alltid pågå").
+    // perioden och flaggas `countsTowardStats=false`. Flaggan är bara
+    // information: alla betalda ordrar räknas i försäljning och avräkning.
     allowSalesOutsidePeriod: boolean("allow_sales_outside_period")
       .notNull()
       .default(true),

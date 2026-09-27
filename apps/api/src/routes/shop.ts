@@ -135,16 +135,14 @@ shop.get("/by-slug/:slug", async (c) => {
     const bundleProductLinks = await db.select().from(bundleProducts);
 
     // Målprogressen supportern ser ska matcha säljarens/dashboardens
-    // siffror: bara betalda ordrar som räknas mot statistiken
-    // (countsTowardStats), dvs inte ordrar utanför säljperioden.
+    // siffror och avräkningen: alla betalda ordrar, även utanför säljperioden.
     const soldResult = await db
       .select({ total: sql<number>`COALESCE(SUM(${customerOrders.totalOre}), 0)` })
       .from(customerOrders)
       .where(
         and(
           eq(customerOrders.sellerId, seller.id),
-          inArray(customerOrders.status, REVENUE_ORDER_STATUSES),
-          eq(customerOrders.countsTowardStats, true)
+          inArray(customerOrders.status, REVENUE_ORDER_STATUSES)
         )
       );
 
@@ -156,8 +154,7 @@ shop.get("/by-slug/:slug", async (c) => {
       .where(
         and(
           eq(customerOrders.sellerId, seller.id),
-          inArray(customerOrders.status, REVENUE_ORDER_STATUSES),
-          eq(customerOrders.countsTowardStats, true)
+          inArray(customerOrders.status, REVENUE_ORDER_STATUSES)
         )
       );
 

@@ -4,8 +4,8 @@
     {
       "id": "wb-total-audit-sep27",
       "title": "Total genomgång: alla roller i prod",
-      "body": "252 sidvisningar, 8 roller, dator+mobil. 4 kodgranskare. HIGH lagade lokalt. Ingen PAID, ingen Fortnox, ingen betalning, ingen env-lyft. Rapport: docs/platform-audit/AUDIT_2026-09-27_1715.txt",
-      "status": "review",
+      "body": "252 sidvisningar, 8 roller, dator+mobil. 4 kodgranskare. HIGH lagade lokalt. Ingen PAID, ingen Fortnox, ingen betalning, ingen env-lyft. Rapport: docs/platform-audit/AUDIT_2026-09-27_1715.txt Deployad fcb9a69 efter hunt utan CRITICAL/HIGH och ja. Prod-koll: 0 API-fel, portalroller omdirigeras, intern släpps direkt efter tvåfaktor.",
+      "status": "done",
       "domainId": "platform",
       "playbook": "ops",
       "files": [
@@ -16,7 +16,7 @@
       "gate": "deploy",
       "source": "cursor",
       "createdAt": "2026-09-27T14:30:00.000Z",
-      "updatedAt": "2026-09-27T15:15:00.000Z"
+      "updatedAt": "2026-09-27T15:35:00.000Z"
     },
     {
       "id": "wb-forening-orders-deploy-sep16",

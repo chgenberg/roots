@@ -236,8 +236,7 @@ sales.get("/calendar", async (c) => {
         .where(
           and(
             inArray(customerOrders.campaignId, campaignIds),
-            inArray(customerOrders.status, REVENUE_ORDER_STATUSES),
-            eq(customerOrders.countsTowardStats, true)
+            inArray(customerOrders.status, REVENUE_ORDER_STATUSES)
           )
         )
         .groupBy(customerOrders.campaignId);
