@@ -71,6 +71,8 @@ function withEnVariants(entries: MetadataRoute.Sitemap): MetadataRoute.Sitemap {
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  // Grinden skriver om publika sidor till grindsidan — lista inget förrän den är av.
+  if (process.env.PREVIEW_GATE_DISABLED !== "true") return [];
   const staticEntries: MetadataRoute.Sitemap = [
     { url: BASE_URL, lastModified: new Date(), changeFrequency: "weekly", priority: 1 },
     { url: `${BASE_URL}/produkter`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.9 },

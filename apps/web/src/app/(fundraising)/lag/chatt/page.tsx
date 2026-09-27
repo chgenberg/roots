@@ -2,6 +2,7 @@
 
 import { useLocale } from "@/i18n/locale-context";
 import { fundraisingPages } from "@/i18n/dictionaries/fundraising-pages";
+import { LoadError } from "@/components/load-error";
 import { tFill } from "@/i18n/format";
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -25,6 +26,7 @@ export default function LeaderChatPage() {
   const c = fundraisingPages.common[locale];
   const [teamId, setTeamId] = useState<string | null>(null);
   const [threads, setThreads] = useState<Thread[]>([]);
+  const [threadsFailed, setThreadsFailed] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,7 +41,12 @@ export default function LeaderChatPage() {
     const { ok, data } = await apiFetch<{ threads: Thread[] }>(
       `/v1/chat/team/${tid}/threads`
     );
-    if (ok && data?.threads) setThreads(data.threads);
+    if (ok && data?.threads) {
+      setThreads(data.threads);
+      setThreadsFailed(false);
+    } else {
+      setThreadsFailed(true);
+    }
   }, []);
 
   const loadMessages = useCallback(
@@ -66,6 +73,8 @@ export default function LeaderChatPage() {
       if (ok && data?.teamId) {
         setTeamId(data.teamId);
         await loadThreads(data.teamId);
+      } else if (!ok) {
+        setThreadsFailed(true);
       }
       setLoading(false);
     }
@@ -189,7 +198,15 @@ export default function LeaderChatPage() {
       <div className="grid gap-4 lg:grid-cols-[260px_1fr]">
         <Card>
           <CardContent className="p-2">
-            {threads.length === 0 ? (
+            {threadsFailed && threads.length === 0 ? (
+              <div className="p-2">
+                <LoadError
+                  message={t.loadFailed}
+                  onRetry={() => (teamId ? loadThreads(teamId) : window.location.reload())}
+                  inline
+                />
+              </div>
+            ) : threads.length === 0 ? (
               <p className="p-4 text-sm text-muted-foreground">
                 {t.noSellers}
               </p>

@@ -196,7 +196,7 @@ export default function TeamLeaderClaimPage() {
             {t.badge}
           </span>
         </div>
-        <CardTitle className="text-2xl">
+        <CardTitle role="heading" aria-level={1} className="text-2xl">
           {tFill(t.title, { teamName: preview.teamName })}
         </CardTitle>
         <CardDescription>
@@ -249,7 +249,7 @@ export default function TeamLeaderClaimPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              minLength={8}
+              minLength={12}
               autoComplete="new-password"
               placeholder={t.passwordPlaceholder}
             />

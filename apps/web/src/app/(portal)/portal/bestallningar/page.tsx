@@ -41,6 +41,7 @@ import { PortalOrderDialog } from "@/components/portal-order-dialog";
 import { downloadPortalOrdersCsv } from "@/lib/orders-csv";
 import { formatKrValue } from "@/lib/format";
 import { LocaleLink } from "@/components/locale-link";
+import { usePortalUser } from "@/lib/portal-context";
 import { useLocale } from "@/i18n/locale-context";
 import { portalPages, portalShared } from "@/i18n/dictionaries/portal-pages";
 import { displayProductName } from "@/i18n/product-name";
@@ -130,6 +131,9 @@ function statusIcon(status: DisplayStatus) {
 }
 
 export default function BestallningarPage() {
+  // Beställningar skapas i klubbens namn — bara klubbroller har den kopplingen.
+  const portalUser = usePortalUser();
+  const canOrder = portalUser.role === "CLUB_ADMIN" || portalUser.role === "CLUB_MEMBER";
   const { locale } = useLocale();
   const t = portalPages.bestallningar[locale];
   const shared = portalShared[locale];
@@ -309,16 +313,18 @@ export default function BestallningarPage() {
           <h1 className="text-2xl font-bold tracking-tight">{t.title}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{t.subtitle}</p>
         </div>
-        <Button
-          onClick={() => {
-            setDialogOpen(true);
-            setSubmitted(false);
-            setCart({});
-          }}
-        >
-          <Plus className="h-4 w-4" />
-          {t.newOrder}
-        </Button>
+        {canOrder && (
+          <Button
+            onClick={() => {
+              setDialogOpen(true);
+              setSubmitted(false);
+              setCart({});
+            }}
+          >
+            <Plus className="h-4 w-4" />
+            {t.newOrder}
+          </Button>
+        )}
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={closeDialog}>

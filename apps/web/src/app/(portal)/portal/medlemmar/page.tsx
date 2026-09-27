@@ -33,6 +33,7 @@ import { useLocale } from "@/i18n/locale-context";
 import { portalPages, portalShared } from "@/i18n/dictionaries/portal-pages";
 import { tFill } from "@/i18n/format";
 import { appCommon } from "@/i18n/dictionaries/app-common";
+import { usePortalUser } from "@/lib/portal-context";
 
 interface MemberRow {
   id: string | number;
@@ -196,6 +197,8 @@ function BjudInMedlemDialog({
 
 export default function MedlemmarPage() {
   const { locale } = useLocale();
+  const portalUser = usePortalUser();
+  const canInvite = portalUser.role === "CLUB_ADMIN" || portalUser.role === "INTERNAL_ADMIN";
   const t = portalPages.medlemmar[locale];
   const shared = portalShared[locale];
   const roleLabels = shared.roles;
@@ -259,10 +262,12 @@ export default function MedlemmarPage() {
           <h1 className="text-2xl font-bold tracking-tight">{t.title}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{t.subtitle}</p>
         </div>
-        <Button onClick={() => setDialogOpen(true)}>
-          <UserPlus className="h-4 w-4" />
-          {t.invite}
-        </Button>
+        {canInvite && (
+          <Button onClick={() => setDialogOpen(true)}>
+            <UserPlus className="h-4 w-4" />
+            {t.invite}
+          </Button>
+        )}
       </div>
 
       {listError && <LoadError message={listError} onRetry={load} inline />}

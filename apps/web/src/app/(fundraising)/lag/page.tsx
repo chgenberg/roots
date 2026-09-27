@@ -186,7 +186,9 @@ export default function TeamDashboard() {
         <Card>
           <CardContent className="p-4 sm:p-5">
             <p className="text-xs text-muted-foreground sm:text-sm">{c.orders}</p>
-            <p className="mt-1 text-xl font-bold sm:text-2xl">{orders.length}</p>
+            <p className="mt-1 text-xl font-bold sm:text-2xl">
+              {data?.stats?.totalOrders ?? orders.length}
+            </p>
           </CardContent>
         </Card>
         <Card>
@@ -251,6 +253,7 @@ export default function TeamDashboard() {
             <div className="flex gap-2">
               <Input
                 readOnly
+                aria-label={t.invitePlayers}
                 value={absoluteLocaleUrl(
                   getPublicSiteUrl(),
                   `/registrera/saljare/${data.team.inviteToken}`,
@@ -258,7 +261,7 @@ export default function TeamDashboard() {
                 )}
                 className="text-xs"
               />
-              <Button size="sm" variant="outline" onClick={copyInviteLink}>
+              <Button size="sm" variant="outline" onClick={copyInviteLink} aria-label={locale === "en" ? "Copy link" : "Kopiera länk"}>
                 {copied ? (
                   <CheckCircle2 className="h-4 w-4 text-success" />
                 ) : (

@@ -216,7 +216,21 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
   const pageTitle = titleFromNav(pathname || "/", navItems, "Portal");
   useDocumentTitle(pageTitle);
 
-  if (loading) {
+  // Internadmin når allt. Övriga roller stannar i sin egen meny — en inklistrad
+  // länk till en intern sida ska leda hem, inte till en halvtom vy med 403.
+  const offMenu =
+    !!user &&
+    user.role !== "INTERNAL_ADMIN" &&
+    !navItems.some(
+      (item) =>
+        barePath === item.href ||
+        (item.href !== "/portal" && barePath.startsWith(`${item.href}/`))
+    );
+  useEffect(() => {
+    if (offMenu) router.replace(href("/portal"));
+  }, [offMenu, router, href]);
+
+  if (loading || offMenu) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-brand-50/30">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-200 border-t-inverse-surface" />
@@ -307,7 +321,7 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{user.name}</p>
                 <p className="truncate text-xs text-muted-foreground">
-                  {roleLabel} · {user.orgName}
+                  {user.orgName ? `${roleLabel} · ${user.orgName}` : roleLabel}
                 </p>
               </div>
               <button

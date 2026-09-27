@@ -1,0 +1,86 @@
+ROOTS — TOTAL GENOMGÅNG INFÖR PRODUKTION
+=======================================
+Datum: 2026-09-27 17:15
+Omfång: live mot roots.nu (8 roller, dator + mobil, 252 sidvisningar) +
+kodgranskning i fyra delar (säljare/lag, förening/klubb, intern portal,
+publikt/inlogg/kassa). Betalningstransaktioner kördes inte.
+
+LIVE I PRODUKTION
+-----------------
+Inga sidkrascher, inga 5xx, inga trasiga bilder eller länkar, ingen
+horisontell scroll på mobil, ingen "undefined/NaN"-text. Långsammast 3,0 s.
+Rollspärrar: säljare/lag/förening skickas hem från andras sidor. Internsidor
+kräver tvåfaktor (403 tills aktiverad) — korrekt.
+
+LAGAT (ej deployat)
+-------------------
+Inlogg och konto
+- Inloggning läser fältens värden vid submit (lösenordshanterare som fyller
+  i före hydrering gav "E-post och lösenord krävs").
+- Lösenord provas som det skrevs och trimmat (registrering hashade rått,
+  inloggning trimmade).
+- Okänd e-post kör en dummy-kontroll så svarstiden inte avslöjar konton.
+- Utloggning/radering rensar sessionskakan med samma SameSite/Secure.
+- Aktiverad tvåfaktor släpper in direkt (cache tömdes inte, upp till 30 s låst).
+- Lösenordskrav 12 tecken överallt (skapa säljare 6, lagledare 8, byt i portal 8).
+Portal
+- Roller utanför sin meny skickas hem i stället för halvtom sida med
+  "kräver INTERNAL_ADMIN" (internadmin når allt).
+- Klubbsök och Ny offert söker i hela registret (tidigare bara 50 första).
+- "Ny beställning" bara för klubbroller (internadmin fick alltid fel).
+- "Bjud in medlem" dolt för CLUB_MEMBER (servern nekade).
+- Klubbhem: "Beställningar denna månad" räknar innevarande månad.
+- Intäkter: påhittade "Utbetald/Väntar" och "Nästa utbetalning" borttagna.
+- Inställningar visar rollnamn, inte INTERNAL_ADMIN. Sidfot utan tom "·".
+- Schampoo-stavning, "API (Hono)".
+Förening, lag, säljare
+- Målrad "797 kr kr av 50 000 kr kr" → "797 kr av 50 000 kr".
+- Notisklockan låg över sidrubriken på dator (rollmärket fick egen rad).
+- Säljarens "Betald i urvalet" räknar skickade/levererade ordrar.
+- Lagets orderkort använder samma räkning som försäljningen.
+- "Din uppskattade förtjänst" → "Till laget från din försäljning".
+- Manuell order: kampanjens katalog och priser + felläge med "Försök igen".
+- Chatt (säljare och lag): fel visas som fel, inte som tom konversation.
+- Avräkning: säger till om obekräftade kontantordrar som inte räknas med.
+- Lagledarinbjudan: säger till när inget mejl skickades (mejl pausade).
+Publikt och kassa
+- robots/sitemap: indexera inget medan preview-grinden är på.
+- Kassan byter dubbelköpsnyckel efter misslyckat försök och efter
+  bakåt från Stripe.
+- Bekräftelsen slutar snurra efter ~36 s och säger vad som gäller.
+- Shop på mobil: luft under varukorgsfältet, chattknappen över köpknappen,
+  max 100 av samma vara.
+- Tillgänglighet: etiketter på reglage, fält, kopieringsknappar, antal-
+  knappar, chatt, FAQ aria-expanded, rubrik på inloggningssidor.
+
+KVAR ATT BESLUTA (inte ändrat)
+------------------------------
+1. Avräkning: förhandsvisningen räknar bara ordrar inom säljperioden
+   (countsTowardStats), själva avräkningen räknar alla betalda ordrar i
+   kampanjen. Vilken regel gäller? (pengar — rörs inte utan ja)
+2. Kundklubbens "Intäkter"/"Intäkter till klubben" summerar klubbens egna
+   köp. Ska det heta köp, eller finns en riktig klubbintäkt att visa?
+3. Lagledarinbjudan: e-posten är ett förslag, länken är nyckeln (engångs,
+   utgår). Ska inloggning bindas till exakt den adressen?
+4. Klubbmedlemsinbjudan kräver mejl. Med FEATURE_EMAIL_DISABLED blir kontot
+   låst. Löses när mejl slås på, eller behövs en kopierbar länk?
+5. Stripe-webhook: markeras sedd innan ordern hittats; ett tidigt event
+   försökter inte igen. Rör betalflödet — separat ja.
+6. MFA-utmaningen kan återanvändas inom 5 min. MFA_REQUIRED_ROLES="" stänger
+   av tvåfaktor helt — bör nekas i produktion.
+7. Mindre: "Väntande inbjudningar" alltid 0, PACKAGES-mål räknar ordrar,
+   kalenderns "Markera levererad" på alla statusar, utgångna säljarlänkar
+   visas, klubbar-KPI:er räknar bara 50 rader, B2B "PAID" visas som levererad.
+
+TESTDATA
+--------
+Roots FBK:s utbetalning 140 kr (35 % av första ordern) skapades av
+testskripten 16 sep medan kampanjen var aktiv. Riktiga avräkningar skapas
+bara vid ENDED och räknas om varje körning.
+
+VERIFIERING
+-----------
+Typkontroll web + API grön. Lint 0 fel. API-tester 258 gröna (2 filer kräver
+DATABASE_URL, fanns före). Produktionsbygge web grönt.
+
+--- SLUT ---

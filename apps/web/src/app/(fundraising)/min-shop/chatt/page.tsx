@@ -8,6 +8,7 @@ import { apiFetch } from "@/lib/api";
 import { useToast } from "@/components/ui/toast";
 import { useLocale } from "@/i18n/locale-context";
 import { fundraisingPages } from "@/i18n/dictionaries/fundraising-pages";
+import { LoadError } from "@/components/load-error";
 
 interface SellerChatResponse {
   sellerId: string;
@@ -20,12 +21,14 @@ export default function SellerChatPage() {
   const t = fundraisingPages.myShopChat[locale];
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const { toast } = useToast();
   const loadedOnce = useRef(false);
 
   const load = useCallback(async () => {
     const { ok, data } = await apiFetch<SellerChatResponse>("/v1/chat/seller");
     if (ok && data?.messages) {
+      setLoadFailed(false);
       setMessages(data.messages);
       if (!loadedOnce.current) {
         loadedOnce.current = true;
@@ -33,6 +36,8 @@ export default function SellerChatPage() {
           () => {}
         );
       }
+    } else if (!loadedOnce.current) {
+      setLoadFailed(true);
     }
     setLoading(false);
   }, []);
@@ -70,6 +75,11 @@ export default function SellerChatPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
+          {loadFailed && (
+            <div className="mb-4">
+              <LoadError message={t.loadFailed} onRetry={load} inline />
+            </div>
+          )}
           <ChatThread
             messages={messages}
             onSend={send}

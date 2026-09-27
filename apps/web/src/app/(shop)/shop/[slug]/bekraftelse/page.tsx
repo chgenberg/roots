@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { CheckCircle2, Loader2, Share2, AlertCircle } from "lucide-react";
+import { CheckCircle2, Clock, Loader2, Share2, AlertCircle } from "lucide-react";
 import { LocaleLink } from "@/components/locale-link";
 import { getBrowserApiBase } from "@/lib/api-base";
 import { rootsFetch } from "@/lib/api";
@@ -70,6 +70,7 @@ function ConfirmationPageInner() {
   const [order, setOrder] = useState<OrderConfirmation | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorKind, setErrorKind] = useState<ErrorKind>(null);
+  const [pollExhausted, setPollExhausted] = useState(false);
 
   const errorCopy: Record<
     Exclude<ErrorKind, null>,
@@ -145,6 +146,8 @@ function ConfirmationPageInner() {
           if (!settled && attempts < MAX_ATTEMPTS) {
             attempts += 1;
             timer = setTimeout(confirm, 3000);
+          } else if (!settled) {
+            setPollExhausted(true);
           }
           // P2.25 (audit 2026-05-26): rensa bara cart EFTER att
           // useCart har hydrat:s från sessionStorage. Annars race:ar
@@ -236,7 +239,9 @@ function ConfirmationPageInner() {
       <main className="mx-auto flex max-w-lg flex-col items-center px-4 py-16">
         <Card className="w-full shadow-lg">
           <CardContent className="flex flex-col items-center gap-5 py-10">
-            {isPending ? (
+            {isPending && pollExhausted ? (
+              <Clock className="h-14 w-14 text-brand-400" />
+            ) : isPending ? (
               <Loader2 className="h-14 w-14 animate-spin text-brand-400" />
             ) : (
               <CheckCircle2 className="h-14 w-14 text-success" />
@@ -244,6 +249,11 @@ function ConfirmationPageInner() {
             <h1 className="text-2xl font-semibold">
               {isPending ? t.paymentProcessing : t.thankYou}
             </h1>
+            {isPending && pollExhausted && (
+              <p className="text-center text-sm text-muted-foreground">
+                {t.processingSlow}
+              </p>
+            )}
 
             <div className="w-full space-y-3 text-center">
               <p className="text-muted-foreground">

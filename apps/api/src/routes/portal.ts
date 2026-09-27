@@ -94,6 +94,17 @@ portal.get("/dashboard", async (c) => {
         .from(orders)
         .where(eq(orders.orgId, orgId));
 
+      // Kortet heter "Beställningar denna månad" — räkna bara innevarande månad.
+      const monthOrderCount = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(orders)
+        .where(
+          and(
+            eq(orders.orgId, orgId),
+            sql`${orders.createdAt} >= date_trunc('month', now())`
+          )
+        );
+
       const revenueResult = await db
         .select({
           total: sql<number>`coalesce(sum(${orders.totalOre}), 0)`,
@@ -113,7 +124,7 @@ portal.get("/dashboard", async (c) => {
         isDemo,
         stats: {
           members: membersNum,
-          orders: ordersNum,
+          orders: Number(monthOrderCount[0]?.count || 0),
           revenueOre,
           revenue: formatSek(revenueOre, locale),
           nextDelivery: null,
@@ -2207,7 +2218,7 @@ portal.get("/system", async (c) => {
   }
 
   // API (always up if we reached here)
-  pushService("API (Express)", true, 0);
+  pushService("API (Hono)", true, 0);
 
   // AI / Open Claw — surface from env only; we don't ping OpenAI on
   // every admin page load.

@@ -1,7 +1,6 @@
 "use client";
 
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { useState, useEffect, useCallback } from "react";
 import { TrendingUp, Wallet, CalendarDays } from "lucide-react";
 import { portalFetch } from "@/lib/portal-api";
@@ -15,7 +14,6 @@ interface MonthRow {
   month: string;
   revenue: number;
   orders: number;
-  payout: boolean;
 }
 
 function formatMonthKey(
@@ -45,14 +43,11 @@ export default function IntakterPage() {
     setError(null);
     portalFetch("/income", { schema: incomeResponseSchema })
       .then((data) => {
-        const now = new Date();
-        const currentKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
         setMonths(
           (data.months ?? []).map((m) => ({
             month: formatMonthKey(m.month, monthNames),
             revenue: Math.round(m.revenueOre / 100),
             orders: m.orderCount,
-            payout: m.month < currentKey,
           }))
         );
         setTotalEarnedOre(data.totalEarnedOre ?? 0);
@@ -77,16 +72,6 @@ export default function IntakterPage() {
   const thisMonth = months.find((m) => m.month === currentKey);
   const thisMonthRevenue = thisMonth?.revenue ?? 0;
 
-  const hasPending = months.some((m) => !m.payout && m.revenue > 0);
-  const nextPayout = (() => {
-    if (!hasPending) return "—";
-    const d = new Date(now.getFullYear(), now.getMonth() + 1, 15);
-    return d.toLocaleDateString(shared.dateLocale, {
-      day: "numeric",
-      month: "short",
-    });
-  })();
-
   const header = (
     <div>
       <h1 className="text-2xl font-bold tracking-tight">{t.title}</h1>
@@ -107,7 +92,7 @@ export default function IntakterPage() {
     <div className="page-enter space-y-6">
       {header}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2">
         <Card>
           <CardContent className="p-5">
             <div className="flex items-center gap-3">
@@ -132,17 +117,6 @@ export default function IntakterPage() {
                     : "—"}
                 </p>
                 <p className="text-xs text-muted-foreground">{t.thisMonth}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-5">
-            <div className="flex items-center gap-3">
-              <CalendarDays className="h-5 w-5 text-brand-400" />
-              <div>
-                <p className="text-2xl font-bold">{nextPayout}</p>
-                <p className="text-xs text-muted-foreground">{t.nextPayout}</p>
               </div>
             </div>
           </CardContent>
@@ -183,11 +157,6 @@ export default function IntakterPage() {
                         {shared.kr}
                       </p>
                     </div>
-                    {m.payout ? (
-                      <Badge variant="success">{t.paidOut}</Badge>
-                    ) : (
-                      <Badge variant="warning">{t.pending}</Badge>
-                    )}
                   </div>
                 </div>
               ))}

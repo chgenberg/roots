@@ -1,6 +1,23 @@
 {
-  "updatedAt": "2026-09-16T17:00:00.000Z",
+  "updatedAt": "2026-09-27T15:15:00.000Z",
   "cards": [
+    {
+      "id": "wb-total-audit-sep27",
+      "title": "Total genomgång: alla roller i prod",
+      "body": "252 sidvisningar, 8 roller, dator+mobil. 4 kodgranskare. HIGH lagade lokalt. Ingen PAID, ingen Fortnox, ingen betalning, ingen env-lyft. Rapport: docs/platform-audit/AUDIT_2026-09-27_1715.txt",
+      "status": "review",
+      "domainId": "platform",
+      "playbook": "ops",
+      "files": [
+        "apps/web/src/app/(portal)/portal/portal-shell.tsx",
+        "apps/web/src/app/(auth)/login/page.tsx",
+        "apps/api/src/routes/auth.ts"
+      ],
+      "gate": "deploy",
+      "source": "cursor",
+      "createdAt": "2026-09-27T14:30:00.000Z",
+      "updatedAt": "2026-09-27T15:15:00.000Z"
+    },
     {
       "id": "wb-forening-orders-deploy-sep16",
       "title": "Deploy: förening visar senaste ordrar",
@@ -297,7 +314,10 @@
       "status": "done",
       "domainId": "platform",
       "playbook": "ops",
-      "files": ["apps/web/next.config.ts", "apps/web/src/content/guides.ts"],
+      "files": [
+        "apps/web/next.config.ts",
+        "apps/web/src/content/guides.ts"
+      ],
       "gate": "deploy",
       "source": "cursor",
       "createdAt": "2026-09-15T19:10:00.000Z",
@@ -327,7 +347,9 @@
       "status": "done",
       "domainId": "platform",
       "playbook": "ops",
-      "files": ["apps/web/src/middleware.ts"],
+      "files": [
+        "apps/web/src/middleware.ts"
+      ],
       "gate": "deploy",
       "source": "cursor",
       "createdAt": "2026-09-13T21:48:00.000Z",
@@ -357,7 +379,10 @@
       "status": "done",
       "domainId": "platform",
       "playbook": "ops",
-      "files": ["apps/web/src/middleware.ts", "apps/web/src/components/chat-widget.tsx"],
+      "files": [
+        "apps/web/src/middleware.ts",
+        "apps/web/src/components/chat-widget.tsx"
+      ],
       "gate": "none",
       "source": "cursor",
       "createdAt": "2026-09-13T21:12:00.000Z",
@@ -370,7 +395,9 @@
       "status": "done",
       "domainId": "fundraising",
       "playbook": "club-campaign",
-      "files": ["docs/presentations/build_partner_avtal_docx.py"],
+      "files": [
+        "docs/presentations/build_partner_avtal_docx.py"
+      ],
       "gate": "none",
       "source": "cursor",
       "createdAt": "2026-09-09T08:38:00.000Z",
@@ -383,7 +410,9 @@
       "status": "done",
       "domainId": "fundraising",
       "playbook": "club-campaign",
-      "files": ["docs/presentations/build_partner_avtal_docx.py"],
+      "files": [
+        "docs/presentations/build_partner_avtal_docx.py"
+      ],
       "gate": "none",
       "source": "cursor",
       "createdAt": "2026-09-09T08:04:00.000Z",

@@ -160,6 +160,7 @@ export default function TeamsManagementPage() {
         token?: string;
         teamName?: string;
         campaignId?: string;
+        emailSent?: boolean;
         error?: string;
       }>("/v1/association/team-invites", {
         method: "POST",
@@ -175,7 +176,12 @@ export default function TeamsManagementPage() {
           teamName: res.data.teamName ?? newTeamName.trim(),
           campaignId: res.data.campaignId ?? newCampaignId,
         });
-        toast(t.inviteCreated, "success");
+        toast(
+          newInvitedEmail.trim() && res.data.emailSent === false
+            ? t.inviteCreatedNoEmail
+            : t.inviteCreated,
+          "success"
+        );
       } else {
         toast(res.data?.error || t.inviteFailed, "error");
       }
@@ -283,6 +289,7 @@ export default function TeamsManagementPage() {
                       <div className="flex gap-2">
                         <Input
                           readOnly
+                          aria-label={t.sellerInviteLink}
                           value={inviteUrl}
                           className="text-xs"
                         />
@@ -290,6 +297,7 @@ export default function TeamsManagementPage() {
                           size="sm"
                           variant="outline"
                           onClick={() => copyInviteLink(inviteToken, false)}
+                          aria-label={locale === "en" ? "Copy link" : "Kopiera länk"}
                         >
                           {copiedToken === inviteToken ? (
                             <CheckCircle2 className="h-4 w-4 text-success" />
@@ -341,6 +349,7 @@ export default function TeamsManagementPage() {
                 <div className="mt-1 flex gap-2">
                   <Input
                     readOnly
+                    aria-label={t.inviteLink}
                     value={leaderInviteUrl}
                     className="font-mono text-xs"
                   />
@@ -348,6 +357,7 @@ export default function TeamsManagementPage() {
                     size="sm"
                     variant="outline"
                     onClick={() => copyInviteLink(createdInvite.token, true)}
+                    aria-label={locale === "en" ? "Copy link" : "Kopiera länk"}
                   >
                     {copiedToken === createdInvite.token ? (
                       <CheckCircle2 className="h-4 w-4 text-success" />

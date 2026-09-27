@@ -7,7 +7,7 @@ exports[`GET /v1/portal/dashboard — CLUB_ADMIN > returns deterministic club KP
   "stats": {
     "members": 24,
     "nextDelivery": null,
-    "orders": 12,
+    "orders": 5,
     "revenue": "4 800 kr",
     "revenueOre": 480000,
   },

@@ -243,7 +243,11 @@ export default function SellerShopPage() {
           />
         );
       })}
-      <main className="mx-auto max-w-3xl px-4 py-8">
+      <main
+        className={`mx-auto max-w-3xl px-4 py-8 ${
+          totalItems > 0 && campaignAcceptsOrders ? "pb-32" : ""
+        }`}
+      >
         {/* Campaign status banner — shown when the campaign is not accepting
             orders so supporters see this up-front rather than at checkout. */}
         {shopData.campaign && !campaignAcceptsOrders && (

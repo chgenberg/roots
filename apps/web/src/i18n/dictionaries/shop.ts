@@ -213,6 +213,8 @@ export const shop = {
       contactUs: "Kontakta oss",
       contactSubject: "Hjälp med beställning",
       paymentProcessing: "Din betalning behandlas...",
+      processingSlow:
+        "Det tar längre tid än vanligt. Du får ett mejl när betalningen är klar — du behöver inte betala igen. Frågor? info@roots.nu",
       thankYou: "Tack för din beställning!",
       confirmationSentTo: "En bekräftelse skickas till ",
       amountLabel: "Belopp",
@@ -241,6 +243,8 @@ export const shop = {
       contactUs: "Contact us",
       contactSubject: "Help with order",
       paymentProcessing: "Your payment is being processed...",
+      processingSlow:
+        "This is taking longer than usual. You will get an email when the payment is done — you do not need to pay again. Questions? info@roots.nu",
       thankYou: "Thank you for your order!",
       confirmationSentTo: "A confirmation will be sent to ",
       amountLabel: "Amount",

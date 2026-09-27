@@ -138,7 +138,10 @@ export default function SettlementPage() {
     }
     setActingId(campaignId);
     try {
-      const res = await apiFetch<{ error?: string; settlements?: unknown[] }>(
+      const res = await apiFetch<{
+        error?: string;
+        settlements?: Array<{ unverifiedManualOre?: number; unverifiedManualCount?: number }>;
+      }>(
         `/v1/settlement/generate/${campaignId}`,
         { method: "POST", body: {} }
       );
@@ -146,7 +149,26 @@ export default function SettlementPage() {
         toast(res.data?.error || t.generateFailed, "error");
         return;
       }
-      toast(t.generateOk, "success");
+      // Obekräftade kontantordrar räknas inte in i utbetalningen. Säg det här,
+      // annars ser avräkningen bara lägre ut än vad lagen räknat med.
+      const unverified = (res.data?.settlements ?? []).reduce(
+        (acc, s) => ({
+          ore: acc.ore + (s.unverifiedManualOre ?? 0),
+          count: acc.count + (s.unverifiedManualCount ?? 0),
+        }),
+        { ore: 0, count: 0 }
+      );
+      if (unverified.count > 0) {
+        toast(
+          tFill(t.generateOkUnverified, {
+            count: unverified.count,
+            amount: formatKr(unverified.ore, locale),
+          }),
+          "success"
+        );
+      } else {
+        toast(t.generateOk, "success");
+      }
       await load();
     } finally {
       setActingId(null);

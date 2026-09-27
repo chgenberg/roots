@@ -71,6 +71,13 @@ export default function KlubbarPage() {
   const crmLabels = shared.crmStatus;
 
   const [search, setSearch] = useState("");
+  // Listan hämtar de första 50 klubbarna. Sökningen går mot servern så att
+  // även klubbar längre ner i alfabetet går att hitta.
+  const [query, setQuery] = useState("");
+  useEffect(() => {
+    const id = setTimeout(() => setQuery(search.trim()), 300);
+    return () => clearTimeout(id);
+  }, [search]);
   const [clubs, setClubs] = useState<ClubRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -78,7 +85,8 @@ export default function KlubbarPage() {
   const load = useCallback(() => {
     setLoading(true);
     setError(null);
-    portalFetch("/clubs", { schema: clubsListResponseSchema })
+    const path = query.length >= 2 ? `/clubs?q=${encodeURIComponent(query)}` : "/clubs";
+    portalFetch(path, { schema: clubsListResponseSchema })
       .then((data) => {
         setClubs(
           (data.clubs ?? []).map((c) => ({
@@ -102,7 +110,7 @@ export default function KlubbarPage() {
         setError(t.loadError);
       })
       .finally(() => setLoading(false));
-  }, [shared.dateLocale, t.loadError]);
+  }, [query, shared.dateLocale, t.loadError]);
 
   useEffect(() => {
     load();

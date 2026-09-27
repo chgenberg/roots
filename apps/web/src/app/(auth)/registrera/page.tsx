@@ -148,7 +148,7 @@ export default function RegisterPage() {
       <Card className={cn(GATE_CARD, "mx-auto max-w-lg")}>
         <CardHeader className="text-center">
           <GateWordmark href="/" ariaLabel={auth.layout[locale].ariaHome} />
-          <CardTitle className="mt-6 text-2xl">{t.chooserTitle}</CardTitle>
+          <CardTitle role="heading" aria-level={1} className="mt-6 text-2xl">{t.chooserTitle}</CardTitle>
           <CardDescription>{t.chooserDescription}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -246,7 +246,7 @@ export default function RegisterPage() {
             />
           ))}
         </div>
-        <CardTitle className="mt-4 text-xl">
+        <CardTitle role="heading" aria-level={1} className="mt-4 text-xl">
           {type === "association"
             ? step === 1
               ? t.stepClubInfo

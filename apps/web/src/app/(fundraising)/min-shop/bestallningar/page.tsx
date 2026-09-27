@@ -139,7 +139,7 @@ export default function SellerOrdersPage() {
   );
 
   const totalOre = sortedFiltered
-    .filter((o) => o.status === "PAID")
+    .filter((o) => countsAsRevenue(o.status))
     .reduce((acc, o) => acc + o.totalOre, 0);
   const orderCount = sortedFiltered.length;
 

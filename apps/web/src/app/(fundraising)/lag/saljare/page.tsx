@@ -353,6 +353,7 @@ export default function TeamSellersPage() {
             <form onSubmit={handleCreateSeller} className="space-y-3">
               <Input
                 placeholder={t.namePlaceholder}
+                aria-label={t.namePlaceholder}
                 value={createName}
                 onChange={(e) => setCreateName(e.target.value)}
                 required
@@ -360,6 +361,7 @@ export default function TeamSellersPage() {
               <Input
                 type="email"
                 placeholder={t.email}
+                aria-label={t.email}
                 value={createEmail}
                 onChange={(e) => setCreateEmail(e.target.value)}
                 required
@@ -371,12 +373,14 @@ export default function TeamSellersPage() {
                   value={createPassword}
                   onChange={(e) => setCreatePassword(e.target.value)}
                   required
-                  minLength={6}
+                  minLength={12}
+                  aria-label={t.password}
                 />
                 <button
                   type="button"
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   onClick={() => setShowPassword(!showPassword)}
+                  aria-label={locale === "en" ? (showPassword ? "Hide password" : "Show password") : showPassword ? "Dölj lösenord" : "Visa lösenord"}
                 >
                   {showPassword ? (
                     <EyeOff className="h-4 w-4" />
@@ -418,6 +422,7 @@ export default function TeamSellersPage() {
             <div className="flex gap-2">
               <Input
                 readOnly
+                aria-label={t.orShareInvite}
                 value={absoluteLocaleUrl(
                   getPublicSiteUrl(),
                   `/registrera/saljare/${data.team.inviteToken}`,
@@ -425,7 +430,7 @@ export default function TeamSellersPage() {
                 )}
                 className="text-xs"
               />
-              <Button size="sm" variant="outline" onClick={copyInviteLink}>
+              <Button size="sm" variant="outline" onClick={copyInviteLink} aria-label={locale === "en" ? "Copy link" : "Kopiera länk"}>
                 {copiedInvite ? (
                   <CheckCircle2 className="h-4 w-4 text-success" />
                 ) : (

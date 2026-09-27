@@ -14,6 +14,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { webFlags } from "@/lib/flags";
 
+const MAX_QTY_PER_ITEM = 100;
+
 export type Cart = Record<string, number>;
 
 const storageKey = (slug: string) => `roots.cart:${slug}`;
@@ -66,7 +68,8 @@ export function useCart(slug: string) {
   const update = useCallback((productId: string, delta: number) => {
     setCart((prev) => {
       const current = prev[productId] || 0;
-      const next = Math.max(0, current + delta);
+      // Kassan tar emot högst 100 av samma vara.
+      const next = Math.min(MAX_QTY_PER_ITEM, Math.max(0, current + delta));
       if (next === 0) {
         const copy = { ...prev };
         delete copy[productId];

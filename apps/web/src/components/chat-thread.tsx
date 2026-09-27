@@ -122,6 +122,7 @@ export function ChatThread({
       </div>
       <div className="flex items-end gap-2 border-t p-3">
         <textarea
+          aria-label={resolvedPlaceholder}
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {

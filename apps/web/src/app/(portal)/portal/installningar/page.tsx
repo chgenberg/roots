@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
@@ -15,7 +14,6 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { cn } from "@/lib/utils";
 import { usePortalUser } from "@/lib/portal-context";
 import { Shield, Bell, Palette, AlertTriangle, KeyRound } from "lucide-react";
 import { MfaSection } from "@/components/mfa-section";
@@ -73,7 +71,7 @@ function BytLosenordDialog({
       setError(t.pwdBothRequired);
       return;
     }
-    if (next.length < 8) {
+    if (next.length < 12) {
       setError(t.pwdMinLength);
       return;
     }
@@ -400,12 +398,7 @@ export default function InstallningarPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="settings-role">{t.role}</Label>
-              <div className="flex items-center gap-3">
-                <Input id="settings-role" value={user.role} readOnly className="flex-1" />
-                <Badge className={cn("shrink-0", roleMeta.color)}>
-                  {roleMeta.label}
-                </Badge>
-              </div>
+              <Input id="settings-role" value={roleMeta.label} readOnly />
             </div>
           </div>
 

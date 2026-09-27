@@ -87,7 +87,7 @@ function LoginPageSkeleton() {
     <Card className={cn(GATE_CARD, "mx-auto max-w-md")}>
       <CardHeader className="text-center">
         <GateWordmark href="/" ariaLabel={auth.layout[locale].ariaHome} />
-        <CardTitle className="mt-6 text-2xl">{t.title}</CardTitle>
+        <CardTitle role="heading" aria-level={1} className="mt-6 text-2xl">{t.title}</CardTitle>
         <CardDescription>{t.description}</CardDescription>
       </CardHeader>
       <CardContent>
@@ -113,10 +113,17 @@ function LoginPageInner() {
   const [code, setCode] = useState("");
   const [backupCodesLeft, setBackupCodesLeft] = useState(0);
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError("");
     setLoading(true);
+    // Lösenordshanterare kan fylla fälten innan React har hydrerat, och då
+    // når värdet aldrig state. Läs därför det som faktiskt står i fälten.
+    const form = new FormData(e.currentTarget);
+    const emailValue = String(form.get("email") ?? email).trim();
+    const passwordValue = String(form.get("password") ?? password);
+    if (emailValue !== email) setEmail(emailValue);
+    if (passwordValue !== password) setPassword(passwordValue);
 
     try {
       const { ok, data } = await apiFetch<{
@@ -127,7 +134,7 @@ function LoginPageInner() {
         backupCodesRemaining?: number;
       }>("/v1/auth/login", {
         method: "POST",
-        body: { email, password, locale },
+        body: { email: emailValue, password: passwordValue, locale },
       });
 
       // Lösenordet stämde men kontot har tvåfaktor. Ingen session har
@@ -193,7 +200,7 @@ function LoginPageInner() {
       <Card className={cn(GATE_CARD, "mx-auto max-w-md")}>
         <CardHeader className="text-center">
           <GateWordmark href="/" ariaLabel={auth.layout[locale].ariaHome} />
-          <CardTitle className="mt-6 text-2xl">{t.mfaTitle}</CardTitle>
+          <CardTitle role="heading" aria-level={1} className="mt-6 text-2xl">{t.mfaTitle}</CardTitle>
           <CardDescription>{t.mfaDescription}</CardDescription>
         </CardHeader>
         <CardContent>
@@ -258,7 +265,7 @@ function LoginPageInner() {
     <Card className={cn(GATE_CARD, "mx-auto max-w-md")}>
       <CardHeader className="text-center">
         <GateWordmark href="/" ariaLabel={auth.layout[locale].ariaHome} />
-        <CardTitle className="mt-6 text-2xl">{t.title}</CardTitle>
+        <CardTitle role="heading" aria-level={1} className="mt-6 text-2xl">{t.title}</CardTitle>
         <CardDescription>{t.description}</CardDescription>
       </CardHeader>
       <CardContent>
@@ -267,6 +274,7 @@ function LoginPageInner() {
             <Label htmlFor="email">{t.emailLabel}</Label>
             <Input
               id="email"
+              name="email"
               type="email"
               placeholder={t.emailPlaceholder}
               autoComplete="email"
@@ -287,6 +295,7 @@ function LoginPageInner() {
             </div>
             <Input
               id="password"
+              name="password"
               type="password"
               placeholder={t.passwordPlaceholder}
               autoComplete="current-password"

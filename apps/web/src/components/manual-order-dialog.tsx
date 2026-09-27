@@ -35,14 +35,21 @@ export function ManualOrderDialog({
   open,
   onOpenChange,
   onCreated,
+  shopSlug,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated?: () => void;
+  /** Säljarens shop. Ger kampanjens katalog och priser, samma som kassan. */
+  shopSlug?: string;
 }) {
   const { locale } = useLocale();
   const t = fundraisingPages.manualOrder[locale];
   const [products, setProducts] = useState<Product[]>([]);
+  const [productsState, setProductsState] = useState<"loading" | "error" | "ready">(
+    "loading"
+  );
+  const [reloadKey, setReloadKey] = useState(0);
   const [qty, setQty] = useState<Record<string, number>>({});
   const [paymentMethod, setPaymentMethod] = useState("swish");
   const [customerName, setCustomerName] = useState("");
@@ -58,11 +65,30 @@ export function ManualOrderDialog({
 
   useEffect(() => {
     if (!open) return;
-    rootsFetch(`${getBrowserApiBase()}/v1/shop/products`)
-      .then((r) => r.json())
-      .then((d) => setProducts([...(d.products || [])].sort(byCatalogOrder)))
-      .catch(() => setProducts([]));
-  }, [open]);
+    let cancelled = false;
+    setProductsState("loading");
+    const path = shopSlug
+      ? `/v1/shop/by-slug/${encodeURIComponent(shopSlug)}`
+      : "/v1/shop/products";
+    rootsFetch(`${getBrowserApiBase()}${path}`)
+      .then((r) => {
+        if (!r.ok) throw new Error(String(r.status));
+        return r.json();
+      })
+      .then((d) => {
+        if (cancelled) return;
+        setProducts([...(d.products || [])].sort(byCatalogOrder));
+        setProductsState("ready");
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setProducts([]);
+        setProductsState("error");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, shopSlug, reloadKey]);
 
   function setProductQty(id: string, delta: number) {
     setQty((prev) => {
@@ -121,9 +147,21 @@ export function ManualOrderDialog({
           <p className="text-sm text-muted-foreground">{t.intro}</p>
 
           <div className="space-y-2">
-            {products.length === 0 ? (
+            {productsState === "error" ? (
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-destructive/30 p-3">
+                <p className="text-sm text-destructive">{t.productsFailed}</p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setReloadKey((k) => k + 1)}
+                >
+                  {t.retry}
+                </Button>
+              </div>
+            ) : products.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                {t.loadingProducts}
+                {productsState === "loading" ? t.loadingProducts : t.noProducts}
               </p>
             ) : (
               products.map((p) => (

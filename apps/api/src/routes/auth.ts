@@ -16,6 +16,7 @@ import {
   destroySession,
   destroyUserSessions,
   getSession,
+  invalidateUserAuthSync,
   isDemoSession,
   refreshSession,
   SESSION_COOKIE_NAME,
@@ -118,6 +119,24 @@ const ARGON2_OPTIONS = {
   outputLen: 32,
   parallelism: 1,
 };
+
+// Okänd e-post ska ta lika lång tid som fel lösenord, annars avslöjar
+// svarstiden vilka adresser som har konto.
+let timingDummyHash: Promise<string> | null = null;
+// Inbjudna konton utan satt lösen har en platshållare i stället för hash.
+// Den ska ge "fel lösenord", inte ett undantag som blir 503.
+async function safeVerify(passwordHash: string, password: string): Promise<boolean> {
+  try {
+    return await verify(passwordHash, password);
+  } catch {
+    return false;
+  }
+}
+
+function dummyPasswordCheck(password: string): Promise<boolean> {
+  timingDummyHash ??= hash("roots-timing-dummy-password", ARGON2_OPTIONS);
+  return timingDummyHash.then((h) => verify(h, password)).catch(() => false);
+}
 
 // P3.16 (audit 2026-05-26): registration endpoints accepted arbitrarily
 // weak passwords. Strategy doc + change-password lean toward ≥12 chars.
@@ -296,7 +315,10 @@ auth.post("/login", async (c) => {
   }
 
   const email = body.email.toLowerCase().trim();
-  const password = body.password.trim();
+  // Registreringen hashar lösenordet som det skrevs. Prova det först och
+  // trimmat därefter, så att ett oavsiktligt mellanslag inte låser ute någon.
+  const rawPassword = body.password;
+  const password = rawPassword.trim();
   const ip =
     c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
 
@@ -335,7 +357,9 @@ auth.post("/login", async (c) => {
         return c.json({ error: uiError(locale, "badCredentials") }, 401);
       }
 
-      const valid = await verify(user.passwordHash, password);
+      const valid =
+        (await safeVerify(user.passwordHash, rawPassword)) ||
+        (password !== rawPassword && (await safeVerify(user.passwordHash, password)));
       if (!valid) {
         void auditLog({
           userId: user.id,
@@ -363,6 +387,7 @@ auth.post("/login", async (c) => {
 
       return completeLogin(c, user);
     }
+    await dummyPasswordCheck(password);
   } catch (err) {
     // I produktion failar vi CLOSED: ett DB-fel får inte innebära att
     // inloggningen faller igenom till in-memory-demokonton, för då kan en
@@ -753,6 +778,7 @@ auth.post("/mfa/enable", async (c) => {
       updatedAt: new Date(),
     })
     .where(eq(users.id, user.id));
+  invalidateUserAuthSync(user.id);
 
   // Kicka alla andra sessioner, behåll den som just registrerade.
   //
@@ -892,7 +918,7 @@ auth.post("/logout", async (c) => {
     });
   }
 
-  deleteCookie(c, SESSION_COOKIE_NAME, { path: "/" });
+  deleteCookie(c, SESSION_COOKIE_NAME, { ...SESSION_COOKIE_OPTIONS, maxAge: 0 });
   return c.json({ ok: true });
 });
 
@@ -1332,7 +1358,7 @@ auth.post("/delete-account", async (c) => {
     } catch (err) {
       log.warn({ err, userId: user.id }, "failed to revoke sessions after deletion request");
     }
-    deleteCookie(c, SESSION_COOKIE_NAME, { path: "/" });
+    deleteCookie(c, SESSION_COOKIE_NAME, { ...SESSION_COOKIE_OPTIONS, maxAge: 0 });
 
     void auditLog({
       userId: user.id,

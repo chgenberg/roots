@@ -209,7 +209,7 @@ export default function SellerDashboard() {
           ) : null}
           <div className="flex w-full min-w-0 flex-1 flex-col gap-3">
             <div className="flex gap-2">
-              <Input readOnly value={shopUrl} className="text-xs" />
+              <Input readOnly value={shopUrl} aria-label={t.copyLink} className="text-xs" />
               <Button
                 size="sm"
                 variant="outline"
@@ -438,6 +438,7 @@ export default function SellerDashboard() {
         open={manualOpen}
         onOpenChange={setManualOpen}
         onCreated={() => load(true)}
+        shopSlug={data?.seller?.shopSlug}
       />
     </div>
   );

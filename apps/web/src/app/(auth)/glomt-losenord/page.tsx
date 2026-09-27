@@ -60,7 +60,7 @@ export default function ForgotPasswordPage() {
             className="mx-auto mb-2 mt-6 h-8 w-8 text-muted-foreground"
             aria-hidden="true"
           />
-          <CardTitle className="text-2xl">{t.sentTitle}</CardTitle>
+          <CardTitle role="heading" aria-level={1} className="text-2xl">{t.sentTitle}</CardTitle>
           <CardDescription>
             {tFill(t.sentDescription, { email })}
           </CardDescription>
@@ -94,7 +94,7 @@ export default function ForgotPasswordPage() {
     <Card className={cn(GATE_CARD, "mx-auto max-w-md")}>
       <CardHeader className="text-center">
         <GateWordmark href="/" ariaLabel={auth.layout[locale].ariaHome} />
-        <CardTitle className="mt-6 text-2xl">{t.title}</CardTitle>
+        <CardTitle role="heading" aria-level={1} className="mt-6 text-2xl">{t.title}</CardTitle>
         <CardDescription>{t.description}</CardDescription>
       </CardHeader>
       <CardContent>

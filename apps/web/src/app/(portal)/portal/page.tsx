@@ -79,7 +79,7 @@ type StatCard = {
 
 /* ─── Club Dashboard ───────────────────────────────────────── */
 
-function ClubDashboard({ name }: { name: string }) {
+function ClubDashboard({ name, canInvite }: { name: string; canInvite: boolean }) {
   const { locale } = useLocale();
   const t = portalPages.overview[locale];
   const [stats, setStats] = useState<StatCard[]>([]);
@@ -140,7 +140,9 @@ function ClubDashboard({ name }: { name: string }) {
       href: "/portal/bestallningar",
       icon: ShoppingCart,
     },
-    { label: t.inviteMember, href: "/portal/medlemmar", icon: Users },
+    ...(canInvite
+      ? [{ label: t.inviteMember, href: "/portal/medlemmar", icon: Users }]
+      : []),
     {
       label: t.seeRevenueReport,
       href: "/portal/intakter",
@@ -816,7 +818,7 @@ export default function PortalDashboard() {
   const firstName = user.name.split(" ")[0];
 
   if (user.role === "CLUB_ADMIN" || user.role === "CLUB_MEMBER") {
-    return <ClubDashboard name={firstName} />;
+    return <ClubDashboard name={firstName} canInvite={user.role === "CLUB_ADMIN"} />;
   }
   if (user.role === "SALES_REP" || user.role === "SALES_ADMIN") {
     return <SalesDashboard name={firstName} />;

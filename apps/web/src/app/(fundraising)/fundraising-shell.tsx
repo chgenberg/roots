@@ -192,9 +192,6 @@ export function FundraisingShell({ children }: { children: React.ReactNode }) {
           >
             <RootsLogo variant="auto" className="h-7 w-[70px]" />
           </LocaleLink>
-          <Badge className={`text-xs ${roleBadge.className}`}>
-            {roleBadge.label}
-          </Badge>
           <div className="ml-auto flex items-center gap-1">
             <LocaleLink
               href="/hjalp"
@@ -206,6 +203,11 @@ export function FundraisingShell({ children }: { children: React.ReactNode }) {
             <LanguageSwitcher />
             <NotificationBell />
           </div>
+        </div>
+        <div className="px-4 pt-4">
+          <Badge className={`text-xs ${roleBadge.className}`}>
+            {roleBadge.label}
+          </Badge>
         </div>
         <nav className="flex-1 space-y-1 overflow-y-auto p-3" aria-label={c.mainMenu}>
           {navItems.map((item) => {

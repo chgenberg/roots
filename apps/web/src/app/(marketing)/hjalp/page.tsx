@@ -255,6 +255,8 @@ export default function HelpPage() {
                         <button
                           type="button"
                           onClick={() => setExpanded(isOpen ? null : key)}
+                          aria-expanded={isOpen}
+                          aria-controls={`faq-${key}`}
                           className="flex w-full items-start gap-3 px-5 py-4 text-left transition-colors hover:bg-brand-50/50"
                         >
                           <span className="flex-1 text-sm font-medium">
@@ -267,7 +269,10 @@ export default function HelpPage() {
                           />
                         </button>
                         {isOpen && (
-                          <div className="px-5 pb-4 text-sm leading-relaxed text-muted-foreground">
+                          <div
+                            id={`faq-${key}`}
+                            className="px-5 pb-4 text-sm leading-relaxed text-muted-foreground"
+                          >
                             {it.a}
                           </div>
                         )}

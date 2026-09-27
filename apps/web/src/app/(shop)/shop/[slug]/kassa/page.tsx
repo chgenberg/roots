@@ -57,6 +57,12 @@ interface CheckoutShop {
 
 // P2.28 (audit 2026-05-26): useSearchParams kräver <Suspense>-wrap i
 // Next 15. Default-exporten wrappar, inner-componenten gör jobbet.
+function newIdempotencyKey(): string {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `checkout-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 export default function CheckoutPage() {
   const { locale } = useLocale();
   const t = shop.checkout[locale];
@@ -101,11 +107,20 @@ function CheckoutPageInner() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const paymentCancelled = searchParams.get("cancelled") === "1";
-  const idempotencyKeyRef = useRef(
-    typeof crypto !== "undefined" && "randomUUID" in crypto
-      ? crypto.randomUUID()
-      : `checkout-${Date.now()}`
-  );
+  const idempotencyKeyRef = useRef(newIdempotencyKey());
+  // Nyckeln hindrar dubbla ordrar vid dubbelklick. Efter ett misslyckat
+  // försök, eller när webbläsaren visar kassan ur minnet efter Stripe, finns
+  // ingen giltig session att återanvända — då behövs en ny nyckel.
+  const rotateIdempotencyKey = () => {
+    idempotencyKeyRef.current = newIdempotencyKey();
+  };
+  useEffect(() => {
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) idempotencyKeyRef.current = newIdempotencyKey();
+    };
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, []);
 
   // MASTERPLAN_01 KC4.1: hydra från sessionStorage när URL saknar
   // ?item_*. Tidigare visade kassan "tom varukorg" vid refresh /
@@ -227,12 +242,14 @@ function CheckoutPageInner() {
       );
 
       if (!res.ok) {
+        rotateIdempotencyKey();
         setError(res.data?.error || t.errorGeneric);
         return;
       }
 
       const checkoutUrl = res.data?.checkoutUrl;
       if (!checkoutUrl || !/^https?:\/\//i.test(checkoutUrl)) {
+        rotateIdempotencyKey();
         setError(t.checkoutInitFailed);
         return;
       }
@@ -248,6 +265,7 @@ function CheckoutPageInner() {
       }
       window.location.href = checkoutUrl;
     } catch {
+      rotateIdempotencyKey();
       setError(t.errorServer);
     } finally {
       setLoading(false);
@@ -533,6 +551,7 @@ function CheckoutPageInner() {
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 placeholder={t.notePlaceholder}
+                aria-label={t.noteTitle}
               />
             </CardContent>
           </Card>

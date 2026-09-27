@@ -204,18 +204,21 @@ export default function ProdukterPortalPage() {
                       onClick={() => updateQty(p.sku, -1)}
                       className="flex h-8 w-8 items-center justify-center rounded-l-lg text-muted-foreground transition-colors hover:bg-brand-50"
                       disabled={qty === 0}
+                      aria-label={locale === "en" ? "Decrease quantity" : "Minska antal"}
                     >
                       <Minus className="h-3 w-3" />
                     </button>
                     <Input
                       value={qty}
                       readOnly
+                      aria-label={locale === "en" ? "Quantity" : "Antal"}
                       className="h-8 w-12 border-x border-y-0 rounded-none text-center text-sm [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                     />
                     <button
                       type="button"
                       onClick={() => updateQty(p.sku, 1)}
                       className="flex h-8 w-8 items-center justify-center rounded-r-lg text-muted-foreground transition-colors hover:bg-brand-50"
+                      aria-label={locale === "en" ? "Increase quantity" : "Öka antal"}
                     >
                       <Plus className="h-3 w-3" />
                     </button>

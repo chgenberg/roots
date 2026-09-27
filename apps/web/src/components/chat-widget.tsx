@@ -131,9 +131,10 @@ export function ChatWidget() {
   const { locale } = useLocale();
   const pathname = usePathname();
   const t = marketingUi[locale].chat;
-  const aboveMobileBuyBar = /\/produkter\/[^/]+/.test(
-    (pathname || "").replace(/^\/en(?=\/|$)/, "")
-  );
+  const barePathname = (pathname || "").replace(/^\/en(?=\/|$)/, "");
+  // Produktsidan och säljarens shop har en fast köpknapp längst ner.
+  const aboveMobileBuyBar =
+    /\/produkter\/[^/]+/.test(barePathname) || /^\/shop\/[^/]+\/?$/.test(barePathname);
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>(() => [

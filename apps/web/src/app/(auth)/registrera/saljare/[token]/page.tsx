@@ -158,7 +158,7 @@ export default function SellerRegistrationPage() {
         <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-brand-100">
           <ShoppingBag className="h-6 w-6 text-brand-700" />
         </div>
-        <CardTitle className="text-2xl">{t.title}</CardTitle>
+        <CardTitle role="heading" aria-level={1} className="text-2xl">{t.title}</CardTitle>
         <CardDescription>{t.description}</CardDescription>
       </CardHeader>
       <CardContent>

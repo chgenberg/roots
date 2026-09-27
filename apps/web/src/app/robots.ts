@@ -3,7 +3,15 @@ import { resolveCanonicalSiteUrl } from "@roots/contracts";
 
 const BASE_URL = resolveCanonicalSiteUrl();
 
+// Läs grindflaggan vid varje anrop, inte vid bygget.
+export const dynamic = "force-dynamic";
+
 export default function robots(): MetadataRoute.Robots {
+  // Så länge preview-grinden är på skrivs varje publik sida om till
+  // grindsidan. Då ska inget indexeras, annars hamnar grinden i sökresultaten.
+  if (process.env.PREVIEW_GATE_DISABLED !== "true") {
+    return { rules: [{ userAgent: "*", disallow: ["/"] }] };
+  }
   return {
     rules: [
       {

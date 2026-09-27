@@ -124,6 +124,29 @@ export function NyOffertDialog({
     };
   }, [open, presetOrgId, initialSendNow, t.clubsLoadError, t.productsLoadError]);
 
+  // De första 50 klubbarna laddas när dialogen öppnas. Sökning på två tecken
+  // eller mer går mot servern så att hela registret blir sökbart.
+  useEffect(() => {
+    if (!open || presetOrgId) return;
+    const q = search.trim();
+    if (q.length < 2) return;
+    const controller = new AbortController();
+    const id = setTimeout(() => {
+      portalFetch(`/clubs?q=${encodeURIComponent(q)}`, {
+        schema: clubsListResponseSchema,
+        signal: controller.signal,
+      })
+        .then((data) =>
+          setClubs((data.clubs ?? []).map((c) => ({ id: c.id, name: c.name })))
+        )
+        .catch(() => {});
+    }, 300);
+    return () => {
+      clearTimeout(id);
+      controller.abort();
+    };
+  }, [open, presetOrgId, search]);
+
   const filteredClubs = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return clubs.slice(0, 20);

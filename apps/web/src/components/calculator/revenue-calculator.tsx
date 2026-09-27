@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import {
   computeCalculator,
   CALCULATOR_DEFAULTS,
@@ -55,12 +55,16 @@ function SliderField({
     return Math.min(max, Math.max(min, snapped));
   }
   const numberLocale = locale === "en" ? "en-GB" : "sv-SE";
+  const inputId = useId();
   return (
     <div className="space-y-3">
       <div className="flex items-baseline justify-between gap-3">
-        <label className="text-sm font-medium text-foreground">{label}</label>
+        <label htmlFor={inputId} className="text-sm font-medium text-foreground">
+          {label}
+        </label>
         <div className="flex items-center gap-1.5">
           <input
+            id={inputId}
             type="number"
             inputMode="numeric"
             value={value}

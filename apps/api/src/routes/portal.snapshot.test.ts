@@ -133,7 +133,8 @@ describe("GET /v1/portal/dashboard — CLUB_ADMIN", () => {
 
     dbHandle.reset([
       [{ count: 24 }],         // members
-      [{ count: 12 }],         // orders
+      [{ count: 12 }],         // orders (all time)
+      [{ count: 5 }],          // orders this month
       [{ total: 480_000 }],    // revenue (PAID) → 4 800 kr
     ]);
 

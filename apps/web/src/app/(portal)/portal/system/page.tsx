@@ -51,7 +51,7 @@ interface RecentEventRow {
 }
 
 const SERVICE_ICON_MAP: Record<string, typeof Server> = {
-  "API (Express)": Server,
+  "API (Hono)": Server,
   PostgreSQL: Database,
   Redis: Database,
   "AI / Open Claw": Cpu,
