@@ -16,10 +16,10 @@ export async function FoundersSection() {
         <div className="relative">
           <div className="group relative aspect-[4/5] overflow-hidden rounded-xl shadow-[var(--shadow-card)] sm:aspect-[4/3]">
             <Image
-              src="/personal/gruppbild.jpg"
+              src="/images/sport-package.jpg"
               alt={founders.alt}
               fill
-              className="object-cover object-[center_30%] transition-transform duration-700 ease-out group-hover:scale-[1.02]"
+              className="object-cover object-center transition-transform duration-700 ease-out group-hover:scale-[1.02]"
               sizes="(max-width: 1024px) 100vw, 50vw"
             />
           </div>
@@ -35,7 +35,7 @@ export async function FoundersSection() {
           </div>
           <div className="mt-8">
             <Button variant="outline" asChild>
-              <LocaleLink href="/om-oss#teamet">
+              <LocaleLink href="/om-oss#varfor">
                 {founders.cta}
                 <ArrowRight className="ml-2 h-4 w-4" />
               </LocaleLink>

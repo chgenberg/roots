@@ -101,26 +101,3 @@ export async function TeamPortraits() {
     </ul>
   );
 }
-
-export async function TeamGroupPhoto({ className }: { className?: string }) {
-  const locale = await getRequestLocale();
-  const t = marketingUi[locale].team;
-
-  return (
-    <figure className={className}>
-      <div className="group relative overflow-hidden rounded-2xl">
-        <div className="relative aspect-[4/5] w-full sm:aspect-[4/3] lg:aspect-[16/9]">
-          <Image
-            src="/personal/gruppbild.jpg"
-            alt={t.groupAlt}
-            fill
-            className="object-cover object-[center_22%] transition-transform duration-700 ease-out group-hover:scale-[1.02]"
-            sizes="(max-width: 768px) 100vw, 768px"
-          />
-          <div className="pointer-events-none absolute inset-0 ring-1 ring-inset ring-brand-900/10" />
-        </div>
-      </div>
-      <figcaption className="sr-only">{t.groupCaption}</figcaption>
-    </figure>
-  );
-}

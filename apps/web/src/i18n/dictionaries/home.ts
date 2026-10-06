@@ -166,14 +166,14 @@ export const home: Record<Locale, HomeCopy> = {
       cta: "Anslut din förening",
     },
     founders: {
-      badge: "Teamet",
-      title: "Byggt av grannar med samma mål",
+      badge: "Varför vi gör detta",
+      title: "Hårvård som arbetar med håret, inte mot det",
       paragraphs: [
-        "Roots byggs av människor med bakgrund i föreningsliv, teknik och produkt. Vi delar samma dröm: att föreningslivet i Sverige ska blomstra.",
-        "Naturlig hårvård kan bli en kraft som binder samman människor — från duschen till planen. Enkelt. Naturligt. Gemensamt.",
+        "Hår och hårbotten har en egen naturlig balans. Våra produkter är gjorda för att ta hand om den — med milda, sockerbaserade tensider, SyriCalm® och en diskret, neutral doft.",
+        "Och varje köp gör skillnad: 35 % går tillbaka till föreningslivet.",
       ],
-      cta: "Möt teamet",
-      alt: "Roots teamet",
+      cta: "Läs varför",
+      alt: "Roots Schampoo, Conditioner och Body Wash på en bänk i ett omklädningsrum",
     },
   },
   en: {
@@ -274,14 +274,14 @@ export const home: Record<Locale, HomeCopy> = {
       cta: "Register your club",
     },
     founders: {
-      badge: "The team",
-      title: "Built by neighbours with the same goal",
+      badge: "Why we do this",
+      title: "Hair care that works with your hair, not against it",
       paragraphs: [
-        "Roots is built by people with backgrounds in sports clubs, technology and product. We share the same dream: that sports clubs in Sweden should thrive.",
-        "Natural hair care can become a force that brings people together — from the shower to the pitch. Simple. Natural. Shared.",
+        "Hair and scalp have their own natural balance. Our products are made to look after it — with mild, sugar-based surfactants, SyriCalm® and a discreet, neutral scent.",
+        "And every purchase makes a difference: 35% goes back to sports clubs.",
       ],
-      cta: "Meet the team",
-      alt: "The Roots team",
+      cta: "Read why",
+      alt: "Roots Schampoo, Conditioner and Body Wash on a bench in a locker room",
     },
   },
 };

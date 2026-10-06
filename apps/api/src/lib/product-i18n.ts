@@ -11,20 +11,20 @@ const BY_SLUG: Record<string, { sv: string; en: string }> = {
 /** Short shop/catalog blurbs (DB seeds are Swedish — overlay for EN). */
 const DESC_BY_SLUG: Record<string, { sv: string; en: string }> = {
   shampoo: {
-    sv: "Milt schampo med SyriCalm® som lugnar hårbotten och sulfatsnåla, sockerbaserade tvättämnen. 250 ml.",
-    en: "Gentle shampoo with SyriCalm® that soothes the scalp, plus low-sulphate, sugar-based cleansers. 250 ml.",
+    sv: "Rengör skonsamt med sockerbaserade tensider och lämnar hårbottens balans i fred. SyriCalm®, neutral doft. 250 ml.",
+    en: "Cleanses gently with sugar-based surfactants and leaves the scalp's balance alone. SyriCalm®, neutral scent. 250 ml.",
   },
   conditioner: {
-    sv: "Närande balsam med SyriCalm®, Pro-Vitamin B5 och E-vitamin. Mjukt, följsamt hår utan att tynga. 250 ml.",
-    en: "Nourishing conditioner with SyriCalm®, pro-vitamin B5 and vitamin E. Soft, manageable hair without weighing it down. 250 ml.",
+    sv: "Ger tillbaka det tvätten tar — Panthenol, E-vitamin och SyriCalm®. Mjukt hår som inte tyngs ner. 250 ml.",
+    en: "Gives back what washing takes — panthenol, vitamin E and SyriCalm®. Soft hair that is never weighed down. 250 ml.",
   },
   "body-wash": {
-    sv: "Skonsam kroppstvätt med SyriCalm® och Panthenol. Rengör utan att torka ut. 250 ml.",
-    en: "Gentle body wash with SyriCalm® and panthenol. Cleanses without drying the skin. 250 ml.",
+    sv: "Ren hud som får behålla sitt eget skydd. Milda tensider, Panthenol och SyriCalm®, neutral doft. 250 ml.",
+    en: "Clean skin that keeps its own protection. Mild surfactants, panthenol and SyriCalm®, neutral scent. 250 ml.",
   },
   paket: {
-    sv: "Schampo, balsam och kroppstvätt tillsammans — hela rutinen i ett paket. 3 × 250 ml.",
-    en: "Shampoo, conditioner and body wash together — the full routine in one pack. 3 × 250 ml.",
+    sv: "Hela duschen, samma princip — schampo, balsam och kroppstvätt i ett paket. 3 × 250 ml.",
+    en: "The whole shower, one principle — shampoo, conditioner and body wash in one pack. 3 × 250 ml.",
   },
 };
 

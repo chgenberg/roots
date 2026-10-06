@@ -3,7 +3,7 @@ import { BreadcrumbJsonLd, WebPageJsonLd } from "@/components/json-ld";
 import { LocaleLink } from "@/components/locale-link";
 import { Button } from "@/components/ui/button";
 import { pageMetadata } from "@/lib/seo";
-import { TeamGroupPhoto, TeamPortraits } from "@/components/sections/team";
+import { TeamPortraits } from "@/components/sections/team";
 import { SectionEyebrow } from "@/components/section-eyebrow";
 import { RootsGrassDivider } from "@/components/brand";
 import { getPage } from "@/i18n/get-dictionary";
@@ -69,6 +69,32 @@ export default async function OmOssPage() {
               </Button>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section id="varfor" className="scroll-mt-24 py-20 md:py-28">
+        <div className="mx-auto max-w-[1280px] px-6 md:px-10">
+          <div className="mx-auto max-w-2xl text-center">
+            <SectionEyebrow>{t.whyEyebrow}</SectionEyebrow>
+            <h2 className="mt-3 text-3xl font-bold tracking-tight md:text-4xl">
+              {t.whyTitle}
+            </h2>
+            <p className="mt-5 text-lg leading-relaxed text-muted-foreground">
+              {t.whyIntro}
+            </p>
+          </div>
+          <ol className="mx-auto mt-14 grid max-w-5xl gap-10 md:grid-cols-3 md:gap-8">
+            {t.whyCircle.map((step, i) => (
+              <li key={step.label} className="border-t border-brand-200 pt-6">
+                <p className="text-xs font-semibold uppercase tracking-wider text-brand-600">
+                  {String(i + 1).padStart(2, "0")} · {step.label}
+                </p>
+                <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                  {step.text}
+                </p>
+              </li>
+            ))}
+          </ol>
         </div>
       </section>
 
@@ -165,9 +191,6 @@ export default async function OmOssPage() {
         </div>
       </section>
 
-      <section className="px-6 pb-20 md:px-10 md:pb-28">
-        <TeamGroupPhoto className="mx-auto max-w-3xl" />
-      </section>
     </>
   );
 }

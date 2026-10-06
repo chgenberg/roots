@@ -398,12 +398,30 @@ export const pages = {
     sv: {
       title: "Om oss",
       description:
-        "Teamet bakom Roots — föreningsliv, teknik och naturlig hårvård utvecklad i Norden.",
+        "Varför vi gör Roots: hårvård som arbetar med hårets och hårbottens naturliga funktion — och som stöttar föreningslivet.",
       eyebrow: "Om oss",
       brand: "Roots",
       heroBody:
         "Naturlig hårvård som kanaliserar vardagsköp tillbaka till föreningslivet.",
       ctaContact: "Kontakta oss",
+      whyEyebrow: "Varför",
+      whyTitle: "Varför vi gör detta",
+      whyIntro:
+        "Hårvård kan arbeta med hårets naturliga funktion — eller mot den. Vi har valt att arbeta med den.",
+      whyCircle: [
+        {
+          label: "Varför",
+          text: "Hår och hårbotten mår bäst när deras egen balans får vara kvar: mikroberna som lever där, de egna oljorna och hudens skyddsbarriär. Många produkter ger en snabb känsla för stunden. Vi vill ge något som håller över tid.",
+        },
+        {
+          label: "Hur",
+          text: "Vi rengör med milda, sockerbaserade tensider och vårdar med SyriCalm® — en växtbaserad aktiv av vass och svamp som i studier lugnat huden och hjälpt hudbarriären att återhämta sig. Hårsäcken har också ett eget signalsystem, endocannabinoidsystemet, som är med och styr hårets tillväxtcykel. Inget i våra produkter är framtaget för att påverka det.",
+        },
+        {
+          label: "Vad",
+          text: "Tre produkter med en diskret, neutral doft. Vi doftsätter inte för att det ska dofta mycket — fokus ligger på vad ingredienserna gör för hår och hud. Och 35 % av varje köp går till föreningslivet.",
+        },
+      ],
       storyEyebrow: "Historien",
       storyTitle: "Från en enkel insikt",
       storyParagraphs: [
@@ -443,12 +461,30 @@ export const pages = {
     en: {
       title: "About us",
       description:
-        "The team behind Roots — sports clubs, technology and natural hair care developed in the Nordics.",
+        "Why we make Roots: hair care that works with the natural function of hair and scalp — and supports sports clubs.",
       eyebrow: "About us",
       brand: "Roots",
       heroBody:
         "Natural hair care that channels everyday spending back into club fundraising.",
       ctaContact: "Contact us",
+      whyEyebrow: "Why",
+      whyTitle: "Why we do this",
+      whyIntro:
+        "Hair care can work with the natural function of hair — or against it. We have chosen to work with it.",
+      whyCircle: [
+        {
+          label: "Why",
+          text: "Hair and scalp do best when their own balance is left intact: the microbes that live there, the natural oils and the skin's protective barrier. Many products give a quick feeling in the moment. We want to give something that lasts.",
+        },
+        {
+          label: "How",
+          text: "We cleanse with mild, sugar-based surfactants and care with SyriCalm® — a plant-based active from reed and mushroom that in studies calmed the skin and helped the skin barrier recover. The hair follicle also has its own signalling system, the endocannabinoid system, which helps steer the hair growth cycle. Nothing in our products is designed to interfere with it.",
+        },
+        {
+          label: "What",
+          text: "Three products with a discreet, neutral scent. We do not add fragrance to make things smell strong — the focus is on what the ingredients do for hair and skin. And 35% of every purchase goes to sports clubs.",
+        },
+      ],
       storyEyebrow: "The story",
       storyTitle: "From a simple insight",
       storyParagraphs: [
