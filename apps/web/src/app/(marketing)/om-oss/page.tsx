@@ -3,12 +3,10 @@ import { BreadcrumbJsonLd, WebPageJsonLd } from "@/components/json-ld";
 import { LocaleLink } from "@/components/locale-link";
 import { Button } from "@/components/ui/button";
 import { pageMetadata } from "@/lib/seo";
-import { TeamPortraits } from "@/components/sections/team";
 import { SectionEyebrow } from "@/components/section-eyebrow";
 import { RootsGrassDivider } from "@/components/brand";
 import { getPage } from "@/i18n/get-dictionary";
 import { getRequestLocale } from "@/i18n/request-locale";
-import { marketingUi } from "@/i18n/dictionaries/marketing-ui";
 import { withLocale } from "@/i18n/paths";
 import type { Metadata } from "next";
 
@@ -26,7 +24,6 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function OmOssPage() {
   const locale = await getRequestLocale();
   const t = getPage("omOss", locale);
-  const team = marketingUi[locale].team;
   const homeLabel = getPage("produkter", locale).breadcrumbHome;
 
   return (
@@ -123,33 +120,16 @@ export default async function OmOssPage() {
         </div>
       </section>
 
-      <section id="teamet" className="py-24 md:py-32">
-        <div className="mx-auto max-w-[1280px] px-6 md:px-10">
-          <div className="grid gap-12 lg:grid-cols-2 lg:gap-20">
-            <div className="max-w-lg">
-              <SectionEyebrow>{t.storyEyebrow}</SectionEyebrow>
-              <h2 className="mt-3 text-3xl font-bold tracking-tight">
-                {t.storyTitle}
-              </h2>
-              <div className="mt-6 space-y-4 text-base leading-relaxed text-muted-foreground">
-                {t.storyParagraphs.map((p) => (
-                  <p key={p.slice(0, 24)}>{p}</p>
-                ))}
-              </div>
-            </div>
-            <div className="max-w-lg">
-              <SectionEyebrow>{team.badge}</SectionEyebrow>
-              <h2 className="mt-3 text-3xl font-bold tracking-tight">
-                {team.title}
-              </h2>
-              <p className="mt-6 text-base leading-relaxed text-muted-foreground">
-                {team.body}
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-16">
-            <TeamPortraits />
+      <section id="historien" className="py-24 md:py-32">
+        <div className="mx-auto max-w-2xl px-6 text-center md:px-10">
+          <SectionEyebrow>{t.storyEyebrow}</SectionEyebrow>
+          <h2 className="mt-3 text-3xl font-bold tracking-tight">
+            {t.storyTitle}
+          </h2>
+          <div className="mt-6 space-y-4 text-base leading-relaxed text-muted-foreground">
+            {t.storyParagraphs.map((p) => (
+              <p key={p.slice(0, 24)}>{p}</p>
+            ))}
           </div>
         </div>
       </section>
