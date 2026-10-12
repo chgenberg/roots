@@ -1,8 +1,5 @@
 import Image from "next/image";
-import { Card, CardContent } from "@/components/ui/card";
-import { ArrowUpRight } from "lucide-react";
 import { SectionEyebrow } from "@/components/section-eyebrow";
-import { BUNDLE_SLUG } from "@/lib/product-catalog";
 import { LocaleLink } from "@/components/locale-link";
 import { getHome } from "@/i18n/get-dictionary";
 import { getRequestLocale } from "@/i18n/request-locale";
@@ -20,62 +17,29 @@ export async function ProductsPreview() {
           <p className="mt-4 text-lg text-muted-foreground">{products.body}</p>
         </div>
 
-        <div className="mt-16 grid gap-6 md:grid-cols-3">
+        <div className="mt-14 grid gap-8 md:grid-cols-3 md:gap-6">
           {products.items.map((product) => (
             <LocaleLink
               key={product.slug}
               href={`/produkter/${product.slug}`}
-              className="group"
+              className="group rounded-3xl text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <Card className="overflow-hidden border-0 bg-brand-50/50 shadow-none transition-all duration-500 hover:bg-card hover:shadow-[var(--shadow-elevated)]">
-                <div className="relative aspect-[4/5] overflow-hidden rounded-xl">
-                  <Image
-                    src={product.image}
-                    alt={product.name}
-                    fill
-                    className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
-                    sizes="(max-width: 768px) 100vw, 33vw"
-                  />
-                </div>
-                <CardContent className="p-5">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h3 className="text-lg font-semibold">{product.name}</h3>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        {product.tagline}
-                      </p>
-                    </div>
-                    <ArrowUpRight className="h-5 w-5 text-muted-foreground transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-foreground" />
-                  </div>
-                  <p className="mt-3 text-lg font-semibold">{product.price}</p>
-                </CardContent>
-              </Card>
+              <div className="relative aspect-[3/4] overflow-hidden rounded-3xl bg-brand-50">
+                <Image
+                  src={product.image}
+                  alt={product.name}
+                  fill
+                  className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.03]"
+                  sizes="(max-width: 768px) 100vw, 33vw"
+                />
+              </div>
+              <h3 className="mt-5 text-lg font-semibold">{product.name}</h3>
+              <p className="mx-auto mt-1 max-w-xs text-sm text-muted-foreground">
+                {product.tagline}
+              </p>
+              <p className="mt-2 text-base font-semibold">{product.price}</p>
             </LocaleLink>
           ))}
-        </div>
-
-        <div className="mt-12 text-center">
-          <LocaleLink
-            href={`/produkter/${BUNDLE_SLUG}`}
-            className="group inline-flex items-center gap-4 rounded-xl border border-border bg-card px-6 py-4 text-card-foreground shadow-[var(--shadow-card)] transition-shadow hover:shadow-md"
-          >
-            <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-brand-50">
-              <Image
-                src="/images/sport-package.jpg"
-                alt={products.bundle.alt}
-                fill
-                className="object-cover"
-                sizes="56px"
-              />
-            </div>
-            <div className="text-left">
-              <p className="text-lg font-bold">{products.bundle.price}</p>
-              <p className="text-sm text-muted-foreground">
-                {products.bundle.label}
-              </p>
-            </div>
-            <ArrowUpRight className="h-5 w-5 text-muted-foreground transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-foreground" />
-          </LocaleLink>
         </div>
       </div>
     </section>

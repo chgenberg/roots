@@ -74,9 +74,9 @@ export const home: Record<Locale, HomeCopy> = {
       titleLine2: "Naturlig hårvård som ger tillbaka till föreningslivet",
       body: "Tre produkter för föreningslivet — utan sulfater, silikoner eller parabener.",
       altDesktop:
-        "Roots-produkterna vid fotbollsplanen — Schampoo, Conditioner och Body Wash",
+        "Roots Schampoo, Conditioner och Body Wash på en stenbänk i ett ljust badrum",
       altMobile:
-        "Roots — Roots Schampoo, Roots Conditioner och Roots Body Wash",
+        "Roots Schampoo, Conditioner och Body Wash i ett ljust badrum",
       ctaHairAnalysis: "Starta din håranalys",
       ctaProducts: "Se produkterna",
       ctaClub: "Räkna på intäkten",
@@ -90,7 +90,7 @@ export const home: Record<Locale, HomeCopy> = {
           slug: "shampoo",
           name: "Roots Schampoo",
           tagline: "Rengör på riktigt — efter match och träning",
-          image: "/images/sport-schampoo.jpg",
+          image: "/images/home-product-shampoo-2.jpg",
           price: "199 kr",
           badge: "Schampo",
         },
@@ -98,7 +98,7 @@ export const home: Record<Locale, HomeCopy> = {
           slug: "conditioner",
           name: "Roots Conditioner",
           tagline: "Mjukt, följsamt hår — samma rutin för hela laget",
-          image: "/images/sport-conditioner.jpg",
+          image: "/images/home-product-conditioner-2.jpg",
           price: "199 kr",
           badge: "Balsam",
         },
@@ -106,7 +106,7 @@ export const home: Record<Locale, HomeCopy> = {
           slug: "body-wash",
           name: "Roots Body Wash",
           tagline: "Skonsam dusch — från omklädningsrummet till hemmet",
-          image: "/images/sport-body-wash.jpg",
+          image: "/images/home-product-body-wash-2.jpg",
           price: "179 kr",
           badge: "Body Wash",
         },
@@ -141,9 +141,8 @@ export const home: Record<Locale, HomeCopy> = {
       cta: "Anslut din förening",
       ctaCalc: "Räkna på intäkten",
       sellingAlt:
-        "Ungdomar i föreningsdräkt säljer Roots vid planen — flaskor och QR-kod på bordet",
-      campAlt:
-        "Lag på läger samlade vid stugor, med Roots-flaskor i förgrunden",
+        "Två ungdomar säljer Roots vid klubbstugan och en förälder betalar med Swish",
+      campAlt: "Ett flicklag jublar tillsammans på fotbollsplanen",
     },
     gamification: {
       badge: "Milstolpar",
@@ -182,9 +181,8 @@ export const home: Record<Locale, HomeCopy> = {
       titleLine2: "That clean feeling.",
       body: "Three products for clubs — without sulphates, silicones or parabens.",
       altDesktop:
-        "Roots products by the football pitch — Schampoo, Conditioner and Body Wash",
-      altMobile:
-        "Roots — Roots Schampoo, Roots Conditioner and Roots Body Wash",
+        "Roots Schampoo, Conditioner and Body Wash on a stone counter in a bright bathroom",
+      altMobile: "Roots Schampoo, Conditioner and Body Wash in a bright bathroom",
       ctaHairAnalysis: "Start your hair analysis",
       ctaProducts: "Browse products",
       ctaClub: "Calculate the revenue",
@@ -198,7 +196,7 @@ export const home: Record<Locale, HomeCopy> = {
           slug: "shampoo",
           name: "Roots Schampoo",
           tagline: "Cleanses thoroughly — after matches and training",
-          image: "/images/sport-schampoo.jpg",
+          image: "/images/home-product-shampoo-2.jpg",
           price: "SEK 199",
           badge: "Shampoo",
         },
@@ -206,7 +204,7 @@ export const home: Record<Locale, HomeCopy> = {
           slug: "conditioner",
           name: "Roots Conditioner",
           tagline: "Soft, manageable hair — one routine for the whole team",
-          image: "/images/sport-conditioner.jpg",
+          image: "/images/home-product-conditioner-2.jpg",
           price: "SEK 199",
           badge: "Conditioner",
         },
@@ -214,7 +212,7 @@ export const home: Record<Locale, HomeCopy> = {
           slug: "body-wash",
           name: "Roots Body Wash",
           tagline: "A gentle shower — from the changing room to home",
-          image: "/images/sport-body-wash.jpg",
+          image: "/images/home-product-body-wash-2.jpg",
           price: "SEK 179",
           badge: "Body Wash",
         },
@@ -249,9 +247,8 @@ export const home: Record<Locale, HomeCopy> = {
       cta: "Register your club",
       ctaCalc: "Calculate the revenue",
       sellingAlt:
-        "Youth in club kit selling Roots by the pitch — bottles and a QR code on the table",
-      campAlt:
-        "A team at camp gathered by the cabins, with Roots bottles in the foreground",
+        "Two young people selling Roots by the clubhouse while a parent pays with Swish",
+      campAlt: "A girls' team celebrating together on the football pitch",
     },
     gamification: {
       badge: "Milestones",

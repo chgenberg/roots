@@ -21,12 +21,6 @@ const NAV_HREFS = [
   { href: "/om-oss", key: "about" as const },
 ];
 
-const NAV_LEFT = NAV_HREFS.slice(0, 2);
-const NAV_RIGHT = NAV_HREFS.slice(2);
-
-const PILL =
-  "rounded-full border border-border/60 bg-background/90 p-1 shadow-[var(--shadow-card)] backdrop-blur-xl";
-
 function MorphingBurger({ open }: { open: boolean }) {
   return (
     <div className="relative h-5 w-6">
@@ -68,8 +62,8 @@ function NavLink({
       className={cn(
         "font-display flex h-10 items-center whitespace-nowrap rounded-full px-3 text-sm font-normal tracking-wide transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         active
-          ? "bg-brand-200 font-medium text-foreground"
-          : "text-muted-foreground hover:bg-brand-50 hover:text-foreground"
+          ? "font-medium text-foreground underline decoration-1 underline-offset-[6px]"
+          : "text-muted-foreground hover:text-foreground"
       )}
     >
       {label}
@@ -140,22 +134,22 @@ export function Header() {
           className={cn(
             "border-b transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
             scrolled
-              ? "border-border/50 bg-background/92 py-2 backdrop-blur-xl"
-              : "border-transparent bg-background/85 py-3 backdrop-blur-md xl:bg-transparent xl:backdrop-blur-none"
+              ? "border-border/60 bg-background/95 py-2 backdrop-blur-xl"
+              : "border-border/40 bg-background py-3"
           )}
         >
-          <div className="relative mx-auto grid max-w-[1400px] grid-cols-[1fr_auto_1fr] items-center px-4 xl:px-8">
-            <LocaleLink
-              href="/"
-              aria-label={t.aria.home}
-              className="relative z-[60] flex h-12 items-center px-1 transition-opacity duration-200 hover:opacity-70 xl:hidden"
-            >
-              <RootsLogo variant="auto" priority className="h-7 w-[72px]" />
-            </LocaleLink>
+          <div className="relative mx-auto flex max-w-[1400px] items-center justify-between gap-6 px-4 md:px-6 xl:px-8">
+            <div className="flex items-center gap-8">
+              <LocaleLink
+                href="/"
+                aria-label={t.aria.home}
+                className="relative z-[60] flex h-12 items-center px-1 transition-opacity duration-200 hover:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <RootsLogo variant="auto" priority className="h-7 w-[72px]" />
+              </LocaleLink>
 
-            <nav className="col-start-2 hidden xl:block">
-              <div className={cn(PILL, "flex items-center gap-1")}>
-                {NAV_LEFT.map((item) => (
+              <nav className="hidden items-center gap-1 xl:flex">
+                {NAV_HREFS.map((item) => (
                   <NavLink
                     key={item.href}
                     href={item.href}
@@ -163,31 +157,14 @@ export function Header() {
                     active={isActive(item.href)}
                   />
                 ))}
+              </nav>
+            </div>
 
-                <LocaleLink
-                  href="/"
-                  aria-label={t.aria.home}
-                  className="mx-1 flex h-10 items-center px-2 transition-opacity duration-200 hover:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <RootsLogo variant="auto" priority className="h-6 w-[64px]" />
-                </LocaleLink>
-
-                {NAV_RIGHT.map((item) => (
-                  <NavLink
-                    key={item.href}
-                    href={item.href}
-                    label={t.nav[item.key]}
-                    active={isActive(item.href)}
-                  />
-                ))}
-              </div>
-            </nav>
-
-            <div className={cn(PILL, "col-start-3 hidden items-center justify-self-end gap-0.5 xl:flex")}>
+            <div className="hidden items-center gap-1 xl:flex">
               <LocaleLink
                 href="/sa-fungerar-det#rakna"
                 aria-label={t.aria.calcCta}
-                className="flex h-10 items-center whitespace-nowrap rounded-full bg-brand-700 px-4 text-sm font-medium text-white transition-colors duration-200 hover:bg-brand-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="mr-2 flex h-10 items-center whitespace-nowrap rounded-full border border-foreground/25 px-5 text-sm font-medium text-foreground transition-colors duration-200 hover:border-foreground hover:bg-foreground hover:text-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {t.calcCta}
               </LocaleLink>
@@ -205,10 +182,7 @@ export function Header() {
 
             <button
               onClick={() => setMenuOpen(!menuOpen)}
-              className={cn(
-                PILL,
-                "relative z-[60] col-start-3 inline-flex h-12 w-12 items-center justify-self-end xl:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              )}
+              className="relative z-[60] inline-flex h-12 w-12 items-center justify-center rounded-full xl:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               aria-label={menuOpen ? t.aria.closeMenu : t.aria.openMenu}
               aria-expanded={menuOpen}
             >

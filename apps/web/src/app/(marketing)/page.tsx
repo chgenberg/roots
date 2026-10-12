@@ -2,7 +2,6 @@ import { HeroSection } from "@/components/sections/hero";
 import { ForForeningar } from "@/components/sections/for-foreningar";
 import { ProductsPreview } from "@/components/sections/products-preview";
 import { Gamification } from "@/components/sections/gamification";
-import { FoundersSection } from "@/components/sections/founders";
 import { WebPageJsonLd } from "@/components/json-ld";
 import { pageMetadata } from "@/lib/seo";
 import { withLocale } from "@/i18n/paths";
@@ -45,7 +44,6 @@ export default async function Home() {
       <ForForeningar />
       <ProductsPreview />
       <Gamification />
-      <FoundersSection />
     </>
   );
 }
