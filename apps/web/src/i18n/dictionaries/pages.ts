@@ -111,7 +111,7 @@ export const pages = {
       ],
       midImageAlt: "Roots produkter i duschen — redo att användas",
       sellingImageAlt:
-        "Ungdomar i föreningsdräkt säljer Roots vid planen — flaskor och QR-kod på bordet",
+        "Två ungdomar säljer Roots vid klubbstugan — tre flaskor på bordet",
       campImageAlt:
         "Lag på läger samlade vid stugor, med Roots-flaskor i förgrunden",
       featuresTitle: "Vad ni får",
@@ -180,7 +180,7 @@ export const pages = {
       ],
       midImageAlt: "Roots products in the shower — ready to use",
       sellingImageAlt:
-        "Youth in club kit selling Roots by the pitch — bottles and a QR code on the table",
+        "Two young people selling Roots by the clubhouse — three bottles on the table",
       campImageAlt:
         "A team at camp gathered by the cabins, with Roots bottles in the foreground",
       featuresTitle: "What you get",

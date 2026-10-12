@@ -31,7 +31,7 @@ export interface PageMetadataInput {
   path: string;
   /** Active marketing locale — prefixes canonical + hreflang. */
   locale?: Locale;
-  /** Default: "/images/sport-h1desktop.jpg" (root-layoutens fallback). Relativa paths OK. */
+  /** Default: "/images/roots-sport-h1desktop.jpg" (root-layoutens fallback). Relativa paths OK. */
   ogImage?: string;
   /**
    * Next.js OpenGraph-typningen accepterar bara "website" | "article".

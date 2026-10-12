@@ -29,10 +29,10 @@ const SKU_BY_SLUG: Record<ProductSlug, string> = {
 };
 
 const IMAGE2_BY_SLUG: Record<ProductSlug, string> = {
-  shampoo: "/images/sport-schampoo-lifestyle.jpg",
-  conditioner: "/images/sport-conditioner-lifestyle.jpg",
-  "body-wash": "/images/sport-body-wash-lifestyle.jpg",
-  [BUNDLE_SLUG]: "/images/sport-hockey.jpg",
+  shampoo: "/images/roots-shampoo-lifestyle.jpg",
+  conditioner: "/images/roots-conditioner-lifestyle.jpg",
+  "body-wash": "/images/roots-body-wash-lifestyle.jpg",
+  [BUNDLE_SLUG]: "/images/roots-sport-hockey.jpg",
 };
 
 const INGREDIENTS: Partial<Record<ProductSlug, string[]>> = {

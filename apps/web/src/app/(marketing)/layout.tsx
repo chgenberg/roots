@@ -1,5 +1,6 @@
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
+import { RootsBackdrop } from "@/components/brand";
 import { ChatWidget } from "@/components/chat-widget";
 import { SearchDialog } from "@/components/search-dialog";
 import { LocaleProvider } from "@/i18n/locale-context";
@@ -17,12 +18,13 @@ export default async function MarketingLayout({
     // soft switch between `/` and `/en` cannot leave Swedish nav labels
     // on an English page (rewrite makes both map to the same segment).
     <LocaleProvider key={locale} locale={locale}>
-      <div data-marketing="">
+      <div data-marketing="" className="relative isolate">
         <Header />
         <main id="main-content" className="flex-1">
           {children}
         </main>
         <Footer />
+        <RootsBackdrop />
         <ChatWidget />
         <SearchDialog />
       </div>

@@ -19,7 +19,7 @@ export function Footer() {
   }));
 
   return (
-    <footer className="relative border-t border-border bg-brand-50/30">
+    <footer className="relative">
       <div className="mx-auto max-w-[1280px] px-6 py-16 md:px-10">
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-5">
           <div className="sm:col-span-2 lg:col-span-1">

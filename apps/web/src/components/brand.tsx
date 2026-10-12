@@ -187,5 +187,23 @@ export function RootsGrassAccent({
   );
 }
 
+/** Large cropped roots element behind the last section and footer. Sections with their own background cover it. */
+export function RootsBackdrop() {
+  return (
+    <div
+      aria-hidden
+      className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-[clamp(320px,60vw,880px)] select-none overflow-hidden opacity-35 dark:opacity-[0.06]"
+    >
+      <Image
+        src={ELEMENT_SRC.light}
+        alt=""
+        fill
+        className="object-cover object-bottom"
+        sizes="100vw"
+      />
+    </div>
+  );
+}
+
 /** Locale-aware branded loader (client). Re-exported for a stable import path. */
 export { RootsLoader } from "./roots-loader";

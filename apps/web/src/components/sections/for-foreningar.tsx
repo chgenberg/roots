@@ -33,16 +33,16 @@ export async function ForForeningar() {
         <div className="mt-14 grid gap-6 md:grid-cols-2">
           <div className="group relative aspect-[4/3] overflow-hidden rounded-3xl">
             <Image
-              src="/images/home-club-selling-2.jpg"
+              src="/images/roots-club-selling.jpg"
               alt={forClubs.sellingAlt}
               fill
-              className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.02]"
+              className="object-cover object-[center_35%] transition-transform duration-700 ease-out group-hover:scale-[1.02]"
               sizes="(max-width: 768px) 100vw, 50vw"
             />
           </div>
           <div className="group relative aspect-[4/3] overflow-hidden rounded-3xl">
             <Image
-              src="/images/home-team-celebrating.jpg"
+              src="/images/roots-team.jpg"
               alt={forClubs.campAlt}
               fill
               className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.02]"
