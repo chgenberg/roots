@@ -11,7 +11,7 @@ export async function HeroSection() {
     <section className="relative overflow-hidden xl:h-[min(36rem,calc(100dvh-7rem))] xl:min-h-[26rem]">
       <div className="relative aspect-[4/3] sm:aspect-[16/9] xl:absolute xl:inset-0 xl:aspect-auto">
       <Image
-        src="/images/roots-home-hero.jpg"
+        src="/images/roots-home-hero-mix.jpg"
         alt={hero.altDesktop}
         fill
         className="object-cover object-center"
