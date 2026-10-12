@@ -18,52 +18,52 @@ export const pages = {
     sv: {
       title: "Produkter",
       description:
-        "Tre noggrant formulerade nordiska produkter med SyriCalm® och Pro-Vitamin B5 — var för sig eller som Premiumpaket. Sulfatsnålt, silikon- och parabenfritt.",
-      heroTitle: "Våra produkter",
+        "Schampo, balsam och body wash. Utvecklade i Norden. Utan sulfater, silikoner och parabener. 35 % av varje köp stannar i föreningen.",
+      heroTitle: "Tre flaskor. En rutin.",
       heroBody:
-        "Tre noggrant formulerade nordiska produkter med forskningsförankrade aktiver — var för sig eller som Premiumpaket. Sulfatsnålt, silikon- och parabenfritt.",
+        "Schampo, balsam och body wash — var för sig eller som Premiumpaket. Utan sulfater, silikoner och parabener.",
       itemListName: "Roots produkter",
       breadcrumbHome: "Hem",
       values: [
-        "Forskningsförankrade aktiver",
-        "Sulfatsnålt & silikonfritt",
-        "Unisex — för alla",
+        "SyriCalm® i varje flaska",
+        "Utan sulfater och silikoner",
+        "Samma rutin för hela laget",
       ],
       principles: [
-        { value: "SyriCalm®", label: "lugnande aktiv i varje produkt" },
+        { value: "SyriCalm®", label: "i schampo, balsam och body wash" },
         { value: "0", label: "sulfater, silikoner, parabener" },
-        { value: "Norden", label: "formulerat & tillverkat" },
+        { value: "Norden", label: "formulerat och tillverkat" },
       ],
       readMore: "Läs mer",
-      ctaTitle: "Beställ nu och stötta din förening",
+      ctaTitle: "Handla via föreningen",
       ctaBody:
-        "Roots säljs genom föreningar och klubbar — en del av varje köp går direkt till föreningen.",
+        "Roots säljs genom föreningar. 35 % av varje köp stannar där.",
       ctaButton: "Så gör din förening",
       productSlugs: ["shampoo", "conditioner", "body-wash", "paket"] as const,
     },
     en: {
       title: "Products",
       description:
-        "Three carefully formulated Nordic products with SyriCalm® and Pro-Vitamin B5 — individually or as a Premium pack. Low-sulphate, silicone- and paraben-free.",
-      heroTitle: "Our products",
+        "Shampoo, conditioner and body wash. Developed in the Nordics. No sulphates, silicones or parabens. 35% of every purchase stays with the club.",
+      heroTitle: "Three bottles. One routine.",
       heroBody:
-        "Three carefully formulated Nordic products with research-backed actives — individually or as a Premium pack. Low-sulphate, silicone- and paraben-free.",
+        "Shampoo, conditioner and body wash — individually or as a Premium pack. No sulphates, silicones or parabens.",
       itemListName: "Roots products",
       breadcrumbHome: "Home",
       values: [
-        "Research-backed actives",
-        "Low-sulphate & silicone-free",
-        "Unisex — for everyone",
+        "SyriCalm® in every bottle",
+        "No sulphates or silicones",
+        "The same routine for the whole team",
       ],
       principles: [
-        { value: "SyriCalm®", label: "soothing active in every product" },
+        { value: "SyriCalm®", label: "in shampoo, conditioner and body wash" },
         { value: "0", label: "sulphates, silicones, parabens" },
-        { value: "Nordics", label: "formulated & manufactured" },
+        { value: "Nordics", label: "formulated and made" },
       ],
       readMore: "Learn more",
-      ctaTitle: "Order now and support your club",
+      ctaTitle: "Buy through your club",
       ctaBody:
-        "Roots is sold through sports clubs — a share of every purchase goes straight to the club.",
+        "Roots is sold through clubs. 35% of every purchase stays there.",
       ctaButton: "How your club gets started",
       productSlugs: ["shampoo", "conditioner", "body-wash", "paket"] as const,
     },
@@ -73,40 +73,40 @@ export const pages = {
     sv: {
       title: "Föreningsliv",
       description:
-        "Stärk er förening med Roots. Sälj naturlig hårvård och generera intäkt till laget — enkelt, snabbt och utan startavgift.",
+        "Föreningar säljer Roots. 35 % stannar i föreningen. Inga pärmar, inga kontanter, ingen startavgift.",
       badge: "För föreningar",
-      heroTitleLead: "Gör föreningslivet",
-      heroTitleAccent: "starkare",
+      heroTitleLead: "Ni säljer.",
+      heroTitleAccent: "Vi sköter resten.",
       heroBody:
-        "Roots är byggt för föreningar. Beställ naturlig hårvård direkt i vår portal, säkerställ att en del av intäkten går tillbaka till er klubb, och ge era medlemmar produkter de älskar.",
+        "Varje medlem får en egen butik. Kunden handlar med Swish eller kort. Roots levererar. Föreningen behåller 35 %.",
       heroImageAlt: "Roots produkter i föreningens omklädningsrum",
       ctaPrimary: "Anslut din förening",
       ctaSecondary: "Kontakta oss",
       ctaCalc: "Räkna på intäkten",
       ctaAfterSteps: "Räkna på intäkten",
       bottomCalcCta: "Räkna på intäkten",
-      stepsTitle: "Så här fungerar det",
-      stepsSubtitle: "Från registrering till leverans — i fyra enkla steg.",
+      stepsTitle: "Så här går det till",
+      stepsSubtitle: "Fyra steg. Inga pärmar.",
       steps: [
         {
           step: "01",
           title: "Anslut",
-          description: "Registrera din förening — tar bara några minuter.",
+          description: "Registrera föreningen. Det tar några minuter.",
         },
         {
           step: "02",
-          title: "Beställ",
-          description: "Välj antal paket direkt i vår portal. Inga minsta volymer.",
+          title: "Öppna butiken",
+          description: "Varje medlem får en länk och en QR-kod. Ingen minsta order.",
         },
         {
           step: "03",
           title: "Leverans",
-          description: "Vi levererar direkt till er klubb eller era medlemmar.",
+          description: "Vi skickar till klubben eller hem till den som köpt.",
         },
         {
           step: "04",
-          title: "Intäkt",
-          description: "Del av intäkten går tillbaka till föreningslivet.",
+          title: "35 %",
+          description: "Föreningen behåller 35 % av allt som säljs.",
         },
       ],
       midImageAlt: "Roots produkter i duschen — redo att användas",
@@ -114,39 +114,39 @@ export const pages = {
         "Två ungdomar säljer Roots vid klubbstugan — tre flaskor på bordet",
       campImageAlt:
         "Lag på läger samlade vid stugor, med Roots-flaskor i förgrunden",
-      featuresTitle: "Vad ni får",
+      featuresTitle: "Vad ni slipper",
       features: [
         {
-          title: "Ingen minimumbeställning",
+          title: "Ingen minsta order",
           description: "Beställ det ni behöver, när ni behöver det.",
         },
         {
-          title: "Egen portal",
-          description: "Administrera beställningar och se statistik i realtid.",
+          title: "Ingen pärm",
+          description: "Portalen visar ordrar, mål och 35 % i realtid.",
         },
         {
-          title: "Frakt enligt kassan",
-          description: "Fri frakt kan gälla över tröskeln som visas vid beställning.",
+          title: "Ingen packning",
+          description: "Frakten syns i kassan. Fri frakt kan gälla över tröskeln där.",
         },
         {
-          title: "Intäktsrapport",
-          description: "Full transparens över hur intäkten fördelas.",
+          title: "Ingen gissning",
+          description: "Ni ser exakt hur mycket föreningen har tjänat.",
         },
       ],
-      bottomTitle: "Redo att börja?",
+      bottomTitle: "Redo?",
       bottomBody:
-        "Anslut din förening idag och ge era medlemmar tillgång till naturlig, nordisk hårvård.",
+        "Anslut föreningen. Medlemmarna får sina butiker. Ni ser pengarna komma in.",
       bottomCta: "Anslut din förening",
     },
     en: {
       title: "For clubs",
       description:
-        "Strengthen your club with Roots. Sell natural hair care and generate revenue for the team — simple, fast and with no start-up fee.",
+        "Clubs sell Roots. 35% stays with the club. No paperwork, no cash, no start-up fee.",
       badge: "For clubs",
-      heroTitleLead: "Strengthen",
-      heroTitleAccent: "sports clubs",
+      heroTitleLead: "You sell.",
+      heroTitleAccent: "We handle the rest.",
       heroBody:
-        "Roots is built for clubs. Order natural hair care directly in our portal, keep a share of the revenue for your club, and give your members products they love.",
+        "Every member gets their own shop. The customer pays with Swish or card. Roots delivers. The club keeps 35%.",
       heroImageAlt: "Roots products in the club changing room",
       ctaPrimary: "Register your club",
       ctaSecondary: "Contact us",
@@ -154,28 +154,27 @@ export const pages = {
       ctaAfterSteps: "Calculate the revenue",
       bottomCalcCta: "Calculate the revenue",
       stepsTitle: "How it works",
-      stepsSubtitle: "From registration to delivery — in four simple steps.",
+      stepsSubtitle: "Four steps. No paperwork.",
       steps: [
         {
           step: "01",
           title: "Join",
-          description: "Register your club — it only takes a few minutes.",
+          description: "Register the club. It takes a few minutes.",
         },
         {
           step: "02",
-          title: "Order",
-          description:
-            "Choose how many packs you need in our portal. No minimum volumes.",
+          title: "Open the shop",
+          description: "Every member gets a link and a QR code. No minimum order.",
         },
         {
           step: "03",
           title: "Delivery",
-          description: "We deliver straight to your club or your members.",
+          description: "We send to the club or to the buyer's door.",
         },
         {
           step: "04",
-          title: "Revenue",
-          description: "A share of the revenue goes back into club fundraising.",
+          title: "35%",
+          description: "The club keeps 35% of everything sold.",
         },
       ],
       midImageAlt: "Roots products in the shower — ready to use",
@@ -183,28 +182,28 @@ export const pages = {
         "Two young people selling Roots by the clubhouse — three bottles on the table",
       campImageAlt:
         "A team at camp gathered by the cabins, with Roots bottles in the foreground",
-      featuresTitle: "What you get",
+      featuresTitle: "What you skip",
       features: [
         {
           title: "No minimum order",
           description: "Order what you need, when you need it.",
         },
         {
-          title: "Your own portal",
-          description: "Manage orders and see live statistics.",
+          title: "No paperwork",
+          description: "The portal shows orders, goals and the 35% live.",
         },
         {
-          title: "Shipping shown at checkout",
-          description: "Free shipping may apply above the threshold shown when you order.",
+          title: "No packing",
+          description: "Shipping is shown at checkout. Free shipping may apply above the threshold there.",
         },
         {
-          title: "Revenue report",
-          description: "Full transparency on how revenue is shared.",
+          title: "No guessing",
+          description: "You see exactly how much the club has earned.",
         },
       ],
-      bottomTitle: "Ready to start?",
+      bottomTitle: "Ready?",
       bottomBody:
-        "Register your club today and give your members access to natural, Nordic hair care.",
+        "Register the club. Members get their shops. You watch the money come in.",
       bottomCta: "Register your club",
     },
   },
@@ -213,22 +212,22 @@ export const pages = {
     sv: {
       title: "Så fungerar det",
       description:
-        "Se hur Roots fungerar för föreningar i tre enkla steg — och räkna ut vad försäljningen kan ge er förening. Inga pärmar, inga kontanter.",
+        "Tre steg. Inga pärmar, inga kontanter. Räkna ut vad försäljningen kan ge er förening.",
       howToName: "Så fungerar Roots",
       howToDescription:
-        "Hur Roots fungerar för föreningar i tre enkla steg — från start till försäljning.",
+        "Hur Roots fungerar för föreningar i tre steg — från start till försäljning.",
       badge: "För föreningar",
       heroTitle: "Så fungerar det",
       heroBody:
-        "Tre enkla steg — från att föreningen kommer igång till att medlemmen säljer i mobilen. Se hur det går till och räkna ut vad det kan ge er förening.",
+        "Föreningen sätter målet. Medlemmen delar sin butik. Kunden handlar i mobilen. 35 % stannar hos er.",
       ctaCalc: "Räkna på intäkten",
       ctaMid: "Räkna på intäkten",
       ctaBottom: "Se vad Roots kan ge er förening",
       ctaDemo: "Boka en demo",
       demoEyebrow: "Se det i praktiken",
-      demoTitle: "Enkelt för alla — i varje steg",
+      demoTitle: "Enkelt i varje led",
       demoSubtitle:
-        "Byt mellan rollerna och se hur lätt det är. Inga pärmar, inga kontanter — allt sker i mobilen.",
+        "Byt mellan rollerna. Inga pärmar, inga kontanter — allt sker i mobilen.",
       roleTablistLabel: "Välj roll",
       steps: [
         {
@@ -274,16 +273,16 @@ export const pages = {
       calcEyebrow: "Räkna på intäkten",
       calcTitle: "Vad kan er förening tjäna?",
       calcBody:
-        "Dra i reglagen så uppdateras intäkten i realtid. Två siffror — resten räknar Roots.",
+        "Två reglage. Siffran uppdateras direkt. Resten räknar Roots.",
       calcBullets: [
         "Justera antal säljare och snittförsäljning",
         "Se intäkten och hur långt ni når mot målet",
         "Dela resultatet — vi hjälper er igång",
       ],
       calcTryBelow: "Prova själv nedan",
-      leadTitle: "Vill ni se vad det skulle ge er förening?",
+      leadTitle: "Vill ni se det för er förening?",
       leadBody:
-        "Lämna er mejl så skickar vi en sammanfattning och hjälper er igång. Inga förpliktelser.",
+        "Lämna mejl så skickar vi en sammanfattning och hjälper er igång. Inget åtagande.",
       leadEmailLabel: "E-post *",
       leadEmailPlaceholder: "namn@forening.se",
       leadNameLabel: "Namn (valfritt)",
@@ -304,22 +303,22 @@ export const pages = {
     en: {
       title: "How it works",
       description:
-        "See how Roots works for clubs in three simple steps — and calculate what sales could bring your club. No paperwork, no cash handling.",
+        "Three steps. No paperwork, no cash. Calculate what sales could bring your club.",
       howToName: "How Roots works",
       howToDescription:
-        "How Roots works for clubs in three simple steps — from start to sales.",
+        "How Roots works for clubs in three steps — from start to sales.",
       badge: "For clubs",
       heroTitle: "How it works",
       heroBody:
-        "Three simple steps — from the club signing up to members selling on their phone. See how it works and calculate what it could mean for your club.",
+        "The club sets the goal. The member shares their shop. The customer buys on their phone. 35% stays with you.",
       ctaCalc: "Calculate the revenue",
       ctaMid: "Calculate the revenue",
       ctaBottom: "See what Roots can give your club",
       ctaDemo: "Book a demo",
       demoEyebrow: "See it in action",
-      demoTitle: "Simple for everyone — at every step",
+      demoTitle: "Simple at every step",
       demoSubtitle:
-        "Switch between roles and see how easy it is. No paperwork, no cash handling — everything happens on the phone.",
+        "Switch between roles. No paperwork, no cash — everything happens on the phone.",
       roleTablistLabel: "Choose a role",
       steps: [
         {
@@ -365,16 +364,16 @@ export const pages = {
       calcEyebrow: "Calculate the revenue",
       calcTitle: "What could your club earn?",
       calcBody:
-        "Drag the sliders and earnings update in real time. Two numbers — Roots does the rest.",
+        "Two sliders. The number updates live. Roots does the rest.",
       calcBullets: [
         "Adjust number of sellers and average sales",
         "See earnings and how close you are to the goal",
         "Share the result — we'll help you get started",
       ],
       calcTryBelow: "Try it yourself below",
-      leadTitle: "Want to see what it could mean for your club?",
+      leadTitle: "Want to see it for your club?",
       leadBody:
-        "Enter your email and we’ll send a summary and help you get started. No commitment.",
+        "Leave your email and we’ll send a summary and help you get started. No commitment.",
       leadEmailLabel: "Email *",
       leadEmailPlaceholder: "name@club.se",
       leadNameLabel: "Name (optional)",
@@ -398,16 +397,16 @@ export const pages = {
     sv: {
       title: "Om oss",
       description:
-        "Varför vi gör Roots: hårvård som arbetar med hårets och hårbottens naturliga funktion — och som stöttar föreningslivet.",
+        "Hårvård som arbetar med hår och hårbotten — och som ger 35 % tillbaka till föreningen.",
       eyebrow: "Om oss",
       brand: "Roots",
       heroBody:
-        "Naturlig hårvård som kanaliserar vardagsköp tillbaka till föreningslivet.",
+        "Hårvård som folk redan köper. 35 % stannar i föreningen.",
       ctaContact: "Kontakta oss",
       whyEyebrow: "Varför",
-      whyTitle: "Varför vi gör detta",
+      whyTitle: "Varför vi gör det här",
       whyIntro:
-        "Hårvård kan arbeta med hårets naturliga funktion — eller mot den. Vi har valt att arbeta med den.",
+        "Hårvård kan arbeta med håret — eller mot det. Vi har valt det första.",
       whyCircle: [
         {
           label: "Varför",
@@ -419,34 +418,34 @@ export const pages = {
         },
         {
           label: "Vad",
-          text: "Tre produkter med en diskret, neutral doft. Vi doftsätter inte för att det ska dofta mycket — fokus ligger på vad ingredienserna gör för hår och hud. Och 35 % av varje köp går till föreningslivet.",
+          text: "Tre produkter med en diskret, neutral doft. Vi doftsätter inte för att det ska dofta mycket — fokus ligger på vad ingredienserna gör. Och 35 % av varje köp går till föreningen.",
         },
       ],
       storyEyebrow: "Historien",
-      storyTitle: "Från en enkel insikt",
+      storyTitle: "Alla duschar.",
       storyParagraphs: [
-        "Föreningslivet i Sverige ger så mycket till samhället, men får alldeles för lite tillbaka. Vi ville ändra på det.",
-        "Med bakgrunder inom teknik, idrott och företagande satte vi oss ner och funderade: vad kan alla föreningar ha gemensamt? Svaret var enkelt. Alla duschar. Alla behöver hår- och hudvård.",
-        "Så vi skapade Roots. Tre naturliga produkter, utvecklade i Norden, med en affärsmodell som kanaliserar intäkter tillbaka till föreningslivet.",
+        "Föreningslivet ger mycket. Det får tillbaka för lite.",
+        "Vi kommer från teknik, idrott och företagande. Frågan var enkel: vad har varje förening gemensamt? Alla duschar. Alla behöver hår- och hudvård.",
+        "Därför finns Roots. Tre produkter, utvecklade i Norden. Föreningen säljer. 35 % stannar där.",
       ],
       storyImageAlt: "Nordisk känsla — ren och naturlig",
       valuesEyebrow: "Manifest",
       valuesTitle: "Det vi står för",
       values: [
         {
-          title: "Föreningsdriven",
+          title: "Föreningen först",
           description:
-            "Allt vi gör har ett mål: att föreningslivet i Sverige ska blomstra. Vårt företag är byggt från grunden med det perspektivet.",
+            "Roots är byggt för föreningar. Inte tvärtom.",
         },
         {
           title: "Naturligt, inte perfekt",
           description:
-            "Vi väljer ingredienser som fungerar och är så naturliga som möjligt — inte certifieringar för certifieringens skull.",
+            "Vi väljer ingredienser som fungerar — inte certifieringar för certifieringens skull.",
         },
         {
-          title: "Transparens",
+          title: "Öppet",
           description:
-            "Från ingredienslista till prissättning — vi är öppna med allt. Det är så man bygger förtroende.",
+            "Ingredienslista, priser och 35 %. Inget att dölja.",
         },
       ],
       pressEyebrow: "Press",
@@ -461,16 +460,16 @@ export const pages = {
     en: {
       title: "About us",
       description:
-        "Why we make Roots: hair care that works with the natural function of hair and scalp — and supports sports clubs.",
+        "Hair care that works with hair and scalp — and gives 35% back to the club.",
       eyebrow: "About us",
       brand: "Roots",
       heroBody:
-        "Natural hair care that channels everyday spending back into club fundraising.",
+        "Hair care people already buy. 35% stays with the club.",
       ctaContact: "Contact us",
       whyEyebrow: "Why",
       whyTitle: "Why we do this",
       whyIntro:
-        "Hair care can work with the natural function of hair — or against it. We have chosen to work with it.",
+        "Hair care can work with your hair — or against it. We chose the first.",
       whyCircle: [
         {
           label: "Why",
@@ -482,34 +481,34 @@ export const pages = {
         },
         {
           label: "What",
-          text: "Three products with a discreet, neutral scent. We do not add fragrance to make things smell strong — the focus is on what the ingredients do for hair and skin. And 35% of every purchase goes to sports clubs.",
+          text: "Three products with a discreet, neutral scent. We do not add fragrance to make things smell strong — the focus is on what the ingredients do. And 35% of every purchase goes to the club.",
         },
       ],
       storyEyebrow: "The story",
-      storyTitle: "From a simple insight",
+      storyTitle: "Everyone showers.",
       storyParagraphs: [
-        "Sports clubs in Sweden give so much to society, but get far too little back. We wanted to change that.",
-        "With backgrounds in technology, sport and entrepreneurship, we sat down and asked: what could every club have in common? The answer was simple. Everyone showers. Everyone needs hair and skin care.",
-        "So we created Roots. Three natural products, developed in the Nordics, with a business model that directs revenue back into club fundraising.",
+        "Clubs give a lot. They get too little back.",
+        "We come from tech, sport and business. The question was simple: what does every club have in common? Everyone showers. Everyone needs hair and skin care.",
+        "That's why Roots exists. Three products, developed in the Nordics. The club sells. 35% stays there.",
       ],
       storyImageAlt: "Nordic feel — clean and natural",
       valuesEyebrow: "Manifesto",
       valuesTitle: "What we stand for",
       values: [
         {
-          title: "Built for clubs",
+          title: "The club first",
           description:
-            "Everything we do has one goal: for sports clubs in Sweden to thrive. Our company is built from the ground up with that perspective.",
+            "Roots is built for clubs. Not the other way around.",
         },
         {
           title: "Natural, not perfect",
           description:
-            "We don't believe in 100% organic certifications for certification's sake. We believe in ingredients that work and are as natural as possible.",
+            "We choose ingredients that work — not certifications for certification's sake.",
         },
         {
-          title: "Transparency",
+          title: "Open",
           description:
-            "From ingredient lists to pricing — we're open about everything. That's how you build trust.",
+            "Ingredient list, prices and 35%. Nothing to hide.",
         },
       ],
       pressEyebrow: "Press",
@@ -527,10 +526,10 @@ export const pages = {
     sv: {
       title: "Kontakt",
       description:
-        "Kontakta Ourroots — vi hjälper er komma igång med föreningsförsäljning av naturlig hårvård.",
+        "Hör av er om produkter, föreningsförsäljning eller hur ni kommer igång.",
       heroTitle: "Kontakta oss",
       heroBody:
-        "Har du frågor om våra produkter, ditt föreningssamarbete eller något annat? Hör av dig — vi svarar så snart vi kan.",
+        "Produkter, föreningen eller hur ni kommer igång — skriv. Vi svarar så snart vi kan.",
       form: {
         name: "Namn",
         namePlaceholder: "Ditt namn",
@@ -545,7 +544,7 @@ export const pages = {
       },
       successTitle: "Tack för ditt meddelande",
       successBody:
-        "Vi har mottagit ditt meddelande och återkommer så snart vi kan, vanligtvis inom 1–2 arbetsdagar.",
+        "Vi har fått ditt meddelande och återkommer vanligtvis inom 1–2 arbetsdagar.",
       errorGeneric: "Något gick fel.",
       errorSendFailed: "Kunde inte skicka meddelandet.",
       emailLabel: "E-post",
@@ -554,15 +553,15 @@ export const pages = {
       orgNumberLabel: "Org.nr",
       responseTitle: "Svarstid",
       responseBody:
-        'Vi besvarar alla meddelanden inom 1–2 arbetsdagar. För akuta ärenden, skriv "Brådskande" i ämnesraden.',
+        'Vi svarar inom 1–2 arbetsdagar. Bråttom? Skriv "Brådskande" i ämnesraden.',
     },
     en: {
       title: "Contact",
       description:
-        "Contact Ourroots — we help you get started with club fundraising through natural hair care.",
+        "Get in touch about the products, club sales or how to get started.",
       heroTitle: "Contact us",
       heroBody:
-        "Questions about our products, your club partnership or anything else? Get in touch — we'll reply as soon as we can.",
+        "Products, the club or how to get started — write. We'll reply as soon as we can.",
       form: {
         name: "Name",
         namePlaceholder: "Your name",
@@ -577,7 +576,7 @@ export const pages = {
       },
       successTitle: "Thank you for your message",
       successBody:
-        "We've received your message and will get back to you as soon as we can, usually within 1–2 business days.",
+        "We've got your message and will reply within 1–2 business days.",
       errorGeneric: "Something went wrong.",
       errorSendFailed: "Could not send the message.",
       emailLabel: "Email",
@@ -586,7 +585,7 @@ export const pages = {
       orgNumberLabel: "Org. no.",
       responseTitle: "Response time",
       responseBody:
-        'We reply to all messages within 1–2 business days. For urgent matters, write "Urgent" in the subject line.',
+        'We reply within 1–2 business days. Urgent? Write "Urgent" in the subject line.',
     },
   },
 
@@ -594,9 +593,9 @@ export const pages = {
     sv: {
       title: "Hjälp",
       badge: "Hjälp & support",
-      heroTitle: "Vi hjälper dig komma igång",
+      heroTitle: "Frågor, efter roll.",
       heroBody:
-        "Vanliga frågor sorterade efter din roll. Hittar du inte svaret? Skicka in formuläret längst ned så svarar vi inom 24 timmar.",
+        "Vanliga svar först. Hittar du inte ditt? Formuläret längst ned — vi svarar inom 24 timmar.",
       loggedInAs: "Inloggad som",
       roleLabel: "roll",
       backToPortal: "Tillbaka till portalen",
@@ -779,9 +778,9 @@ export const pages = {
     en: {
       title: "Help",
       badge: "Help & support",
-      heroTitle: "We'll help you get started",
+      heroTitle: "Questions, by role.",
       heroBody:
-        "Common questions sorted by your role. Can't find the answer? Submit the form at the bottom and we'll reply within 24 hours.",
+        "Common answers first. Can't find yours? The form at the bottom — we reply within 24 hours.",
       loggedInAs: "Signed in as",
       roleLabel: "role",
       backToPortal: "Back to the portal",
@@ -1435,11 +1434,11 @@ export const pages = {
     sv: {
       title: "Guider",
       description:
-        "Guider om föreningsförsäljning, sportlag, ingredienser och hårvård från Roots — premium, föreningsnära och på svenska.",
+        "Korta guider om föreningsförsäljning, produkter och hårvård. Utan fluff och utan medicinska löften.",
       breadcrumbHome: "Hem",
       heroTitle: "Guider",
       heroBody:
-        "Kunskap för föreningar, lag och alla som vill förstå Roots hårvård — utan fluff och utan medicinska löften.",
+        "För föreningar, lag och den som vill veta vad som finns i flaskan. Kort. Utan medicinska löften.",
       itemListName: "Roots guider",
       readGuide: "Läs guiden",
       categories: {
@@ -1464,11 +1463,11 @@ export const pages = {
     en: {
       title: "Guides",
       description:
-        "Guides on club fundraising, sports teams, ingredients and hair care from Roots — premium, club-focused and jargon-free.",
+        "Short guides on club sales, products and hair care. No fluff and no medical claims.",
       breadcrumbHome: "Home",
       heroTitle: "Guides",
       heroBody:
-        "Knowledge for clubs, teams and anyone who wants to understand Roots hair care — without fluff and without medical claims.",
+        "For clubs, teams and anyone who wants to know what's in the bottle. Short. No medical claims.",
       itemListName: "Roots guides",
       readGuide: "Read the guide",
       categories: {
@@ -1500,7 +1499,7 @@ export const pages = {
       faqTitle: "Vanliga frågor",
       nextStepTitle: "Nästa steg",
       nextStepBody:
-        "Vill ni ta det vidare med er förening eller förstå produkterna bättre? Vi hjälper er gärna.",
+        "Vill ni köra med föreningen, eller bara förstå produkterna? Hör av er.",
       relatedTitle: "Relaterade guider",
       allGuides: "← Alla guider",
       notFoundTitle: "Guiden hittades inte",
@@ -1513,7 +1512,7 @@ export const pages = {
       faqTitle: "Frequently asked questions",
       nextStepTitle: "Next step",
       nextStepBody:
-        "Want to take it further with your club or understand the products better? We're happy to help.",
+        "Want to run this with your club, or just understand the products? Get in touch.",
       relatedTitle: "Related guides",
       allGuides: "← All guides",
       notFoundTitle: "Guide not found",
@@ -1524,10 +1523,10 @@ export const pages = {
   haranalys: {
     sv: {
       title: "Håranalys",
-      badge: "AI-driven håranalys",
-      heroTitle: "Gratis håranalys online",
+      badge: "Gratis håranalys",
+      heroTitle: "Två bilder. Några frågor. En rutin.",
       heroBody:
-        "Ladda upp två bilder, svara på några frågor och få en personlig håranalys — helt gratis. Powered by AI och nordiska ingredienser.",
+        "Ladda upp två foton, svara kort och få en rekommendation ur Roots sortiment. Gratis.",
       ctaStart: "Starta din håranalys",
       overviewSteps: [
         {
@@ -1612,10 +1611,10 @@ export const pages = {
     },
     en: {
       title: "Hair analysis",
-      badge: "AI-powered hair analysis",
-      heroTitle: "Free hair analysis online",
+      badge: "Free hair analysis",
+      heroTitle: "Two photos. A few questions. A routine.",
       heroBody:
-        "Upload two photos, answer a few questions and get a personal hair analysis — completely free. Powered by AI and Nordic ingredients.",
+        "Upload two photos, answer briefly and get a recommendation from the Roots range. Free.",
       ctaStart: "Start your hair analysis",
       overviewSteps: [
         {

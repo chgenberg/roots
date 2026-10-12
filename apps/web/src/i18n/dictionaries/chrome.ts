@@ -52,20 +52,20 @@ export const chrome: Record<Locale, ChromeCopy> = {
       calcCta: "Räkna på intäkten",
       openMenu: "Öppna meny",
       closeMenu: "Stäng meny",
-      home: "Roots — startsida",
+      home: "Roots startsida",
       navMenu: "Navigeringsmeny",
       announcement: "Föreningens andel",
       instagram: "Roots på Instagram",
       linkedin: "Roots på LinkedIn",
     },
     footer: {
-      tagline: "Naturlig hårvård som stärker föreningslivet i Sverige.",
+      tagline: "Hårvård som föreningar säljer. 35 % stannar i föreningen.",
       copyright: "Alla rättigheter förbehållna.",
       groups: [
         {
           title: "Produkter",
           links: [
-            { href: "/produkter/shampoo", label: "Roots Schampoo" },
+            { href: "/produkter/shampoo", label: "Roots Shampoo" },
             { href: "/produkter/conditioner", label: "Roots Conditioner" },
             { href: "/produkter/body-wash", label: "Roots Body Wash" },
             { href: "/produkter/paket", label: "Roots Premiumpaket" },
@@ -107,7 +107,7 @@ export const chrome: Record<Locale, ChromeCopy> = {
       bookDemo: "Boka demo",
       login: "Logga in →",
       help: "Hjälp & FAQ",
-      tagline: "Naturlig hårvård för föreningslivet",
+      tagline: "Hårvård som föreningar säljer.",
     },
   },
   en: {
@@ -117,28 +117,28 @@ export const chrome: Record<Locale, ChromeCopy> = {
       guides: "Guides",
       about: "About us",
     },
-    calcCta: "Calculate the revenue",
+    calcCta: "Calculate your earnings",
     contactCta: "Contact us",
     aria: {
       login: "Log in",
       bookDemo: "Book a demo",
-      calcCta: "Calculate the revenue",
+      calcCta: "Calculate your earnings",
       openMenu: "Open menu",
       closeMenu: "Close menu",
-      home: "Roots — home",
+      home: "Roots home",
       navMenu: "Navigation menu",
       announcement: "Club share",
       instagram: "Roots on Instagram",
       linkedin: "Roots on LinkedIn",
     },
     footer: {
-      tagline: "Natural hair care that strengthens sports clubs in Sweden.",
+      tagline: "Hair care that clubs sell. 35% stays with the club.",
       copyright: "All rights reserved.",
       groups: [
         {
           title: "Products",
           links: [
-            { href: "/produkter/shampoo", label: "Roots Schampoo" },
+            { href: "/produkter/shampoo", label: "Roots Shampoo" },
             { href: "/produkter/conditioner", label: "Roots Conditioner" },
             { href: "/produkter/body-wash", label: "Roots Body Wash" },
             { href: "/produkter/paket", label: "Roots Premium pack" },
@@ -150,7 +150,7 @@ export const chrome: Record<Locale, ChromeCopy> = {
           links: [
             { href: "/foreningsliv", label: "For clubs" },
             { href: "/sa-fungerar-det", label: "How it works" },
-            { href: "/sa-fungerar-det#rakna", label: "Calculate the revenue" },
+            { href: "/sa-fungerar-det#rakna", label: "Calculate your earnings" },
             { href: "/om-oss", label: "About us" },
             { href: "/kontakt", label: "Contact" },
             { href: "/om-oss#press", label: "Press" },
@@ -180,7 +180,7 @@ export const chrome: Record<Locale, ChromeCopy> = {
       bookDemo: "Book a demo",
       login: "Log in →",
       help: "Help & FAQ",
-      tagline: "Natural hair care for sports clubs",
+      tagline: "Hair care that clubs sell.",
     },
   },
 };

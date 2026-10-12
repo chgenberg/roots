@@ -104,7 +104,7 @@ const INGREDIENTS: Partial<Record<ProductSlug, string[]>> = {
 };
 
 function displayName(slug: ProductSlug, name: string) {
-  return slug === "shampoo" ? "Roots Schampoo" : name;
+  return slug === "shampoo" ? "Roots Shampoo" : name;
 }
 
 function formatPriceSek(priceSek: number, locale: "sv" | "en") {
@@ -156,7 +156,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
     ...item,
     label:
       item.slug === "shampoo"
-        ? item.label.replace("Roots Shampoo", "Roots Schampoo")
+        ? item.label.replace("Roots Shampoo", "Roots Shampoo")
         : item.label,
   }));
 

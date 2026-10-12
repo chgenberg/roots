@@ -71,25 +71,26 @@ export const home: Record<Locale, HomeCopy> = {
   sv: {
     hero: {
       titleLine1: "Allt som växer börjar med starka rötter",
-      titleLine2: "Naturlig hårvård som ger tillbaka till föreningslivet",
-      body: "Tre produkter för föreningslivet — utan sulfater, silikoner eller parabener.",
+      titleLine2:
+        "Föreningar säljer hårvård som folk redan använder. 35 % stannar i föreningen.",
+      body: "Tre flaskor. En rutin. Utan sulfater, silikoner och parabener.",
       altDesktop:
-        "Roots Schampoo, Conditioner och Body Wash på en stenbänk i ett ljust badrum",
+        "Roots Shampoo, Conditioner och Body Wash på en stenbänk i ett ljust badrum",
       altMobile:
-        "Roots Schampoo, Conditioner och Body Wash i ett ljust badrum",
+        "Roots Shampoo, Conditioner och Body Wash i ett ljust badrum",
       ctaHairAnalysis: "Starta din håranalys",
       ctaProducts: "Se produkterna",
       ctaClub: "Räkna på intäkten",
     },
     products: {
       badge: "Sortiment",
-      title: "Tre produkter är allt som behövs",
-      body: "Schampo, balsam och body wash. Det föreningen säljer — och det laget faktiskt använder.",
+      title: "Tre flaskor. En rutin.",
+      body: "Schampo, balsam och body wash. Saker alla redan använder — därför går de att sälja.",
       items: [
         {
           slug: "shampoo",
-          name: "Roots Schampoo",
-          tagline: "Rengör på riktigt — efter match och träning",
+          name: "Roots Shampoo",
+          tagline: "Rent hår. Hårbotten i fred.",
           image: "/images/roots-shampoo-bath.jpg",
           price: "199 kr",
           badge: "Schampo",
@@ -97,7 +98,7 @@ export const home: Record<Locale, HomeCopy> = {
         {
           slug: "conditioner",
           name: "Roots Conditioner",
-          tagline: "Mjukt, följsamt hår — samma rutin för hela laget",
+          tagline: "Mjukt, utan att tynga.",
           image: "/images/roots-conditioner-bath.jpg",
           price: "199 kr",
           badge: "Balsam",
@@ -105,7 +106,7 @@ export const home: Record<Locale, HomeCopy> = {
         {
           slug: "body-wash",
           name: "Roots Body Wash",
-          tagline: "Skonsam dusch — från omklädningsrummet till hemmet",
+          tagline: "Ren hud som inte torkar.",
           image: "/images/roots-body-wash-bath.jpg",
           price: "179 kr",
           badge: "Body Wash",
@@ -113,29 +114,29 @@ export const home: Record<Locale, HomeCopy> = {
       ],
       bundle: {
         price: "399 kr",
-        label: "Premiumpaket — alla tre",
+        label: "Roots Premiumpaket, alla tre",
         alt: "Roots Premiumpaket",
       },
     },
     forClubs: {
       badge: "För föreningar",
-      title: "Byggt för föreningslivet",
-      body: "Vi vet hur föreningar fungerar. Därför byggde vi en plattform som gör det enkelt att beställa och sälja naturlig hårvård.",
+      title: "Ni säljer. Vi sköter resten.",
+      body: "Varje medlem får en egen butik att dela med länk eller QR-kod. Roots tar order, betalning och leverans.",
       benefits: [
         {
-          title: "Enkel beställning",
+          title: "En butik per medlem",
           description:
-            "Logga in, välj antal paket, klart. Inga krångliga avtal eller minsta beställningar.",
+            "Inga listor, inga kontanter, ingen minsta order. Medlemmen delar. Kunden handlar. Klart.",
         },
         {
-          title: "Stöd till föreningen",
+          title: "35 % till föreningen",
           description:
-            "En del av intäkten går tillbaka till föreningslivet. Ni stärker varandra.",
+            "Föreningen behåller 35 % av allt som säljs. Samma andel för alla.",
         },
         {
-          title: "Direktleverans",
+          title: "Vi levererar",
           description:
-            "Leverans direkt till klubben eller enskilda medlemmar. Vi fixar logistiken.",
+            "Till klubben eller hem till den som köpt. Ni behöver inte packa en enda låda.",
         },
       ],
       cta: "Anslut din förening",
@@ -146,56 +147,57 @@ export const home: Record<Locale, HomeCopy> = {
     },
     gamification: {
       badge: "Milstolpar",
-      title: "Föreningar som växer med Roots",
-      body: "Anslut din förening och börja samla milstolpar",
+      title: "Först en order. Sen en vana.",
+      body: "Anslut föreningen. Resten syns i portalen.",
       achievements: [
         {
           title: "Första beställningen",
-          stat: "Bli en av de första föreningarna med Roots",
+          stat: "Då vet ni att det fungerar.",
         },
         {
           title: "10 beställningar",
-          stat: "Bygg en vana som föder kassan",
+          stat: "Då är det en vana, inte en kampanj.",
         },
         {
-          title: "1 års medlem",
-          stat: "Skapa en återkommande intäktskälla",
+          title: "Ett år med Roots",
+          stat: "Då är det en intäkt ni kan räkna med.",
         },
       ],
       cta: "Anslut din förening",
     },
     founders: {
-      badge: "Varför vi gör detta",
+      badge: "Varför vi gör det här",
       title: "Hårvård som arbetar med håret, inte mot det",
       paragraphs: [
-        "Hår och hårbotten har en egen naturlig balans. Våra produkter är gjorda för att ta hand om den — med milda, sockerbaserade tensider, SyriCalm® och en diskret, neutral doft.",
-        "Och varje köp gör skillnad: 35 % går tillbaka till föreningslivet.",
+        "Hår och hårbotten har en egen naturlig balans. Våra produkter är gjorda för att ta hand om den, med milda sockerbaserade tensider, SyriCalm® och en diskret, neutral doft.",
+        "Varje köp gör skillnad. 35 % går tillbaka till föreningen.",
       ],
       cta: "Läs varför",
-      alt: "Roots Schampoo, Conditioner och Body Wash på en bänk i ett omklädningsrum",
+      alt: "Roots Shampoo, Conditioner och Body Wash på en bänk i ett omklädningsrum",
     },
   },
   en: {
     hero: {
-      titleLine1: "Natural hair care.",
-      titleLine2: "That clean feeling.",
-      body: "Three products for clubs — without sulphates, silicones or parabens.",
+      titleLine1: "Everything that grows starts with strong roots",
+      titleLine2:
+        "Clubs sell hair care people already use. 35% stays with the club.",
+      body: "Three bottles. One routine. No sulphates, silicones or parabens.",
       altDesktop:
-        "Roots Schampoo, Conditioner and Body Wash on a stone counter in a bright bathroom",
-      altMobile: "Roots Schampoo, Conditioner and Body Wash in a bright bathroom",
+        "Roots Shampoo, Conditioner and Body Wash on a stone counter in a bright bathroom",
+      altMobile: "Roots Shampoo, Conditioner and Body Wash in a bright bathroom",
       ctaHairAnalysis: "Start your hair analysis",
-      ctaProducts: "Browse products",
-      ctaClub: "Calculate the revenue",
+      ctaProducts: "See the products",
+      ctaClub: "Calculate your earnings",
     },
     products: {
       badge: "Range",
-      title: "Three products. Nothing more.",
-      body: "Shampoo, conditioner and body wash. What the club sells — and what the team actually uses.",
+      title: "Three bottles. One routine.",
+      body: "Shampoo, conditioner and body wash. Things everyone already uses — that's why they sell.",
       items: [
         {
           slug: "shampoo",
-          name: "Roots Schampoo",
-          tagline: "Cleanses thoroughly — after matches and training",
+          name: "Roots Shampoo",
+          tagline: "Clean hair. Scalp left alone.",
           image: "/images/roots-shampoo-bath.jpg",
           price: "SEK 199",
           badge: "Shampoo",
@@ -203,7 +205,7 @@ export const home: Record<Locale, HomeCopy> = {
         {
           slug: "conditioner",
           name: "Roots Conditioner",
-          tagline: "Soft, manageable hair — one routine for the whole team",
+          tagline: "Soft, never heavy.",
           image: "/images/roots-conditioner-bath.jpg",
           price: "SEK 199",
           badge: "Conditioner",
@@ -211,7 +213,7 @@ export const home: Record<Locale, HomeCopy> = {
         {
           slug: "body-wash",
           name: "Roots Body Wash",
-          tagline: "A gentle shower — from the changing room to home",
+          tagline: "Clean skin that doesn't dry out.",
           image: "/images/roots-body-wash-bath.jpg",
           price: "SEK 179",
           badge: "Body Wash",
@@ -219,53 +221,53 @@ export const home: Record<Locale, HomeCopy> = {
       ],
       bundle: {
         price: "SEK 399",
-        label: "Premium pack — all three",
+        label: "Roots Premium pack, all three",
         alt: "Roots Premium pack",
       },
     },
     forClubs: {
       badge: "For clubs",
-      title: "Built for sports clubs",
-      body: "We know how clubs work. That is why we built a platform that makes it simple to order and sell natural hair care.",
+      title: "You sell. We handle the rest.",
+      body: "Every member gets their own shop to share by link or QR code. Roots takes the order, the payment and the delivery.",
       benefits: [
         {
-          title: "Simple ordering",
+          title: "A shop per member",
           description:
-            "Log in, choose how many packs, and you're done. No complicated contracts or minimum orders.",
+            "No lists, no cash, no minimum order. The member shares. The customer buys. Done.",
         },
         {
-          title: "Support for the club",
+          title: "35% to the club",
           description:
-            "A share of the revenue goes back into club fundraising — so every sale supports the team.",
+            "The club keeps 35% of everything sold. The same share for every club.",
         },
         {
-          title: "Direct delivery",
+          title: "We deliver",
           description:
-            "Delivery straight to the club or to individual members. We handle the logistics.",
+            "To the club or to the buyer's door. You don't pack a single box.",
         },
       ],
       cta: "Register your club",
-      ctaCalc: "Calculate the revenue",
+      ctaCalc: "Calculate your earnings",
       sellingAlt:
         "Two young people selling Roots by the clubhouse while a parent pays with Swish",
       campAlt: "A girls' team celebrating together on the football pitch",
     },
     gamification: {
       badge: "Milestones",
-      title: "Clubs that grow with Roots",
-      body: "Register your club and start unlocking milestones.",
+      title: "First an order. Then a habit.",
+      body: "Register the club. The rest shows up in the portal.",
       achievements: [
         {
           title: "First order",
-          stat: "Become one of the first clubs with Roots",
+          stat: "That's when you know it works.",
         },
         {
           title: "10 orders",
-          stat: "Build a habit that strengthens the club's finances",
+          stat: "That's a habit, not a campaign.",
         },
         {
-          title: "1-year member",
-          stat: "Create a recurring revenue stream",
+          title: "One year with Roots",
+          stat: "That's income you can count on.",
         },
       ],
       cta: "Register your club",
@@ -274,11 +276,11 @@ export const home: Record<Locale, HomeCopy> = {
       badge: "Why we do this",
       title: "Hair care that works with your hair, not against it",
       paragraphs: [
-        "Hair and scalp have their own natural balance. Our products are made to look after it — with mild, sugar-based surfactants, SyriCalm® and a discreet, neutral scent.",
-        "And every purchase makes a difference: 35% goes back to sports clubs.",
+        "Hair and scalp have their own natural balance. Our products are made to look after it, with mild sugar-based surfactants, SyriCalm® and a discreet, neutral scent.",
+        "Every purchase makes a difference. 35% goes back to the club.",
       ],
       cta: "Read why",
-      alt: "Roots Schampoo, Conditioner and Body Wash on a bench in a locker room",
+      alt: "Roots Shampoo, Conditioner and Body Wash on a bench in a locker room",
     },
   },
 };

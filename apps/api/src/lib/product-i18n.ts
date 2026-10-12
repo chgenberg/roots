@@ -2,7 +2,7 @@ import type { UiLocale } from "./ui-locale";
 
 /** Catalog display names for Stripe, emails and order status (not marketing copy). */
 const BY_SLUG: Record<string, { sv: string; en: string }> = {
-  shampoo: { sv: "Roots Schampoo", en: "Roots Schampoo" },
+  shampoo: { sv: "Roots Shampoo", en: "Roots Shampoo" },
   conditioner: { sv: "Roots Conditioner", en: "Roots Conditioner" },
   "body-wash": { sv: "Roots Body Wash", en: "Roots Body Wash" },
   paket: { sv: "Roots Premiumpaket", en: "Roots Premium pack" },
@@ -11,20 +11,20 @@ const BY_SLUG: Record<string, { sv: string; en: string }> = {
 /** Short shop/catalog blurbs (DB seeds are Swedish — overlay for EN). */
 const DESC_BY_SLUG: Record<string, { sv: string; en: string }> = {
   shampoo: {
-    sv: "Rengör skonsamt med sockerbaserade tensider och lämnar hårbottens balans i fred. SyriCalm®, neutral doft. 250 ml.",
-    en: "Cleanses gently with sugar-based surfactants and leaves the scalp's balance alone. SyriCalm®, neutral scent. 250 ml.",
+    sv: "Rent hår. Hårbotten i fred. Sockerbaserade tensider, SyriCalm®, neutral doft. 250 ml.",
+    en: "Clean hair. Scalp left alone. Sugar-based surfactants, SyriCalm®, neutral scent. 250 ml.",
   },
   conditioner: {
-    sv: "Ger tillbaka det tvätten tar — Panthenol, E-vitamin och SyriCalm®. Mjukt hår som inte tyngs ner. 250 ml.",
-    en: "Gives back what washing takes — panthenol, vitamin E and SyriCalm®. Soft hair that is never weighed down. 250 ml.",
+    sv: "Mjukt, utan att tynga. Panthenol, E-vitamin och SyriCalm®. 250 ml.",
+    en: "Soft, never heavy. Panthenol, vitamin E and SyriCalm®. 250 ml.",
   },
   "body-wash": {
-    sv: "Ren hud som får behålla sitt eget skydd. Milda tensider, Panthenol och SyriCalm®, neutral doft. 250 ml.",
-    en: "Clean skin that keeps its own protection. Mild surfactants, panthenol and SyriCalm®, neutral scent. 250 ml.",
+    sv: "Ren hud som inte torkar. Milda tensider, Panthenol och SyriCalm®. 250 ml.",
+    en: "Clean skin that doesn't dry out. Mild surfactants, panthenol and SyriCalm®. 250 ml.",
   },
   paket: {
-    sv: "Hela duschen, samma princip — schampo, balsam och kroppstvätt i ett paket. 3 × 250 ml.",
-    en: "The whole shower, one principle — shampoo, conditioner and body wash in one pack. 3 × 250 ml.",
+    sv: "Hela duschen. Ett paket. Schampo, balsam och body wash. 3 × 250 ml.",
+    en: "The whole shower. One pack. Shampoo, conditioner and body wash. 3 × 250 ml.",
   },
 };
 

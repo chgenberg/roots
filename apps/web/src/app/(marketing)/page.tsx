@@ -12,12 +12,12 @@ export async function generateMetadata(): Promise<Metadata> {
   const locale = await getRequestLocale();
   const title =
     locale === "en"
-      ? "Natural hair care for sports clubs"
-      : "Naturlig hårvård för föreningslivet";
+      ? "Hair care that clubs sell"
+      : "Hårvård som föreningar säljer";
   const description =
     locale === "en"
-      ? "Roots — natural hair care developed in the Nordics. Shampoo, conditioner and body wash that strengthen club fundraising with every purchase."
-      : "Roots — naturlig hårvård utvecklad i Norden. Schampo, balsam och body wash som stärker föreningslivet med varje köp.";
+      ? "Shampoo, conditioner and body wash. Clubs sell Roots and keep 35% of every purchase."
+      : "Schampo, balsam och body wash. Föreningar säljer Roots och behåller 35 % av varje köp.";
   return pageMetadata({ title, description, path: "/", locale });
 }
 
@@ -25,12 +25,12 @@ export default async function Home() {
   const locale = await getRequestLocale();
   const title =
     locale === "en"
-      ? "Natural hair care for sports clubs"
-      : "Naturlig hårvård för föreningslivet";
+      ? "Hair care that clubs sell"
+      : "Hårvård som föreningar säljer";
   const description =
     locale === "en"
-      ? "Roots — natural hair care developed in the Nordics. Shampoo, conditioner and body wash that strengthen club fundraising with every purchase."
-      : "Roots — naturlig hårvård utvecklad i Norden. Schampo, balsam och body wash som stärker föreningslivet med varje köp.";
+      ? "Shampoo, conditioner and body wash. Clubs sell Roots and keep 35% of every purchase."
+      : "Schampo, balsam och body wash. Föreningar säljer Roots och behåller 35 % av varje köp.";
 
   return (
     <>

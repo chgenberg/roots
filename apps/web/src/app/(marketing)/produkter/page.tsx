@@ -38,7 +38,7 @@ export default async function ProdukterPage() {
     const listing = getProductListingExtras(slug, locale);
     return {
       slug,
-      name: slug === "shampoo" ? "Roots Schampoo" : copy.name,
+      name: slug === "shampoo" ? "Roots Shampoo" : copy.name,
       subtitle: copy.subtitle,
       tagline: listing.listingTagline,
       image: productImage(slug),
