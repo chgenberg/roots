@@ -15,9 +15,9 @@ export const LEGAL_IDENTITY = {
   tradingName: "Roots",
   orgNumber: "559355-7126",
   address: {
-    street: "Hallängsvägen 8",
-    postalCode: "439 55",
-    city: "Åsa",
+    street: "Mossängsvägen 4",
+    postalCode: "429 34",
+    city: "Kullavik",
     country: "Sverige",
     countryCode: "SE",
   },

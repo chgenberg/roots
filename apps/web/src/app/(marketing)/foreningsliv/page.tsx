@@ -60,7 +60,7 @@ export default async function ForeningslivPage() {
             </p>
             <div className="mt-10 flex flex-wrap gap-4">
               <Button size="lg" pulse asChild>
-                <LocaleLink href="/registrera" localeNeutral>
+                <LocaleLink href="/intresseanmalan">
                   {t.ctaPrimary}
                   <ArrowRight className="ml-1 h-4 w-4" />
                 </LocaleLink>
@@ -202,7 +202,7 @@ export default async function ForeningslivPage() {
               className="bg-white text-neutral-900 shadow-sm hover:bg-neutral-100"
               asChild
             >
-              <LocaleLink href="/registrera" localeNeutral>
+              <LocaleLink href="/intresseanmalan">
                 {t.bottomCta}
                 <ArrowRight className="ml-1 h-4 w-4" />
               </LocaleLink>

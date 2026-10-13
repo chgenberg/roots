@@ -61,7 +61,7 @@ function wrap(content: string, locale: EmailLocale = "sv"): string {
 <tr><td style="padding:32px">${content}</td></tr>
 <tr><td style="padding:16px 32px 24px;text-align:center;color:#999;font-size:12px;line-height:1.6">
   <strong style="color:#666">Ourroots AB</strong><br>
-  Hallängsvägen 8, 439 55 Åsa<br>
+  Mossängsvägen 4, 429 34 Kullavik<br>
   ${
     locale === "en"
       ? "Company no. 559355-7126"

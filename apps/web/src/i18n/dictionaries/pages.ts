@@ -80,7 +80,7 @@ export const pages = {
       heroBody:
         "Varje medlem får en egen butik. Kunden handlar med Swish eller kort. Roots levererar. Föreningen behåller 35 %.",
       heroImageAlt: "Roots produkter i föreningens omklädningsrum",
-      ctaPrimary: "Anslut din förening",
+      ctaPrimary: "Sälj med oss",
       ctaSecondary: "Kontakta oss",
       ctaCalc: "Räkna på intäkten",
       ctaAfterSteps: "Räkna på intäkten",
@@ -136,7 +136,7 @@ export const pages = {
       bottomTitle: "Redo?",
       bottomBody:
         "Anslut föreningen. Medlemmarna får sina butiker. Ni ser pengarna komma in.",
-      bottomCta: "Anslut din förening",
+      bottomCta: "Sälj med oss",
     },
     en: {
       title: "For clubs",
@@ -148,7 +148,7 @@ export const pages = {
       heroBody:
         "Every member gets their own shop. The customer pays with Swish or card. Roots delivers. The club keeps 35%.",
       heroImageAlt: "Roots products in the club changing room",
-      ctaPrimary: "Register your club",
+      ctaPrimary: "Sell with us",
       ctaSecondary: "Contact us",
       ctaCalc: "Calculate the revenue",
       ctaAfterSteps: "Calculate the revenue",
@@ -204,7 +204,7 @@ export const pages = {
       bottomTitle: "Ready?",
       bottomBody:
         "Register the club. Members get their shops. You watch the money come in.",
-      bottomCta: "Register your club",
+      bottomCta: "Sell with us",
     },
   },
 

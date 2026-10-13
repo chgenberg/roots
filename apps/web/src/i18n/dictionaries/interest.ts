@@ -4,8 +4,8 @@ export const interest = {
   sv: {
     metaTitle: "Intresseanmälan",
     metaDescription:
-      "Vill laget, klassen eller föreningen samla in pengar? Skicka en intresseanmälan så hjälper vi er igång med Roots.",
-    title: "Vill ni samla in pengar till laget, klassen eller föreningen?",
+      "Vill föreningen, laget eller klassen samla in pengar? Skicka en intresseanmälan så hjälper vi er igång med Roots.",
+    title: "Vill ni samla in pengar till föreningen, laget eller klassen?",
     body: "Skicka en intresseanmälan så hör vi av oss och hjälper er igång. 35 % av varje köp går till er.",
     imageAlt: "Ungdomar säljer Roots Shampoo, Conditioner och Body wash vid klubbstugan",
     stepsLabel: "Steg {step} av 3",
@@ -56,8 +56,8 @@ export const interest = {
   en: {
     metaTitle: "Register interest",
     metaDescription:
-      "Want to raise money for your team, class or club? Register your interest and we will help you get started with Roots.",
-    title: "Want to raise money for your team, class or club?",
+      "Want to raise money for your club, team or class? Register your interest and we will help you get started with Roots.",
+    title: "Want to raise money for your club, team or class?",
     body: "Register your interest and we will get in touch and help you get started. 35% of every purchase goes to you.",
     imageAlt: "Young people selling Roots Shampoo, Conditioner and Body wash by the clubhouse",
     stepsLabel: "Step {step} of 3",

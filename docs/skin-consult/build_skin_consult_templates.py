@@ -52,7 +52,7 @@ BOTTOM = 96         # nedersta gräns innan sidbrytning
 RP = [
     "Cafrelin AB",
     "c/o Fredrik Lindqvist",
-    "Hallängsvägen 8, 439 55 Åsa",
+    "Mossängsvägen 4, 429 34 Kullavik",
     "Org.nr 559355-7126",
 ]
 

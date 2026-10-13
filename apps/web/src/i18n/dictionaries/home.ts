@@ -139,7 +139,7 @@ export const home: Record<Locale, HomeCopy> = {
             "Till klubben eller hem till den som köpt. Ni behöver inte packa en enda låda.",
         },
       ],
-      cta: "Anslut din förening",
+      cta: "Sälj med oss",
       ctaCalc: "Räkna på intäkten",
       sellingAlt:
         "Två ungdomar säljer Roots vid klubbstugan och en förälder betalar med Swish",
@@ -163,7 +163,7 @@ export const home: Record<Locale, HomeCopy> = {
           stat: "Då är det en intäkt ni kan räkna med.",
         },
       ],
-      cta: "Anslut din förening",
+      cta: "Sälj med oss",
     },
     founders: {
       badge: "Varför vi gör det här",
@@ -246,7 +246,7 @@ export const home: Record<Locale, HomeCopy> = {
             "To the club or to the buyer's door. You don't pack a single box.",
         },
       ],
-      cta: "Register your club",
+      cta: "Sell with us",
       ctaCalc: "Calculate your earnings",
       sellingAlt:
         "Two young people selling Roots by the clubhouse while a parent pays with Swish",
@@ -270,7 +270,7 @@ export const home: Record<Locale, HomeCopy> = {
           stat: "That's income you can count on.",
         },
       ],
-      cta: "Register your club",
+      cta: "Sell with us",
     },
     founders: {
       badge: "Why we do this",

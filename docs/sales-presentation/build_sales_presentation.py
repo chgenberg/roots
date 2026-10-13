@@ -846,8 +846,8 @@ def s_company():
     txt(s, Inches(0.7), Inches(3.2), Inches(7), Inches(2.5),
         [[("Cafrelin AB", HEAD, 18, OLIVE, True)],
          [("c/o Fredrik Lindqvist", BODY, 15, SAND_LIGHT, False)],
-         [("Hallängsvägen 8", BODY, 15, SAND_LIGHT, False)],
-         [("439 55 Åsa", BODY, 15, SAND_LIGHT, False)],
+         [("Mossängsvägen 4", BODY, 15, SAND_LIGHT, False)],
+         [("429 34 Kullavik", BODY, 15, SAND_LIGHT, False)],
          [("Org.nr 559355-7126", BODY, 15, SAND_LIGHT, False)]],
         line_spacing=1.35, space_after=4)
     txt(s, Inches(0.7), Inches(6.3), Inches(11), Inches(0.5),

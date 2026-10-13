@@ -35,7 +35,7 @@ export async function Gamification() {
 
         <div className="mt-12 text-center">
           <Button className="bg-[#6D614D] text-white hover:bg-[#5c5241]" asChild>
-            <LocaleLink href="/registrera" localeNeutral>
+            <LocaleLink href="/intresseanmalan">
               {gamification.cta}
               <ArrowRight className="ml-1 h-4 w-4" />
             </LocaleLink>

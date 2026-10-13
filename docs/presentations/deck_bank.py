@@ -54,7 +54,7 @@ def build() -> Deck:
             "Cirka 35 % av försäljningen går tillbaka till föreningen.",
             "Erbjudande | Premiumpaket 399 kr (schampo + balsam + body wash) + "
             "komplett digital plattform för lag, säljare och köpare.",
-            "Bolag | Ourroots AB · 559355-7126 · Hallängsvägen 8, 439 55 Åsa · "
+            "Bolag | Ourroots AB · 559355-7126 · Mossängsvägen 4, 429 34 Kullavik · "
             "info@roots.nu",
             "Läge | Produkt och plattform är live. Säljstart pågår. "
             "Demomiljö delad med banken.",

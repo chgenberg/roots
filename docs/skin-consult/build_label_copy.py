@@ -51,7 +51,7 @@ TOP = 1004
 BOTTOM = 96
 
 RP = ["Cafrelin AB", "c/o Fredrik Lindqvist",
-      "Hallängsvägen 8, 439 55 Åsa, Sweden", "Org.nr 559355-7126"]
+      "Mossängsvägen 4, 429 34 Kullavik, Sweden", "Org.nr 559355-7126"]
 
 WARNINGS = ("For external use only. Avoid contact with the eyes; if contact "
             "occurs, rinse thoroughly with water. Keep out of reach of "

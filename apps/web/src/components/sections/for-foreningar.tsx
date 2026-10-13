@@ -53,7 +53,7 @@ export async function ForForeningar() {
 
         <div className="mt-12 flex flex-wrap justify-center gap-4">
           <Button className="bg-[#6D614D] text-white hover:bg-[#5c5241]" asChild>
-            <LocaleLink href="/registrera" localeNeutral>
+            <LocaleLink href="/intresseanmalan">
               {forClubs.cta}
               <ArrowRight className="ml-1 h-4 w-4" />
             </LocaleLink>
