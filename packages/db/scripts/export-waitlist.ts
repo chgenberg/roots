@@ -37,7 +37,27 @@ if (!process.env.DATABASE_URL && typeof process.loadEnvFile === "function") {
   }
 }
 
-const COLUMNS = ["E-post", "Namn", "Källa", "Anmäld"] as const;
+const COLUMNS = [
+  "E-post",
+  "Mobil",
+  "Vi är",
+  "Vill",
+  "Namn",
+  "Källa",
+  "Anmäld",
+] as const;
+
+const CUSTOMER_TYPE_LABEL: Record<string, string> = {
+  forening: "Förening (flera lag)",
+  lag: "Lag",
+  grundskola: "Grundskola (åk 1–9)",
+  gymnasium: "Gymnasium",
+};
+
+const INTENT_LABEL: Record<string, string> = {
+  start: "Starta försäljning",
+  info: "Mer information",
+};
 
 function formatStockholm(date: Date): string {
   // sv-SE gives "2026-07-27 13:51" — sorts correctly and reads naturally
@@ -59,6 +79,9 @@ async function main() {
   const rows = await db
     .select({
       email: waitlistSignups.email,
+      phone: waitlistSignups.phone,
+      customerType: waitlistSignups.customerType,
+      intent: waitlistSignups.intent,
       name: waitlistSignups.name,
       source: waitlistSignups.source,
       createdAt: waitlistSignups.createdAt,
@@ -73,6 +96,9 @@ async function main() {
 
   const records = rows.map((r) => ({
     "E-post": r.email,
+    Mobil: r.phone ?? "",
+    "Vi är": r.customerType ? (CUSTOMER_TYPE_LABEL[r.customerType] ?? r.customerType) : "",
+    Vill: r.intent ? (INTENT_LABEL[r.intent] ?? r.intent) : "",
     Namn: r.name ?? "",
     Källa: r.source,
     Anmäld: formatStockholm(r.createdAt),
@@ -82,7 +108,15 @@ async function main() {
   const stamp = new Date().toISOString().slice(0, 10);
 
   const sheet = XLSX.utils.json_to_sheet(records, { header: [...COLUMNS] });
-  sheet["!cols"] = [{ wch: 34 }, { wch: 24 }, { wch: 16 }, { wch: 18 }];
+  sheet["!cols"] = [
+    { wch: 34 },
+    { wch: 16 },
+    { wch: 22 },
+    { wch: 20 },
+    { wch: 24 },
+    { wch: 16 },
+    { wch: 18 },
+  ];
   const book = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(book, sheet, "Väntelista");
   const xlsxPath = resolve(OUT_DIR, `roots-vantelista-${stamp}.xlsx`);
@@ -98,8 +132,8 @@ async function main() {
   const csvPath = resolve(OUT_DIR, `roots-vantelista-${stamp}.csv`);
   writeFileSync(csvPath, "\uFEFF" + csv, "utf8");
 
-  const named = records.filter((r) => r.Namn).length;
-  console.log(`[väntelista] ${rows.length} anmälningar (${named} med namn)`);
+  const withPhone = records.filter((r) => r.Mobil).length;
+  console.log(`[väntelista] ${rows.length} anmälningar (${withPhone} med mobil)`);
   console.log(`[väntelista] ${xlsxPath}`);
   console.log(`[väntelista] ${csvPath}`);
 }

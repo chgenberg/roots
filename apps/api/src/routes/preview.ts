@@ -13,6 +13,13 @@
 import { Hono } from "hono";
 import { eq } from "drizzle-orm";
 import { db, waitlistSignups } from "@roots/db";
+import {
+  INTEREST_CUSTOMER_TYPES,
+  INTEREST_INTENTS,
+  normalizeInterestPhone,
+  type InterestCustomerType,
+  type InterestIntent,
+} from "@roots/contracts";
 import { childLogger } from "../lib/logger";
 import { checkRateLimit } from "../lib/rate-limit";
 import {
@@ -102,7 +109,15 @@ preview.post("/unlock", async (c) => {
 });
 
 preview.post("/waitlist", async (c) => {
-  let body: { email?: unknown; name?: unknown; locale?: unknown };
+  let body: {
+    email?: unknown;
+    name?: unknown;
+    locale?: unknown;
+    phone?: unknown;
+    customerType?: unknown;
+    intent?: unknown;
+    consent?: unknown;
+  };
   try {
     body = await c.req.json();
   } catch {
@@ -116,6 +131,33 @@ preview.post("/waitlist", async (c) => {
   if (!email || !EMAIL_RE.test(email) || email.length > 254) {
     return c.json({ error: uiError(locale, "enterValidEmail") }, 400);
   }
+
+  // Intresseanmälan skickar mobil, kundtyp, avsikt och policy-ok. En
+  // äldre klient som bara skickar e-post ska fortfarande kunna anmäla sig.
+  const isInterest =
+    body.phone !== undefined ||
+    body.customerType !== undefined ||
+    body.consent !== undefined;
+  let phone: string | null = null;
+  let customerType: InterestCustomerType | null = null;
+  let intent: InterestIntent | null = null;
+  if (isInterest) {
+    phone = typeof body.phone === "string" ? normalizeInterestPhone(body.phone) : null;
+    if (!phone) {
+      return c.json({ error: uiError(locale, "enterValidPhone") }, 400);
+    }
+    customerType = INTEREST_CUSTOMER_TYPES.find((t) => t === body.customerType) ?? null;
+    if (!customerType) {
+      return c.json({ error: uiError(locale, "chooseCustomerType") }, 400);
+    }
+    intent = INTEREST_INTENTS.find((i) => i === body.intent) ?? "start";
+    if (body.consent !== true) {
+      return c.json({ error: uiError(locale, "acceptPrivacyPolicy") }, 400);
+    }
+  }
+  const interest = isInterest
+    ? { phone, customerType, intent, consentAt: new Date(), updatedAt: new Date() }
+    : null;
 
   const ip = getClientIp(c);
   const rl = await checkRateLimit(`preview-waitlist:${ip}`, 10, 3600);
@@ -134,10 +176,10 @@ preview.post("/waitlist", async (c) => {
       .limit(1);
 
     if (existing.length > 0) {
-      if (name) {
+      if (name || interest) {
         await db
           .update(waitlistSignups)
-          .set({ name })
+          .set({ ...(name ? { name } : {}), ...(interest ?? {}) })
           .where(eq(waitlistSignups.id, existing[0]!.id));
       }
       return c.json({ ok: true, alreadyRegistered: true });
@@ -147,12 +189,13 @@ preview.post("/waitlist", async (c) => {
     await db.insert(waitlistSignups).values({
       email,
       name,
-      source: "preview-gate",
+      source: interest ? "intresseanmalan" : "preview-gate",
       ipAddress: ip === "unknown" ? null : ip,
       userAgent,
+      ...(interest ?? {}),
     });
 
-    log.info({ email }, "preview-gate: waitlist signup");
+    log.info({ customerType, intent }, "preview-gate: waitlist signup");
     return c.json({ ok: true, alreadyRegistered: false });
   } catch (err) {
     log.error({ err }, "preview-gate: waitlist insert failed");

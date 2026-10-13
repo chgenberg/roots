@@ -314,6 +314,18 @@ const ERRORS = {
     sv: "Ange en giltig e-postadress.",
     en: "Please enter a valid email address.",
   },
+  enterValidPhone: {
+    sv: "Ange ett giltigt mobilnummer.",
+    en: "Please enter a valid mobile number.",
+  },
+  chooseCustomerType: {
+    sv: "Välj vad ni är.",
+    en: "Please choose what you are.",
+  },
+  acceptPrivacyPolicy: {
+    sv: "Godkänn integritetspolicyn för att skicka.",
+    en: "Please accept the privacy policy to send.",
+  },
   couldNotSave: {
     sv: "Kunde inte spara just nu. Försök igen.",
     en: "Could not save right now. Please try again.",

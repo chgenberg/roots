@@ -35,7 +35,7 @@ function fallbackProducts(
       price: 199,
       sku: "ROOTS-SH-001",
       slug: FALLBACK_SKU_SLUG["ROOTS-SH-001"]!,
-      image: "/images/roots-shampoo-studio.jpg",
+      image: "/images/roots-shampoo-studio-w.jpg",
       isBundle: false,
     },
     {
@@ -45,7 +45,7 @@ function fallbackProducts(
       price: 199,
       sku: "ROOTS-CO-001",
       slug: FALLBACK_SKU_SLUG["ROOTS-CO-001"]!,
-      image: "/images/roots-conditioner-studio.jpg",
+      image: "/images/roots-conditioner-studio-w.jpg",
       isBundle: false,
     },
     {
@@ -55,7 +55,7 @@ function fallbackProducts(
       price: 179,
       sku: "ROOTS-BW-001",
       slug: FALLBACK_SKU_SLUG["ROOTS-BW-001"]!,
-      image: "/images/roots-body-wash-studio.jpg",
+      image: "/images/roots-body-wash-studio-w.jpg",
       isBundle: false,
     },
     {
@@ -65,7 +65,7 @@ function fallbackProducts(
       price: 399,
       sku: BUNDLE_SKU,
       slug: FALLBACK_SKU_SLUG[BUNDLE_SKU]!,
-      image: "/images/roots-collection-studio.jpg",
+      image: "/images/roots-collection-studio-w.jpg",
       isBundle: true,
     },
   ];

@@ -97,7 +97,7 @@ export const guideDefinitions: GuideDefinition[] = [
     publishedAt: "2026-03-01",
     updatedAt: "2026-08-01",
     category: "forening",
-    heroImage: "/images/roots-collection-studio.jpg",
+    heroImage: "/images/roots-collection-studio-w.jpg",
     sv: {
       title: "Vad är föreningsförsäljning — och varför premium hårvård?",
       description:
@@ -229,7 +229,7 @@ export const guideDefinitions: GuideDefinition[] = [
     publishedAt: "2026-03-01",
     updatedAt: "2026-08-01",
     category: "forening",
-    heroImage: "/images/roots-sport-hero.jpg",
+    heroImage: "/images/roots-sport-hero-w.jpg",
     sv: {
       title: "Så fungerar Roots — steg för steg",
       description:
@@ -365,7 +365,7 @@ export const guideDefinitions: GuideDefinition[] = [
     publishedAt: "2026-03-05",
     updatedAt: "2026-08-01",
     category: "forening",
-    heroImage: "/images/roots-sport-m4.jpg",
+    heroImage: "/images/roots-sport-m4-w.jpg",
     sv: {
       title: "Hur mycket tjänar föreningen? 35 %-modellen förklarad",
       description:
@@ -499,7 +499,7 @@ export const guideDefinitions: GuideDefinition[] = [
     publishedAt: "2026-03-10",
     updatedAt: "2026-08-01",
     category: "forening",
-    heroImage: "/images/roots-sport-m2.jpg",
+    heroImage: "/images/roots-sport-m2-w.jpg",
     sv: {
       title: "Personlig shopsida och QR — så funkar det",
       description:
@@ -623,7 +623,7 @@ export const guideDefinitions: GuideDefinition[] = [
     publishedAt: "2026-03-12",
     updatedAt: "2026-08-01",
     category: "forening",
-    heroImage: "/images/roots-sport-m1.jpg",
+    heroImage: "/images/roots-sport-m1-w.jpg",
     sv: {
       title: "Säljtips för ungdomar och föräldrar",
       description:
@@ -771,7 +771,7 @@ export const guideDefinitions: GuideDefinition[] = [
     publishedAt: "2026-03-20",
     updatedAt: "2026-08-01",
     category: "sport",
-    heroImage: "/images/roots-sport-paddock.jpg",
+    heroImage: "/images/roots-sport-paddock-w.jpg",
     sv: {
       title: "Roots för fotbollslag",
       description:
@@ -895,7 +895,7 @@ export const guideDefinitions: GuideDefinition[] = [
     publishedAt: "2026-03-20",
     updatedAt: "2026-08-01",
     category: "sport",
-    heroImage: "/images/roots-sport-hockey.jpg",
+    heroImage: "/images/roots-sport-hockey-w.jpg",
     sv: {
       title: "Roots för ishockeylag",
       description:
@@ -1019,7 +1019,7 @@ export const guideDefinitions: GuideDefinition[] = [
     publishedAt: "2026-04-01",
     updatedAt: "2026-08-01",
     category: "ingrediens",
-    heroImage: "/images/roots-shampoo-studio.jpg",
+    heroImage: "/images/roots-shampoo-studio-w.jpg",
     sv: {
       title: "SyriCalm® — Phragmites och Poria för en lugnare känsla",
       description:
@@ -1143,7 +1143,7 @@ export const guideDefinitions: GuideDefinition[] = [
     publishedAt: "2026-04-05",
     updatedAt: "2026-08-01",
     category: "ingrediens",
-    heroImage: "/images/roots-conditioner-studio.jpg",
+    heroImage: "/images/roots-conditioner-studio-w.jpg",
     sv: {
       title: "MultiMoist-känsla och Beta Vulgaris — fukt som syns i spegeln",
       description:
@@ -1265,7 +1265,7 @@ export const guideDefinitions: GuideDefinition[] = [
     publishedAt: "2026-04-10",
     updatedAt: "2026-08-01",
     category: "harvard",
-    heroImage: "/images/roots-sport-gym.jpg",
+    heroImage: "/images/roots-sport-gym-w.jpg",
     sv: {
       title: "Hårbotten i balans — snällt språk, ärliga vanor",
       description:
@@ -1389,7 +1389,7 @@ export const guideDefinitions: GuideDefinition[] = [
     publishedAt: "2026-04-12",
     updatedAt: "2026-08-01",
     category: "harvard",
-    heroImage: "/images/roots-shampoo-lifestyle.jpg",
+    heroImage: "/images/roots-shampoo-lifestyle-w.jpg",
     sv: {
       title: "Sulfatsnålt schampo — vad det betyder på riktigt",
       description:
@@ -1513,7 +1513,7 @@ export const guideDefinitions: GuideDefinition[] = [
     publishedAt: "2026-04-15",
     updatedAt: "2026-08-01",
     category: "harvard",
-    heroImage: "/images/roots-collection-studio.jpg",
+    heroImage: "/images/roots-collection-studio-w.jpg",
     sv: {
       title: "Naturlig hårvård i Norden",
       description:
@@ -1637,7 +1637,7 @@ export const guideDefinitions: GuideDefinition[] = [
     publishedAt: "2026-04-18",
     updatedAt: "2026-08-01",
     category: "harvard",
-    heroImage: "/images/roots-body-wash-lifestyle.jpg",
+    heroImage: "/images/roots-body-wash-lifestyle-w.jpg",
     sv: {
       title: "Hår- och hudrutin efter träning",
       description:

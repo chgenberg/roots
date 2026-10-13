@@ -1,6 +1,25 @@
 {
-  "updatedAt": "2026-09-27T15:15:00.000Z",
+  "updatedAt": "2026-10-13T11:00:00.000Z",
   "cards": [
+    {
+      "id": "wb-vita-flaskor-intresse-oct13",
+      "title": "Vita flaskor + intresseanmälan som Newbody",
+      "body": "Nya flaskan (vit, vitt lock) i alla bilder, hero = Christophers foto. Intresseanmälan: start/info, mobil, e-post, kundtyp, policy-checkruta. Additiv migration 0023 på waitlist_signups. Inget mejl skickas, ingen env-lyft. Deploy kräver ja.",
+      "status": "doing",
+      "domainId": "platform",
+      "playbook": "ops",
+      "files": [
+        "apps/web/src/app/preview-gate/page.tsx",
+        "apps/web/src/app/preview-gate/preview-gate-form.tsx",
+        "apps/api/src/routes/preview.ts",
+        "packages/db/src/schema/waitlist.ts",
+        "packages/db/drizzle/0023_waitlist_interest.sql"
+      ],
+      "gate": "deploy",
+      "source": "cursor",
+      "createdAt": "2026-10-13T11:00:00.000Z",
+      "updatedAt": "2026-10-13T11:00:00.000Z"
+    },
     {
       "id": "wb-total-audit-sep27",
       "title": "Total genomgång: alla roller i prod",

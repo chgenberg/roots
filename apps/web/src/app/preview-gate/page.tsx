@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { GateRoom, GateWordmark } from "@/components/gate-room";
+import Image from "next/image";
+import { RootsLogo } from "@/components/brand";
 import { getPreview } from "@/i18n/get-dictionary";
 import { LocaleProvider } from "@/i18n/locale-context";
 import { getRequestLocale } from "@/i18n/request-locale";
@@ -26,34 +27,43 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function PreviewGatePage() {
   const locale = await getRequestLocale();
   const t = getPreview(locale);
+  const year = new Date().getFullYear();
 
   return (
     <LocaleProvider key={locale} locale={locale}>
-      <GateRoom>
-        <div className="rounded-3xl bg-card px-8 py-8 shadow-[var(--shadow-dialog)] sm:px-9 sm:py-9">
-          <GateWordmark />
+      <div className="min-h-[100dvh] bg-background lg:grid lg:grid-cols-2">
+        <div className="relative h-52 sm:h-72 lg:order-2 lg:sticky lg:top-0 lg:h-[100dvh]">
+          <Image
+            src="/images/roots-club-table-w.jpg"
+            alt={t.imageAlt}
+            fill
+            priority
+            sizes="(min-width: 1024px) 50vw, 100vw"
+            className="object-cover object-[50%_40%]"
+          />
+        </div>
 
-          <div className="mt-7 text-center">
-            <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-              {t.eyebrow}
-            </p>
-            <h1 className="mt-2.5 text-pretty text-[1.6rem] font-bold leading-[1.2] tracking-tight sm:text-3xl">
-              {t.titleLine1}
-              <br />
-              {t.titleLine2}
+        <main className="flex flex-col px-6 pb-8 pt-8 sm:px-10 lg:min-h-[100dvh] lg:px-14 lg:pt-10 xl:px-20">
+          <RootsLogo variant="auto" className="h-9 w-[90px]" priority />
+
+          <div className="mt-8 w-full max-w-md lg:my-auto lg:py-10">
+            <h1 className="text-pretty text-[1.75rem] font-semibold leading-[1.15] tracking-tight sm:text-[2.125rem]">
+              {t.title}
             </h1>
-            <p className="mt-3.5 text-pretty text-sm leading-relaxed text-muted-foreground">
+            <p className="mt-3 text-pretty text-[15px] leading-relaxed text-muted-foreground">
               {t.body}
             </p>
+
+            <div className="mt-7">
+              <Suspense fallback={null}>
+                <PreviewGateForm />
+              </Suspense>
+            </div>
           </div>
 
-          <div className="mt-7">
-            <Suspense fallback={null}>
-              <PreviewGateForm />
-            </Suspense>
-          </div>
-        </div>
-      </GateRoom>
+          <p className="mt-10 text-xs text-muted-foreground">© {year} Ourroots AB</p>
+        </main>
+      </div>
     </LocaleProvider>
   );
 }

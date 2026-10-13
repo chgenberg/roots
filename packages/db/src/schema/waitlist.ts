@@ -15,5 +15,11 @@ export const waitlistSignups = pgTable("waitlist_signups", {
   source: varchar("source", { length: 64 }).notNull().default("preview-gate"),
   ipAddress: varchar("ip_address", { length: 45 }),
   userAgent: varchar("user_agent", { length: 512 }),
+  // Intresseanmälan (0023). Nullbara: äldre rader har bara e-post.
+  phone: varchar("phone", { length: 32 }),
+  customerType: varchar("customer_type", { length: 32 }),
+  intent: varchar("intent", { length: 16 }),
+  consentAt: timestamp("consent_at"),
+  updatedAt: timestamp("updated_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
