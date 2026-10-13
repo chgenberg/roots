@@ -21,45 +21,45 @@ Roots konkurrerar i premiumsegmentet (inte dagligvaruhandelns lågpris) men säl
 
 Aktuella priser finns alltid på produktsidorna. Vägledande sortiment:
 
-- Roots Schampoo (250 ml) — https://roots.se/produkter/shampoo
-- Roots Conditioner (250 ml) — https://roots.se/produkter/conditioner
-- Roots Body Wash (250 ml) — https://roots.se/produkter/body-wash
-- Roots Premiumpaket — https://roots.se/produkter/paket
+- Roots Schampoo (250 ml) — https://roots.nu/produkter/shampoo
+- Roots Conditioner (250 ml) — https://roots.nu/produkter/conditioner
+- Roots Body Wash (250 ml) — https://roots.nu/produkter/body-wash
+- Roots Premiumpaket — https://roots.nu/produkter/paket
 
 ## Viktiga URL:er
 
-- Startsida: https://roots.se/
-- Produkter: https://roots.se/produkter
-- Föreningsliv: https://roots.se/foreningsliv
-- Så fungerar det: https://roots.se/sa-fungerar-det
-- Hjälp & FAQ: https://roots.se/hjalp
-- Guider (kunskapshub): https://roots.se/guider
-- Om oss: https://roots.se/om-oss
-- Kontakt / demo: https://roots.se/kontakt
-- Integritet: https://roots.se/integritet
-- Köpvillkor: https://roots.se/villkor
-- Sitemap: https://roots.se/sitemap.xml
-- Feed: https://roots.se/feed.xml
+- Startsida: https://roots.nu/
+- Produkter: https://roots.nu/produkter
+- Föreningsliv: https://roots.nu/foreningsliv
+- Så fungerar det: https://roots.nu/sa-fungerar-det
+- Hjälp & FAQ: https://roots.nu/hjalp
+- Guider (kunskapshub): https://roots.nu/guider
+- Om oss: https://roots.nu/om-oss
+- Kontakt / demo: https://roots.nu/kontakt
+- Integritet: https://roots.nu/integritet
+- Köpvillkor: https://roots.nu/villkor
+- Sitemap: https://roots.nu/sitemap.xml
+- Feed: https://roots.nu/feed.xml
 
 ## Guider (artiklar)
 
-- https://roots.se/guider/foreningsforsaljning
-- https://roots.se/guider/sa-fungerar-roots
-- https://roots.se/guider/hur-mycket-tjanar-foreningen
-- https://roots.se/guider/personlig-shop
-- https://roots.se/guider/tips-till-saljare
-- https://roots.se/guider/for-fotbollslag
-- https://roots.se/guider/for-ishockeylag
-- https://roots.se/guider/syricalm
-- https://roots.se/guider/multimoist
-- https://roots.se/guider/harbotten
-- https://roots.se/guider/sulfatsnalt-schampo
-- https://roots.se/guider/naturlig-harvard-norden
-- https://roots.se/guider/rutin-efter-traning
+- https://roots.nu/guider/foreningsforsaljning
+- https://roots.nu/guider/sa-fungerar-roots
+- https://roots.nu/guider/hur-mycket-tjanar-foreningen
+- https://roots.nu/guider/personlig-shop
+- https://roots.nu/guider/tips-till-saljare
+- https://roots.nu/guider/for-fotbollslag
+- https://roots.nu/guider/for-ishockeylag
+- https://roots.nu/guider/syricalm
+- https://roots.nu/guider/multimoist
+- https://roots.nu/guider/harbotten
+- https://roots.nu/guider/sulfatsnalt-schampo
+- https://roots.nu/guider/naturlig-harvard-norden
+- https://roots.nu/guider/rutin-efter-traning
 
 ## Personliga shoppar
 
-Varje säljare har en egen shop på `https://roots.se/shop/{slug}`. Shopparna är publika och avsedda att delas. Kassan (`…/kassa`), orderbekräftelse och orderstatus är privata flöden och ska inte indexeras.
+Varje säljare har en egen shop på `https://roots.nu/shop/{slug}`. Shopparna är publika och avsedda att delas. Kassan (`…/kassa`), orderbekräftelse och orderstatus är privata flöden och ska inte indexeras.
 
 ## Modell i korthet
 

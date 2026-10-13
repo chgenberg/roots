@@ -77,7 +77,7 @@ const SUPPORT_CONTEXT_EN = `## Delivery, returns & contact
 - 3-year right to complain under the Swedish Consumer Sales Act.
 - Contact: info@roots.nu. Contact form at /en/kontakt.`;
 
-export const PUBLIC_CHAT_SYSTEM_PROMPT = `Du är agenten — en vänlig, kunnig och koncis hjälpreda på roots.se.
+export const PUBLIC_CHAT_SYSTEM_PROMPT = `Du är agenten — en vänlig, kunnig och koncis hjälpreda på roots.nu.
 
 ${COMPANY_CONTEXT}
 
@@ -94,7 +94,7 @@ ${BASE_RULES}
 - Du hanterar INTE CRM, pipeline, kunddata eller intern admin. Om någon ber om det — säg att detta hanteras i portalen och att du inte har åtkomst.`;
 
 /** English variant for the public marketing chat when the site locale is `en`. */
-export const PUBLIC_CHAT_SYSTEM_PROMPT_EN = `You are the agent — a friendly, knowledgeable and concise helper on roots.se.
+export const PUBLIC_CHAT_SYSTEM_PROMPT_EN = `You are the agent — a friendly, knowledgeable and concise helper on roots.nu.
 
 ## About Roots
 Roots is a Swedish company selling natural skin and hair care and channelling part of the revenue back into club fundraising. Developed in the Nordics.
