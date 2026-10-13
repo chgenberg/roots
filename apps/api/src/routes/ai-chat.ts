@@ -29,8 +29,8 @@ export const aiChat = new Hono();
 const COPY = {
   sv: {
     fallbacks: [
-      "Just nu är agenten inte tillgänglig. Kontakta oss på info@roots.nu så hjälper vi dig.",
-      "Agenten är tillfälligt nedstängd. Du hittar vanliga frågor på vår hemsida, eller maila info@roots.nu.",
+      "Just nu är agenten inte tillgänglig. Kontakta oss på hej@roots.nu så hjälper vi dig.",
+      "Agenten är tillfälligt nedstängd. Du hittar vanliga frågor på vår hemsida, eller maila hej@roots.nu.",
     ],
     disclaimer: "Svar från agenten — verifiera viktig information",
     notLoggedIn: "Inte inloggad.",
@@ -48,8 +48,8 @@ const COPY = {
   },
   en: {
     fallbacks: [
-      "The agent is unavailable right now. Contact us at info@roots.nu and we will help you.",
-      "The agent is temporarily offline. You can find common questions on our website, or email info@roots.nu.",
+      "The agent is unavailable right now. Contact us at hej@roots.nu and we will help you.",
+      "The agent is temporarily offline. You can find common questions on our website, or email hej@roots.nu.",
     ],
     disclaimer: "Reply from the agent — please verify important information",
     notLoggedIn: "Not signed in.",

@@ -422,16 +422,16 @@ export default function InstallningarPage() {
             <div>
               <p className="text-sm font-medium">{t.emailNotices}</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                {t.emailNoticesBody.includes("info@roots.nu") ? (
+                {t.emailNoticesBody.includes("hej@roots.nu") ? (
                   <>
-                    {t.emailNoticesBody.split("info@roots.nu")[0]}
+                    {t.emailNoticesBody.split("hej@roots.nu")[0]}
                     <a
-                      href="mailto:info@roots.nu"
+                      href="mailto:hej@roots.nu"
                       className="underline underline-offset-2"
                     >
-                      info@roots.nu
+                      hej@roots.nu
                     </a>
-                    {t.emailNoticesBody.split("info@roots.nu")[1]}
+                    {t.emailNoticesBody.split("hej@roots.nu")[1]}
                   </>
                 ) : (
                   t.emailNoticesBody

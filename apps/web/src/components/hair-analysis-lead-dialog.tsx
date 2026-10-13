@@ -820,10 +820,10 @@ export function HairAnalysisLeadDialog({
                   <p className="mt-1">
                     {t.result.fallbackBodyBefore}{" "}
                     <a
-                      href="mailto:info@roots.nu"
+                      href="mailto:hej@roots.nu"
                       className="underline underline-offset-2"
                     >
-                      info@roots.nu
+                      hej@roots.nu
                     </a>{" "}
                     {t.result.fallbackBodyAfter}
                   </p>

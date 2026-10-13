@@ -67,7 +67,7 @@ function wrap(content: string, locale: EmailLocale = "sv"): string {
       ? "Company no. 559355-7126"
       : "Org.nr 559355-7126"
   }<br>
-  <a href="${url}" style="color:#999">${host}</a> · <a href="mailto:info@roots.nu" style="color:#999">info@roots.nu</a>
+  <a href="${url}" style="color:#999">${host}</a> · <a href="mailto:hej@roots.nu" style="color:#999">hej@roots.nu</a>
 </td></tr>
 </table>
 </td></tr>
@@ -661,7 +661,7 @@ export function deletionCancelledEmail(params: {
       </p>
       <p style="color:#444;line-height:1.6;margin:0 0 0">
         If this was not you — contact us straight away at
-        <a href="mailto:info@roots.nu" style="color:${BRAND_COLOR}">info@roots.nu</a>
+        <a href="mailto:hej@roots.nu" style="color:${BRAND_COLOR}">hej@roots.nu</a>
         and we will help you.
       </p>
     `,
@@ -682,7 +682,7 @@ export function deletionCancelledEmail(params: {
       </p>
       <p style="color:#444;line-height:1.6;margin:0 0 0">
         Om det här inte var du som ångrade — kontakta oss direkt på
-        <a href="mailto:info@roots.nu" style="color:${BRAND_COLOR}">info@roots.nu</a>
+        <a href="mailto:hej@roots.nu" style="color:${BRAND_COLOR}">hej@roots.nu</a>
         så hjälper vi dig.
       </p>
     `),
@@ -787,7 +787,7 @@ export function guardianConsentNoticeEmail(params: {
       <p style="color:#444;line-height:1.6;margin:0 0 16px">
         If this was not you — or if you change your mind — reply to this
         email or write to
-        <a href="mailto:info@roots.nu" style="color:${BRAND_COLOR}">info@roots.nu</a>.
+        <a href="mailto:hej@roots.nu" style="color:${BRAND_COLOR}">hej@roots.nu</a>.
         We will close the shop and delete the data.
       </p>
       <p style="color:#999;line-height:1.6;margin:24px 0 0;font-size:12px">
@@ -820,7 +820,7 @@ export function guardianConsentNoticeEmail(params: {
       <p style="color:#444;line-height:1.6;margin:0 0 16px">
         Var det inte du som godkände — eller ändrar du dig — svara på det här
         mejlet eller skriv till
-        <a href="mailto:info@roots.nu" style="color:${BRAND_COLOR}">info@roots.nu</a>.
+        <a href="mailto:hej@roots.nu" style="color:${BRAND_COLOR}">hej@roots.nu</a>.
         Vi stänger butiken och raderar uppgifterna.
       </p>
       <p style="color:#999;line-height:1.6;margin:24px 0 0;font-size:12px">

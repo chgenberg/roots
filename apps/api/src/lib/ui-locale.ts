@@ -836,8 +836,8 @@ const ERRORS = {
     en: "The agent is not activated right now. Contact support for help.",
   },
   aiUnavailableTryAgain: {
-    sv: "Agenten är inte tillgänglig just nu. Försök igen eller maila info@roots.nu.",
-    en: "The agent is unavailable right now. Try again or email info@roots.nu.",
+    sv: "Agenten är inte tillgänglig just nu. Försök igen eller maila hej@roots.nu.",
+    en: "The agent is unavailable right now. Try again or email hej@roots.nu.",
   },
   aiGeneratedDisclaimer: {
     sv: "Svar från agenten — verifiera viktig information",

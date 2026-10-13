@@ -684,7 +684,7 @@ export const portalPages = {
       genericError: "Något gick fel.",
       noResponse: "Ingen respons.",
       fallbackError:
-        "Något gick fel. Försök igen eller kontakta info@roots.nu.",
+        "Något gick fel. Försök igen eller kontakta hej@roots.nu.",
       welcomeClub:
         "Hej {name}! Jag kan hjälpa dig med beställningar, leveranser och hur föreningen får del av intäkten. Vad funderar du på?",
       welcomeSales:
@@ -744,7 +744,7 @@ export const portalPages = {
       genericError: "Something went wrong.",
       noResponse: "No response.",
       fallbackError:
-        "Something went wrong. Please try again or contact info@roots.nu.",
+        "Something went wrong. Please try again or contact hej@roots.nu.",
       welcomeClub:
         "Hi {name}! I can help with orders, deliveries and how your club earns its share. What would you like to know?",
       welcomeSales:
@@ -812,7 +812,7 @@ export const portalPages = {
       notifications: "Aviseringar",
       emailNotices: "E-postaviseringar",
       emailNoticesBody:
-        "Vi skickar automatiskt e-post om nya beställningar och uppdateringar till din kontoadress. Inställningen går inte att stänga av i dagsläget — mejla info@roots.nu om du vill ändra.",
+        "Vi skickar automatiskt e-post om nya beställningar och uppdateringar till din kontoadress. Inställningen går inte att stänga av i dagsläget — mejla hej@roots.nu om du vill ändra.",
       deliveryNotices: "Leveransnotiser",
       deliveryNoticesBody:
         "Spårnings-mejl skickas alltid när en leverans skickas och när den ankommer. Egna inställningar för det kommer i en senare version.",
@@ -874,7 +874,7 @@ export const portalPages = {
       notifications: "Notifications",
       emailNotices: "Email notifications",
       emailNoticesBody:
-        "We automatically email your account address about new orders and updates. This cannot be turned off yet — email info@roots.nu if you want to change it.",
+        "We automatically email your account address about new orders and updates. This cannot be turned off yet — email hej@roots.nu if you want to change it.",
       deliveryNotices: "Delivery notices",
       deliveryNoticesBody:
         "Tracking emails are always sent when a delivery ships and when it arrives. Configurable preferences will come in a later release.",

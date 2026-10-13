@@ -451,11 +451,11 @@ export const pages = {
       pressEyebrow: "Press",
       pressTitle: "Bildmaterial och intervjuer",
       pressBodyBefore: "Kontakta oss på",
-      pressEmail: "press@roots.nu",
+      pressEmail: "hej@roots.nu",
       jobsEyebrow: "Jobb",
       jobsTitle: "Jobba hos oss",
       jobsBodyBefore: "Skicka din ansökan till",
-      jobsEmail: "jobb@roots.nu",
+      jobsEmail: "hej@roots.nu",
     },
     en: {
       title: "About us",
@@ -514,11 +514,11 @@ export const pages = {
       pressEyebrow: "Press",
       pressTitle: "Press images and interviews",
       pressBodyBefore: "Contact us at",
-      pressEmail: "press@roots.nu",
+      pressEmail: "hej@roots.nu",
       jobsEyebrow: "Careers",
       jobsTitle: "Work with us",
       jobsBodyBefore: "Send your application to",
-      jobsEmail: "jobb@roots.nu",
+      jobsEmail: "hej@roots.nu",
     },
   },
 
@@ -548,7 +548,7 @@ export const pages = {
       errorGeneric: "Något gick fel.",
       errorSendFailed: "Kunde inte skicka meddelandet.",
       emailLabel: "E-post",
-      email: "info@roots.nu",
+      email: "hej@roots.nu",
       addressLabel: "Adress",
       orgNumberLabel: "Org.nr",
       responseTitle: "Svarstid",
@@ -580,7 +580,7 @@ export const pages = {
       errorGeneric: "Something went wrong.",
       errorSendFailed: "Could not send the message.",
       emailLabel: "Email",
-      email: "info@roots.nu",
+      email: "hej@roots.nu",
       addressLabel: "Address",
       orgNumberLabel: "Org. no.",
       responseTitle: "Response time",
@@ -619,7 +619,7 @@ export const pages = {
         networkError: "Nätverksfel. Försök igen.",
       },
       emailLabel: "E-post",
-      email: "info@roots.nu",
+      email: "hej@roots.nu",
       phoneLabel: "Telefon",
       phoneHours: "Vardagar 09–17 (via formulär ovan)",
       sections: [
@@ -804,7 +804,7 @@ export const pages = {
         networkError: "Network error. Please try again.",
       },
       emailLabel: "Email",
-      email: "info@roots.nu",
+      email: "hej@roots.nu",
       phoneLabel: "Phone",
       phoneHours: "Weekdays 09–17 (via the form above)",
       sections: [
@@ -968,7 +968,7 @@ export const pages = {
       description: "Så hanterar Roots dina personuppgifter enligt GDPR.",
       updated: "Senast uppdaterad: 2 april 2026",
       companyName: "Ourroots AB",
-      contactEmail: "info@roots.nu",
+      contactEmail: "hej@roots.nu",
       sections: [
         {
           heading: "1. Personuppgiftsansvarig",
@@ -1071,7 +1071,7 @@ export const pages = {
             { text: "Återkalla samtycke för nyhetsbrev och marknadsföring." },
           ],
           after: [
-            "Du kan utöva dina rättigheter på två sätt. Snabbast är att maila info@roots.nu från den e-postadress vi har registrerad på dig. För formella förfrågningar — t.ex. fullmakt eller om du vill att svaret ska postas — skicka brev till Ourroots AB, märk kuvertet \"Dataskydd\".",
+            "Du kan utöva dina rättigheter på två sätt. Snabbast är att maila hej@roots.nu från den e-postadress vi har registrerad på dig. För formella förfrågningar — t.ex. fullmakt eller om du vill att svaret ska postas — skicka brev till Ourroots AB, märk kuvertet \"Dataskydd\".",
             "Vi besvarar förfrågningar inom 30 dagar enligt GDPR Art. 12.3.",
           ],
         },
@@ -1106,7 +1106,7 @@ export const pages = {
       description: "How Roots handles your personal data under the GDPR.",
       updated: "Last updated: 2 April 2026",
       companyName: "Ourroots AB",
-      contactEmail: "info@roots.nu",
+      contactEmail: "hej@roots.nu",
       sections: [
         {
           heading: "1. Data controller",
@@ -1215,7 +1215,7 @@ export const pages = {
             },
           ],
           after: [
-            "You can exercise your rights in two ways. The fastest is to email info@roots.nu from the email address we have on file for you. For formal requests — e.g. power of attorney or if you want the reply by post — write to Ourroots AB and mark the envelope \"Data protection\".",
+            "You can exercise your rights in two ways. The fastest is to email hej@roots.nu from the email address we have on file for you. For formal requests — e.g. power of attorney or if you want the reply by post — write to Ourroots AB and mark the envelope \"Data protection\".",
             "We respond to requests within 30 days under GDPR Art. 12.3.",
           ],
         },
@@ -1254,7 +1254,7 @@ export const pages = {
         "Köpvillkor för Roots — ångerrätt, leverans, reklamation och mer.",
       updated: "Senast uppdaterad: 2 april 2026",
       companyName: "Ourroots AB",
-      contactEmail: "info@roots.nu",
+      contactEmail: "hej@roots.nu",
       sections: [
         {
           heading: "1. Allmänt",
@@ -1293,14 +1293,14 @@ export const pages = {
           heading: "4. Ångerrätt",
           paragraphs: [
             "Enligt distansavtalslagen har du som konsument 14 dagars ångerrätt från det att du mottagit varan. Ångerrätten innebär att du kan returnera varan utan att ange något skäl.",
-            "För att utöva ångerrätten, kontakta oss på info@roots.nu inom 14 dagar. Du kan också använda Konsumentverkets standardformulär för utövande av ångerrätten. Du ansvarar själv för fraktkostnaden vid retur.",
+            "För att utöva ångerrätten, kontakta oss på hej@roots.nu inom 14 dagar. Du kan också använda Konsumentverkets standardformulär för utövande av ångerrätten. Du ansvarar själv för fraktkostnaden vid retur.",
             "Undantag: Ångerrätten gäller inte för varor som av hälso- eller hygienskäl har brutits försegling på, t.ex. öppnade förpackningar av schampo, balsam eller body wash.",
           ],
         },
         {
           heading: "5. Reklamation",
           paragraphs: [
-            "Du har 3 års reklamationsrätt enligt konsumentköplagen. Om en vara är felaktig ska du reklamera inom rimlig tid efter att du upptäckt felet. Kontakta oss på info@roots.nu med ordernummer och beskrivning av felet.",
+            "Du har 3 års reklamationsrätt enligt konsumentköplagen. Om en vara är felaktig ska du reklamera inom rimlig tid efter att du upptäckt felet. Kontakta oss på hej@roots.nu med ordernummer och beskrivning av felet.",
             "Vid godkänd reklamation erbjuder vi i första hand ersättningsprodukt, i andra hand återbetalning.",
           ],
         },
@@ -1332,7 +1332,7 @@ export const pages = {
         {
           heading: "10. Kontaktuppgifter",
           paragraphs: [
-            "Ourroots AB — kontakta oss på info@roots.nu. Fullständig adress och organisationsuppgifter visas på sidan.",
+            "Ourroots AB — kontakta oss på hej@roots.nu. Fullständig adress och organisationsuppgifter visas på sidan.",
           ],
         },
       ] satisfies LegalSection[],
@@ -1343,7 +1343,7 @@ export const pages = {
         "Terms of sale for Roots — right of withdrawal, delivery, complaints and more.",
       updated: "Last updated: 2 April 2026",
       companyName: "Ourroots AB",
-      contactEmail: "info@roots.nu",
+      contactEmail: "hej@roots.nu",
       sections: [
         {
           heading: "1. General",
@@ -1384,14 +1384,14 @@ export const pages = {
           heading: "4. Right of withdrawal",
           paragraphs: [
             "Under the Swedish Distance Contracts Act, as a consumer you have a 14-day right of withdrawal from the day you receive the goods. The right of withdrawal means you may return the goods without stating a reason.",
-            "To exercise the right of withdrawal, contact us at info@roots.nu within 14 days. You may also use the Swedish Consumer Agency's standard withdrawal form. You are responsible for the return shipping cost.",
+            "To exercise the right of withdrawal, contact us at hej@roots.nu within 14 days. You may also use the Swedish Consumer Agency's standard withdrawal form. You are responsible for the return shipping cost.",
             "Exception: The right of withdrawal does not apply to goods where the seal has been broken for health or hygiene reasons, e.g. opened packages of shampoo, conditioner or body wash.",
           ],
         },
         {
           heading: "5. Complaints",
           paragraphs: [
-            "You have a 3-year right to complain under the Swedish Consumer Sales Act. If goods are faulty you should complain within a reasonable time after discovering the fault. Contact us at info@roots.nu with the order number and a description of the fault.",
+            "You have a 3-year right to complain under the Swedish Consumer Sales Act. If goods are faulty you should complain within a reasonable time after discovering the fault. Contact us at hej@roots.nu with the order number and a description of the fault.",
             "For an approved complaint we primarily offer a replacement product, and secondarily a refund.",
           ],
         },
@@ -1423,7 +1423,7 @@ export const pages = {
         {
           heading: "10. Contact details",
           paragraphs: [
-            "Ourroots AB — contact us at info@roots.nu. Full address and organisation details are shown on the page.",
+            "Ourroots AB — contact us at hej@roots.nu. Full address and organisation details are shown on the page.",
           ],
         },
       ] satisfies LegalSection[],

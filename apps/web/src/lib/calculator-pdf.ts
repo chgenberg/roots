@@ -13,7 +13,7 @@ const FONTS = [
 ] as const;
 const LOGO_SRC = "/brand/roots-logo-dark.png";
 const LOGO_RATIO = 675 / 1200;
-const CONTACT_EMAIL = "info@roots.nu";
+const CONTACT_EMAIL = "hej@roots.nu";
 
 type FontName = (typeof FONTS)[number]["name"];
 

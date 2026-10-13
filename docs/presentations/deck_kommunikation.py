@@ -145,7 +145,7 @@ def build() -> Deck:
             "Reaktion efter ett ja: mindre administration, inte mer",
             "Kommunikationen känns som föreningens — inte generisk",
             "Skalbart system, inte sex lösa kampanjbilder",
-            "Kontakt: info@roots.nu · Ourroots AB",
+            "Kontakt: hej@roots.nu · Ourroots AB",
         ],
         notes="Avsluta med frågan: vill ni se kit + snurra live med era tal?",
     ))

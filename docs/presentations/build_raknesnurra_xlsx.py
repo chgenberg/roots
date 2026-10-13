@@ -285,7 +285,7 @@ def build() -> Path:
     ws.merge_cells("B30:F30")
     ws["B30"] = (
         "Tips: Premiumpaketet kostar 399 kr — då går ca 140 kr till föreningen per paket. "
-        "Öppna fliken »Så funkar det« om ni vill förstå mer.  ·  info@roots.nu  ·  roots.nu"
+        "Öppna fliken »Så funkar det« om ni vill förstå mer.  ·  hej@roots.nu  ·  roots.nu"
     )
     ws["B30"].font = font(9, color=SAND_DARK)
     ws["B30"].alignment = Alignment(wrap_text=True)
@@ -352,7 +352,7 @@ def build() -> Path:
          "Paketpris 399 kr (schampo + balsam + body wash).\n"
          "Ca 140 kr går till föreningen per sålt paket."),
         (22, "Behöver ni hjälp?",
-         "Mejla info@roots.nu eller gå till roots.nu — vi räknar gärna live med er."),
+         "Mejla hej@roots.nu eller gå till roots.nu — vi räknar gärna live med er."),
     ]
     for row, title, body in blocks:
         help_ws.cell(row, 2).value = title

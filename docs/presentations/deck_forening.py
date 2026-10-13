@@ -160,7 +160,7 @@ def build() -> Deck:
             "Vi räknar med era egna tal",
             "Ni får se flödet live (shop + dashboard)",
             "Ni beslutar i lugn och ro efteråt",
-            "info@roots.nu · ta med ordförande eller kassör",
+            "hej@roots.nu · ta med ordförande eller kassör",
         ],
         notes="Avsluta med datumförslag — inte »hör av er«. "
               "Lämna PDF:en. Målet är nästa möte, inte signatur i dag.",

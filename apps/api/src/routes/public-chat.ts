@@ -41,14 +41,14 @@ function chatCopy(locale: string | undefined) {
       ? `Messages may be at most ${MAX_MESSAGE_LENGTH} characters.`
       : `Meddelandet får vara max ${MAX_MESSAGE_LENGTH} tecken.`,
     fallback: en
-      ? "The agent is unavailable right now. Contact us at info@roots.nu and we will help you."
-      : "Agenten är inte tillgänglig just nu. Kontakta oss på info@roots.nu så hjälper vi dig.",
+      ? "The agent is unavailable right now. Contact us at hej@roots.nu and we will help you."
+      : "Agenten är inte tillgänglig just nu. Kontakta oss på hej@roots.nu så hjälper vi dig.",
     streamError: en
-      ? "Something went wrong. Please try again or contact info@roots.nu."
-      : "Något gick fel. Försök igen eller kontakta info@roots.nu.",
+      ? "Something went wrong. Please try again or contact hej@roots.nu."
+      : "Något gick fel. Försök igen eller kontakta hej@roots.nu.",
     completionError: en
-      ? "Something went wrong. Please try again or contact us at info@roots.nu."
-      : "Något gick fel. Försök igen eller kontakta oss på info@roots.nu.",
+      ? "Something went wrong. Please try again or contact us at hej@roots.nu."
+      : "Något gick fel. Försök igen eller kontakta oss på hej@roots.nu.",
     disclaimer: en
       ? "Reply from the agent — please verify important information"
       : "Svar från agenten — verifiera viktig information",

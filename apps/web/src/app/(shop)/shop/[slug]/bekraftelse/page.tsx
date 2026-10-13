@@ -217,7 +217,7 @@ function ConfirmationPageInner() {
                   </Button>
                 </LocaleLink>
                 <a
-                  href={`mailto:info@roots.nu?subject=${encodeURIComponent(t.contactSubject)}`}
+                  href={`mailto:hej@roots.nu?subject=${encodeURIComponent(t.contactSubject)}`}
                   className="w-full"
                 >
                   <Button variant="ghost" className="w-full">

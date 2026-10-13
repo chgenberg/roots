@@ -22,7 +22,7 @@ export const LEGAL_IDENTITY = {
     countryCode: "SE",
   },
   contact: {
-    email: "info@roots.nu",
+    email: "hej@roots.nu",
     /** Omit until a real public phone number is published. */
     phone: null as string | null,
   },

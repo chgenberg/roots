@@ -87,7 +87,7 @@ export const shop = {
       errorGeneric: "Något gick fel. Försök igen.",
       errorServer: "Vi når inte servern just nu. Försök igen.",
       checkoutInitFailed:
-        "Kassan gick inte att starta. Försök igen, eller mejla info@roots.nu om det inte fungerar.",
+        "Kassan gick inte att starta. Försök igen, eller mejla hej@roots.nu om det inte fungerar.",
       paymentCancelled:
         "Betalningen avbröts. Varukorgen finns kvar, så du kan försöka igen.",
       completeOrder: "Slutför din beställning",
@@ -142,7 +142,7 @@ export const shop = {
       errorGeneric: "Something went wrong. Please try again.",
       errorServer: "We can't reach the server right now. Please try again.",
       checkoutInitFailed:
-        "Checkout couldn't start. Please try again, or email info@roots.nu if it still doesn't work.",
+        "Checkout couldn't start. Please try again, or email hej@roots.nu if it still doesn't work.",
       paymentCancelled:
         "The payment was cancelled. Your basket is still here, so you can try again.",
       completeOrder: "Complete your order",
@@ -200,10 +200,10 @@ export const shop = {
         "Länken saknar ordernummer. Kontrollera länken eller gå tillbaka till butiken.",
       notFoundTitle: "Vi hittar ingen beställning",
       notFoundBody:
-        "Beställningen finns inte eller har tagits bort. Mejla info@roots.nu om du tror att något är fel.",
+        "Beställningen finns inte eller har tagits bort. Mejla hej@roots.nu om du tror att något är fel.",
       serverTitle: "Något gick fel hos oss",
       serverBody:
-        "Vi kan inte visa din beställning just nu. Försök igen om en stund eller mejla info@roots.nu.",
+        "Vi kan inte visa din beställning just nu. Försök igen om en stund eller mejla hej@roots.nu.",
       failedTitle: "Betalningen gick inte igenom",
       failedBody:
         "Betalningen avbröts eller nekades. Du kan försöka igen från butiken.",
@@ -213,7 +213,7 @@ export const shop = {
       contactSubject: "Hjälp med beställning",
       paymentProcessing: "Vi behandlar din betalning…",
       processingSlow:
-        "Det tar längre tid än vanligt. Du behöver inte betala igen. Vi mejlar dig när betalningen är klar. Frågor? info@roots.nu",
+        "Det tar längre tid än vanligt. Du behöver inte betala igen. Vi mejlar dig när betalningen är klar. Frågor? hej@roots.nu",
       thankYou: "Tack för din beställning",
       confirmationSentTo: "Vi skickar en bekräftelse till ",
       amountLabel: "Belopp",
@@ -230,10 +230,10 @@ export const shop = {
         "The link is missing an order number. Check the link or go back to the shop.",
       notFoundTitle: "We can't find this order",
       notFoundBody:
-        "The order doesn't exist or has been removed. Email info@roots.nu if you think something is wrong.",
+        "The order doesn't exist or has been removed. Email hej@roots.nu if you think something is wrong.",
       serverTitle: "Something went wrong on our side",
       serverBody:
-        "We can't show your order right now. Please try again shortly or email info@roots.nu.",
+        "We can't show your order right now. Please try again shortly or email hej@roots.nu.",
       failedTitle: "Your payment didn't go through",
       failedBody:
         "The payment was cancelled or declined. You can try again from the shop.",
@@ -243,7 +243,7 @@ export const shop = {
       contactSubject: "Help with my order",
       paymentProcessing: "We're processing your payment…",
       processingSlow:
-        "This is taking longer than usual. You don't need to pay again. We'll email you when the payment is complete. Questions? info@roots.nu",
+        "This is taking longer than usual. You don't need to pay again. We'll email you when the payment is complete. Questions? hej@roots.nu",
       thankYou: "Thank you for your order",
       confirmationSentTo: "We're sending a confirmation to ",
       amountLabel: "Amount",
@@ -259,7 +259,7 @@ export const shop = {
     sv: {
       invalidLinkTitle: "Länken är ogiltig eller har gått ut",
       invalidLinkBody:
-        "Öppna länken i orderbekräftelsen som vi mejlade dig. Den innehåller koden som behövs för att visa beställningen. Hittar du inte mejlet? Skriv till info@roots.nu.",
+        "Öppna länken i orderbekräftelsen som vi mejlade dig. Den innehåller koden som behövs för att visa beställningen. Hittar du inte mejlet? Skriv till hej@roots.nu.",
       notFoundTitle: "Beställningen hittades inte",
       notFoundBody:
         "Vi hittar inte den här beställningen. Kontrollera länken och försök igen.",
@@ -289,7 +289,7 @@ export const shop = {
     en: {
       invalidLinkTitle: "This link is invalid or has expired",
       invalidLinkBody:
-        "Open the link in the order confirmation we emailed you. It contains the code needed to view your order. Can't find the email? Write to info@roots.nu.",
+        "Open the link in the order confirmation we emailed you. It contains the code needed to view your order. Can't find the email? Write to hej@roots.nu.",
       notFoundTitle: "Order not found",
       notFoundBody:
         "We can't find this order. Check the link and try again.",

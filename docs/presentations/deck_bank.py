@@ -55,7 +55,7 @@ def build() -> Deck:
             "Erbjudande | Premiumpaket 399 kr (schampo + balsam + body wash) + "
             "komplett digital plattform för lag, säljare och köpare.",
             "Bolag | Ourroots AB · 559355-7126 · Mossängsvägen 4, 429 34 Kullavik · "
-            "info@roots.nu",
+            "hej@roots.nu",
             "Läge | Produkt och plattform är live. Säljstart pågår. "
             "Demomiljö delad med banken.",
         ],
@@ -424,7 +424,7 @@ def build() -> Deck:
             "Öppna demomiljön ni redan har inlogg till",
             "Gå igenom föreningsportal och säljarflöde tillsammans",
             "Diskutera belopp, säkerheter och tidplan",
-            "Kontakt: info@roots.nu · Ourroots AB · 559355-7126",
+            "Kontakt: hej@roots.nu · Ourroots AB · 559355-7126",
         ],
         notes="Avsluta med öppenhet: banken kan klicka sig igenom systemet. "
               "Presentationen är komplement, inte ersättning.",
