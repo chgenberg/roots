@@ -1,9 +1,19 @@
-import { eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@roots/db";
 import { organizations } from "@roots/db/schema";
 import { childLogger } from "./logger";
 
 const log = childLogger("org-approval");
+
+/**
+ * Föreningar som väntar på granskning. Leads från intresseanmälan är
+ * overifierade men har inga användare och kan inte sälja; de hör hemma i
+ * pipelinen, inte i granskningskön, tills de blir kunder.
+ */
+export const pendingOrgReviewWhere = and(
+  eq(organizations.verified, false),
+  sql`${organizations.crmStatus} IS DISTINCT FROM 'LEAD'`
+);
 
 /**
  * Får den här föreningen sälja till allmänheten?

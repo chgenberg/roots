@@ -156,13 +156,14 @@ exports[`GET /v1/portal/pipeline > returns stage rollups and recent deals (snaps
 exports[`GET /v1/portal/pipeline/deals/:kind/:id > returns the quote with lines, club facts and sibling quotes (snapshot) 1`] = `
 {
   "deal": {
+    "contact": null,
     "createdAt": "2026-05-14T08:00:00.000Z",
     "id": "00000000-0000-0000-0000-0000000000d1",
     "kind": "QUOTE",
     "lines": [
       {
         "lineTotalOre": 149000,
-        "productName": "Roots Schampoo",
+        "productName": "Roots Shampoo",
         "qty": 10,
         "sku": "ROOTS-SH-001",
         "unitPriceOre": 14900,

@@ -24,6 +24,7 @@ import { requireSession } from "../lib/http-session";
 import { childLogger } from "../lib/logger";
 import { auditLog, requestContext } from "../lib/audit";
 import { resolveUiLocale, uiError } from "../lib/ui-locale";
+import { pendingOrgReviewWhere } from "../lib/org-approval";
 
 const log = childLogger("admin");
 
@@ -213,7 +214,7 @@ admin.get("/organizations/pending", async (c) => {
         users,
         and(eq(users.orgId, organizations.id), eq(users.role, "ASSOCIATION_ADMIN"))
       )
-      .where(eq(organizations.verified, false))
+      .where(pendingOrgReviewWhere)
       // Föreningens id är primärnyckel, så Postgres tillåter att de övriga
       // kolumnerna väljs utan att räknas upp här.
       .groupBy(organizations.id)

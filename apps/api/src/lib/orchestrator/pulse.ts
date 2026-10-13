@@ -3,6 +3,7 @@ import { db } from "@roots/db";
 import { organizations, payouts } from "@roots/db/schema";
 import type { DomainId } from "./graph";
 import { isEmailPaused } from "./probes";
+import { pendingOrgReviewWhere } from "../org-approval";
 
 export async function readPulse(): Promise<Partial<Record<DomainId, number>>> {
   const pulse: Partial<Record<DomainId, number>> = {};
@@ -20,7 +21,7 @@ export async function readPulse(): Promise<Partial<Record<DomainId, number>>> {
     const [orgs] = await db
       .select({ n: sql<number>`count(*)::int` })
       .from(organizations)
-      .where(eq(organizations.verified, false));
+      .where(pendingOrgReviewWhere);
     pulse.admin = orgs?.n ?? 0;
   } catch {
     /* schema or db unavailable */

@@ -10,6 +10,20 @@ export type InterestCustomerType = (typeof INTEREST_CUSTOMER_TYPES)[number];
 export const INTEREST_INTENTS = ["start", "info"] as const;
 export type InterestIntent = (typeof INTEREST_INTENTS)[number];
 
+/** Var besökaren kom ifrån. Sparas med anmälan, aldrig fler nycklar än så här. */
+export const INTEREST_TRACKING_KEYS = [
+  "utm_source",
+  "utm_medium",
+  "utm_campaign",
+  "utm_content",
+  "utm_term",
+  "referrer",
+  "landing",
+] as const;
+export type InterestTracking = Partial<
+  Record<(typeof INTEREST_TRACKING_KEYS)[number], string>
+>;
+
 /**
  * Svenska mobilnummer i valfri form ("070-123 45 67", "+46 70 123 45 67",
  * "0046701234567") blir "+46701234567". Utländska nummer med + behålls.

@@ -152,6 +152,21 @@ export function PipelineDealDialog({
   const org = detail?.org;
   const title = org?.name ?? t.titleFallback;
 
+  function contactTypeLabel(type: string | null | undefined): string | null {
+    switch (type) {
+      case "forening":
+        return t.typeForening;
+      case "lag":
+        return t.typeLag;
+      case "grundskola":
+        return t.typeGrundskola;
+      case "gymnasium":
+        return t.typeGymnasium;
+      default:
+        return type ?? null;
+    }
+  }
+
   function crmLabel(status: string | null | undefined): string {
     if (!status) return "—";
     return crmLabels[status as keyof typeof crmLabels] ?? status;
@@ -266,6 +281,57 @@ export function PipelineDealDialog({
                 >
                   {t.createQuote}
                 </Button>
+              )}
+
+              {detail.contact && (
+                <div className="rounded-lg border border-brand-700/25 bg-brand-50 p-4">
+                  <p className="mb-3 text-xs font-medium text-muted-foreground">
+                    {t.contactHeading}
+                  </p>
+                  <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+                    <Fact label={t.contactName} value={detail.contact.name} />
+                    <Fact
+                      label={t.contactPhone}
+                      value={
+                        detail.contact.phone ? (
+                          <a href={`tel:${detail.contact.phone}`} className="underline-offset-2 hover:underline">
+                            {detail.contact.phone}
+                          </a>
+                        ) : null
+                      }
+                    />
+                    <Fact
+                      label={t.contactEmail}
+                      value={
+                        <a href={`mailto:${detail.contact.email}`} className="underline-offset-2 hover:underline">
+                          {detail.contact.email}
+                        </a>
+                      }
+                    />
+                    <Fact
+                      label={t.contactType}
+                      value={contactTypeLabel(detail.contact.customerType)}
+                    />
+                    <Fact
+                      label={t.contactIntent}
+                      value={
+                        detail.contact.intent === "info"
+                          ? t.intentInfo
+                          : detail.contact.intent === "start"
+                            ? t.intentStart
+                            : null
+                      }
+                    />
+                    <Fact
+                      label={t.contactFrom}
+                      value={
+                        [detail.contact.utmSource, detail.contact.utmCampaign]
+                          .filter(Boolean)
+                          .join(" / ") || null
+                      }
+                    />
+                  </dl>
+                </div>
               )}
 
               <div>

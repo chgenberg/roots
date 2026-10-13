@@ -3,6 +3,7 @@ import { Footer } from "@/components/footer";
 import { RootsBackdrop } from "@/components/brand";
 import { ChatWidget } from "@/components/chat-widget";
 import { SearchDialog } from "@/components/search-dialog";
+import { UtmCapture } from "@/components/utm-capture";
 import { LocaleProvider } from "@/i18n/locale-context";
 import { getRequestLocale } from "@/i18n/request-locale";
 
@@ -27,6 +28,7 @@ export default async function MarketingLayout({
         <RootsBackdrop />
         <ChatWidget />
         <SearchDialog />
+        <UtmCapture />
       </div>
     </LocaleProvider>
   );

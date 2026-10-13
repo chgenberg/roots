@@ -43,9 +43,22 @@ const COLUMNS = [
   "Vi är",
   "Vill",
   "Namn",
+  "Förening/skola/klass",
+  "I pipelinen",
+  "Kom från",
   "Källa",
   "Anmäld",
 ] as const;
+
+function trackingSource(raw: string | null): string {
+  if (!raw) return "";
+  try {
+    const t = JSON.parse(raw) as Record<string, string>;
+    return [t.utm_source, t.utm_campaign].filter(Boolean).join(" / ") || t.referrer || "";
+  } catch {
+    return "";
+  }
+}
 
 const CUSTOMER_TYPE_LABEL: Record<string, string> = {
   forening: "Förening (flera lag)",
@@ -83,6 +96,9 @@ async function main() {
       customerType: waitlistSignups.customerType,
       intent: waitlistSignups.intent,
       name: waitlistSignups.name,
+      organisation: waitlistSignups.organisation,
+      organizationId: waitlistSignups.organizationId,
+      tracking: waitlistSignups.tracking,
       source: waitlistSignups.source,
       createdAt: waitlistSignups.createdAt,
     })
@@ -100,6 +116,9 @@ async function main() {
     "Vi är": r.customerType ? (CUSTOMER_TYPE_LABEL[r.customerType] ?? r.customerType) : "",
     Vill: r.intent ? (INTENT_LABEL[r.intent] ?? r.intent) : "",
     Namn: r.name ?? "",
+    "Förening/skola/klass": r.organisation ?? "",
+    "I pipelinen": r.organizationId ? "Ja" : "",
+    "Kom från": trackingSource(r.tracking),
     Källa: r.source,
     Anmäld: formatStockholm(r.createdAt),
   }));
@@ -113,6 +132,9 @@ async function main() {
     { wch: 16 },
     { wch: 22 },
     { wch: 20 },
+    { wch: 24 },
+    { wch: 28 },
+    { wch: 12 },
     { wch: 24 },
     { wch: 16 },
     { wch: 18 },

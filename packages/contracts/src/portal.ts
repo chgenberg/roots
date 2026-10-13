@@ -215,6 +215,19 @@ export const pipelineDealDetailSchema = z.object({
     membersCount: z.number().int().nonnegative(),
   }),
   lines: z.array(pipelineDealLineSchema),
+  // Kontakten från intresseanmälan när leaden kom in via webben.
+  contact: z
+    .object({
+      name: z.string().nullable(),
+      phone: z.string().nullable(),
+      email: z.string(),
+      customerType: z.string().nullable(),
+      intent: z.string().nullable(),
+      utmSource: z.string().nullable().optional(),
+      utmCampaign: z.string().nullable().optional(),
+    })
+    .nullable()
+    .optional(),
   // Other quotes for the same club, so the rep sees history without
   // leaving the dialog.
   otherQuotes: z.array(

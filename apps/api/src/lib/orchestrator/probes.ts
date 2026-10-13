@@ -4,6 +4,7 @@ import { organizations, payouts } from "@roots/db/schema";
 import { getJobStatuses } from "../monitoring/heartbeat";
 import type { DomainId } from "./graph";
 import type { Gate } from "./approvals";
+import { pendingOrgReviewWhere } from "../org-approval";
 
 export type Seed = {
   key: string;
@@ -84,7 +85,7 @@ export async function probePendingOrgReview(): Promise<Seed[]> {
     const [row] = await db
       .select({ n: sql<number>`count(*)::int` })
       .from(organizations)
-      .where(eq(organizations.verified, false));
+      .where(pendingOrgReviewWhere);
     const n = row?.n ?? 0;
     if (n === 0) return [];
     return [

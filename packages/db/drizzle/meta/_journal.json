@@ -169,6 +169,13 @@
       "when": 1791882000000,
       "tag": "0023_waitlist_interest",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1791886000000,
+      "tag": "0024_interest_complement",
+      "breakpoints": true
     }
   ]
 }

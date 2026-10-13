@@ -326,6 +326,18 @@ const ERRORS = {
     sv: "Godkänn integritetspolicyn för att skicka.",
     en: "Please accept the privacy policy to send.",
   },
+  enterFullName: {
+    sv: "Ange förnamn och efternamn.",
+    en: "Please enter your first and last name.",
+  },
+  enterOrganisationName: {
+    sv: "Ange förening, skola eller klass.",
+    en: "Please enter your club, school or class.",
+  },
+  interestNotFound: {
+    sv: "Vi hittar inte anmälan längre. Skicka in den igen.",
+    en: "We can no longer find your registration. Please send it again.",
+  },
   couldNotSave: {
     sv: "Kunde inte spara just nu. Försök igen.",
     en: "Could not save right now. Please try again.",

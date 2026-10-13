@@ -1,11 +1,31 @@
 {
-  "updatedAt": "2026-10-13T11:00:00.000Z",
+  "updatedAt": "2026-10-13T11:20:00.000Z",
   "cards": [
+    {
+      "id": "wb-intresseflode-newbody-oct13",
+      "title": "Intresseflöde i tre steg som Newbody",
+      "body": "Steg 1 som idag + låst knapp, bocka, honeypot, utm. Steg 2 namn + förening/skola/klass (ingen adress). Steg 3 'vi ringer'. Steg 2 skapar lead (crm LEAD, källa WEB) i pipelinen; kontakt syns i affärsdialogen. Egen sida /intresseanmalan + Sälj med oss i headern. Migration 0024 additiv. Inget mejl, ingen env-lyft. Deploy kräver ja.",
+      "status": "doing",
+      "domainId": "platform",
+      "playbook": "ops",
+      "files": [
+        "apps/web/src/components/interest-flow.tsx",
+        "apps/web/src/app/(marketing)/intresseanmalan/page.tsx",
+        "apps/api/src/routes/preview.ts",
+        "apps/api/src/routes/portal.ts",
+        "apps/web/src/components/pipeline-deal-dialog.tsx",
+        "packages/db/drizzle/0024_interest_complement.sql"
+      ],
+      "gate": "deploy",
+      "source": "cursor",
+      "createdAt": "2026-10-13T11:20:00.000Z",
+      "updatedAt": "2026-10-13T11:20:00.000Z"
+    },
     {
       "id": "wb-vita-flaskor-intresse-oct13",
       "title": "Vita flaskor + intresseanmälan som Newbody",
-      "body": "Nya flaskan (vit, vitt lock) i alla bilder, hero = Christophers foto. Intresseanmälan: start/info, mobil, e-post, kundtyp, policy-checkruta. Additiv migration 0023 på waitlist_signups. Inget mejl skickas, ingen env-lyft. Deploy kräver ja.",
-      "status": "doing",
+      "body": "Nya flaskan (vit, vitt lock) i alla bilder, hero = Christophers foto. Intresseanmälan: start/info, mobil, e-post, kundtyp, policy-checkruta. Additiv migration 0023 på waitlist_signups. Inget mejl skickas, ingen env-lyft. Deployad e871a51 efter ja: web + API SUCCESS, migration applied=1, verifierad på roots.nu.",
+      "status": "done",
       "domainId": "platform",
       "playbook": "ops",
       "files": [

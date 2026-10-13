@@ -14,6 +14,7 @@ import {
   portalShared,
 } from "./dictionaries/portal-pages";
 import { preview } from "./dictionaries/preview";
+import { interest } from "./dictionaries/interest";
 import { shop } from "./dictionaries/shop";
 import {
   productListingExtras,
@@ -74,6 +75,10 @@ export function getShop<K extends keyof typeof shop>(
 
 export function getPreview(locale: Locale) {
   return preview[locale];
+}
+
+export function getInterest(locale: Locale) {
+  return interest[locale];
 }
 
 export function getPages() {

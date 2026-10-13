@@ -10,6 +10,7 @@ import {
   products,
   quotes,
   quoteLines,
+  waitlistSignups,
 } from "@roots/db/schema";
 import { isDemoSession } from "../lib/session";
 import { requireSession } from "../lib/http-session";
@@ -25,6 +26,7 @@ import type {
   DashboardResponse,
   StatisticsResponse,
   PipelineResponse,
+  PipelineDealDetail,
   IncomeResponse,
   PortalRole,
 } from "@roots/contracts";
@@ -2115,6 +2117,38 @@ portal.get("/pipeline/deals/:kind/:id", async (c) => {
       salesRepName = rep?.contactName ?? rep?.email ?? null;
     }
 
+    const [signup] = await db
+      .select({
+        name: waitlistSignups.name,
+        phone: waitlistSignups.phone,
+        email: waitlistSignups.email,
+        customerType: waitlistSignups.customerType,
+        intent: waitlistSignups.intent,
+        tracking: waitlistSignups.tracking,
+      })
+      .from(waitlistSignups)
+      .where(eq(waitlistSignups.organizationId, orgId))
+      .orderBy(desc(waitlistSignups.completedAt))
+      .limit(1);
+    let contact: PipelineDealDetail["contact"] = null;
+    if (signup) {
+      let tracking: Record<string, string> = {};
+      try {
+        tracking = signup.tracking ? JSON.parse(signup.tracking) : {};
+      } catch {
+        tracking = {};
+      }
+      contact = {
+        name: signup.name,
+        phone: signup.phone,
+        email: signup.email,
+        customerType: signup.customerType,
+        intent: signup.intent,
+        utmSource: tracking.utm_source ?? null,
+        utmCampaign: tracking.utm_campaign ?? null,
+      };
+    }
+
     return c.json({
       deal: {
         kind: kindParam === "quote" ? "QUOTE" : "LEAD",
@@ -2149,6 +2183,7 @@ portal.get("/pipeline/deals/:kind/:id", async (c) => {
           unitPriceOre: Number(l.unitPriceOre),
           lineTotalOre: Number(l.unitPriceOre) * Number(l.qty),
         })),
+        contact,
         otherQuotes: otherQuoteRows
           .filter((q) => q.id !== id)
           .map((q) => ({

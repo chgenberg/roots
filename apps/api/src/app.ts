@@ -158,6 +158,7 @@ const CSRF_EXEMPT_PATHS = [
   // Protected instead by per-IP rate limits in routes/preview.ts.
   "/v1/preview/unlock",
   "/v1/preview/waitlist",
+  "/v1/preview/waitlist/complete",
   // MASTERPLAN_01 KC2.7 + P3.30 (audit 2026-05-26): interna cron-jobb
   // triggas av Railway cron eller GitHub Actions med Bearer-token.
   // Tidigare exempterades hela /v1/internal/cron-prefixet, vilket gjorde

@@ -168,6 +168,13 @@ export function Header() {
               >
                 {t.calcCta}
               </LocaleLink>
+              <LocaleLink
+                href="/intresseanmalan"
+                aria-current={isActive("/intresseanmalan") ? "page" : undefined}
+                className="mr-2 flex h-10 items-center whitespace-nowrap rounded-full bg-brand-700 px-5 text-sm font-medium text-white transition-colors duration-200 hover:bg-brand-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {t.sellCta}
+              </LocaleLink>
               <SearchTrigger />
               <ThemeToggle />
               <Link
@@ -241,9 +248,17 @@ export function Header() {
 
           <div className="mt-12 flex flex-col gap-4">
             <LocaleLink
-              href="/sa-fungerar-det#rakna"
+              href="/intresseanmalan"
               onClick={() => setMenuOpen(false)}
               className="inline-flex items-center gap-2 rounded-full bg-brand-700 px-4 py-2 text-sm font-medium text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {t.sellCta}
+              <ArrowRight className="h-4 w-4" />
+            </LocaleLink>
+            <LocaleLink
+              href="/sa-fungerar-det#rakna"
+              onClick={() => setMenuOpen(false)}
+              className="flex items-center gap-2 rounded-md text-lg font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {t.calcCta}
               <ArrowRight className="h-4 w-4" />
