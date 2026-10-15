@@ -1023,7 +1023,7 @@ export const guideDefinitions: GuideDefinition[] = [
     sv: {
       title: "SyriCalm® — Phragmites och Poria för en lugnare känsla",
       description:
-        "Vad är SyriCalm® i Roots produkter? En kosmetisk guide till den nordiska aktiven av vass och svamp — utan medicinska löften.",
+        "Vad är SyriCalm® i Roots produkter? En kosmetisk guide till den nordiska aktiven av vass och svamp.",
       sections: [
         {
           heading: "Vad är SyriCalm®?",
@@ -1079,7 +1079,7 @@ export const guideDefinitions: GuideDefinition[] = [
     en: {
       title: "SyriCalm® — Phragmites and Poria for a calmer feel",
       description:
-        "What is SyriCalm® in Roots products? A cosmetic guide to the Nordic active from reed and mushroom — without medical claims.",
+        "What is SyriCalm® in Roots products? A cosmetic guide to the Nordic active from reed and mushroom.",
       sections: [
         {
           heading: "What is SyriCalm®?",

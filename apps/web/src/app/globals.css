@@ -288,6 +288,8 @@ h5, h6 { font-weight: 600; letter-spacing: -0.005em; line-height: 1.35; }
   --color-brand-700:            #6D614D;
   --color-brand-800:            #5E5341;
   --color-brand-900:            #4A4134;
+  --color-inverse-surface:       #6D614D;
+  --color-inverse-surface-hover: #5E5341;
   color: var(--color-foreground);
 }
 
