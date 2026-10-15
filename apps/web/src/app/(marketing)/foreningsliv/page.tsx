@@ -1,7 +1,6 @@
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { SectionEyebrow } from "@/components/section-eyebrow";
 import { BreadcrumbJsonLd, WebPageJsonLd } from "@/components/json-ld";
 import { LocaleLink } from "@/components/locale-link";
 import { pageMetadata } from "@/lib/seo";
@@ -9,7 +8,6 @@ import { getPage } from "@/i18n/get-dictionary";
 import { getRequestLocale } from "@/i18n/request-locale";
 import { withLocale } from "@/i18n/paths";
 import type { Metadata } from "next";
-import { RootsGrassDivider } from "@/components/brand";
 import { ArrowRight } from "lucide-react";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -43,14 +41,10 @@ export default async function ForeningslivPage() {
         locale={locale}
       />
 
-      <section className="relative overflow-hidden bg-brand-100 py-14 pb-36 md:py-20 md:pb-48">
-        <RootsGrassDivider
-          variant="dark"
-          className="absolute inset-x-0 bottom-0 opacity-60"
-        />
-        <div className="relative mx-auto grid max-w-[1280px] items-center gap-12 px-6 md:px-10 lg:grid-cols-2 lg:gap-20">
+      <section className="py-14 md:py-20">
+        <div className="mx-auto grid max-w-[1280px] items-center gap-12 px-6 md:px-10 lg:grid-cols-2 lg:gap-20">
           <div className="max-w-lg">
-            <SectionEyebrow className="mb-4">{t.badge}</SectionEyebrow>
+            <p className="mb-8 text-pretty text-lg leading-relaxed">{t.heroIntro}</p>
             <h1 className="text-3xl leading-[1.15] tracking-tight md:text-4xl">
               {t.heroTitleLead}
               <span className="block text-brand-700">{t.heroTitleAccent}</span>
@@ -73,7 +67,7 @@ export default async function ForeningslivPage() {
 
           <div className="group relative aspect-[5/4] overflow-hidden rounded-3xl shadow-2xl shadow-brand-900/10 md:aspect-[4/3]">
             <Image
-              src="/images/roots-sport-hockey-w.jpg"
+              src="/images/roots-sport-hockey-t.jpg"
               alt={t.heroImageAlt}
               fill
               className="object-cover object-[center_45%] transition-transform duration-700 ease-out group-hover:scale-[1.02]"
@@ -108,12 +102,15 @@ export default async function ForeningslivPage() {
             ))}
           </div>
 
-          <div className="mt-14 flex justify-center">
+          <div className="mt-14 flex flex-wrap justify-center gap-4">
             <Button size="lg" asChild>
               <LocaleLink href="/sa-fungerar-det#rakna">
                 {t.ctaAfterSteps}
                 <ArrowRight className="ml-1 h-4 w-4" />
               </LocaleLink>
+            </Button>
+            <Button size="lg" variant="secondary" asChild>
+              <LocaleLink href="/sa-har-gar-det-till">{t.ctaHowTo}</LocaleLink>
             </Button>
           </div>
         </div>
@@ -149,14 +146,14 @@ export default async function ForeningslivPage() {
         <div className="group relative mx-auto max-w-[1280px] overflow-hidden rounded-3xl">
           <div className="relative aspect-[4/5] md:aspect-[16/10]">
             <Image
-              src="/images/roots-sport-hero-mobile-w.jpg"
+              src="/images/roots-sport-hero-mobile-t.jpg"
               alt={t.midImageAlt}
               fill
               className="object-cover object-center transition-transform duration-700 ease-out group-hover:scale-[1.02] md:hidden"
               sizes="100vw"
             />
             <Image
-              src="/images/roots-sport-hero-w.jpg"
+              src="/images/roots-sport-hero-t.jpg"
               alt={t.midImageAlt}
               fill
               className="hidden object-cover transition-transform duration-700 ease-out group-hover:scale-[1.02] md:block"
@@ -165,54 +162,22 @@ export default async function ForeningslivPage() {
           </div>
           <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-inset ring-black/5" />
         </div>
-
-        <div className="mx-auto mt-6 grid max-w-[1280px] gap-6 md:grid-cols-2">
-          <div className="group relative aspect-[4/3] overflow-hidden rounded-3xl">
-            <Image
-              src="/images/roots-club-table-w.jpg"
-              alt={t.sellingImageAlt}
-              fill
-              className="object-cover object-[center_40%] transition-transform duration-700 ease-out group-hover:scale-[1.02]"
-              sizes="(max-width: 768px) 100vw, 50vw"
-            />
-            <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-inset ring-black/5" />
-          </div>
-          <div className="group relative aspect-[4/3] overflow-hidden rounded-3xl">
-            <Image
-              src="/images/roots-club-camp-w.jpg"
-              alt={t.campImageAlt}
-              fill
-              className="object-cover object-[center_40%] transition-transform duration-700 ease-out group-hover:scale-[1.02]"
-              sizes="(max-width: 768px) 100vw, 50vw"
-            />
-            <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-inset ring-black/5" />
-          </div>
-        </div>
       </section>
 
-      <section className="bg-inverse-surface py-16 text-inverse-on-surface md:py-20">
+      <section className="pb-24 md:pb-32">
         <div className="mx-auto max-w-[1280px] px-6 text-center md:px-10">
           <h2 className="text-3xl font-bold tracking-tight">{t.bottomTitle}</h2>
-          <p className="mx-auto mt-4 max-w-xl text-inverse-on-surface/80">
+          <p className="mx-auto mt-4 max-w-xl text-muted-foreground">
             {t.bottomBody}
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-4">
-            <Button
-              size="lg"
-              className="bg-white text-neutral-900 shadow-sm hover:bg-neutral-100"
-              asChild
-            >
+            <Button size="lg" asChild>
               <LocaleLink href="/intresseanmalan">
                 {t.bottomCta}
                 <ArrowRight className="ml-1 h-4 w-4" />
               </LocaleLink>
             </Button>
-            <Button
-              size="lg"
-              variant="secondary"
-              className="border-white/30 bg-white/10 text-white hover:bg-white/20"
-              asChild
-            >
+            <Button size="lg" variant="secondary" asChild>
               <LocaleLink href="/sa-fungerar-det#rakna">
                 {t.bottomCalcCta}
               </LocaleLink>

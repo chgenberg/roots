@@ -23,7 +23,10 @@ export function InterestSplit({
   const fullHeight = standalone ? "lg:h-[100dvh]" : "lg:h-[calc(100dvh-4rem)]";
 
   return (
-    <div className={cn("bg-background lg:grid lg:grid-cols-2", standalone && "min-h-[100dvh]")}>
+    <div
+      data-marketing={standalone ? "" : undefined}
+      className={cn("bg-background lg:grid lg:grid-cols-2", standalone && "min-h-[100dvh]")}
+    >
       <div
         className={cn(
           "relative h-52 sm:h-72 lg:order-2 lg:sticky",
@@ -32,7 +35,7 @@ export function InterestSplit({
         )}
       >
         <Image
-          src="/images/roots-club-table-w.jpg"
+          src="/images/roots-club-table-t.jpg"
           alt={t.imageAlt}
           fill
           priority

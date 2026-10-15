@@ -1,6 +1,6 @@
 export type Locale = "sv" | "en";
 
-type NavKey = "products" | "clubLife" | "guides" | "about";
+type NavKey = "products" | "clubLife" | "howItWorks" | "guides" | "about";
 
 type FooterLink = { href: string; label: string };
 type FooterGroup = { title: string; links: FooterLink[] };
@@ -42,6 +42,7 @@ export const chrome: Record<Locale, ChromeCopy> = {
     nav: {
       products: "Produkter",
       clubLife: "Föreningsliv",
+      howItWorks: "Så här går det till",
       guides: "Guider",
       about: "Om oss",
     },
@@ -79,7 +80,7 @@ export const chrome: Record<Locale, ChromeCopy> = {
           links: [
             { href: "/foreningsliv", label: "Föreningsliv" },
             { href: "/intresseanmalan", label: "Sälj med oss" },
-            { href: "/sa-fungerar-det", label: "Så fungerar det" },
+            { href: "/sa-har-gar-det-till", label: "Så här går det till" },
             { href: "/sa-fungerar-det#rakna", label: "Räkna på intäkten" },
             { href: "/om-oss", label: "Om oss" },
             { href: "/kontakt", label: "Kontakt" },
@@ -117,6 +118,7 @@ export const chrome: Record<Locale, ChromeCopy> = {
     nav: {
       products: "Products",
       clubLife: "For clubs",
+      howItWorks: "How it works",
       guides: "Guides",
       about: "About us",
     },
@@ -154,7 +156,7 @@ export const chrome: Record<Locale, ChromeCopy> = {
           links: [
             { href: "/foreningsliv", label: "For clubs" },
             { href: "/intresseanmalan", label: "Sell with us" },
-            { href: "/sa-fungerar-det", label: "How it works" },
+            { href: "/sa-har-gar-det-till", label: "How it works" },
             { href: "/sa-fungerar-det#rakna", label: "Calculate your earnings" },
             { href: "/om-oss", label: "About us" },
             { href: "/kontakt", label: "Contact" },

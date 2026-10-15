@@ -86,7 +86,7 @@ function SliderField({
         max={max}
         step={step}
         onChange={(e) => onChange(clamp(Number(e.target.value)))}
-        className="h-2.5 w-full cursor-pointer appearance-none rounded-full bg-brand-100 accent-[#6B794F]"
+        className="h-2.5 w-full cursor-pointer appearance-none rounded-full bg-brand-100 accent-[#6D614D]"
         aria-label={label}
       />
       <div className="flex justify-between text-[11px] tabular-nums text-muted-foreground">
@@ -214,9 +214,6 @@ export function RevenueCalculator({
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-700">
               {t.yourNumbers}
             </p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {t.numbersIntro}
-            </p>
           </div>
 
           <div className="space-y-4">
@@ -338,15 +335,15 @@ export function RevenueCalculator({
       </Card>
 
       <div className="space-y-4 lg:col-span-3">
-        <Card className="overflow-hidden border-0 bg-brand-700 text-white shadow-sm">
+        <Card className="overflow-hidden border-0 bg-[linear-gradient(160deg,#F7F3EA_0%,#EFE8DD_55%,#DDD2C6_100%)] text-[#5E5341] shadow-sm">
           <CardContent className="p-6 sm:p-8">
-            <p className="text-sm font-medium text-brand-100">
+            <p className="text-sm font-medium text-[#7F715B]">
               {t.profit}
             </p>
             <p className="mt-2 text-5xl font-bold tabular-nums tracking-tight sm:text-6xl">
               {money(result.earningsKr)}
             </p>
-            <p className="mt-3 text-sm text-brand-100/90">
+            <p className="mt-3 text-sm text-[#7F715B]">
               {t.ofGross.replace("{gross}", money(result.grossKr))} ·{" "}
               {result.marginPercent}%
             </p>
@@ -354,7 +351,7 @@ export function RevenueCalculator({
               <div className="mt-6 max-w-sm space-y-1.5">
                 <label
                   htmlFor="pdf-club-name"
-                  className="text-xs font-medium text-brand-100"
+                  className="text-xs font-medium text-[#7F715B]"
                 >
                   {t.pdfClubLabel}
                 </label>
@@ -366,7 +363,7 @@ export function RevenueCalculator({
                   autoComplete="organization"
                   placeholder={t.pdfClubPlaceholder}
                   onChange={(e) => setPdfClubName(e.target.value)}
-                  className="w-full rounded-lg border border-white/25 bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+                  className="w-full rounded-lg border border-[#D5CABF] bg-white/70 px-3 py-2 text-sm text-[#5E5341] placeholder:text-[#8B7E69] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6D614D]/40"
                 />
               </div>
             )}
@@ -382,7 +379,7 @@ export function RevenueCalculator({
               }
               className={cn(
                 knownClubName ? "mt-6" : "mt-3",
-                "inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/25"
+                "inline-flex items-center gap-2 rounded-full bg-[#6D614D] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#5E5341]"
               )}
             >
               <Download className="h-4 w-4" aria-hidden="true" />

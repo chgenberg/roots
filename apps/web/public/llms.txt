@@ -32,6 +32,7 @@ Aktuella priser finns alltid på produktsidorna. Vägledande sortiment:
 - Produkter: https://roots.nu/produkter
 - Föreningsliv: https://roots.nu/foreningsliv
 - Så fungerar det: https://roots.nu/sa-fungerar-det
+- Så här går det till: https://roots.nu/sa-har-gar-det-till
 - Hjälp & FAQ: https://roots.nu/hjalp
 - Guider (kunskapshub): https://roots.nu/guider
 - Om oss: https://roots.nu/om-oss

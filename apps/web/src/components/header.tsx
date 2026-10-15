@@ -17,6 +17,7 @@ import { useLocale } from "@/i18n/locale-context";
 const NAV_HREFS = [
   { href: "/produkter", key: "products" as const },
   { href: "/foreningsliv", key: "clubLife" as const },
+  { href: "/sa-har-gar-det-till", key: "howItWorks" as const },
   { href: "/guider", key: "guides" as const },
   { href: "/om-oss", key: "about" as const },
 ];

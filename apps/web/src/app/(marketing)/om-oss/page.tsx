@@ -4,7 +4,6 @@ import { LocaleLink } from "@/components/locale-link";
 import { Button } from "@/components/ui/button";
 import { pageMetadata } from "@/lib/seo";
 import { SectionEyebrow } from "@/components/section-eyebrow";
-import { RootsGrassDivider } from "@/components/brand";
 import { getPage } from "@/i18n/get-dictionary";
 import { getRequestLocale } from "@/i18n/request-locale";
 import { withLocale } from "@/i18n/paths";
@@ -69,70 +68,16 @@ export default async function OmOssPage() {
         </div>
       </section>
 
-      <section id="varfor" className="scroll-mt-24 py-20 md:py-28">
-        <div className="mx-auto max-w-[1280px] px-6 md:px-10">
-          <div className="mx-auto max-w-2xl text-center">
-            <SectionEyebrow>{t.whyEyebrow}</SectionEyebrow>
-            <h2 className="mt-3 text-3xl font-bold tracking-tight md:text-4xl">
-              {t.whyTitle}
-            </h2>
-            <p className="mt-5 text-lg leading-relaxed text-muted-foreground">
-              {t.whyIntro}
+      <div className="mx-auto max-w-2xl space-y-16 px-6 py-20 md:space-y-20 md:px-10 md:py-28">
+        {t.sections.map((section) => (
+          <section key={section.id} id={section.id} className="scroll-mt-24">
+            <h2 className="text-3xl tracking-tight">{section.title}</h2>
+            <p className="mt-5 text-pretty text-lg leading-relaxed text-muted-foreground">
+              {section.body}
             </p>
-          </div>
-          <ol className="mx-auto mt-14 grid max-w-5xl gap-10 md:grid-cols-3 md:gap-8">
-            {t.whyCircle.map((step, i) => (
-              <li key={step.label} className="border-t border-brand-200 pt-6">
-                <p className="text-xs font-semibold uppercase tracking-wider text-brand-600">
-                  {String(i + 1).padStart(2, "0")} · {step.label}
-                </p>
-                <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-                  {step.text}
-                </p>
-              </li>
-            ))}
-          </ol>
-        </div>
-      </section>
-
-      <section className="relative overflow-hidden bg-brand-100 py-20 pb-32 md:py-28 md:pb-40">
-        <RootsGrassDivider
-          variant="dark"
-          className="absolute inset-x-0 bottom-0 opacity-60"
-        />
-        <div className="relative mx-auto max-w-[1280px] px-6 md:px-10">
-          <div className="mx-auto max-w-2xl text-center">
-            <SectionEyebrow>{t.valuesEyebrow}</SectionEyebrow>
-            <h2 className="mt-3 text-3xl font-bold tracking-tight">
-              {t.valuesTitle}
-            </h2>
-          </div>
-          <div className="mt-14 grid gap-10 md:grid-cols-3 md:gap-8">
-            {t.values.map((v) => (
-              <div key={v.title}>
-                <h3 className="text-lg font-semibold tracking-tight">{v.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                  {v.description}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section id="historien" className="py-24 md:py-32">
-        <div className="mx-auto max-w-2xl px-6 text-center md:px-10">
-          <SectionEyebrow>{t.storyEyebrow}</SectionEyebrow>
-          <h2 className="mt-3 text-3xl font-bold tracking-tight">
-            {t.storyTitle}
-          </h2>
-          <div className="mt-6 space-y-4 text-base leading-relaxed text-muted-foreground">
-            {t.storyParagraphs.map((p) => (
-              <p key={p.slice(0, 24)}>{p}</p>
-            ))}
-          </div>
-        </div>
-      </section>
+          </section>
+        ))}
+      </div>
 
       <section className="border-t border-brand-200/60 py-20 md:py-24">
         <div className="mx-auto grid max-w-[1280px] gap-12 px-6 md:grid-cols-2 md:gap-16 md:px-10">

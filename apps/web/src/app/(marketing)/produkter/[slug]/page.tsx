@@ -32,7 +32,7 @@ const IMAGE2_BY_SLUG: Record<ProductSlug, string> = {
   shampoo: "/images/roots-shampoo-lifestyle-w.jpg",
   conditioner: "/images/roots-conditioner-lifestyle-w.jpg",
   "body-wash": "/images/roots-body-wash-lifestyle-w.jpg",
-  [BUNDLE_SLUG]: "/images/roots-sport-hockey-w.jpg",
+  [BUNDLE_SLUG]: "/images/roots-sport-hockey-t.jpg",
 };
 
 const INGREDIENTS: Partial<Record<ProductSlug, string[]>> = {

@@ -11,20 +11,20 @@ const BY_SLUG: Record<string, { sv: string; en: string }> = {
 /** Short shop/catalog blurbs (DB seeds are Swedish — overlay for EN). */
 const DESC_BY_SLUG: Record<string, { sv: string; en: string }> = {
   shampoo: {
-    sv: "Rent hår. Hårbotten i fred. Sockerbaserade tensider, SyriCalm®, neutral doft. 250 ml.",
-    en: "Clean hair. Scalp left alone. Sugar-based surfactants, SyriCalm®, neutral scent. 250 ml.",
+    sv: "Rengör på riktigt. Sockerbaserade tensider, SyriCalm®, neutral doft. 250 ml.",
+    en: "A real clean. Sugar-based surfactants, SyriCalm®, neutral scent. 250 ml.",
   },
   conditioner: {
-    sv: "Mjukt, utan att tynga. Panthenol, E-vitamin och SyriCalm®. 250 ml.",
-    en: "Soft, never heavy. Panthenol, vitamin E and SyriCalm®. 250 ml.",
+    sv: "Mjukt följsamt hår. Panthenol, E-vitamin och SyriCalm®. 250 ml.",
+    en: "Soft, smooth hair. Panthenol, vitamin E and SyriCalm®. 250 ml.",
   },
   "body-wash": {
-    sv: "Ren hud som inte torkar. Milda tensider, Panthenol och SyriCalm®. 250 ml.",
-    en: "Clean skin that doesn't dry out. Mild surfactants, panthenol and SyriCalm®. 250 ml.",
+    sv: "Skonsam dusch. Milda tensider, Panthenol och SyriCalm®. 250 ml.",
+    en: "A gentle shower. Mild surfactants, panthenol and SyriCalm®. 250 ml.",
   },
   paket: {
-    sv: "Hela duschen. Ett paket. Schampo, balsam och body wash. 3 × 250 ml.",
-    en: "The whole shower. One pack. Shampoo, conditioner and body wash. 3 × 250 ml.",
+    sv: "Tre flaskor. En rutin. Schampo, balsam och body wash. 3 × 250 ml.",
+    en: "Three bottles. One routine. Shampoo, conditioner and body wash. 3 × 250 ml.",
   },
 };
 

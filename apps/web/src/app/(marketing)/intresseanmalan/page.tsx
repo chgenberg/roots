@@ -13,7 +13,7 @@ export async function generateMetadata(): Promise<Metadata> {
     description: t.metaDescription,
     path: "/intresseanmalan",
     locale,
-    ogImage: "/images/roots-club-table-w.jpg",
+    ogImage: "/images/roots-club-table-t.jpg",
   });
 }
 

@@ -50,7 +50,7 @@ interface BrandImageProps {
  * on the wrapper (e.g. `className="h-8 md:h-10"`).
  */
 export function RootsLogo({
-  variant = "black",
+  variant = "dark",
   className,
   priority = false,
 }: BrandImageProps & { variant?: LogoVariant | "auto" }) {
@@ -62,7 +62,7 @@ export function RootsLogo({
     return (
       <span className={cn("relative inline-block h-8 w-[80px]", className)}>
         <Image
-          src={LOGO_SRC.black}
+          src={LOGO_SRC.dark}
           alt="Roots"
           fill
           className="object-contain object-left dark:hidden"

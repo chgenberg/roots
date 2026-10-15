@@ -19,9 +19,9 @@ export const pages = {
       title: "Produkter",
       description:
         "Schampo, balsam och body wash. Utvecklade i Norden. Utan sulfater, silikoner och parabener. 35 % av varje köp stannar i föreningen.",
-      heroTitle: "Tre flaskor. En rutin.",
+      heroTitle: "Tre premiumprodukter",
       heroBody:
-        "Schampo, balsam och body wash — var för sig eller som Premiumpaket. Utan sulfater, silikoner och parabener.",
+        "Schampo, balsam och body wash utan sulfater, silikoner och parabener. Naturliga ingredienser där varje element tjänar ett tydligt syfte för att vårda hår och hud. Produkter för daglig användning av hög kvalitet. Var för sig eller som Premiumpaket.",
       itemListName: "Roots produkter",
       breadcrumbHome: "Hem",
       values: [
@@ -45,9 +45,9 @@ export const pages = {
       title: "Products",
       description:
         "Shampoo, conditioner and body wash. Developed in the Nordics. No sulphates, silicones or parabens. 35% of every purchase stays with the club.",
-      heroTitle: "Three bottles. One routine.",
+      heroTitle: "Three premium products",
       heroBody:
-        "Shampoo, conditioner and body wash — individually or as a Premium pack. No sulphates, silicones or parabens.",
+        "Shampoo, conditioner and body wash without sulphates, silicones or parabens. Natural ingredients where every element has a clear purpose in caring for hair and skin. High-quality products for everyday use. On their own or as a Premium pack.",
       itemListName: "Roots products",
       breadcrumbHome: "Home",
       values: [
@@ -75,6 +75,8 @@ export const pages = {
       description:
         "Föreningar säljer Roots. 35 % stannar i föreningen. Inga pärmar, inga kontanter, ingen startavgift.",
       badge: "För föreningar",
+      heroIntro:
+        "Roots bygger framtidens föreningsförsäljning genom premiumprodukter inom hår- och hudvård, där varje val är rotat i ambitionen att stärka föreningslivet och skapa långsiktiga möjligheter för barn och unga.",
       heroTitleLead: "Ni säljer.",
       heroTitleAccent: "Vi sköter resten.",
       heroBody:
@@ -84,6 +86,7 @@ export const pages = {
       ctaSecondary: "Kontakta oss",
       ctaCalc: "Räkna på intäkten",
       ctaAfterSteps: "Räkna på intäkten",
+      ctaHowTo: "Se hela flödet",
       bottomCalcCta: "Räkna på intäkten",
       stepsTitle: "Så här går det till",
       stepsSubtitle: "Fyra steg. Inga pärmar.",
@@ -143,6 +146,8 @@ export const pages = {
       description:
         "Clubs sell Roots. 35% stays with the club. No paperwork, no cash, no start-up fee.",
       badge: "For clubs",
+      heroIntro:
+        "Roots is building the future of club fundraising with premium hair and body care, where every choice is rooted in strengthening club life and creating long-term opportunities for children and young people.",
       heroTitleLead: "You sell.",
       heroTitleAccent: "We handle the rest.",
       heroBody:
@@ -152,6 +157,7 @@ export const pages = {
       ctaSecondary: "Contact us",
       ctaCalc: "Calculate the revenue",
       ctaAfterSteps: "Calculate the revenue",
+      ctaHowTo: "See the full flow",
       bottomCalcCta: "Calculate the revenue",
       stepsTitle: "How it works",
       stepsSubtitle: "Four steps. No paperwork.",
@@ -397,55 +403,32 @@ export const pages = {
     sv: {
       title: "Om oss",
       description:
-        "Hårvård som arbetar med hår och hårbotten — och som ger 35 % tillbaka till föreningen.",
+        "Premiumprodukter inom hår- och hudvård som stärker föreningslivet. 35 % av varje såld krona går tillbaka till föreningen.",
       eyebrow: "Om oss",
       brand: "Roots",
       heroBody:
-        "Hårvård som folk redan köper. 35 % stannar i föreningen.",
+        "Roots bygger framtidens föreningsförsäljning genom premiumprodukter inom hår- och hudvård, där varje val är rotat i ambitionen att stärka föreningslivet och skapa långsiktiga möjligheter för barn och unga.",
       ctaContact: "Kontakta oss",
-      whyEyebrow: "Varför",
-      whyTitle: "Varför vi gör det här",
-      whyIntro:
-        "Hårvård kan arbeta med håret — eller mot det. Vi har valt det första.",
-      whyCircle: [
+      sections: [
         {
-          label: "Varför",
-          text: "Hår och hårbotten mår bäst när deras egen balans får vara kvar: mikroberna som lever där, de egna oljorna och hudens skyddsbarriär. Många produkter ger en snabb känsla för stunden. Vi vill ge något som håller över tid.",
+          id: "omsorg",
+          title: "Skandinavisk omsorg och funktion",
+          body: "Roots är skapat med omsorg och högkvalitativa, skonsamma formuleringar utvecklade i Skandinavien för aktiva människor och daglig användning. Med naturliga ingredienser där varje element tjänar ett tydligt syfte för att vårda hår och hud. Det är en kombination av funktion, stilren design och hög kvalitet som passar hela familjen.",
         },
         {
-          label: "Hur",
-          text: "Vi rengör med milda, sockerbaserade tensider och vårdar med SyriCalm® — en växtbaserad aktiv av vass och svamp som i studier lugnat huden och hjälpt hudbarriären att återhämta sig. Hårsäcken har också ett eget signalsystem, endocannabinoidsystemet, som är med och styr hårets tillväxtcykel. Inget i våra produkter är framtaget för att påverka det.",
+          id: "varfor",
+          title: "Skapat för ett större syfte",
+          body: "Roots handlar om mer än bara hår- och hudvård; det handlar om människorna och föreningarna bakom. Produkterna täcker ett befintligt vardagsbehov samtidigt som 35 % av varje såld krona går direkt tillbaka till den lokala föreningen, utan dolda avgifter. Det bygger på en stark övertygelse: när meningsfull design och konsumtion förenas med ett större syfte skapas ett rikare föreningsliv och bättre förutsättningar för unga att utvecklas.",
         },
         {
-          label: "Vad",
-          text: "Tre produkter med en diskret, neutral doft. Vi doftsätter inte för att det ska dofta mycket — fokus ligger på vad ingredienserna gör. Och 35 % av varje köp går till föreningen.",
-        },
-      ],
-      storyEyebrow: "Historien",
-      storyTitle: "Alla duschar.",
-      storyParagraphs: [
-        "Föreningslivet ger mycket. Det får tillbaka för lite.",
-        "Vi kommer från teknik, idrott och företagande. Frågan var enkel: vad har varje förening gemensamt? Alla duschar. Alla behöver hår- och hudvård.",
-        "Därför finns Roots. Tre produkter, utvecklade i Norden. Föreningen säljer. 35 % stannar där.",
-      ],
-      storyImageAlt: "Nordisk känsla — ren och naturlig",
-      valuesEyebrow: "Manifest",
-      valuesTitle: "Det vi står för",
-      values: [
-        {
-          title: "Föreningen först",
-          description:
-            "Roots är byggt för föreningar. Inte tvärtom.",
+          id: "historien",
+          title: "Allt som växer börjar med starka rötter",
+          body: "Roots är grundat av människor som själva kan föreningslivet och bygger på vad föreningar faktiskt behöver och vill ha. Filosofin grundar sig i att framtidens framgångar skapas i gräsrötterna och att när man ger näring åt föreningslivet växer också människorna i det. Det är en långsiktig vision om hållbara partnerskap, fri från krånglig administration och stöttad av en modern digital plattform.",
         },
         {
-          title: "Naturligt, inte perfekt",
-          description:
-            "Vi väljer ingredienser som fungerar — inte certifieringar för certifieringens skull.",
-        },
-        {
-          title: "Öppet",
-          description:
-            "Ingredienslista, priser och 35 %. Inget att dölja.",
+          id: "valet",
+          title: "Ett självklart val",
+          body: "Med Roots får du produkter av premiumkvalitet till ett rimligt och ärligt pris, framtagna för återkommande användning året runt. Utvecklade av människor med gedigen erfarenhet inom hudvårdsbranschen. Du behöver inte kompromissa mellan en riktigt bra produkt till badrummet och att göra skillnad för ditt lag eller din förening. Du får båda delarna. Det är tyst kvalitet och genuint engagemang, hela vägen från badrumshyllan till föreningsgemenskapen.",
         },
       ],
       pressEyebrow: "Press",
@@ -460,55 +443,32 @@ export const pages = {
     en: {
       title: "About us",
       description:
-        "Hair care that works with hair and scalp — and gives 35% back to the club.",
+        "Premium hair and body care that strengthens club life. 35% of every krona sold goes back to the club.",
       eyebrow: "About us",
       brand: "Roots",
       heroBody:
-        "Hair care people already buy. 35% stays with the club.",
+        "Roots is building the future of club fundraising with premium hair and body care, where every choice is rooted in strengthening club life and creating long-term opportunities for children and young people.",
       ctaContact: "Contact us",
-      whyEyebrow: "Why",
-      whyTitle: "Why we do this",
-      whyIntro:
-        "Hair care can work with your hair — or against it. We chose the first.",
-      whyCircle: [
+      sections: [
         {
-          label: "Why",
-          text: "Hair and scalp do best when their own balance is left intact: the microbes that live there, the natural oils and the skin's protective barrier. Many products give a quick feeling in the moment. We want to give something that lasts.",
+          id: "omsorg",
+          title: "Scandinavian care and function",
+          body: "Roots is made with care and with high-quality, gentle formulations developed in Scandinavia for active people and everyday use. Natural ingredients where every element has a clear purpose in caring for hair and skin. A combination of function, clean design and high quality that suits the whole family.",
         },
         {
-          label: "How",
-          text: "We cleanse with mild, sugar-based surfactants and care with SyriCalm® — a plant-based active from reed and mushroom that in studies calmed the skin and helped the skin barrier recover. The hair follicle also has its own signalling system, the endocannabinoid system, which helps steer the hair growth cycle. Nothing in our products is designed to interfere with it.",
+          id: "varfor",
+          title: "Made for a bigger purpose",
+          body: "Roots is about more than hair and body care; it is about the people and the clubs behind it. The products cover an everyday need while 35% of every krona sold goes straight back to the local club, with no hidden fees. It rests on a strong belief: when meaningful design and consumption meet a bigger purpose, club life grows richer and young people get better conditions to develop.",
         },
         {
-          label: "What",
-          text: "Three products with a discreet, neutral scent. We do not add fragrance to make things smell strong — the focus is on what the ingredients do. And 35% of every purchase goes to the club.",
-        },
-      ],
-      storyEyebrow: "The story",
-      storyTitle: "Everyone showers.",
-      storyParagraphs: [
-        "Clubs give a lot. They get too little back.",
-        "We come from tech, sport and business. The question was simple: what does every club have in common? Everyone showers. Everyone needs hair and skin care.",
-        "That's why Roots exists. Three products, developed in the Nordics. The club sells. 35% stays there.",
-      ],
-      storyImageAlt: "Nordic feel — clean and natural",
-      valuesEyebrow: "Manifesto",
-      valuesTitle: "What we stand for",
-      values: [
-        {
-          title: "The club first",
-          description:
-            "Roots is built for clubs. Not the other way around.",
+          id: "historien",
+          title: "Everything that grows starts with strong roots",
+          body: "Roots was founded by people who know club life first-hand and is built on what clubs actually need and want. The philosophy is that future success is created at the grassroots, and that when you nourish club life, the people in it grow too. It is a long-term vision of lasting partnerships, free from complicated admin and backed by a modern digital platform.",
         },
         {
-          title: "Natural, not perfect",
-          description:
-            "We choose ingredients that work — not certifications for certification's sake.",
-        },
-        {
-          title: "Open",
-          description:
-            "Ingredient list, prices and 35%. Nothing to hide.",
+          id: "valet",
+          title: "An obvious choice",
+          body: "With Roots you get premium-quality products at a fair and honest price, made for repeat use all year round. Developed by people with deep experience in the skincare industry. You do not have to choose between a really good product for the bathroom and making a difference for your team or club. You get both. Quiet quality and genuine commitment, all the way from the bathroom shelf to the club community.",
         },
       ],
       pressEyebrow: "Press",
@@ -1434,11 +1394,11 @@ export const pages = {
     sv: {
       title: "Guider",
       description:
-        "Korta guider om föreningsförsäljning, produkter och hårvård. Utan fluff och utan medicinska löften.",
+        "Korta guider om föreningsförsäljning, produkter och hårvård.",
       breadcrumbHome: "Hem",
       heroTitle: "Guider",
       heroBody:
-        "För föreningar, lag och den som vill veta vad som finns i flaskan. Kort. Utan medicinska löften.",
+        "För föreningar, lag och den som vill veta vad som finns i flaskan.",
       itemListName: "Roots guider",
       readGuide: "Läs guiden",
       categories: {
@@ -1452,7 +1412,7 @@ export const pages = {
         },
         ingrediens: {
           label: "Ingredienser",
-          description: "Vad som finns i produkterna — utan medicinska löften.",
+          description: "Vad som finns i produkterna.",
         },
         harvard: {
           label: "Hårvård",
@@ -1463,11 +1423,11 @@ export const pages = {
     en: {
       title: "Guides",
       description:
-        "Short guides on club sales, products and hair care. No fluff and no medical claims.",
+        "Short guides on club sales, products and hair care.",
       breadcrumbHome: "Home",
       heroTitle: "Guides",
       heroBody:
-        "For clubs, teams and anyone who wants to know what's in the bottle. Short. No medical claims.",
+        "For clubs, teams and anyone who wants to know what's in the bottle.",
       itemListName: "Roots guides",
       readGuide: "Read the guide",
       categories: {
@@ -1481,7 +1441,7 @@ export const pages = {
         },
         ingrediens: {
           label: "Ingredients",
-          description: "What's in the products — without medical claims.",
+          description: "What's in the products.",
         },
         harvard: {
           label: "Hair care",

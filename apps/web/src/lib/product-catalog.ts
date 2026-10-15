@@ -20,7 +20,7 @@ const IMAGE_BY_SLUG: Record<string, string> = {
 };
 
 /** Kollektionsbilden visar alla tre produkterna — rimlig för okända slugs. */
-const DEFAULT_IMAGE = "/images/roots-sport-hockey-w.jpg";
+const DEFAULT_IMAGE = "/images/roots-sport-hockey-t.jpg";
 
 export function productImage(slug: string): string {
   return IMAGE_BY_SLUG[slug] ?? DEFAULT_IMAGE;

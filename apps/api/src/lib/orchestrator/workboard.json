@@ -2,10 +2,29 @@
   "updatedAt": "2026-10-13T11:20:00.000Z",
   "cards": [
     {
+      "id": "wb-fredrik-revision-oct15",
+      "title": "Fredriks revision + Så här går det till",
+      "body": "Brun publik sajt (text, knappar, logga), nya texter på startsida/produkter/föreningsliv/om oss, guider utan ramar, kalkylator med gradient, mjukare sportbilder, ny sida /sa-har-gar-det-till med ritade flöden. Inga priser eller 35 % rörda, inget mejl, ingen env-lyft. Deploy kräver ja.",
+      "status": "doing",
+      "domainId": "platform",
+      "playbook": "ops",
+      "files": [
+        "apps/web/src/app/globals.css",
+        "apps/web/src/app/(marketing)/sa-har-gar-det-till/page.tsx",
+        "apps/web/src/components/how-it-works-flows.tsx",
+        "apps/web/src/i18n/dictionaries/pages.ts",
+        "apps/web/src/i18n/dictionaries/home.ts"
+      ],
+      "gate": "deploy",
+      "source": "cursor",
+      "createdAt": "2026-10-15T12:10:00.000Z",
+      "updatedAt": "2026-10-15T12:10:00.000Z"
+    },
+    {
       "id": "wb-intresseflode-newbody-oct13",
       "title": "Intresseflöde i tre steg som Newbody",
-      "body": "Steg 1 som idag + låst knapp, bocka, honeypot, utm. Steg 2 namn + förening/skola/klass (ingen adress). Steg 3 'vi ringer'. Steg 2 skapar lead (crm LEAD, källa WEB) i pipelinen; kontakt syns i affärsdialogen. Egen sida /intresseanmalan + Sälj med oss i headern. Migration 0024 additiv. Inget mejl, ingen env-lyft. Deploy kräver ja.",
-      "status": "doing",
+      "body": "Steg 1 som idag + låst knapp, bocka, honeypot, utm. Steg 2 namn + förening/skola/klass (ingen adress). Steg 3 'vi ringer'. Steg 2 skapar lead (crm LEAD, källa WEB) i pipelinen; kontakt syns i affärsdialogen. Egen sida /intresseanmalan + Sälj med oss i headern. Migration 0024 additiv. Inget mejl, ingen env-lyft. Deployad 45c3eff efter ja: web + API SUCCESS, migration applied=1 (25), verifierad på roots.nu.",
+      "status": "done",
       "domainId": "platform",
       "playbook": "ops",
       "files": [

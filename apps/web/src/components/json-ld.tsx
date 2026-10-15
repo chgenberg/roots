@@ -75,7 +75,7 @@ export function OrganizationJsonLd({
     name,
     legalName: LEGAL_IDENTITY.legalName,
     url,
-    logo: absoluteUrl("/brand/roots-logo-black.png"),
+    logo: absoluteUrl("/brand/roots-logo-dark.png"),
     description: resolvedDescription,
     areaServed: "SE",
     foundingDate: "2025",
@@ -136,7 +136,7 @@ export function ProductJsonLd({
   // MASTERPLAN_01 KC7.3: image + url måste vara absolute för att
   // Google ska godkänna rich-result. ProductJsonLd kallas från
   // (marketing)/produkter/[slug] med relativa image-paths som
-  // "/images/roots-sport-m3-w.jpg" — utan denna fix tappar vi product rich snippets.
+  // "/images/roots-sport-m3-t.jpg" — utan denna fix tappar vi product rich snippets.
   const absImage = absoluteUrl(image);
   const absUrl = absoluteUrl(url) ?? url;
   const jsonLd: Record<string, unknown> = {
@@ -387,7 +387,7 @@ export function ArticleJsonLd({
       "@type": "Organization",
       "@id": ORG_ID,
       name: LEGAL_IDENTITY.legalName,
-      logo: absoluteUrl("/brand/roots-logo-black.png"),
+      logo: absoluteUrl("/brand/roots-logo-dark.png"),
     },
     mainEntityOfPage: {
       "@type": "WebPage",

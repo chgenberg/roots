@@ -38,6 +38,7 @@ export async function HeroSection() {
             ctaHairAnalysis={hero.ctaHairAnalysis}
             ctaProducts={hero.ctaProducts}
             ctaClub={hero.ctaClub}
+            ctaSell={hero.ctaSell}
           />
         </div>
       </div>

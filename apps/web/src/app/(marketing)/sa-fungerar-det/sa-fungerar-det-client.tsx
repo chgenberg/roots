@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LocaleLink } from "@/components/locale-link";
-import { SectionEyebrow } from "@/components/section-eyebrow";
 import { RootsGrassDivider } from "@/components/brand";
 import { apiFetch } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -309,7 +308,7 @@ function CalculatorBlock({
                     type="checkbox"
                     checked={consent}
                     onChange={(e) => setConsent(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 accent-[#6B794F]"
+                    className="mt-0.5 h-4 w-4 accent-[#6D614D]"
                   />
                   <span>
                     {consentIdx === -1 ? (
@@ -363,13 +362,9 @@ export function SaFungerarDetClient() {
         />
         <div className="relative mx-auto max-w-[1100px] px-6 md:px-10">
           <div className="mx-auto mb-10 max-w-2xl text-center">
-            <SectionEyebrow className="mb-4">{t.badge}</SectionEyebrow>
             <h1 className="text-3xl leading-[1.15] tracking-tight md:text-4xl">
               {t.calcTitle}
             </h1>
-            <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-muted-foreground">
-              {t.calcBody}
-            </p>
           </div>
           <CalculatorBlock copy={t} locale={locale} />
         </div>
@@ -395,26 +390,17 @@ export function SaFungerarDetClient() {
         </div>
       </section>
 
-      <section className="bg-inverse-surface py-16 text-inverse-on-surface md:py-20">
+      <section className="pb-20 md:pb-28">
         <div className="mx-auto max-w-[760px] px-6 text-center md:px-10">
           <h2 className="text-3xl font-bold tracking-tight">{t.ctaBottom}</h2>
           <div className="mt-8 flex flex-wrap justify-center gap-4">
-            <Button
-              size="lg"
-              className="bg-white text-neutral-900 shadow-sm hover:bg-neutral-100"
-              asChild
-            >
+            <Button size="lg" asChild>
               <a href="#rakna">
                 {t.ctaCalc}
                 <ArrowRight className="ml-1 h-4 w-4" />
               </a>
             </Button>
-            <Button
-              size="lg"
-              variant="secondary"
-              className="border-white/30 bg-white/10 text-white hover:bg-white/20"
-              asChild
-            >
+            <Button size="lg" variant="secondary" asChild>
               <LocaleLink href="/kontakt?intent=demo">{t.ctaDemo}</LocaleLink>
             </Button>
           </div>

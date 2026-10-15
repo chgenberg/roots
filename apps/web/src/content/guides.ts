@@ -55,7 +55,7 @@ const CATEGORY_COPY: Record<
     },
     ingrediens: {
       label: "Ingredienser",
-      description: "Vad som finns i produkterna — utan medicinska löften.",
+      description: "Vad som finns i produkterna.",
     },
     harvard: {
       label: "Hårvård",
@@ -73,7 +73,7 @@ const CATEGORY_COPY: Record<
     },
     ingrediens: {
       label: "Ingredients",
-      description: "What's in the products — without medical claims.",
+      description: "What's in the products.",
     },
     harvard: {
       label: "Hair care",
@@ -229,7 +229,7 @@ export const guideDefinitions: GuideDefinition[] = [
     publishedAt: "2026-03-01",
     updatedAt: "2026-08-01",
     category: "forening",
-    heroImage: "/images/roots-sport-hero-w.jpg",
+    heroImage: "/images/roots-sport-hero-t.jpg",
     sv: {
       title: "Så fungerar Roots — steg för steg",
       description:
@@ -365,7 +365,7 @@ export const guideDefinitions: GuideDefinition[] = [
     publishedAt: "2026-03-05",
     updatedAt: "2026-08-01",
     category: "forening",
-    heroImage: "/images/roots-sport-m4-w.jpg",
+    heroImage: "/images/roots-sport-m4-t.jpg",
     sv: {
       title: "Hur mycket tjänar föreningen? 35 %-modellen förklarad",
       description:
@@ -499,7 +499,7 @@ export const guideDefinitions: GuideDefinition[] = [
     publishedAt: "2026-03-10",
     updatedAt: "2026-08-01",
     category: "forening",
-    heroImage: "/images/roots-sport-m2-w.jpg",
+    heroImage: "/images/roots-sport-m2-t.jpg",
     sv: {
       title: "Personlig shopsida och QR — så funkar det",
       description:
@@ -623,7 +623,7 @@ export const guideDefinitions: GuideDefinition[] = [
     publishedAt: "2026-03-12",
     updatedAt: "2026-08-01",
     category: "forening",
-    heroImage: "/images/roots-sport-m1-w.jpg",
+    heroImage: "/images/roots-sport-m1-t.jpg",
     sv: {
       title: "Säljtips för ungdomar och föräldrar",
       description:
@@ -771,7 +771,7 @@ export const guideDefinitions: GuideDefinition[] = [
     publishedAt: "2026-03-20",
     updatedAt: "2026-08-01",
     category: "sport",
-    heroImage: "/images/roots-sport-paddock-w.jpg",
+    heroImage: "/images/roots-sport-paddock-t.jpg",
     sv: {
       title: "Roots för fotbollslag",
       description:
@@ -895,7 +895,7 @@ export const guideDefinitions: GuideDefinition[] = [
     publishedAt: "2026-03-20",
     updatedAt: "2026-08-01",
     category: "sport",
-    heroImage: "/images/roots-sport-hockey-w.jpg",
+    heroImage: "/images/roots-sport-hockey-t.jpg",
     sv: {
       title: "Roots för ishockeylag",
       description:
@@ -1265,7 +1265,7 @@ export const guideDefinitions: GuideDefinition[] = [
     publishedAt: "2026-04-10",
     updatedAt: "2026-08-01",
     category: "harvard",
-    heroImage: "/images/roots-sport-gym-w.jpg",
+    heroImage: "/images/roots-sport-gym-t.jpg",
     sv: {
       title: "Hårbotten i balans — snällt språk, ärliga vanor",
       description:

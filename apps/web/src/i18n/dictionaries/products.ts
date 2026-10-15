@@ -55,7 +55,7 @@ export const products: Record<
     sv: {
       name: "Roots Shampoo",
       subtitle: "Schampo · 250 ml",
-      tagline: "Rent hår. Hårbotten i fred.",
+      tagline: "Rengör på riktigt.",
       description:
         "Hårbotten har ett eget ekosystem: mikrober, egna oljor och en hudbarriär. Roots Shampoo rengör med milda, sockerbaserade tensider. Smuts och fett försvinner. Skyddet får vara kvar. SyriCalm® av vass (Phragmites Communis) och svamp (Poria Cocos) lugnar och stöttar barriären. Polyquaternium reder ut, så att du slipper dra. Doften är diskret och neutral.",
       priceSek: 199,
@@ -73,7 +73,7 @@ export const products: Record<
     en: {
       name: "Roots Shampoo",
       subtitle: "Shampoo · 250 ml",
-      tagline: "Clean hair. Scalp left alone.",
+      tagline: "A real clean.",
       description:
         "Your scalp has its own ecosystem: microbes, natural oils and a skin barrier. Roots Shampoo cleanses with mild, sugar-based surfactants. Dirt and oil go. The protection stays. SyriCalm®, from reed (Phragmites Communis) and mushroom (Poria Cocos), soothes and supports the barrier. Polyquaternium detangles, so you don't have to pull. The scent is discreet and neutral.",
       priceSek: 199,
@@ -94,7 +94,7 @@ export const products: Record<
     sv: {
       name: "Roots Conditioner",
       subtitle: "Balsam · 250 ml",
-      tagline: "Mjukt, utan att tynga.",
+      tagline: "Mjukt följsamt hår.",
       description:
         "Efter tvätten behöver håret fukt och smidighet — inte ett lager som tynger. Roots Conditioner vårdar med provitamin B5 (Panthenol) och ett lätt mjukgörande komplex. E-vitamin och antioxidanter från svartpeppar (Piper Nigrum) och Inga-bark skyddar. SyriCalm® lugnar hårbotten. Håret blir mjukt, lätt att reda ut och rör sig som det ska. Doften är diskret och neutral.",
       priceSek: 199,
@@ -112,7 +112,7 @@ export const products: Record<
     en: {
       name: "Roots Conditioner",
       subtitle: "Conditioner · 250 ml",
-      tagline: "Soft, never heavy.",
+      tagline: "Soft, smooth hair.",
       description:
         "After washing, hair needs moisture and movement — not a layer that weighs it down. Roots Conditioner cares with pro-vitamin B5 (Panthenol) and a light emollient complex. Vitamin E and antioxidants from black pepper (Piper Nigrum) and Inga bark protect. SyriCalm® soothes the scalp. Hair is left soft, easy to detangle and free to move. The scent is discreet and neutral.",
       priceSek: 199,
@@ -133,7 +133,7 @@ export const products: Record<
     sv: {
       name: "Roots Body Wash",
       subtitle: "Body wash · 250 ml",
-      tagline: "Ren hud som inte torkar.",
+      tagline: "Skonsam dusch.",
       description:
         "Huden har samma slags balans som hårbotten: en barriär och ett mikroliv som skyddar. Roots Body Wash rengör med milda tensider och ett krämigt lödder. Panthenol lämnar huden mjuk. SyriCalm® av vass (Phragmites Communis) och svamp (Poria Cocos) lugnar och hjälper barriären. Doften är diskret — du känner dig ren, inte parfymerad.",
       priceSek: 179,
@@ -147,7 +147,7 @@ export const products: Record<
     en: {
       name: "Roots Body Wash",
       subtitle: "Body wash · 250 ml",
-      tagline: "Clean skin that doesn't dry out.",
+      tagline: "A gentle shower.",
       description:
         "Skin has the same kind of balance as the scalp: a barrier and microbial life that protect it. Roots Body Wash cleanses with mild surfactants and a creamy lather. Panthenol leaves skin soft. SyriCalm®, from reed (Phragmites Communis) and mushroom (Poria Cocos), soothes and helps the barrier. The scent is discreet — you feel clean, not perfumed.",
       priceSek: 179,
@@ -168,7 +168,7 @@ export const products: Record<
     sv: {
       name: "Roots Premiumpaket",
       subtitle: "Schampo, balsam och body wash",
-      tagline: "Hela duschen. Ett paket.",
+      tagline: "Tre flaskor. En rutin.",
       description:
         "Schampo, balsam och body wash som är gjorda för att användas tillsammans. De rengör skonsamt, vårdar det som behöver vård och lämnar hårets och hudens balans i fred. SyriCalm® av vass och svamp finns i alla tre. Doften är diskret och neutral. Som paket: 399 kr i stället för 577 kr var för sig.",
       priceSek: 399,
@@ -191,7 +191,7 @@ export const products: Record<
     en: {
       name: "Roots Premium pack",
       subtitle: "Shampoo, conditioner and body wash",
-      tagline: "The whole shower. One pack.",
+      tagline: "Three bottles. One routine.",
       description:
         "Shampoo, conditioner and body wash made to be used together. They cleanse gently, care for what needs care and leave hair and skin alone. SyriCalm®, from reed and mushroom, runs through all three. The scent is discreet and neutral. As a pack: SEK 399 instead of SEK 577 bought separately.",
       priceSek: 399,
@@ -258,7 +258,7 @@ export const productListingExtras: Record<
   paket: {
     sv: {
       listingTagline:
-        "Hela rutinen, till ett lägre pris. Det de flesta väljer när de handlar via föreningen.",
+        "Tre flaskor. En rutin. Alla produkter till ett lägre pris.",
       listingHighlights: [
         "Alla tre produkterna",
         "3 × 250 ml",
@@ -267,7 +267,7 @@ export const productListingExtras: Record<
     },
     en: {
       listingTagline:
-        "The full routine, at a lower price. What most people choose when they buy through their club.",
+        "Three bottles. One routine. All the products at a lower price.",
       listingHighlights: [
         "All three products",
         "3 × 250 ml",

@@ -272,6 +272,25 @@ h5, h6 { font-weight: 600; letter-spacing: -0.005em; line-height: 1.35; }
   font-weight: 400 !important;
 }
 
+/* Publika sajten är brun, inte svart eller grön: text, rubriker, siffror,
+ * knappar och överrubriker. Portalen behåller sin palett. `:not(.dark)`
+ * krävs eftersom variablerna ärvs från närmaste element som sätter dem —
+ * annars skulle de ljusa bruna värdena skriva över mörkt läge. `color`
+ * sätts om här eftersom body redan räknat ut sin färg från roten. */
+:root:not(.dark) [data-marketing] {
+  --color-foreground:           #5E5341;
+  --color-card-foreground:      #5E5341;
+  --color-popover-foreground:   #5E5341;
+  --color-secondary-foreground: #5E5341;
+  --color-accent-foreground:    #5E5341;
+  --color-primary:              #6D614D;
+  --color-ring:                 #6D614D;
+  --color-brand-700:            #6D614D;
+  --color-brand-800:            #5E5341;
+  --color-brand-900:            #4A4134;
+  color: var(--color-foreground);
+}
+
 ::selection {
   background-color: var(--color-brand-900);
   color: white;

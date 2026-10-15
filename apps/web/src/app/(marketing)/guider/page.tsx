@@ -96,12 +96,12 @@ export default async function GuiderIndexPage() {
               <p className="mt-1 text-sm text-muted-foreground">
                 {meta.description}
               </p>
-              <ul className="mt-6 space-y-3">
+              <ul className="mt-6 space-y-2">
                 {items.map((guide) => (
                   <li key={guide.slug}>
                     <LocaleLink
                       href={`/guider/${guide.slug}`}
-                      className="group flex gap-4 rounded-2xl border border-transparent bg-background/80 p-3 transition-colors hover:border-brand-200/80 hover:bg-brand-50/50 sm:p-4"
+                      className="group flex gap-4 py-3 sm:py-4"
                     >
                       {guide.heroImage ? (
                         <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl sm:h-20 sm:w-28">
