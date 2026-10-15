@@ -1402,18 +1402,18 @@ export const fundraisingPages = {
       labelEmail: "E-post · Mor- & farföräldrar",
       labelSmsFriends: "SMS · Kollegor & vänner",
       bodySmsShort:
-        "Hej! Jag säljer Roots Shampoo och balsam för {campaignName} 🌱 Köp via min länk så stöttar du mig direkt: {shopUrl} – Tack! /{displayName}",
+        "Hej! Jag säljer Roots Schampoo och balsam för {campaignName} 🌱 Köp via min länk så stöttar du mig direkt: {shopUrl} – Tack! /{displayName}",
       bodyWaFamily:
         "Hej! 💛\n\nVi i {teamName} säljer Roots-produkter för att finansiera {campaignName}. Det är riktigt bra schampo och balsam som dessutom är svensktillverkat.\n\nKöp via min personliga länk så går pengarna till oss:\n{shopUrl}\n\nTack för att du stöttar! /{displayName}",
       bodyInstagram:
         "Vi säljer Roots ✨\nSchampo och balsam i världsklass, made in Sweden.\nVarje köp via min länk stöttar {campaignName} – tack! 🙏\n\n👉 {shopUrl}\n\n#roots #stöttavårtlag #{hashtag} #svensktillverkat",
       bodyFacebook:
-        "Hej alla! 👋\n\nVi i {teamName} har dragit igång vår försäljning för att finansiera {campaignName}. Vi säljer Roots Shampoo och balsam – svensktillverkade, riktigt bra produkter som dessutom är prisvärda.\n\nKöp via min personliga länk så går pengarna direkt till oss istället för till mellanhänder:\n{shopUrl}\n\nDela gärna inlägget om du gillar det – varje köp gör skillnad! 💚\n\n/{displayName}",
+        "Hej alla! 👋\n\nVi i {teamName} har dragit igång vår försäljning för att finansiera {campaignName}. Vi säljer Roots Schampoo och balsam – svensktillverkade, riktigt bra produkter som dessutom är prisvärda.\n\nKöp via min personliga länk så går pengarna direkt till oss istället för till mellanhänder:\n{shopUrl}\n\nDela gärna inlägget om du gillar det – varje köp gör skillnad! 💚\n\n/{displayName}",
       subjectEmail: "Vill du stötta mig? – {displayName} ({campaignName})",
       bodyEmail:
-        "Hej!\n\nVi i {teamName} har börjat sälja Roots Shampoo och balsam för att finansiera {campaignName}.\n\nDet är svensktillverkade produkter av riktigt fin kvalitet – ungefär samma prisklass som man hittar på vanliga butiker. Skillnaden är att en del av pengarna går direkt till oss istället för till en stor kedja.\n\nOm du har lust att stötta oss kan du köpa via min personliga länk:\n{shopUrl}\n\nDet du beställer levereras hem till dig. Tack på förhand – det betyder massor för oss! 💚\n\nKram\n{displayName}",
+        "Hej!\n\nVi i {teamName} har börjat sälja Roots Schampoo och balsam för att finansiera {campaignName}.\n\nDet är svensktillverkade produkter av riktigt fin kvalitet – ungefär samma prisklass som man hittar på vanliga butiker. Skillnaden är att en del av pengarna går direkt till oss istället för till en stor kedja.\n\nOm du har lust att stötta oss kan du köpa via min personliga länk:\n{shopUrl}\n\nDet du beställer levereras hem till dig. Tack på förhand – det betyder massor för oss! 💚\n\nKram\n{displayName}",
       bodySmsFriends:
-        "Hej! Säljer Roots Shampoo/balsam (svensktillverkat, riktigt bra) för att finansiera vår laginsamling. Köp via min länk om du har lust: {shopUrl} /{displayName}",
+        "Hej! Säljer Roots Schampoo/balsam (svensktillverkat, riktigt bra) för att finansiera vår laginsamling. Köp via min länk om du har lust: {shopUrl} /{displayName}",
     },
     {
       title: "Ready-made texts to send",
@@ -1430,18 +1430,18 @@ export const fundraisingPages = {
       labelEmail: "Email · Grandparents",
       labelSmsFriends: "SMS · Colleagues & friends",
       bodySmsShort:
-        "Hi! I’m selling Roots Shampoo and conditioner for {campaignName} 🌱 Buy via my link and you’ll support me directly: {shopUrl} – Thanks! /{displayName}",
+        "Hi! I’m selling Roots Schampoo and conditioner for {campaignName} 🌱 Buy via my link and you’ll support me directly: {shopUrl} – Thanks! /{displayName}",
       bodyWaFamily:
         "Hi! 💛\n\nWe're selling with {teamName} — Roots products to fund {campaignName}. It’s really good shampoo and conditioner, made in Sweden.\n\nBuy via my personal link and the money goes to us:\n{shopUrl}\n\nThanks for your support! /{displayName}",
       bodyInstagram:
         "We’re selling Roots ✨\nWorld-class shampoo and conditioner, made in Sweden.\nEvery purchase via my link supports {campaignName} – thank you! 🙏\n\n👉 {shopUrl}\n\n#roots #supportourteam #{hashtag} #madeinsweden",
       bodyFacebook:
-        "Hi everyone! 👋\n\nAt {teamName} we've started our fundraising to fund {campaignName}. We’re selling Roots Shampoo and conditioner – made in Sweden, genuinely good products that are also good value.\n\nBuy via my personal link and the money goes straight to us instead of middlemen:\n{shopUrl}\n\nPlease share the post if you like it – every purchase makes a difference! 💚\n\n/{displayName}",
+        "Hi everyone! 👋\n\nAt {teamName} we've started our fundraising to fund {campaignName}. We’re selling Roots Schampoo and conditioner – made in Sweden, genuinely good products that are also good value.\n\nBuy via my personal link and the money goes straight to us instead of middlemen:\n{shopUrl}\n\nPlease share the post if you like it – every purchase makes a difference! 💚\n\n/{displayName}",
       subjectEmail: "Would you like to support me? – {displayName} ({campaignName})",
       bodyEmail:
-        "Hi!\n\nAt {teamName} we've started selling Roots Shampoo and conditioner to fund {campaignName}.\n\nThey’re Swedish-made products of really fine quality – roughly the same price range as regular shops. The difference is that part of the money goes straight to us instead of a big chain.\n\nIf you’d like to support us you can buy via my personal link:\n{shopUrl}\n\nWhat you order is delivered to your home. Thanks in advance – it means a lot to us! 💚\n\nBest wishes,\n{displayName}",
+        "Hi!\n\nAt {teamName} we've started selling Roots Schampoo and conditioner to fund {campaignName}.\n\nThey’re Swedish-made products of really fine quality – roughly the same price range as regular shops. The difference is that part of the money goes straight to us instead of a big chain.\n\nIf you’d like to support us you can buy via my personal link:\n{shopUrl}\n\nWhat you order is delivered to your home. Thanks in advance – it means a lot to us! 💚\n\nBest wishes,\n{displayName}",
       bodySmsFriends:
-        "Hi! Selling Roots Shampoo/conditioner (made in Sweden, really good) to fund our team fundraiser. Buy via my link if you’d like: {shopUrl} /{displayName}",
+        "Hi! Selling Roots Schampoo/conditioner (made in Sweden, really good) to fund our team fundraiser. Buy via my link if you’d like: {shopUrl} /{displayName}",
     }
   ),
 

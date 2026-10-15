@@ -29,13 +29,13 @@ function fallbackProducts(
 ): PortalProductCard[] {
   return [
     {
-      name: "Roots Shampoo",
+      name: "Roots Schampoo",
       type: t.typeShampoo,
       desc: t.descShampoo,
       price: 199,
       sku: "ROOTS-SH-001",
       slug: FALLBACK_SKU_SLUG["ROOTS-SH-001"]!,
-      image: "/images/roots-shampoo-studio-w.jpg",
+      image: "/images/roots-shampoo-studio-s.jpg",
       isBundle: false,
     },
     {
@@ -65,7 +65,7 @@ function fallbackProducts(
       price: 399,
       sku: BUNDLE_SKU,
       slug: FALLBACK_SKU_SLUG[BUNDLE_SKU]!,
-      image: "/images/roots-collection-studio-w.jpg",
+      image: "/images/roots-collection-studio-s.jpg",
       isBundle: true,
     },
   ];

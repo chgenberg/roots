@@ -13,14 +13,14 @@ export { BUNDLE_SKU, BUNDLE_SLUG, isBundleSlug };
  * nyckel som /produkter/[slug] använder), gör att de inte kan glida isär igen.
  */
 const IMAGE_BY_SLUG: Record<string, string> = {
-  shampoo: "/images/roots-shampoo-studio-w.jpg",
+  shampoo: "/images/roots-shampoo-studio-s.jpg",
   conditioner: "/images/roots-conditioner-studio-w.jpg",
   "body-wash": "/images/roots-body-wash-studio-w.jpg",
-  [BUNDLE_SLUG]: "/images/roots-collection-studio-w.jpg",
+  [BUNDLE_SLUG]: "/images/roots-collection-studio-s.jpg",
 };
 
 /** Kollektionsbilden visar alla tre produkterna — rimlig för okända slugs. */
-const DEFAULT_IMAGE = "/images/roots-sport-hockey-t.jpg";
+const DEFAULT_IMAGE = "/images/roots-sport-hockey-s.jpg";
 
 export function productImage(slug: string): string {
   return IMAGE_BY_SLUG[slug] ?? DEFAULT_IMAGE;

@@ -29,10 +29,10 @@ const SKU_BY_SLUG: Record<ProductSlug, string> = {
 };
 
 const IMAGE2_BY_SLUG: Record<ProductSlug, string> = {
-  shampoo: "/images/roots-shampoo-lifestyle-w.jpg",
+  shampoo: "/images/roots-shampoo-lifestyle-s.jpg",
   conditioner: "/images/roots-conditioner-lifestyle-w.jpg",
   "body-wash": "/images/roots-body-wash-lifestyle-w.jpg",
-  [BUNDLE_SLUG]: "/images/roots-sport-hockey-t.jpg",
+  [BUNDLE_SLUG]: "/images/roots-sport-hockey-s.jpg",
 };
 
 const INGREDIENTS: Partial<Record<ProductSlug, string[]>> = {
@@ -104,7 +104,7 @@ const INGREDIENTS: Partial<Record<ProductSlug, string[]>> = {
 };
 
 function displayName(slug: ProductSlug, name: string) {
-  return slug === "shampoo" ? "Roots Shampoo" : name;
+  return slug === "shampoo" ? "Roots Schampoo" : name;
 }
 
 function formatPriceSek(priceSek: number, locale: "sv" | "en") {
@@ -156,7 +156,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
     ...item,
     label:
       item.slug === "shampoo"
-        ? item.label.replace("Roots Shampoo", "Roots Shampoo")
+        ? item.label.replace("Roots Schampoo", "Roots Schampoo")
         : item.label,
   }));
 

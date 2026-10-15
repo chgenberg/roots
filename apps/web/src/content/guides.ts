@@ -97,7 +97,7 @@ export const guideDefinitions: GuideDefinition[] = [
     publishedAt: "2026-03-01",
     updatedAt: "2026-08-01",
     category: "forening",
-    heroImage: "/images/roots-collection-studio-w.jpg",
+    heroImage: "/images/roots-collection-studio-s.jpg",
     sv: {
       title: "Föreningsförsäljning med något folk faktiskt använder",
       description:
@@ -113,7 +113,7 @@ export const guideDefinitions: GuideDefinition[] = [
         {
           heading: "Varför premium hårvård passar föreningar",
           paragraphs: [
-            "Hårvård är något de flesta redan köper. När föreningen erbjuder [Roots Shampoo](/produkter/shampoo), [Roots Conditioner](/produkter/conditioner) och [Roots Body Wash](/produkter/body-wash) säljer ni något människor har användning för — inte något som äts upp på en eftermiddag.",
+            "Hårvård är något de flesta redan köper. När föreningen erbjuder [Roots Schampoo](/produkter/shampoo), [Roots Conditioner](/produkter/conditioner) och [Roots Body Wash](/produkter/body-wash) säljer ni något människor har användning för — inte något som äts upp på en eftermiddag.",
             "Premium betyder inte lyx för lyxens skull. Det betyder tydlig formulering, nordiska ingredienser och en produkt som går att stå för när man tipsar en kollega eller en granne. Det gör samtalet lättare för både ungdomar och föräldrar.",
           ],
         },
@@ -173,7 +173,7 @@ export const guideDefinitions: GuideDefinition[] = [
         {
           heading: "Why premium hair care fits clubs",
           paragraphs: [
-            "Hair care is something most people already buy. When the club offers [Roots Shampoo](/produkter/shampoo), [Roots Conditioner](/produkter/conditioner) and [Roots Body Wash](/produkter/body-wash), you sell something people will use — not something eaten in an afternoon.",
+            "Hair care is something most people already buy. When the club offers [Roots Schampoo](/produkter/shampoo), [Roots Conditioner](/produkter/conditioner) and [Roots Body Wash](/produkter/body-wash), you sell something people will use — not something eaten in an afternoon.",
             "Premium does not mean luxury for luxury's sake. It means a clear formula, Nordic ingredients and a product you can stand behind when you recommend it to a colleague or a neighbour. That makes the conversation easier for both young sellers and parents.",
           ],
         },
@@ -229,7 +229,7 @@ export const guideDefinitions: GuideDefinition[] = [
     publishedAt: "2026-03-01",
     updatedAt: "2026-08-01",
     category: "forening",
-    heroImage: "/images/roots-sport-hero-t.jpg",
+    heroImage: "/images/roots-sport-hero-s.jpg",
     sv: {
       title: "Så fungerar Roots: från anmälan till utbetalning",
       description:
@@ -365,7 +365,7 @@ export const guideDefinitions: GuideDefinition[] = [
     publishedAt: "2026-03-05",
     updatedAt: "2026-08-01",
     category: "forening",
-    heroImage: "/images/roots-sport-m4-t.jpg",
+    heroImage: "/images/roots-sport-m4-s.jpg",
     sv: {
       title: "Hur mycket tjänar föreningen? 35 % med räkneexempel",
       description:
@@ -499,7 +499,7 @@ export const guideDefinitions: GuideDefinition[] = [
     publishedAt: "2026-03-10",
     updatedAt: "2026-08-01",
     category: "forening",
-    heroImage: "/images/roots-sport-m2-t.jpg",
+    heroImage: "/images/roots-sport-m2-s.jpg",
     sv: {
       title: "Personlig shop och QR: sälj utan lådor och kontanter",
       description:
@@ -623,7 +623,7 @@ export const guideDefinitions: GuideDefinition[] = [
     publishedAt: "2026-03-12",
     updatedAt: "2026-08-01",
     category: "forening",
-    heroImage: "/images/roots-sport-m1-t.jpg",
+    heroImage: "/images/roots-sport-m1-s.jpg",
     sv: {
       title: "Säljtips för unga och föräldrar: sälj utan att tjata",
       description:
@@ -771,7 +771,7 @@ export const guideDefinitions: GuideDefinition[] = [
     publishedAt: "2026-03-20",
     updatedAt: "2026-08-01",
     category: "sport",
-    heroImage: "/images/roots-sport-paddock-t.jpg",
+    heroImage: "/images/roots-sport-paddock-s.jpg",
     sv: {
       title: "Fotbollslag: så fyller ni lagkassan inför cupen",
       description:
@@ -895,7 +895,7 @@ export const guideDefinitions: GuideDefinition[] = [
     publishedAt: "2026-03-20",
     updatedAt: "2026-08-01",
     category: "sport",
-    heroImage: "/images/roots-sport-hockey-t.jpg",
+    heroImage: "/images/roots-sport-hockey-s.jpg",
     sv: {
       title: "Ishockeylag: en insamling som inte tar tid från isen",
       description:
@@ -911,7 +911,7 @@ export const guideDefinitions: GuideDefinition[] = [
         {
           heading: "En produkt som hör hemma i duschen efter isen",
           paragraphs: [
-            "Efter match är hår och hud utsatta för svett, hjälm och kyla. En skonsam rutin med [Roots Shampoo](/produkter/shampoo) och [Body Wash](/produkter/body-wash) är lätt att förklara för både spelare och föräldrar.",
+            "Efter match är hår och hud utsatta för svett, hjälm och kyla. En skonsam rutin med [Roots Schampoo](/produkter/shampoo) och [Body Wash](/produkter/body-wash) är lätt att förklara för både spelare och föräldrar.",
             "Läs gärna [Rutin efter träning](/guider/rutin-efter-traning) för tips kring just den stunden.",
           ],
         },
@@ -967,7 +967,7 @@ export const guideDefinitions: GuideDefinition[] = [
         {
           heading: "A product that belongs in the shower after the ice",
           paragraphs: [
-            "After a game hair and skin face sweat, helmet and cold. A gentle routine with [Roots Shampoo](/produkter/shampoo) and [Body Wash](/produkter/body-wash) is easy to explain to both players and parents.",
+            "After a game hair and skin face sweat, helmet and cold. A gentle routine with [Roots Schampoo](/produkter/shampoo) and [Body Wash](/produkter/body-wash) is easy to explain to both players and parents.",
             "You may also read [Routine after training](/guider/rutin-efter-traning) for tips around that moment.",
           ],
         },
@@ -1019,7 +1019,7 @@ export const guideDefinitions: GuideDefinition[] = [
     publishedAt: "2026-04-01",
     updatedAt: "2026-08-01",
     category: "ingrediens",
-    heroImage: "/images/roots-shampoo-studio-w.jpg",
+    heroImage: "/images/roots-shampoo-studio-s.jpg",
     sv: {
       title: "Vad är SyriCalm®? Vass och svamp för lugnare hårbotten",
       description:
@@ -1074,7 +1074,7 @@ export const guideDefinitions: GuideDefinition[] = [
             "Ja, den går igenom schampo, balsam och body wash i det nuvarande sortimentet.",
         },
       ],
-      cta: { href: "/produkter/shampoo", label: "Se Roots Shampoo" },
+      cta: { href: "/produkter/shampoo", label: "Se Roots Schampoo" },
     },
     en: {
       title: "What is SyriCalm®? Reed and mushroom for a calmer scalp",
@@ -1130,7 +1130,7 @@ export const guideDefinitions: GuideDefinition[] = [
             "Yes, it runs through shampoo, conditioner and body wash in the current range.",
         },
       ],
-      cta: { href: "/produkter/shampoo", label: "See Roots Shampoo" },
+      cta: { href: "/produkter/shampoo", label: "See Roots Schampoo" },
     },
     relatedSlugs: [
       "harbotten",
@@ -1265,7 +1265,7 @@ export const guideDefinitions: GuideDefinition[] = [
     publishedAt: "2026-04-10",
     updatedAt: "2026-08-01",
     category: "harvard",
-    heroImage: "/images/roots-sport-gym-t.jpg",
+    heroImage: "/images/roots-sport-gym-s.jpg",
     sv: {
       title: "Stram hårbotten efter tvätt? Vanor som ofta hjälper",
       description:
@@ -1282,7 +1282,7 @@ export const guideDefinitions: GuideDefinition[] = [
           heading: "Vanor som ofta hjälper",
           paragraphs: [
             "Välj ett [sulfatsnålt schampo](/guider/sulfatsnalt-schampo) om du tvättar ofta. Massera in produkten med fingertopparna, inte naglarna. Skölj ordentligt. Undvik att lägga tung styling direkt på botten om du redan upplever obehag.",
-            "[Roots Shampoo](/produkter/shampoo) är formulerat med SyriCalm® för en lugnande känsla — se [SyriCalm®-guiden](/guider/syricalm).",
+            "[Roots Schampoo](/produkter/shampoo) är formulerat med SyriCalm® för en lugnande känsla — se [SyriCalm®-guiden](/guider/syricalm).",
           ],
         },
         {
@@ -1338,7 +1338,7 @@ export const guideDefinitions: GuideDefinition[] = [
           heading: "Habits that often help",
           paragraphs: [
             "Choose a [low-sulphate shampoo](/guider/sulfatsnalt-schampo) if you wash often. Massage the product in with fingertips, not nails. Rinse thoroughly. Avoid putting heavy styling straight on the scalp if you already feel discomfort.",
-            "[Roots Shampoo](/produkter/shampoo) is formulated with SyriCalm® for a soothing feel — see the [SyriCalm® guide](/guider/syricalm).",
+            "[Roots Schampoo](/produkter/shampoo) is formulated with SyriCalm® for a soothing feel — see the [SyriCalm® guide](/guider/syricalm).",
           ],
         },
         {
@@ -1389,7 +1389,7 @@ export const guideDefinitions: GuideDefinition[] = [
     publishedAt: "2026-04-12",
     updatedAt: "2026-08-01",
     category: "harvard",
-    heroImage: "/images/roots-shampoo-lifestyle-w.jpg",
+    heroImage: "/images/roots-shampoo-lifestyle-s.jpg",
     sv: {
       title: "Sulfatsnålt schampo: vad betyder det på riktigt?",
       description:
@@ -1405,7 +1405,7 @@ export const guideDefinitions: GuideDefinition[] = [
         {
           heading: "Sockerbaserade tvättämnen",
           paragraphs: [
-            "I [Roots Shampoo](/produkter/shampoo) används bland annat sockerbaserade och andra milda tensider för att lösa smuts och fett utan att känslan ska bli ”skurad”. Målet är rent, lätt hår och en hårbotten som får vara i ro.",
+            "I [Roots Schampoo](/produkter/shampoo) används bland annat sockerbaserade och andra milda tensider för att lösa smuts och fett utan att känslan ska bli ”skurad”. Målet är rent, lätt hår och en hårbotten som får vara i ro.",
             "Tillsammans med [SyriCalm®](/guider/syricalm) blir helheten: rengöring + behaglig känsla.",
           ],
         },
@@ -1444,7 +1444,7 @@ export const guideDefinitions: GuideDefinition[] = [
             "Ibland, ja. Lödder är inte samma sak som renhet. Många vänjer sig snabbt vid en krämigare, mindre ”skummig” känsla.",
         },
       ],
-      cta: { href: "/produkter/shampoo", label: "Till Roots Shampoo" },
+      cta: { href: "/produkter/shampoo", label: "Till Roots Schampoo" },
     },
     en: {
       title: "Low-sulphate shampoo: what does it really mean?",
@@ -1461,7 +1461,7 @@ export const guideDefinitions: GuideDefinition[] = [
         {
           heading: "Sugar-based surfactants",
           paragraphs: [
-            "In [Roots Shampoo](/produkter/shampoo) sugar-based and other mild surfactants are used among other things to lift dirt and oil without the feel becoming “scrubbed”. The goal is clean, light hair and a scalp that gets to rest.",
+            "In [Roots Schampoo](/produkter/shampoo) sugar-based and other mild surfactants are used among other things to lift dirt and oil without the feel becoming “scrubbed”. The goal is clean, light hair and a scalp that gets to rest.",
             "Together with [SyriCalm®](/guider/syricalm) the whole becomes: cleansing + pleasant feel.",
           ],
         },
@@ -1500,7 +1500,7 @@ export const guideDefinitions: GuideDefinition[] = [
             "Sometimes, yes. Lather is not the same as cleanliness. Many quickly get used to a creamier, less “foamy” feel.",
         },
       ],
-      cta: { href: "/produkter/shampoo", label: "View Roots Shampoo" },
+      cta: { href: "/produkter/shampoo", label: "View Roots Schampoo" },
     },
     relatedSlugs: [
       "harbotten",
@@ -1513,7 +1513,7 @@ export const guideDefinitions: GuideDefinition[] = [
     publishedAt: "2026-04-15",
     updatedAt: "2026-08-01",
     category: "harvard",
-    heroImage: "/images/roots-collection-studio-w.jpg",
+    heroImage: "/images/roots-collection-studio-s.jpg",
     sv: {
       title: "Naturlig hårvård i Norden: vad betyder det egentligen?",
       description:

@@ -35,7 +35,7 @@ export function InterestSplit({
         )}
       >
         <Image
-          src="/images/roots-club-table-t.jpg"
+          src="/images/roots-club-table-s.jpg"
           alt={t.imageAlt}
           fill
           priority

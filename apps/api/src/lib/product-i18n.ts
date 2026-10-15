@@ -2,7 +2,7 @@ import type { UiLocale } from "./ui-locale";
 
 /** Catalog display names for Stripe, emails and order status (not marketing copy). */
 const BY_SLUG: Record<string, { sv: string; en: string }> = {
-  shampoo: { sv: "Roots Shampoo", en: "Roots Shampoo" },
+  shampoo: { sv: "Roots Schampoo", en: "Roots Schampoo" },
   conditioner: { sv: "Roots Conditioner", en: "Roots Conditioner" },
   "body-wash": { sv: "Roots Body Wash", en: "Roots Body Wash" },
   paket: { sv: "Roots Premiumpaket", en: "Roots Premium pack" },

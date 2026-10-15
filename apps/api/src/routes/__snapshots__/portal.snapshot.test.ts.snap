@@ -163,7 +163,7 @@ exports[`GET /v1/portal/pipeline/deals/:kind/:id > returns the quote with lines,
     "lines": [
       {
         "lineTotalOre": 149000,
-        "productName": "Roots Shampoo",
+        "productName": "Roots Schampoo",
         "qty": 10,
         "sku": "ROOTS-SH-001",
         "unitPriceOre": 14900,

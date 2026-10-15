@@ -76,9 +76,9 @@ export const home: Record<Locale, HomeCopy> = {
         "Naturlig hårvård som ger tillbaka till föreningslivet. 35 % stannar i föreningen.",
       body: "Tre flaskor. En rutin. Utan sulfater, silikoner och parabener.",
       altDesktop:
-        "Roots Shampoo, Conditioner och Body Wash på en stenbänk i ett ljust badrum",
+        "Roots Schampoo, Conditioner och Body Wash på en stenbänk i ett ljust badrum",
       altMobile:
-        "Roots Shampoo, Conditioner och Body Wash i ett ljust badrum",
+        "Roots Schampoo, Conditioner och Body Wash i ett ljust badrum",
       ctaHairAnalysis: "Starta din håranalys",
       ctaProducts: "Se produkterna",
       ctaClub: "Räkna på intäkten",
@@ -91,9 +91,9 @@ export const home: Record<Locale, HomeCopy> = {
       items: [
         {
           slug: "shampoo",
-          name: "Roots Shampoo",
+          name: "Roots Schampoo",
           tagline: "Rengör på riktigt.",
-          image: "/images/roots-shampoo-bath-w.jpg",
+          image: "/images/roots-shampoo-bath-s.jpg",
           price: "199 kr",
           badge: "Schampo",
         },
@@ -144,7 +144,7 @@ export const home: Record<Locale, HomeCopy> = {
       cta: "Sälj med oss",
       ctaCalc: "Räkna på intäkten",
       sellingAlt:
-        "Två ungdomar visar Roots Shampoo, Conditioner och Body wash för en förälder vid klubbstugan",
+        "Två ungdomar visar Roots Schampoo, Conditioner och Body wash för en förälder vid klubbstugan",
       campAlt: "Ett flicklag jublar tillsammans på fotbollsplanen",
     },
     gamification: {
@@ -175,7 +175,7 @@ export const home: Record<Locale, HomeCopy> = {
         "Varje köp gör skillnad. 35 % går tillbaka till föreningen.",
       ],
       cta: "Läs varför",
-      alt: "Roots Shampoo, Conditioner och Body Wash på en bänk i ett omklädningsrum",
+      alt: "Roots Schampoo, Conditioner och Body Wash på en bänk i ett omklädningsrum",
     },
   },
   en: {
@@ -185,8 +185,8 @@ export const home: Record<Locale, HomeCopy> = {
         "Natural hair care that gives back to club life. 35% stays with the club.",
       body: "Three bottles. One routine. No sulphates, silicones or parabens.",
       altDesktop:
-        "Roots Shampoo, Conditioner and Body Wash on a stone counter in a bright bathroom",
-      altMobile: "Roots Shampoo, Conditioner and Body Wash in a bright bathroom",
+        "Roots Schampoo, Conditioner and Body Wash on a stone counter in a bright bathroom",
+      altMobile: "Roots Schampoo, Conditioner and Body Wash in a bright bathroom",
       ctaHairAnalysis: "Start your hair analysis",
       ctaProducts: "See the products",
       ctaClub: "Calculate your earnings",
@@ -199,9 +199,9 @@ export const home: Record<Locale, HomeCopy> = {
       items: [
         {
           slug: "shampoo",
-          name: "Roots Shampoo",
+          name: "Roots Schampoo",
           tagline: "A real clean.",
-          image: "/images/roots-shampoo-bath-w.jpg",
+          image: "/images/roots-shampoo-bath-s.jpg",
           price: "SEK 199",
           badge: "Shampoo",
         },
@@ -252,7 +252,7 @@ export const home: Record<Locale, HomeCopy> = {
       cta: "Sell with us",
       ctaCalc: "Calculate your earnings",
       sellingAlt:
-        "Two young people showing Roots Shampoo, Conditioner and Body wash to a parent by the clubhouse",
+        "Two young people showing Roots Schampoo, Conditioner and Body wash to a parent by the clubhouse",
       campAlt: "A girls' team celebrating together on the football pitch",
     },
     gamification: {
@@ -283,7 +283,7 @@ export const home: Record<Locale, HomeCopy> = {
         "Every purchase makes a difference. 35% goes back to the club.",
       ],
       cta: "Read why",
-      alt: "Roots Shampoo, Conditioner and Body Wash on a bench in a locker room",
+      alt: "Roots Schampoo, Conditioner and Body Wash on a bench in a locker room",
     },
   },
 };

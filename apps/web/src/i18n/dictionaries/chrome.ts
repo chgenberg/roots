@@ -68,7 +68,7 @@ export const chrome: Record<Locale, ChromeCopy> = {
         {
           title: "Produkter",
           links: [
-            { href: "/produkter/shampoo", label: "Roots Shampoo" },
+            { href: "/produkter/shampoo", label: "Roots Schampoo" },
             { href: "/produkter/conditioner", label: "Roots Conditioner" },
             { href: "/produkter/body-wash", label: "Roots Body Wash" },
             { href: "/produkter/paket", label: "Roots Premiumpaket" },
@@ -144,7 +144,7 @@ export const chrome: Record<Locale, ChromeCopy> = {
         {
           title: "Products",
           links: [
-            { href: "/produkter/shampoo", label: "Roots Shampoo" },
+            { href: "/produkter/shampoo", label: "Roots Schampoo" },
             { href: "/produkter/conditioner", label: "Roots Conditioner" },
             { href: "/produkter/body-wash", label: "Roots Body Wash" },
             { href: "/produkter/paket", label: "Roots Premium pack" },

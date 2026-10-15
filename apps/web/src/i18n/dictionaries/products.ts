@@ -53,11 +53,11 @@ export const products: Record<
 > = {
   shampoo: {
     sv: {
-      name: "Roots Shampoo",
+      name: "Roots Schampoo",
       subtitle: "Schampo · 250 ml",
       tagline: "Rengör på riktigt.",
       description:
-        "Hårbotten har ett eget ekosystem: mikrober, egna oljor och en hudbarriär. Roots Shampoo rengör med milda, sockerbaserade tensider. Smuts och fett försvinner. Skyddet får vara kvar. SyriCalm® av vass (Phragmites Communis) och svamp (Poria Cocos) lugnar och stöttar barriären. Polyquaternium reder ut, så att du slipper dra. Doften är diskret och neutral.",
+        "Hårbotten har ett eget ekosystem: mikrober, egna oljor och en hudbarriär. Roots Schampoo rengör med milda, sockerbaserade tensider. Smuts och fett försvinner. Skyddet får vara kvar. SyriCalm® av vass (Phragmites Communis) och svamp (Poria Cocos) lugnar och stöttar barriären. Polyquaternium reder ut, så att du slipper dra. Doften är diskret och neutral.",
       priceSek: 199,
       priceOre: 19900,
       volume: "250 ml",
@@ -71,11 +71,11 @@ export const products: Record<
       ui: { ...sharedUi.sv },
     },
     en: {
-      name: "Roots Shampoo",
+      name: "Roots Schampoo",
       subtitle: "Shampoo · 250 ml",
       tagline: "A real clean.",
       description:
-        "Your scalp has its own ecosystem: microbes, natural oils and a skin barrier. Roots Shampoo cleanses with mild, sugar-based surfactants. Dirt and oil go. The protection stays. SyriCalm®, from reed (Phragmites Communis) and mushroom (Poria Cocos), soothes and supports the barrier. Polyquaternium detangles, so you don't have to pull. The scent is discreet and neutral.",
+        "Your scalp has its own ecosystem: microbes, natural oils and a skin barrier. Roots Schampoo cleanses with mild, sugar-based surfactants. Dirt and oil go. The protection stays. SyriCalm®, from reed (Phragmites Communis) and mushroom (Poria Cocos), soothes and supports the barrier. Polyquaternium detangles, so you don't have to pull. The scent is discreet and neutral.",
       priceSek: 199,
       priceOre: 19900,
       volume: "250 ml",
@@ -181,7 +181,7 @@ export const products: Record<
         "SyriCalm® i hela rutinen",
       ],
       contains: [
-        { slug: "shampoo", label: "Roots Shampoo, 250 ml" },
+        { slug: "shampoo", label: "Roots Schampoo, 250 ml" },
         { slug: "conditioner", label: "Roots Conditioner, 250 ml" },
         { slug: "body-wash", label: "Roots Body Wash, 250 ml" },
       ],
@@ -204,7 +204,7 @@ export const products: Record<
         "SyriCalm® throughout the routine",
       ],
       contains: [
-        { slug: "shampoo", label: "Roots Shampoo, 250 ml" },
+        { slug: "shampoo", label: "Roots Schampoo, 250 ml" },
         { slug: "conditioner", label: "Roots Conditioner, 250 ml" },
         { slug: "body-wash", label: "Roots Body Wash, 250 ml" },
       ],
