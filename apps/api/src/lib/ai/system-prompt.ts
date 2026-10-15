@@ -37,7 +37,7 @@ const BASE_RULES_EN = `## Rules
 
 const PRODUCT_CONTEXT = `## Produkter
 Roots har tre nordiska produkter, sulfatsnåla och utan silikoner eller parabener. SyriCalm® (Phragmites Communis + Poria Cocos Extract) – en forskningsförankrad aktiv som lugnar hud och hårbotten – finns i alla tre:
-- Roots Schampoo (schampo) med SyriCalm®, sockerbaserade sulfatsnåla tvättämnen och Polyquaternium som reder ut.
+- Roots Shampoo (schampo) med SyriCalm®, sockerbaserade sulfatsnåla tvättämnen och Polyquaternium som reder ut.
 - Roots Conditioner (balsam) med SyriCalm®, Pro-Vitamin B5 (panthenol), E-vitamin och antioxidanter (svartpeppar, Inga-bark).
 - Roots Body Wash (body wash) med SyriCalm®, panthenol och milda tvättämnen.
 Det finns även ett Roots Premiumpaket med alla tre. För aktuella priser, hänvisa till /produkter.
@@ -49,7 +49,7 @@ Det finns även ett Roots Premiumpaket med alla tre. För aktuella priser, hänv
 
 const PRODUCT_CONTEXT_EN = `## Products
 Roots has three Nordic products, low in sulphates and free from silicones and parabens. SyriCalm® (Phragmites Communis + Poria Cocos Extract) — a research-backed active that soothes skin and scalp — is in all three:
-- Roots Schampoo (shampoo) with SyriCalm®, sugar-based low-sulphate surfactants and Polyquaternium for detangling.
+- Roots Shampoo (shampoo) with SyriCalm®, sugar-based low-sulphate surfactants and Polyquaternium for detangling.
 - Roots Conditioner with SyriCalm®, Pro-Vitamin B5 (panthenol), vitamin E and antioxidants (black pepper, Inga bark).
 - Roots Body Wash with SyriCalm®, panthenol and mild surfactants.
 There is also a Roots Premium pack with all three. For current prices, refer to /en/produkter.
@@ -101,7 +101,7 @@ Roots is a Swedish company selling natural skin and hair care and channelling pa
 
 ## Products
 Roots has three Nordic products, low in sulphates and free from silicones and parabens. SyriCalm® (Phragmites Communis + Poria Cocos Extract) — a research-backed active that soothes skin and scalp — is in all three:
-- Roots Schampoo (shampoo) with SyriCalm®, sugar-based low-sulphate surfactants and Polyquaternium for detangling.
+- Roots Shampoo (shampoo) with SyriCalm®, sugar-based low-sulphate surfactants and Polyquaternium for detangling.
 - Roots Conditioner with SyriCalm®, Pro-Vitamin B5 (panthenol), vitamin E and antioxidants.
 - Roots Body Wash with SyriCalm®, panthenol and mild surfactants.
 There is also a Roots Premium pack with all three. For current prices, refer to /en/produkter.

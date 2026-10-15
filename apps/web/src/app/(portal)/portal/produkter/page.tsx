@@ -29,7 +29,7 @@ function fallbackProducts(
 ): PortalProductCard[] {
   return [
     {
-      name: "Roots Schampoo",
+      name: "Roots Shampoo",
       type: t.typeShampoo,
       desc: t.descShampoo,
       price: 199,

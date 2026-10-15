@@ -4,8 +4,8 @@
     {
       "id": "wb-fredrik-revision-oct15",
       "title": "Fredriks revision + Så här går det till",
-      "body": "Brun publik sajt (text, knappar, logga), nya texter på startsida/produkter/föreningsliv/om oss, guider utan ramar, kalkylator med gradient, mjukare sportbilder, ny sida /sa-har-gar-det-till med ritade flöden. Inga priser eller 35 % rörda, inget mejl, ingen env-lyft. Deploy kräver ja.",
-      "status": "doing",
+      "body": "Brun publik sajt (text, knappar, logga), nya texter på startsida/produkter/föreningsliv/om oss, guider utan ramar, kalkylator med gradient, mjukare sportbilder, ny sida /sa-har-gar-det-till med ritade flöden. Inga priser eller 35 % rörda, inget mejl, ingen env-lyft. Deployad 475a6af + 72e3214 efter ja, web + API SUCCESS, verifierad på roots.nu.",
+      "status": "done",
       "domainId": "platform",
       "playbook": "ops",
       "files": [

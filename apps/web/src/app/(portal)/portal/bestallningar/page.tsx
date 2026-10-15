@@ -62,7 +62,7 @@ function catalogFallbackProducts(
   bundleName: string
 ): PortalOrderProduct[] {
   return [
-    { id: "1", name: "Roots Schampoo", priceOre: 19900, slug: "shampoo" },
+    { id: "1", name: "Roots Shampoo", priceOre: 19900, slug: "shampoo" },
     { id: "2", name: "Roots Conditioner", priceOre: 19900, slug: "conditioner" },
     { id: "3", name: "Roots Body Wash", priceOre: 17900, slug: "body-wash" },
     {

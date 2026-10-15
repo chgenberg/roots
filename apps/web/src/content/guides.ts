@@ -99,9 +99,9 @@ export const guideDefinitions: GuideDefinition[] = [
     category: "forening",
     heroImage: "/images/roots-collection-studio-w.jpg",
     sv: {
-      title: "Vad är föreningsförsäljning — och varför premium hårvård?",
+      title: "Föreningsförsäljning med något folk faktiskt använder",
       description:
-        "En guide till modern föreningsförsäljning: personlig shop, QR och utbetalning — och varför fler klubbar väljer produkter människor faktiskt vill använda.",
+        "Många söker något annat än godis och lotter. Så fungerar modern föreningsförsäljning med egen shop och hemleverans, och därför passar hårvård så bra.",
       sections: [
         {
           heading: "Föreningsförsäljning i korthet",
@@ -113,7 +113,7 @@ export const guideDefinitions: GuideDefinition[] = [
         {
           heading: "Varför premium hårvård passar föreningar",
           paragraphs: [
-            "Hårvård är något de flesta redan köper. När föreningen erbjuder [Roots Schampoo](/produkter/shampoo), [Roots Conditioner](/produkter/conditioner) och [Roots Body Wash](/produkter/body-wash) säljer ni något människor har användning för — inte något som äts upp på en eftermiddag.",
+            "Hårvård är något de flesta redan köper. När föreningen erbjuder [Roots Shampoo](/produkter/shampoo), [Roots Conditioner](/produkter/conditioner) och [Roots Body Wash](/produkter/body-wash) säljer ni något människor har användning för — inte något som äts upp på en eftermiddag.",
             "Premium betyder inte lyx för lyxens skull. Det betyder tydlig formulering, nordiska ingredienser och en produkt som går att stå för när man tipsar en kollega eller en granne. Det gör samtalet lättare för både ungdomar och föräldrar.",
           ],
         },
@@ -159,9 +159,9 @@ export const guideDefinitions: GuideDefinition[] = [
       cta: { href: "/foreningsliv", label: "Läs mer om föreningsliv" },
     },
     en: {
-      title: "What is club fundraising — and why premium hair care?",
+      title: "Club fundraising with something people actually use",
       description:
-        "A guide to modern club fundraising: personal shop, QR and payout — and why more clubs choose products people actually want to use.",
+        "Many look beyond candy and raffle tickets. How modern club fundraising works with a personal shop and home delivery, and why hair care fits so well.",
       sections: [
         {
           heading: "Club fundraising in brief",
@@ -173,7 +173,7 @@ export const guideDefinitions: GuideDefinition[] = [
         {
           heading: "Why premium hair care fits clubs",
           paragraphs: [
-            "Hair care is something most people already buy. When the club offers [Roots Schampoo](/produkter/shampoo), [Roots Conditioner](/produkter/conditioner) and [Roots Body Wash](/produkter/body-wash), you sell something people will use — not something eaten in an afternoon.",
+            "Hair care is something most people already buy. When the club offers [Roots Shampoo](/produkter/shampoo), [Roots Conditioner](/produkter/conditioner) and [Roots Body Wash](/produkter/body-wash), you sell something people will use — not something eaten in an afternoon.",
             "Premium does not mean luxury for luxury's sake. It means a clear formula, Nordic ingredients and a product you can stand behind when you recommend it to a colleague or a neighbour. That makes the conversation easier for both young sellers and parents.",
           ],
         },
@@ -231,9 +231,9 @@ export const guideDefinitions: GuideDefinition[] = [
     category: "forening",
     heroImage: "/images/roots-sport-hero-t.jpg",
     sv: {
-      title: "Så fungerar Roots — steg för steg",
+      title: "Så fungerar Roots: från anmälan till utbetalning",
       description:
-        "Från förening till lag, säljare och personlig shop: så går det till när er klubb säljer Roots.",
+        "Fyra steg från anslutning till utbetalning. Se vem som gör vad i föreningen, laget och shoppen, och hur ni kan ha säljare igång samma vecka.",
       sections: [
         {
           heading: "Översikt: fyra nivåer",
@@ -293,9 +293,9 @@ export const guideDefinitions: GuideDefinition[] = [
       cta: { href: "/sa-fungerar-det", label: "Se så fungerar det" },
     },
     en: {
-      title: "How Roots works — step by step",
+      title: "How Roots works: from sign-up to payout",
       description:
-        "From club to team, seller and personal shop: how it works when your club sells Roots.",
+        "Four steps from joining to payout. See who does what in the club, the team and the shop, and how you can have sellers up and running the same week.",
       sections: [
         {
           heading: "Overview: four levels",
@@ -367,9 +367,9 @@ export const guideDefinitions: GuideDefinition[] = [
     category: "forening",
     heroImage: "/images/roots-sport-m4-t.jpg",
     sv: {
-      title: "Hur mycket tjänar föreningen? 35 %-modellen förklarad",
+      title: "Hur mycket tjänar föreningen? 35 % med räkneexempel",
       description:
-        "Föreningen, laget eller klassen behåller 35 % av försäljningen. Här är räkneexempel, vad som ingår — och hur ni sätter realistiska mål.",
+        "Föreningen, laget eller klassen behåller 35 %. Med 20 säljare som säljer för cirka 2 400 kr var blir det 16 800 kr. Så sätter ni ett mål som håller.",
       sections: [
         {
           heading: "Den fasta modellen: 35 %",
@@ -428,9 +428,9 @@ export const guideDefinitions: GuideDefinition[] = [
       cta: { href: "/sa-fungerar-det", label: "Testa räknesnurran" },
     },
     en: {
-      title: "How much does the club earn? The 35% model explained",
+      title: "How much does the club earn? 35% with worked examples",
       description:
-        "The club, team or class keeps 35% of sales. Here are examples, what is included — and how you set realistic goals.",
+        "The club, team or class keeps 35%. With 20 sellers selling about SEK 2,400 each, that comes to SEK 16,800. Here is how to set a goal that holds up.",
       sections: [
         {
           heading: "The fixed model: 35%",
@@ -501,9 +501,9 @@ export const guideDefinitions: GuideDefinition[] = [
     category: "forening",
     heroImage: "/images/roots-sport-m2-t.jpg",
     sv: {
-      title: "Personlig shopsida och QR — så funkar det",
+      title: "Personlig shop och QR: sälj utan lådor och kontanter",
       description:
-        "Varje säljare får en egen shopsida med länk och QR-kod. Så delar ni den — och så ser köpet ut för kunden.",
+        "Varje säljare får en egen länk och QR-kod. Kunden betalar och får varorna hem. Se var QR-koden gör mest nytta och hur du delar utan att tjata.",
       sections: [
         {
           heading: "En shop per säljare",
@@ -557,9 +557,9 @@ export const guideDefinitions: GuideDefinition[] = [
       cta: { href: "/hjalp", label: "Hjälp för säljare" },
     },
     en: {
-      title: "Personal shop page and QR — how it works",
+      title: "Personal shop and QR: sell without boxes or cash",
       description:
-        "Every seller gets their own shop page with a link and QR code. How you share it — and what the purchase looks like for the customer.",
+        "Every seller gets their own link and QR code. The customer pays and gets home delivery. See where QR works best and how to share without nagging.",
       sections: [
         {
           heading: "One shop per seller",
@@ -625,9 +625,9 @@ export const guideDefinitions: GuideDefinition[] = [
     category: "forening",
     heroImage: "/images/roots-sport-m1-t.jpg",
     sv: {
-      title: "Säljtips för ungdomar och föräldrar",
+      title: "Säljtips för unga och föräldrar: sälj utan att tjata",
       description:
-        "Praktiska, respektfulla tips för att dela din Roots-shop — utan press, utan pinsamma pitchar.",
+        "Få ett färdigt meddelande att skicka, välj rätt kanal och undvik de vanligaste misstagen. Så säljer du för laget utan press och pinsamma pitchar.",
       sections: [
         {
           heading: "Sälj med syfte, inte skuld",
@@ -693,9 +693,9 @@ export const guideDefinitions: GuideDefinition[] = [
       cta: { href: "/kontakt?intent=demo", label: "Fråga oss om er kampanj" },
     },
     en: {
-      title: "Sales tips for young people and parents",
+      title: "Sales tips for teens and parents: sell without nagging",
       description:
-        "Practical, respectful tips for sharing your Roots shop — without pressure, without awkward pitches.",
+        "Get a ready-made message to send, pick the right channel and avoid the most common mistakes. How to sell for the team without pressure or awkward pitches.",
       sections: [
         {
           heading: "Sell with purpose, not guilt",
@@ -773,9 +773,9 @@ export const guideDefinitions: GuideDefinition[] = [
     category: "sport",
     heroImage: "/images/roots-sport-paddock-t.jpg",
     sv: {
-      title: "Roots för fotbollslag",
+      title: "Fotbollslag: så fyller ni lagkassan inför cupen",
       description:
-        "Så kan fotbollslag använda Roots för cupresor, material och lagkassa — med personliga shoppar och tydlig 35 %-andel.",
+        "25 säljare som säljer för cirka 2 400 kr var ger 21 000 kr till föreningen. Så kommer ni igång, från föräldramötet till QR-koden i omklädningsrummet.",
       sections: [
         {
           heading: "Fotbollens verklighet: alltid något att finansiera",
@@ -829,9 +829,9 @@ export const guideDefinitions: GuideDefinition[] = [
       cta: { href: "/kontakt?intent=demo", label: "Boka demo för laget" },
     },
     en: {
-      title: "Roots for football teams",
+      title: "Football teams: fund your next tournament trip",
       description:
-        "How football teams can use Roots for tournament trips, kit and team funds — with personal shops and a clear 35% share.",
+        "25 sellers selling about SEK 2,400 each bring SEK 21,000 to the club. How to get started, from the parents' meeting to the QR code in the changing room.",
       sections: [
         {
           heading: "Football reality: always something to fund",
@@ -897,9 +897,9 @@ export const guideDefinitions: GuideDefinition[] = [
     category: "sport",
     heroImage: "/images/roots-sport-hockey-t.jpg",
     sv: {
-      title: "Roots för ishockeylag",
+      title: "Ishockeylag: en insamling som inte tar tid från isen",
       description:
-        "Ishockey innebär slit, svett och täta duschar. Så kan laget samla in pengar med premiumvård — utan lager och kontanter.",
+        "Ishockey är dyrt och schemat är fullt. Så samlar laget in pengar med länk och QR i båset, utan lager och kvällsknackning. Föreningen behåller 35 %.",
       sections: [
         {
           heading: "Ishockeyns kostnader är höga — tiden är knappare",
@@ -911,7 +911,7 @@ export const guideDefinitions: GuideDefinition[] = [
         {
           heading: "En produkt som hör hemma i duschen efter isen",
           paragraphs: [
-            "Efter match är hår och hud utsatta för svett, hjälm och kyla. En skonsam rutin med [Roots Schampoo](/produkter/shampoo) och [Body Wash](/produkter/body-wash) är lätt att förklara för både spelare och föräldrar.",
+            "Efter match är hår och hud utsatta för svett, hjälm och kyla. En skonsam rutin med [Roots Shampoo](/produkter/shampoo) och [Body Wash](/produkter/body-wash) är lätt att förklara för både spelare och föräldrar.",
             "Läs gärna [Rutin efter träning](/guider/rutin-efter-traning) för tips kring just den stunden.",
           ],
         },
@@ -953,9 +953,9 @@ export const guideDefinitions: GuideDefinition[] = [
       cta: { href: "/foreningsliv", label: "Läs mer för föreningar" },
     },
     en: {
-      title: "Roots for ice hockey teams",
+      title: "Hockey teams: fundraising that doesn't cost ice time",
       description:
-        "Ice hockey means wear, sweat and frequent showers. How the team can raise money with premium care — without stock and cash.",
+        "Hockey is expensive and schedules are packed. Raise money with a link and a QR code on the bench, with no stock and no door-knocking. The club keeps 35%.",
       sections: [
         {
           heading: "Hockey costs are high — time is tighter",
@@ -967,7 +967,7 @@ export const guideDefinitions: GuideDefinition[] = [
         {
           heading: "A product that belongs in the shower after the ice",
           paragraphs: [
-            "After a game hair and skin face sweat, helmet and cold. A gentle routine with [Roots Schampoo](/produkter/shampoo) and [Body Wash](/produkter/body-wash) is easy to explain to both players and parents.",
+            "After a game hair and skin face sweat, helmet and cold. A gentle routine with [Roots Shampoo](/produkter/shampoo) and [Body Wash](/produkter/body-wash) is easy to explain to both players and parents.",
             "You may also read [Routine after training](/guider/rutin-efter-traning) for tips around that moment.",
           ],
         },
@@ -1021,9 +1021,9 @@ export const guideDefinitions: GuideDefinition[] = [
     category: "ingrediens",
     heroImage: "/images/roots-shampoo-studio-w.jpg",
     sv: {
-      title: "SyriCalm® — Phragmites och Poria för en lugnare känsla",
+      title: "Vad är SyriCalm®? Vass och svamp för lugnare hårbotten",
       description:
-        "Vad är SyriCalm® i Roots produkter? En kosmetisk guide till den nordiska aktiven av vass och svamp.",
+        "SyriCalm® bygger på extrakt från vass och svampen Poria Cocos. Läs vad den gör i schampo, balsam och body wash, och vad den inte lovar.",
       sections: [
         {
           heading: "Vad är SyriCalm®?",
@@ -1074,12 +1074,12 @@ export const guideDefinitions: GuideDefinition[] = [
             "Ja, den går igenom schampo, balsam och body wash i det nuvarande sortimentet.",
         },
       ],
-      cta: { href: "/produkter/shampoo", label: "Se Roots Schampoo" },
+      cta: { href: "/produkter/shampoo", label: "Se Roots Shampoo" },
     },
     en: {
-      title: "SyriCalm® — Phragmites and Poria for a calmer feel",
+      title: "What is SyriCalm®? Reed and mushroom for a calmer scalp",
       description:
-        "What is SyriCalm® in Roots products? A cosmetic guide to the Nordic active from reed and mushroom.",
+        "SyriCalm® is based on extracts from reed and the mushroom Poria Cocos. What it does in shampoo, conditioner and body wash, and what it does not promise.",
       sections: [
         {
           heading: "What is SyriCalm®?",
@@ -1130,7 +1130,7 @@ export const guideDefinitions: GuideDefinition[] = [
             "Yes, it runs through shampoo, conditioner and body wash in the current range.",
         },
       ],
-      cta: { href: "/produkter/shampoo", label: "See Roots Schampoo" },
+      cta: { href: "/produkter/shampoo", label: "See Roots Shampoo" },
     },
     relatedSlugs: [
       "harbotten",
@@ -1145,9 +1145,9 @@ export const guideDefinitions: GuideDefinition[] = [
     category: "ingrediens",
     heroImage: "/images/roots-conditioner-studio-w.jpg",
     sv: {
-      title: "MultiMoist-känsla och Beta Vulgaris — fukt som syns i spegeln",
+      title: "Rödbeta i balsamet? Beta Vulgaris och mjukare hår",
       description:
-        "Hur Beta Vulgaris (rödbetsextrakt) och fuktgivande komplex bidrar till mjukare, mer följsamt hår i Roots balsam — förklarat på kosmetiskt språk.",
+        "Roots Conditioner innehåller rödbetsextrakt och panthenol. Så bidrar de till mjukare, mer följsamt hår, plus en rutin i tre steg för hår som känns torrt.",
       sections: [
         {
           heading: "Fukt är mer än ”blött hår”",
@@ -1200,9 +1200,9 @@ export const guideDefinitions: GuideDefinition[] = [
       cta: { href: "/produkter/conditioner", label: "Se Roots Conditioner" },
     },
     en: {
-      title: "MultiMoist feel and Beta Vulgaris — moisture you see in the mirror",
+      title: "Beetroot in conditioner? Beta Vulgaris and softer hair",
       description:
-        "How Beta Vulgaris (beetroot extract) and moisturising complexes contribute to softer, more manageable hair in Roots conditioner — explained in cosmetic language.",
+        "Roots Conditioner contains beetroot extract and panthenol. How they help hair feel softer, plus a three-step routine for hair that feels dry.",
       sections: [
         {
           heading: "Moisture is more than “wet hair”",
@@ -1267,9 +1267,9 @@ export const guideDefinitions: GuideDefinition[] = [
     category: "harvard",
     heroImage: "/images/roots-sport-gym-t.jpg",
     sv: {
-      title: "Hårbotten i balans — snällt språk, ärliga vanor",
+      title: "Stram hårbotten efter tvätt? Vanor som ofta hjälper",
       description:
-        "En lugn guide till hårbottenvård: mild tvätt, mindre irritation i vardagen och när du bör söka annan hjälp än kosmetik.",
+        "Mild tvätt, rätt vattentemperatur och vanor som funkar med hjälm och mössa. Du får också veta när du ska söka vård i stället för att byta schampo.",
       sections: [
         {
           heading: "Hårbotten är hud",
@@ -1282,7 +1282,7 @@ export const guideDefinitions: GuideDefinition[] = [
           heading: "Vanor som ofta hjälper",
           paragraphs: [
             "Välj ett [sulfatsnålt schampo](/guider/sulfatsnalt-schampo) om du tvättar ofta. Massera in produkten med fingertopparna, inte naglarna. Skölj ordentligt. Undvik att lägga tung styling direkt på botten om du redan upplever obehag.",
-            "[Roots Schampoo](/produkter/shampoo) är formulerat med SyriCalm® för en lugnande känsla — se [SyriCalm®-guiden](/guider/syricalm).",
+            "[Roots Shampoo](/produkter/shampoo) är formulerat med SyriCalm® för en lugnande känsla — se [SyriCalm®-guiden](/guider/syricalm).",
           ],
         },
         {
@@ -1323,9 +1323,9 @@ export const guideDefinitions: GuideDefinition[] = [
       cta: { href: "/produkter", label: "Utforska produkterna" },
     },
     en: {
-      title: "Scalp in balance — kind language, honest habits",
+      title: "Tight scalp after washing? Habits that often help",
       description:
-        "A calm guide to scalp care: gentle washing, less everyday irritation and when you should seek help beyond cosmetics.",
+        "Gentle washing, the right water temperature and habits for helmets and hats. Plus when to see a professional instead of switching shampoo.",
       sections: [
         {
           heading: "The scalp is skin",
@@ -1338,7 +1338,7 @@ export const guideDefinitions: GuideDefinition[] = [
           heading: "Habits that often help",
           paragraphs: [
             "Choose a [low-sulphate shampoo](/guider/sulfatsnalt-schampo) if you wash often. Massage the product in with fingertips, not nails. Rinse thoroughly. Avoid putting heavy styling straight on the scalp if you already feel discomfort.",
-            "[Roots Schampoo](/produkter/shampoo) is formulated with SyriCalm® for a soothing feel — see the [SyriCalm® guide](/guider/syricalm).",
+            "[Roots Shampoo](/produkter/shampoo) is formulated with SyriCalm® for a soothing feel — see the [SyriCalm® guide](/guider/syricalm).",
           ],
         },
         {
@@ -1391,9 +1391,9 @@ export const guideDefinitions: GuideDefinition[] = [
     category: "harvard",
     heroImage: "/images/roots-shampoo-lifestyle-w.jpg",
     sv: {
-      title: "Sulfatsnålt schampo — vad det betyder på riktigt",
+      title: "Sulfatsnålt schampo: vad betyder det på riktigt?",
       description:
-        "En begriplig förklaring av sulfatsnål hårvård: varför många väljer mildare tvättämnen, och hur Roots Schampoo är tänkt att kännas.",
+        "Lödder är inte samma sak som rent. Så skiljer sig sulfatsnålt schampo från schampo med sulfater, vem som har mest nytta och hur du testar i två veckor.",
       sections: [
         {
           heading: "Vad är sulfater i schampo?",
@@ -1405,7 +1405,7 @@ export const guideDefinitions: GuideDefinition[] = [
         {
           heading: "Sockerbaserade tvättämnen",
           paragraphs: [
-            "I [Roots Schampoo](/produkter/shampoo) används bland annat sockerbaserade och andra milda tensider för att lösa smuts och fett utan att känslan ska bli ”skurad”. Målet är rent, lätt hår och en hårbotten som får vara i ro.",
+            "I [Roots Shampoo](/produkter/shampoo) används bland annat sockerbaserade och andra milda tensider för att lösa smuts och fett utan att känslan ska bli ”skurad”. Målet är rent, lätt hår och en hårbotten som får vara i ro.",
             "Tillsammans med [SyriCalm®](/guider/syricalm) blir helheten: rengöring + behaglig känsla.",
           ],
         },
@@ -1444,12 +1444,12 @@ export const guideDefinitions: GuideDefinition[] = [
             "Ibland, ja. Lödder är inte samma sak som renhet. Många vänjer sig snabbt vid en krämigare, mindre ”skummig” känsla.",
         },
       ],
-      cta: { href: "/produkter/shampoo", label: "Till Roots Schampoo" },
+      cta: { href: "/produkter/shampoo", label: "Till Roots Shampoo" },
     },
     en: {
-      title: "Low-sulphate shampoo — what it really means",
+      title: "Low-sulphate shampoo: what does it really mean?",
       description:
-        "A clear explanation of low-sulphate hair care: why many choose milder surfactants, and how Roots Schampoo is meant to feel.",
+        "Lather is not the same as clean. How low-sulphate shampoo differs from shampoo with sulphates, who benefits most and how to test it over two weeks.",
       sections: [
         {
           heading: "What are sulphates in shampoo?",
@@ -1461,7 +1461,7 @@ export const guideDefinitions: GuideDefinition[] = [
         {
           heading: "Sugar-based surfactants",
           paragraphs: [
-            "In [Roots Schampoo](/produkter/shampoo) sugar-based and other mild surfactants are used among other things to lift dirt and oil without the feel becoming “scrubbed”. The goal is clean, light hair and a scalp that gets to rest.",
+            "In [Roots Shampoo](/produkter/shampoo) sugar-based and other mild surfactants are used among other things to lift dirt and oil without the feel becoming “scrubbed”. The goal is clean, light hair and a scalp that gets to rest.",
             "Together with [SyriCalm®](/guider/syricalm) the whole becomes: cleansing + pleasant feel.",
           ],
         },
@@ -1500,7 +1500,7 @@ export const guideDefinitions: GuideDefinition[] = [
             "Sometimes, yes. Lather is not the same as cleanliness. Many quickly get used to a creamier, less “foamy” feel.",
         },
       ],
-      cta: { href: "/produkter/shampoo", label: "View Roots Schampoo" },
+      cta: { href: "/produkter/shampoo", label: "View Roots Shampoo" },
     },
     relatedSlugs: [
       "harbotten",
@@ -1515,9 +1515,9 @@ export const guideDefinitions: GuideDefinition[] = [
     category: "harvard",
     heroImage: "/images/roots-collection-studio-w.jpg",
     sv: {
-      title: "Naturlig hårvård i Norden",
+      title: "Naturlig hårvård i Norden: vad betyder det egentligen?",
       description:
-        "Vad ”naturlig hårvård” betyder hos Roots: nordisk känsla, moderna aktiva, transparens — och en affärsmodell kopplad till föreningslivet.",
+        "”Naturlig” används lättvindigt i skönhetsbranschen. Så tolkar Roots ordet, varför nordisk vardag är hård mot håret och hur du väljer i sortimentet.",
       sections: [
         {
           heading: "Naturlig — utan fluff",
@@ -1571,9 +1571,9 @@ export const guideDefinitions: GuideDefinition[] = [
       cta: { href: "/om-oss", label: "Om Roots" },
     },
     en: {
-      title: "Natural hair care in the Nordics",
+      title: "Natural Nordic hair care: what does it actually mean?",
       description:
-        "What “natural hair care” means at Roots: Nordic feel, modern actives, transparency — and a business model tied to club fundraising.",
+        "“Natural” is used loosely in beauty. How Roots reads the word, why Nordic everyday life is hard on hair and how to choose from the range.",
       sections: [
         {
           heading: "Natural — without fluff",
@@ -1639,9 +1639,9 @@ export const guideDefinitions: GuideDefinition[] = [
     category: "harvard",
     heroImage: "/images/roots-body-wash-lifestyle-w.jpg",
     sv: {
-      title: "Hår- och hudrutin efter träning",
+      title: "Duschrutin efter träning: tre steg för hår och hud",
       description:
-        "En enkel duschrutin efter träning och match: skonsam tvätt, fukt och vanor som funkar i föreningslivets tempo.",
+        "En rutin som är snabb nog att bli av och snäll nog att upprepas. Tre steg i duschen, rätt vattentemperatur och när det räcker att skölja.",
       sections: [
         {
           heading: "Varför efter träning är ett eget kapitel",
@@ -1699,9 +1699,9 @@ export const guideDefinitions: GuideDefinition[] = [
       cta: { href: "/produkter/paket", label: "Se Premiumpaket" },
     },
     en: {
-      title: "Hair and skin routine after training",
+      title: "Shower after training: three steps for hair and skin",
       description:
-        "A simple shower routine after training and matches: gentle cleansing, moisture and habits that work at the pace of club sport.",
+        "A routine quick enough to actually happen and gentle enough to repeat. Three steps in the shower, the right water temperature and when a rinse is enough.",
       sections: [
         {
           heading: "Why after training is its own chapter",
