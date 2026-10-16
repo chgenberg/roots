@@ -100,12 +100,9 @@ export function Header() {
   const closeMenu = useCallback(() => setMenuOpen(false), []);
   const menuRef = useFocusTrap(menuOpen, closeMenu);
 
-  // Prefer browser URL: middleware rewrite can strip `/en` from usePathname.
-  const asPath =
-    typeof window !== "undefined"
-      ? window.location.pathname
-      : pathname || "/";
-  const barePath = asPath.replace(/^\/en(?=\/|$)/, "") || "/";
+  // usePathname, not window.location: on a soft navigation the header
+  // re-renders before the browser URL changes, so window.location is stale.
+  const barePath = (pathname || "/").replace(/^\/en(?=\/|$)/, "") || "/";
   const isActive = (href: string) =>
     barePath === href || barePath.startsWith(href + "/");
 

@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { switchLocalePath } from "@/i18n/paths";
+import { stripLocalePrefix, withLocale } from "@/i18n/paths";
 import { useLocale } from "@/i18n/locale-context";
 
 /**
@@ -17,11 +17,11 @@ import { useLocale } from "@/i18n/locale-context";
 export function LanguageSwitcher({ className }: { className?: string }) {
   const routerPathname = usePathname() || "/";
   const { locale } = useLocale();
-  // Middleware rewrites strip `/en` from usePathname; prefer the browser URL.
-  const asPath =
-    typeof window !== "undefined" ? window.location.pathname : routerPathname;
-  const target = switchLocalePath(asPath);
+  // usePathname may or may not carry `/en` after the middleware rewrite, and
+  // window.location is stale during a soft navigation. Strip the prefix and
+  // take the current locale from context instead.
   const toEn = locale === "sv";
+  const target = withLocale(stripLocalePrefix(routerPathname), toEn ? "en" : "sv");
 
   return (
     <a
