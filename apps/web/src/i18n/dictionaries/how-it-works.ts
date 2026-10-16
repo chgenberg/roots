@@ -53,6 +53,8 @@ type HowItWorksCopy = {
     support: string;
     between: string;
   };
+  skipTitle: string;
+  skip: { title: string; body: string }[];
   allTheWayTitle: string;
   allTheWayBody: string;
   allTheWayCta: string;
@@ -173,6 +175,16 @@ export const howItWorks: Record<Locale, HowItWorksCopy> = {
       support: "Stöttar er igen",
       between: "Även mellan säljperioderna",
     },
+    skipTitle: "Vad ni slipper",
+    skip: [
+      { title: "Ingen minsta order", body: "Beställ det ni behöver, när ni behöver det." },
+      { title: "Ingen pärm", body: "Portalen visar ordrar, mål och 35 % i realtid." },
+      {
+        title: "Ingen packning",
+        body: "Frakten syns i kassan. Fri frakt kan gälla över tröskeln där.",
+      },
+      { title: "Ingen gissning", body: "Ni ser exakt hur mycket föreningen har tjänat." },
+    ],
     allTheWayTitle: "Vi är med er hela vägen",
     allTheWayBody:
       "Från första samtalet till leverans, uppföljning och nästa försäljning. Vi använder modern teknik för att förenkla arbetet och personlig kontakt för att hjälpa er framåt.",
@@ -355,6 +367,16 @@ export const howItWorks: Record<Locale, HowItWorksCopy> = {
       support: "Supports you again",
       between: "Even between sales periods",
     },
+    skipTitle: "What you skip",
+    skip: [
+      { title: "No minimum order", body: "Order what you need, when you need it." },
+      { title: "No binder", body: "The portal shows orders, goals and your 35% in real time." },
+      {
+        title: "No packing",
+        body: "Shipping is shown at checkout. Free shipping may apply above the threshold shown there.",
+      },
+      { title: "No guesswork", body: "You see exactly how much the club has earned." },
+    ],
     allTheWayTitle: "We are with you all the way",
     allTheWayBody:
       "From the first call to delivery, follow-up and the next sale. We use modern technology to make the work simpler and personal contact to help you forward.",

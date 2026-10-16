@@ -126,6 +126,24 @@ export default async function SaHarGarDetTillPage() {
         ))}
       </div>
 
+      <section aria-labelledby="slipper-titel" className="pb-20 md:pb-28">
+        <div className="mx-auto max-w-[1100px] px-6 md:px-10">
+          <div className="rounded-3xl bg-[linear-gradient(160deg,#F7F3EA_0%,#EFE8DD_55%,#DDD2C6_100%)] px-6 py-12 sm:px-10 md:py-16">
+            <h2 id="slipper-titel" className="text-center text-3xl tracking-tight">
+              {t.skipTitle}
+            </h2>
+            <ul className="mt-10 grid gap-x-8 gap-y-8 sm:grid-cols-2 lg:grid-cols-4">
+              {t.skip.map((item) => (
+                <li key={item.title} className="border-t border-brand-700/25 pt-4">
+                  <h3 className="text-lg font-semibold">{item.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{item.body}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </section>
+
       <section className="pb-20 md:pb-28">
         <div className="mx-auto max-w-2xl px-6 text-center md:px-10">
           <h2 className="text-3xl tracking-tight">{t.allTheWayTitle}</h2>
