@@ -933,7 +933,7 @@ export function HairAnalysisLeadDialog({
                           </LocaleLink>
                         </Button>
                         <Button variant="outline" size="lg" className="gap-2 border-background/20 text-background hover:bg-background/10" asChild>
-                          <LocaleLink href="/foreningsliv">
+                          <LocaleLink href="/kontakt?intent=demo">
                             <Phone className="h-4 w-4" />
                             {t.result.bookCall}
                           </LocaleLink>

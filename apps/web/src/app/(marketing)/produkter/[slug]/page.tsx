@@ -263,7 +263,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
               <p className="mt-8 text-3xl font-bold">{price}</p>
 
               <Button size="lg" pulse className="mt-6 w-fit" asChild>
-                <LocaleLink href="/foreningsliv">
+                <LocaleLink href="/sa-har-gar-det-till">
                   {product.ui.orderViaAssociation}
                 </LocaleLink>
               </Button>
@@ -309,7 +309,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
             <p className="text-sm text-muted-foreground">{price}</p>
           </div>
           <Button size="sm" className="shrink-0" asChild>
-            <LocaleLink href="/foreningsliv">
+            <LocaleLink href="/sa-har-gar-det-till">
               {product.ui.orderViaAssociation}
             </LocaleLink>
           </Button>

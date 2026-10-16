@@ -119,7 +119,7 @@ export default function PublicCalculatorPage() {
         <h1 className="text-xl font-bold">{t.notFoundTitle}</h1>
         <p className="mt-2 text-sm text-muted-foreground">{t.notFoundBody}</p>
         <Button asChild className="mt-6" variant="secondary">
-          <LocaleLink href="/foreningsliv">{t.readMore}</LocaleLink>
+          <LocaleLink href="/sa-har-gar-det-till">{t.readMore}</LocaleLink>
         </Button>
       </div>
     );

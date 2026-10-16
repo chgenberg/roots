@@ -166,7 +166,7 @@ export default async function ProdukterPage() {
               <p className="text-3xl font-bold">{t.ctaTitle}</p>
               <p className="mt-1 text-sm text-muted-foreground">{t.ctaBody}</p>
               <Button className="mt-6" asChild>
-                <LocaleLink href="/foreningsliv">{t.ctaButton}</LocaleLink>
+                <LocaleLink href="/sa-har-gar-det-till">{t.ctaButton}</LocaleLink>
               </Button>
             </CardContent>
           </Card>

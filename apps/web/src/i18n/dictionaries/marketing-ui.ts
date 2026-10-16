@@ -32,7 +32,6 @@ export const marketingUi = {
       items: [
         { label: "Hem", href: "/", category: "pages" },
         { label: "Produkter", href: "/produkter", category: "pages" },
-        { label: "Föreningsliv", href: "/foreningsliv", category: "pages" },
         { label: "Guider", href: "/guider", category: "pages" },
         { label: "Så fungerar det", href: "/sa-fungerar-det", category: "pages" },
         { label: "Räkna på intäkten", href: "/sa-fungerar-det#rakna", category: "pages" },
@@ -144,7 +143,6 @@ export const marketingUi = {
       items: [
         { label: "Home", href: "/", category: "pages" },
         { label: "Products", href: "/produkter", category: "pages" },
-        { label: "For clubs", href: "/foreningsliv", category: "pages" },
         { label: "Guides", href: "/guider", category: "pages" },
         { label: "How it works", href: "/sa-fungerar-det", category: "pages" },
         { label: "Calculate your earnings", href: "/sa-fungerar-det#rakna", category: "pages" },

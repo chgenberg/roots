@@ -164,6 +164,7 @@ function isPreviewGateDisabled(): boolean {
 // in crawlers till något vi gömmer. Tillfällig redirect (307) — sidan ska
 // tillbaka.
 const HIDDEN_ROUTES: string[] = [
+  "/foreningsliv",
   ...(HAIR_ANALYSIS_ENABLED ? [] : ["/haranalys"]),
 ];
 

@@ -78,7 +78,6 @@ export const chrome: Record<Locale, ChromeCopy> = {
         {
           title: "Företaget",
           links: [
-            { href: "/foreningsliv", label: "Föreningsliv" },
             { href: "/intresseanmalan", label: "Sälj med oss" },
             { href: "/sa-har-gar-det-till", label: "Så här går det till" },
             { href: "/sa-fungerar-det#rakna", label: "Räkna på intäkten" },
@@ -154,7 +153,6 @@ export const chrome: Record<Locale, ChromeCopy> = {
         {
           title: "Company",
           links: [
-            { href: "/foreningsliv", label: "For clubs" },
             { href: "/intresseanmalan", label: "Sell with us" },
             { href: "/sa-har-gar-det-till", label: "How it works" },
             { href: "/sa-fungerar-det#rakna", label: "Calculate your earnings" },

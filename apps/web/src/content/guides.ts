@@ -121,7 +121,7 @@ export const guideDefinitions: GuideDefinition[] = [
           heading: "Hur Roots gör insamlingen enkel",
           paragraphs: [
             "Varje säljare får en personlig shop och QR-kod. Kunden beställer online och får hemleverans — säljaren bär inte lådor och tar inte emot kontanter. Föreningen, laget eller klassen följer läget i portalen och får utbetalning enligt den fasta 35 %-modellen.",
-            "Premiumvård kan bli en återkommande vana: samma person som köpte via shoppen kan komma tillbaka nästa säsong. Läs mer under [Föreningsliv](/foreningsliv) eller se flödet i [Så fungerar det](/sa-fungerar-det).",
+            "Premiumvård kan bli en återkommande vana: samma person som köpte via shoppen kan komma tillbaka nästa säsong. Läs mer i [Så här går det till](/sa-har-gar-det-till) eller se flödet i [Så fungerar det](/sa-fungerar-det).",
           ],
         },
         {
@@ -156,7 +156,7 @@ export const guideDefinitions: GuideDefinition[] = [
             "Nej. Modellen fungerar för idrottslag, kulturföreningar och andra ideella verksamheter som vill samla in pengar på ett mer modernt sätt.",
         },
       ],
-      cta: { href: "/foreningsliv", label: "Läs mer om föreningsliv" },
+      cta: { href: "/sa-har-gar-det-till", label: "Så här går det till" },
     },
     en: {
       title: "Club fundraising with something people actually use",
@@ -181,7 +181,7 @@ export const guideDefinitions: GuideDefinition[] = [
           heading: "How Roots makes fundraising simple",
           paragraphs: [
             "Each seller gets a personal shop and QR code. The customer orders online and gets home delivery — the seller does not carry boxes or take cash. The club, team or class follows progress in the portal and receives payout according to the fixed 35% model.",
-            "Premium care can become a recurring habit: the same person who bought through the shop may return next season. Read more under [For clubs](/foreningsliv) or see the flow in [How it works](/sa-fungerar-det).",
+            "Premium care can become a recurring habit: the same person who bought through the shop may return next season. Read more in [How it works](/sa-har-gar-det-till) or try the numbers in the [calculator](/sa-fungerar-det).",
           ],
         },
         {
@@ -216,7 +216,7 @@ export const guideDefinitions: GuideDefinition[] = [
             "No. The model works for sports teams, cultural clubs and other non-profits that want to raise money in a more modern way.",
         },
       ],
-      cta: { href: "/foreningsliv", label: "Read more about club fundraising" },
+      cta: { href: "/sa-har-gar-det-till", label: "How it works" },
     },
     relatedSlugs: [
       "personlig-shop",
@@ -274,7 +274,7 @@ export const guideDefinitions: GuideDefinition[] = [
           heading: "Ett flöde som är lätt att äga tillsammans",
           paragraphs: [
             "Det bästa upplägget är ofta det som fördelar små uppgifter tydligt. Föreningsansvarig sätter ramarna, ledaren samlar laget och varje säljare delar sin egen shop. Ingen behöver bli butikschef, och ingen behöver gissa vart en order hör hemma.",
-            "Inför starten kan ni bestämma kampanjens mål, period och hur ni berättar om den. Följ sedan resultatet med lugn och fokus på gemensam rörelse framåt. [Föreningsliv](/foreningsliv) beskriver modellen på övergripande nivå, medan [tips till säljare](/guider/tips-till-saljare) hjälper varje person med nästa lilla steg.",
+            "Inför starten kan ni bestämma kampanjens mål, period och hur ni berättar om den. Följ sedan resultatet med lugn och fokus på gemensam rörelse framåt. [Så här går det till](/sa-har-gar-det-till) beskriver modellen på övergripande nivå, medan [tips till säljare](/guider/tips-till-saljare) hjälper varje person med nästa lilla steg.",
           ],
         },
       ],
@@ -336,7 +336,7 @@ export const guideDefinitions: GuideDefinition[] = [
           heading: "A flow that is easy to own together",
           paragraphs: [
             "The best setup often distributes small tasks clearly. The club lead sets the frame, the leader gathers the team and each seller shares their own shop. Nobody needs to become a store manager, and nobody needs to guess where an order belongs.",
-            "Before kick-off you can decide the campaign goal, period and how you talk about it. Then follow the result calmly with a focus on shared progress. [For clubs](/foreningsliv) describes the model at a high level, while [tips for sellers](/guider/tips-till-saljare) helps each person with the next small step.",
+            "Before kick-off you can decide the campaign goal, period and how you talk about it. Then follow the result calmly with a focus on shared progress. [How it works](/sa-har-gar-det-till) describes the model at a high level, while [tips for sellers](/guider/tips-till-saljare) helps each person with the next small step.",
           ],
         },
       ],
@@ -397,7 +397,7 @@ export const guideDefinitions: GuideDefinition[] = [
           heading: "Transparens bygger förtroende",
           paragraphs: [
             "Berätta öppet för medlemmar och föräldrar hur 35 %-modellen fungerar. När alla förstår att köpet både ger en bra produkt och stödjer laget blir samtalet enklare — och säljarna mer trygga.",
-            "Mer om helheten finns under [Föreningsliv](/foreningsliv). Vill ni gå igenom siffrorna tillsammans? [Boka en demo](/kontakt?intent=demo).",
+            "Mer om helheten finns i [Så här går det till](/sa-har-gar-det-till). Vill ni gå igenom siffrorna tillsammans? [Boka en demo](/kontakt?intent=demo).",
           ],
         },
         {
@@ -458,7 +458,7 @@ export const guideDefinitions: GuideDefinition[] = [
           heading: "Transparency builds trust",
           paragraphs: [
             "Tell members and parents openly how the 35% model works. When everyone understands that a purchase both delivers a good product and supports the team, the conversation gets easier — and sellers feel more confident.",
-            "For the full picture, see [For clubs](/foreningsliv). Want to go through the numbers together? [Book a demo](/kontakt?intent=demo).",
+            "For the full picture, see [How it works](/sa-har-gar-det-till). Want to go through the numbers together? [Book a demo](/kontakt?intent=demo).",
           ],
         },
         {
@@ -661,7 +661,7 @@ export const guideDefinitions: GuideDefinition[] = [
         {
           heading: "För lagledare",
           paragraphs: [
-            "Sätt ett gemensamt mål, dela en gemensam pitch och fira milstolpar. Gör det socialt utan att peka ut den som sålt minst. Mer om flödet: [Så fungerar Roots](/guider/sa-fungerar-roots) och [Föreningsliv](/foreningsliv).",
+            "Sätt ett gemensamt mål, dela en gemensam pitch och fira milstolpar. Gör det socialt utan att peka ut den som sålt minst. Mer om flödet: [Så fungerar Roots](/guider/sa-fungerar-roots) och [Så här går det till](/sa-har-gar-det-till).",
             "Gör informationen lätt att hitta även efter uppstarten. En fast post i lagets grupp med mål, tidsperiod och länk till hjälp minskar onödiga följdfrågor. Det ger också nya familjer en trygg väg in utan att någon behöver känna sig sen eller utpekad.",
           ],
         },
@@ -729,7 +729,7 @@ export const guideDefinitions: GuideDefinition[] = [
         {
           heading: "For team leaders",
           paragraphs: [
-            "Set a shared goal, share a shared pitch and celebrate milestones. Make it social without calling out whoever sold the least. More about the flow: [How Roots works](/guider/sa-fungerar-roots) and [For clubs](/foreningsliv).",
+            "Set a shared goal, share a shared pitch and celebrate milestones. Make it social without calling out whoever sold the least. More about the flow: [How Roots works](/guider/sa-fungerar-roots) and [How it works](/sa-har-gar-det-till).",
             "Make the information easy to find even after kick-off. A pinned post in the team's group with goal, time period and a link to help reduces unnecessary follow-up questions. It also gives new families a safe way in without anyone feeling late or singled out.",
           ],
         },
@@ -802,7 +802,7 @@ export const guideDefinitions: GuideDefinition[] = [
           heading: "Räkna på lagkassan",
           paragraphs: [
             "Med 25 spelare/föräldrar som säljare och cirka 2 400 kr i snitt per person (6 Premiumpaket) landar bruttoförsäljningen på 60 000 kr. Föreningens andel på 35 % blir 21 000 kr — ofta ett meningsfullt bidrag till en cupresa.",
-            "Testa egna tal i [räknesnurran](/sa-fungerar-det) och läs mer under [Föreningsliv](/foreningsliv).",
+            "Testa egna tal i [räknesnurran](/sa-fungerar-det) och läs mer i [Så här går det till](/sa-har-gar-det-till).",
           ],
         },
         {
@@ -858,7 +858,7 @@ export const guideDefinitions: GuideDefinition[] = [
           heading: "Calculate the team fund",
           paragraphs: [
             "With 25 players/parents as sellers and about SEK 2,400 average per person (6 Premium packs), gross sales land at SEK 60,000. The club's 35% share becomes SEK 21,000 — often a meaningful contribution to a tournament trip.",
-            "Test your own numbers in the [calculator](/sa-fungerar-det) and read more under [For clubs](/foreningsliv).",
+            "Test your own numbers in the [calculator](/sa-fungerar-det) and read more in [How it works](/sa-har-gar-det-till).",
           ],
         },
         {
@@ -925,7 +925,7 @@ export const guideDefinitions: GuideDefinition[] = [
         {
           heading: "Från A-lag till ungdom",
           paragraphs: [
-            "Samma plattform fungerar oavsett nivå. Skillnaden är tonen: ungdomslag pratar cup och material, seniorer kan prata lagkassa och gemensamma aktiviteter. Se helheten på [Föreningsliv](/foreningsliv) eller [boka en demo](/kontakt?intent=demo).",
+            "Samma plattform fungerar oavsett nivå. Skillnaden är tonen: ungdomslag pratar cup och material, seniorer kan prata lagkassa och gemensamma aktiviteter. Se helheten i [Så här går det till](/sa-har-gar-det-till) eller [boka en demo](/kontakt?intent=demo).",
             "Oavsett om ni är ett ungdomslag eller spelar på seniornivå blir det tydligare när kampanjens syfte är gemensamt och kommunicerat. Låt laget välja ett konkret mål och återkoppla löpande, så att försäljningen känns som en del av lagets plan snarare än ett sidospår.",
           ],
         },
@@ -950,7 +950,7 @@ export const guideDefinitions: GuideDefinition[] = [
             "Ja — QR på programblad, i kiosken eller via speaker. Själva köpet sker digitalt, så ni slipper kontanthantering vid sargen.",
         },
       ],
-      cta: { href: "/foreningsliv", label: "Läs mer för föreningar" },
+      cta: { href: "/sa-har-gar-det-till", label: "Så här går det till" },
     },
     en: {
       title: "Hockey teams: fundraising that doesn't cost ice time",
@@ -981,7 +981,7 @@ export const guideDefinitions: GuideDefinition[] = [
         {
           heading: "From first team to youth",
           paragraphs: [
-            "The same platform works at every level. The difference is tone: youth teams talk tournaments and kit, seniors can talk team funds and shared activities. See the full picture on [For clubs](/foreningsliv) or [book a demo](/kontakt?intent=demo).",
+            "The same platform works at every level. The difference is tone: youth teams talk tournaments and kit, seniors can talk team funds and shared activities. See the full picture in [How it works](/sa-har-gar-det-till) or [book a demo](/kontakt?intent=demo).",
             "Whether you are a youth team or play at senior level, it gets clearer when the campaign purpose is shared and communicated. Let the team choose a concrete goal and report back regularly, so selling feels like part of the team's plan rather than a side track.",
           ],
         },
@@ -1006,7 +1006,7 @@ export const guideDefinitions: GuideDefinition[] = [
             "Yes — QR on programmes, in the kiosk or via the PA. The purchase itself is digital, so you avoid cash handling by the boards.",
         },
       ],
-      cta: { href: "/foreningsliv", label: "Read more for clubs" },
+      cta: { href: "/sa-har-gar-det-till", label: "How it works" },
     },
     relatedSlugs: [
       "for-fotbollslag",
@@ -1537,7 +1537,7 @@ export const guideDefinitions: GuideDefinition[] = [
           heading: "Föreningslivet är en del av produkten",
           paragraphs: [
             "Roots säljs genom föreningar. En del av varje köp går tillbaka till laget enligt 35 %-modellen. Det gör hårvården till mer än en flaska i duschen — den blir också ett sätt att stötta lokalt idrotts- och föreningsliv.",
-            "Läs [Föreningsliv](/foreningsliv) eller [Vad är föreningsförsäljning?](/guider/foreningsforsaljning).",
+            "Läs [Så här går det till](/sa-har-gar-det-till) eller [Vad är föreningsförsäljning?](/guider/foreningsforsaljning).",
           ],
         },
         {
@@ -1593,7 +1593,7 @@ export const guideDefinitions: GuideDefinition[] = [
           heading: "Club fundraising is part of the product",
           paragraphs: [
             "Roots is sold through clubs. Part of every purchase goes back to the team according to the 35% model. That makes hair care more than a bottle in the shower — it also becomes a way to support local sport and community clubs.",
-            "Read [For clubs](/foreningsliv) or [What is club fundraising?](/guider/foreningsforsaljning).",
+            "Read [How it works](/sa-har-gar-det-till) or [What is club fundraising?](/guider/foreningsforsaljning).",
           ],
         },
         {
@@ -1668,7 +1668,7 @@ export const guideDefinitions: GuideDefinition[] = [
           heading: "Kopplingen till laget",
           paragraphs: [
             "När hela laget pratar samma rutin blir försäljningen mer naturlig — särskilt i [fotboll](/guider/for-fotbollslag) och [ishockey](/guider/for-ishockeylag). Du delar din [personliga shop](/guider/personlig-shop), laget får sin andel, och produkten används på riktigt.",
-            "Kom igång via [Föreningsliv](/foreningsliv) eller [boka demo](/kontakt?intent=demo).",
+            "Kom igång via [Så här går det till](/sa-har-gar-det-till) eller [boka demo](/kontakt?intent=demo).",
           ],
         },
         {
@@ -1728,7 +1728,7 @@ export const guideDefinitions: GuideDefinition[] = [
           heading: "The link to the team",
           paragraphs: [
             "When the whole team talks the same routine, selling becomes more natural — especially in [football](/guider/for-fotbollslag) and [ice hockey](/guider/for-ishockeylag). You share your [personal shop](/guider/personlig-shop), the team gets its share, and the product is used for real.",
-            "Get started through [For clubs](/foreningsliv) or [book a demo](/kontakt?intent=demo).",
+            "Get started with [How it works](/sa-har-gar-det-till) or [book a demo](/kontakt?intent=demo).",
           ],
         },
         {
