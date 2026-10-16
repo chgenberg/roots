@@ -210,13 +210,14 @@ export function Header() {
         aria-label={t.aria.navMenu}
         inert={!menuOpen}
         className={cn(
-          "fixed inset-0 z-[55] flex flex-col bg-background transition-opacity duration-200 ease-out xl:hidden",
+          "fixed inset-0 z-[55] flex flex-col overflow-y-auto overscroll-contain bg-background pt-20 transition-opacity duration-200 ease-out xl:hidden",
           menuOpen
             ? "pointer-events-auto opacity-100"
             : "pointer-events-none opacity-0"
         )}
       >
-        <nav className="flex flex-1 flex-col items-start justify-center px-10">
+        {/* my-auto, not justify-center: centring with justify-center pushes the first link under the header when the menu is taller than the screen. */}
+        <nav className="my-auto flex flex-col items-start px-10 py-6">
           {NAV_HREFS.map((item) => (
             <LocaleLink
               key={item.href}
