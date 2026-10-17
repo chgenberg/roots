@@ -31,6 +31,15 @@ type HomeCopy = {
     ctaClub: string;
     ctaSell: string;
   };
+  clubs: {
+    title: string;
+    body: string;
+    listLabel: string;
+    nextTitle: string;
+    nextCta: string;
+    prev: string;
+    next: string;
+  };
   products: {
     badge: string;
     title: string;
@@ -83,6 +92,15 @@ export const home: Record<Locale, HomeCopy> = {
       ctaProducts: "Se produkterna",
       ctaClub: "Räkna på intäkten",
       ctaSell: "Sälj med oss",
+    },
+    clubs: {
+      title: "Klubbar vi jobbar med",
+      body: "Följande klubbar är ett axplock av de som redan är anslutna.",
+      listLabel: "Anslutna klubbar",
+      nextTitle: "Er förening här?",
+      nextCta: "Sälj med oss",
+      prev: "Föregående klubb",
+      next: "Nästa klubb",
     },
     products: {
       badge: "Sortiment",
@@ -191,6 +209,15 @@ export const home: Record<Locale, HomeCopy> = {
       ctaProducts: "See the products",
       ctaClub: "Calculate your earnings",
       ctaSell: "Sell with us",
+    },
+    clubs: {
+      title: "Clubs we work with",
+      body: "These clubs are a selection of those already on board.",
+      listLabel: "Clubs on board",
+      nextTitle: "Your club here?",
+      nextCta: "Sell with us",
+      prev: "Previous club",
+      next: "Next club",
     },
     products: {
       badge: "Range",

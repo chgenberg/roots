@@ -1,4 +1,5 @@
 import { HeroSection } from "@/components/sections/hero";
+import { ClubLogos } from "@/components/sections/club-logos";
 import { ForForeningar } from "@/components/sections/for-foreningar";
 import { ProductsPreview } from "@/components/sections/products-preview";
 import { Gamification } from "@/components/sections/gamification";
@@ -41,6 +42,7 @@ export default async function Home() {
         locale={locale}
       />
       <HeroSection />
+      <ClubLogos />
       <ForForeningar />
       <ProductsPreview />
       <Gamification />
