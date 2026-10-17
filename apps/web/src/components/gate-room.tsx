@@ -66,7 +66,7 @@ export function GateRoom({
     >
       <div className="absolute inset-0 overflow-hidden" aria-hidden>
         <Image
-          src="/images/sport/konstakning.jpg"
+          src="/images/sport/konstakning-foto.jpg"
           alt=""
           fill
           priority

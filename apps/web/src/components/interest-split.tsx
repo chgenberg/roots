@@ -35,7 +35,7 @@ export function InterestSplit({
         )}
       >
         <Image
-          src="/images/sport/handboll.jpg"
+          src="/images/sport/handboll-foto.jpg"
           alt={t.imageAlt}
           fill
           priority

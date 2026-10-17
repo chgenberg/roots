@@ -410,9 +410,9 @@ export const pages = {
         "Roots bygger framtidens föreningsförsäljning genom premiumprodukter inom hår- och hudvård, där varje val är rotat i ambitionen att stärka föreningslivet och skapa långsiktiga möjligheter för barn och unga.",
       ctaContact: "Kontakta oss",
       photos: [
-        { src: "/images/sport/ridsport.jpg", alt: "Ridlektion på en ridklubb en grå höstdag" },
-        { src: "/images/sport/konstakning.jpg", alt: "Konståkningsträning i en ishall" },
-        { src: "/images/sport/budo.jpg", alt: "Judoträning för barn på tatamimattor" },
+        { src: "/images/sport/ridsport-foto.jpg", alt: "Ridlektion på en ridklubb en grå höstdag" },
+        { src: "/images/sport/konstakning-foto.jpg", alt: "Konståkningsträning i en ishall" },
+        { src: "/images/sport/budo-foto.jpg", alt: "Judoträning för barn på tatamimattor" },
       ],
       sections: [
         {
@@ -455,9 +455,9 @@ export const pages = {
         "Roots is building the future of club fundraising with premium hair and body care, where every choice is rooted in strengthening club life and creating long-term opportunities for children and young people.",
       ctaContact: "Contact us",
       photos: [
-        { src: "/images/sport/ridsport.jpg", alt: "A riding lesson at a riding club on a grey autumn day" },
-        { src: "/images/sport/konstakning.jpg", alt: "Figure skating practice in an ice rink" },
-        { src: "/images/sport/budo.jpg", alt: "Kids' judo practice on tatami mats" },
+        { src: "/images/sport/ridsport-foto.jpg", alt: "A riding lesson at a riding club on a grey autumn day" },
+        { src: "/images/sport/konstakning-foto.jpg", alt: "Figure skating practice in an ice rink" },
+        { src: "/images/sport/budo-foto.jpg", alt: "Kids' judo practice on tatami mats" },
       ],
       sections: [
         {

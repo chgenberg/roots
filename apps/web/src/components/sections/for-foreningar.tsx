@@ -31,7 +31,7 @@ export async function ForForeningar() {
         <div className="mt-14 grid gap-6 md:grid-cols-2">
           <div className="group relative aspect-[4/3] overflow-hidden rounded-3xl">
             <Image
-              src="/images/sport/fotboll-traning.jpg"
+              src="/images/sport/fotboll-traning-foto.jpg"
               alt={forClubs.sellingAlt}
               fill
               className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.02]"
@@ -40,7 +40,7 @@ export async function ForForeningar() {
           </div>
           <div className="group relative aspect-[4/3] overflow-hidden rounded-3xl">
             <Image
-              src="/images/sport/innebandy.jpg"
+              src="/images/sport/innebandy-foto.jpg"
               alt={forClubs.campAlt}
               fill
               className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.02]"

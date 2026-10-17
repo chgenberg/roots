@@ -13,7 +13,7 @@ export async function generateMetadata(): Promise<Metadata> {
     description: t.metaDescription,
     path: "/intresseanmalan",
     locale,
-    ogImage: "/images/sport/handboll.jpg",
+    ogImage: "/images/sport/handboll-foto.jpg",
   });
 }
 
