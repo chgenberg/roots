@@ -229,7 +229,7 @@ export const guideDefinitions: GuideDefinition[] = [
     publishedAt: "2026-03-01",
     updatedAt: "2026-08-01",
     category: "forening",
-    heroImage: "/images/roots-sport-hero-s.jpg",
+    heroImage: "/images/sport/basket.jpg",
     sv: {
       title: "Så fungerar Roots: från anmälan till utbetalning",
       description:
@@ -365,7 +365,7 @@ export const guideDefinitions: GuideDefinition[] = [
     publishedAt: "2026-03-05",
     updatedAt: "2026-08-01",
     category: "forening",
-    heroImage: "/images/roots-sport-m4-s.jpg",
+    heroImage: "/images/sport/friidrott.jpg",
     sv: {
       title: "Hur mycket tjänar föreningen? 35 % med räkneexempel",
       description:
@@ -499,7 +499,7 @@ export const guideDefinitions: GuideDefinition[] = [
     publishedAt: "2026-03-10",
     updatedAt: "2026-08-01",
     category: "forening",
-    heroImage: "/images/roots-sport-m2-s.jpg",
+    heroImage: "/images/sport/tennis.jpg",
     sv: {
       title: "Personlig shop och QR: sälj utan lådor och kontanter",
       description:
@@ -623,7 +623,7 @@ export const guideDefinitions: GuideDefinition[] = [
     publishedAt: "2026-03-12",
     updatedAt: "2026-08-01",
     category: "forening",
-    heroImage: "/images/roots-sport-m1-s.jpg",
+    heroImage: "/images/sport/gymnastik.jpg",
     sv: {
       title: "Säljtips för unga och föräldrar: sälj utan att tjata",
       description:
@@ -771,7 +771,7 @@ export const guideDefinitions: GuideDefinition[] = [
     publishedAt: "2026-03-20",
     updatedAt: "2026-08-01",
     category: "sport",
-    heroImage: "/images/roots-sport-paddock-s.jpg",
+    heroImage: "/images/sport/fotboll-match.jpg",
     sv: {
       title: "Fotbollslag: så fyller ni lagkassan inför cupen",
       description:
@@ -895,7 +895,7 @@ export const guideDefinitions: GuideDefinition[] = [
     publishedAt: "2026-03-20",
     updatedAt: "2026-08-01",
     category: "sport",
-    heroImage: "/images/roots-sport-hockey-s.jpg",
+    heroImage: "/images/sport/ishockey.jpg",
     sv: {
       title: "Ishockeylag: en insamling som inte tar tid från isen",
       description:
@@ -1265,7 +1265,7 @@ export const guideDefinitions: GuideDefinition[] = [
     publishedAt: "2026-04-10",
     updatedAt: "2026-08-01",
     category: "harvard",
-    heroImage: "/images/roots-sport-gym-s.jpg",
+    heroImage: "/images/sport/simidrott.jpg",
     sv: {
       title: "Stram hårbotten efter tvätt? Vanor som ofta hjälper",
       description:
@@ -1637,7 +1637,7 @@ export const guideDefinitions: GuideDefinition[] = [
     publishedAt: "2026-04-18",
     updatedAt: "2026-08-01",
     category: "harvard",
-    heroImage: "/images/roots-body-wash-lifestyle-w.jpg",
+    heroImage: "/images/sport/budo.jpg",
     sv: {
       title: "Duschrutin efter träning: tre steg för hår och hud",
       description:

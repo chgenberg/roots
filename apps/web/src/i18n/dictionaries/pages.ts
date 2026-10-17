@@ -81,7 +81,7 @@ export const pages = {
       heroTitleAccent: "Vi sköter resten.",
       heroBody:
         "Varje medlem får en egen butik. Kunden handlar med Swish eller kort. Roots levererar. Föreningen behåller 35 %.",
-      heroImageAlt: "Roots produkter i föreningens omklädningsrum",
+      heroImageAlt: "Ishockeyträning för barn i en ishall",
       ctaPrimary: "Sälj med oss",
       ctaSecondary: "Kontakta oss",
       ctaCalc: "Räkna på intäkten",
@@ -112,7 +112,7 @@ export const pages = {
           description: "Föreningen behåller 35 % av allt som säljs.",
         },
       ],
-      midImageAlt: "Roots produkter i duschen — redo att användas",
+      midImageAlt: "Fotbollsmatch för flickor med föräldrar längs sidlinjen",
       sellingImageAlt:
         "Två ungdomar säljer Roots vid klubbstugan — tre flaskor på bordet",
       campImageAlt:
@@ -152,7 +152,7 @@ export const pages = {
       heroTitleAccent: "We handle the rest.",
       heroBody:
         "Every member gets their own shop. The customer pays with Swish or card. Roots delivers. The club keeps 35%.",
-      heroImageAlt: "Roots products in the club changing room",
+      heroImageAlt: "Kids' ice hockey practice in a local rink",
       ctaPrimary: "Sell with us",
       ctaSecondary: "Contact us",
       ctaCalc: "Calculate the revenue",
@@ -183,7 +183,7 @@ export const pages = {
           description: "The club keeps 35% of everything sold.",
         },
       ],
-      midImageAlt: "Roots products in the shower — ready to use",
+      midImageAlt: "Girls' football match with parents along the touchline",
       sellingImageAlt:
         "Two young people selling Roots by the clubhouse — three bottles on the table",
       campImageAlt:
@@ -409,6 +409,11 @@ export const pages = {
       heroBody:
         "Roots bygger framtidens föreningsförsäljning genom premiumprodukter inom hår- och hudvård, där varje val är rotat i ambitionen att stärka föreningslivet och skapa långsiktiga möjligheter för barn och unga.",
       ctaContact: "Kontakta oss",
+      photos: [
+        { src: "/images/sport/ridsport.jpg", alt: "Ridlektion på en ridklubb en grå höstdag" },
+        { src: "/images/sport/konstakning.jpg", alt: "Konståkningsträning i en ishall" },
+        { src: "/images/sport/budo.jpg", alt: "Judoträning för barn på tatamimattor" },
+      ],
       sections: [
         {
           id: "omsorg",
@@ -449,6 +454,11 @@ export const pages = {
       heroBody:
         "Roots is building the future of club fundraising with premium hair and body care, where every choice is rooted in strengthening club life and creating long-term opportunities for children and young people.",
       ctaContact: "Contact us",
+      photos: [
+        { src: "/images/sport/ridsport.jpg", alt: "A riding lesson at a riding club on a grey autumn day" },
+        { src: "/images/sport/konstakning.jpg", alt: "Figure skating practice in an ice rink" },
+        { src: "/images/sport/budo.jpg", alt: "Kids' judo practice on tatami mats" },
+      ],
       sections: [
         {
           id: "omsorg",

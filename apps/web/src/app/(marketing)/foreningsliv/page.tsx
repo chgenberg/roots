@@ -67,7 +67,7 @@ export default async function ForeningslivPage() {
 
           <div className="group relative aspect-[5/4] overflow-hidden rounded-3xl shadow-2xl shadow-brand-900/10 md:aspect-[4/3]">
             <Image
-              src="/images/roots-sport-hockey-s.jpg"
+              src="/images/sport/ishockey.jpg"
               alt={t.heroImageAlt}
               fill
               className="object-cover object-[center_45%] transition-transform duration-700 ease-out group-hover:scale-[1.02]"
@@ -146,14 +146,14 @@ export default async function ForeningslivPage() {
         <div className="group relative mx-auto max-w-[1280px] overflow-hidden rounded-3xl">
           <div className="relative aspect-[4/5] md:aspect-[16/10]">
             <Image
-              src="/images/roots-sport-hero-mobile-s.jpg"
+              src="/images/sport/fotboll-match.jpg"
               alt={t.midImageAlt}
               fill
               className="object-cover object-center transition-transform duration-700 ease-out group-hover:scale-[1.02] md:hidden"
               sizes="100vw"
             />
             <Image
-              src="/images/roots-sport-hero-s.jpg"
+              src="/images/sport/fotboll-match.jpg"
               alt={t.midImageAlt}
               fill
               className="hidden object-cover transition-transform duration-700 ease-out group-hover:scale-[1.02] md:block"

@@ -1,4 +1,6 @@
+import Image from "next/image";
 import { ArrowRight } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { BreadcrumbJsonLd, WebPageJsonLd } from "@/components/json-ld";
 import { LocaleLink } from "@/components/locale-link";
 import { Button } from "@/components/ui/button";
@@ -67,6 +69,26 @@ export default async function OmOssPage() {
           </div>
         </div>
       </section>
+
+      <div className="mx-auto mt-12 grid max-w-[1280px] grid-cols-2 gap-3 px-6 md:mt-16 md:grid-cols-3 md:gap-5 md:px-10">
+        {t.photos.map((photo, i) => (
+          <div
+            key={photo.src}
+            className={cn(
+              "relative aspect-[4/3] overflow-hidden rounded-2xl md:rounded-3xl",
+              i === 0 && "col-span-2 md:col-span-1"
+            )}
+          >
+            <Image
+              src={photo.src}
+              alt={photo.alt}
+              fill
+              sizes="(max-width: 768px) 100vw, 33vw"
+              className="object-cover"
+            />
+          </div>
+        ))}
+      </div>
 
       <div className="mx-auto max-w-2xl space-y-16 px-6 py-20 md:space-y-20 md:px-10 md:py-28">
         {t.sections.map((section) => (

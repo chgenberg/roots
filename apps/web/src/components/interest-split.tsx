@@ -35,12 +35,12 @@ export function InterestSplit({
         )}
       >
         <Image
-          src="/images/roots-club-table-s.jpg"
+          src="/images/sport/handboll.jpg"
           alt={t.imageAlt}
           fill
           priority
           sizes="(min-width: 1024px) 50vw, 100vw"
-          className="object-cover object-[50%_40%]"
+          className="object-cover object-[50%_45%]"
         />
       </div>
 
