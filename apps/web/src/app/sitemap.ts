@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 import { HAIR_ANALYSIS_ENABLED } from "@/lib/feature-flags";
 import { GUIDE_SLUGS, guides } from "@/lib/guides";
 import { resolveCanonicalSiteUrl } from "@roots/contracts";
+import { connectedClubs } from "@/content/clubs";
 
 const BASE_URL = resolveCanonicalSiteUrl();
 // Server-side fetch, so it needs the backend's absolute URL. `NEXT_PUBLIC_API_URL`
@@ -88,6 +89,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // RSS för guider — discovery för crawlers/LLM:er (även i llms.txt + layout alternates).
     { url: `${BASE_URL}/feed.xml`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.5 },
     { url: `${BASE_URL}/om-oss`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.7 },
+    ...connectedClubs.map((club) => ({
+      url: `${BASE_URL}/klubbar/${club.slug}`,
+      lastModified: new Date(),
+      changeFrequency: "monthly" as const,
+      priority: 0.6,
+    })),
     { url: `${BASE_URL}/kontakt`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.7 },
     // Sidan svarar 404 medan håranalysen är dold — den får inte ligga kvar
     // i sitemapen och bjuda in crawlers till en död URL.

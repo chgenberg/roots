@@ -39,6 +39,14 @@ type HomeCopy = {
     nextCta: string;
     prev: string;
     next: string;
+    readMore: string;
+    breadcrumb: string;
+    factsTitle: string;
+    visitSite: string;
+    sourceNote: string;
+    ctaTitle: string;
+    ctaBody: string;
+    otherTitle: string;
   };
   products: {
     badge: string;
@@ -101,6 +109,14 @@ export const home: Record<Locale, HomeCopy> = {
       nextCta: "Sälj med oss",
       prev: "Föregående klubb",
       next: "Nästa klubb",
+      readMore: "Läs om klubben",
+      breadcrumb: "Anslutna klubbar",
+      factsTitle: "I korthet",
+      visitSite: "Besök klubbens webbplats",
+      sourceNote: "Uppgifterna kommer från klubbens egen webbplats, hämtade i oktober 2026.",
+      ctaTitle: "Vill er förening också vara med?",
+      ctaBody: "Anmäl intresse så hör vi av oss. 35 % av varje köp går till föreningen, laget eller klassen.",
+      otherTitle: "Fler anslutna klubbar",
     },
     products: {
       badge: "Sortiment",
@@ -217,6 +233,14 @@ export const home: Record<Locale, HomeCopy> = {
       nextCta: "Sell with us",
       prev: "Previous club",
       next: "Next club",
+      readMore: "About the club",
+      breadcrumb: "Clubs on board",
+      factsTitle: "At a glance",
+      visitSite: "Visit the club's website",
+      sourceNote: "Details come from the club's own website, retrieved in October 2026.",
+      ctaTitle: "Want your club on board too?",
+      ctaBody: "Register your interest and we will be in touch. 35% of every purchase goes to the club, team or class.",
+      otherTitle: "More clubs on board",
     },
     products: {
       badge: "Range",

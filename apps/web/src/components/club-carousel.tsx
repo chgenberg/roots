@@ -20,9 +20,18 @@ type Props = {
   nextCta: string;
   prevLabel: string;
   nextLabel: string;
+  readMore: string;
 };
 
-export function ClubCarousel({ clubs, listLabel, nextTitle, nextCta, prevLabel, nextLabel }: Props) {
+export function ClubCarousel({
+  clubs,
+  listLabel,
+  nextTitle,
+  nextCta,
+  prevLabel,
+  nextLabel,
+  readMore,
+}: Props) {
   const trackRef = useRef<HTMLDivElement>(null);
   const setRef = useRef<HTMLUListElement>(null);
   const pos = useRef(0);
@@ -136,27 +145,39 @@ export function ClubCarousel({ clubs, listLabel, nextTitle, nextCta, prevLabel, 
       ref={copy === 0 ? setRef : undefined}
       aria-label={copy === 0 ? listLabel : undefined}
       aria-hidden={copy === 0 ? undefined : true}
-      inert={copy !== 0}
       className="flex shrink-0 gap-5"
     >
       {clubs.map((club) => (
-        <li
-          key={club.name}
-          className="group/card flex h-48 w-60 shrink-0 select-none flex-col items-center justify-center rounded-3xl bg-white px-6 shadow-[0_1px_2px_rgba(94,83,65,0.06),0_8px_24px_-12px_rgba(94,83,65,0.18)] ring-1 ring-[#E6DED2] transition duration-300 ease-out hover:-translate-y-1 hover:shadow-[0_2px_4px_rgba(94,83,65,0.08),0_18px_40px_-16px_rgba(94,83,65,0.35)] sm:w-64"
-        >
-          <div className="relative flex h-24 w-full items-center justify-center">
-            <Image
-              src={club.logo}
-              alt={copy === 0 ? club.name : ""}
-              width={club.width}
-              height={club.height}
-              draggable={false}
-              sizes="176px"
-              className="h-auto max-h-24 w-auto max-w-[176px] object-contain transition-transform duration-500 ease-out group-hover/card:scale-105"
-            />
-          </div>
-          <p className="mt-4 text-center text-sm font-semibold leading-tight text-[#5E5341]">{club.name}</p>
-          <p className="mt-1 text-xs text-[#7F715B]">{club.town}</p>
+        <li key={club.slug} className="shrink-0">
+          <LocaleLink
+            href={`/klubbar/${club.slug}`}
+            tabIndex={copy === 0 ? undefined : -1}
+            draggable={false}
+            onClick={(e) => {
+              if (dragStart.current.moved) e.preventDefault();
+            }}
+            className="group/card flex h-48 w-60 select-none flex-col items-center justify-center rounded-3xl bg-white px-6 shadow-[0_1px_2px_rgba(94,83,65,0.06),0_8px_24px_-12px_rgba(94,83,65,0.18)] ring-1 ring-[#E6DED2] transition duration-300 ease-out hover:-translate-y-1 hover:shadow-[0_2px_4px_rgba(94,83,65,0.08),0_18px_40px_-16px_rgba(94,83,65,0.35)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:w-64"
+          >
+            <div className="relative flex h-24 w-full items-center justify-center">
+              <Image
+                src={club.logo}
+                alt=""
+                width={club.width}
+                height={club.height}
+                draggable={false}
+                sizes="176px"
+                className="h-auto max-h-24 w-auto max-w-[176px] object-contain transition-transform duration-500 ease-out group-hover/card:scale-105"
+              />
+            </div>
+            <p className="mt-4 text-center text-sm font-semibold leading-tight text-[#5E5341]">{club.name}</p>
+            <p className="relative mt-1 text-xs text-[#7F715B]">
+              <span className="transition-opacity duration-200 group-hover/card:opacity-0">{club.town}</span>
+              <span className="absolute left-1/2 top-0 inline-flex -translate-x-1/2 items-center gap-1 whitespace-nowrap font-medium text-[#6D614D] opacity-0 transition-opacity duration-200 group-hover/card:opacity-100">
+                {readMore}
+                <ArrowRight className="h-3 w-3" aria-hidden />
+              </span>
+            </p>
+          </LocaleLink>
         </li>
       ))}
       <li className="flex h-48 w-60 shrink-0 select-none flex-col items-center justify-center rounded-3xl border border-dashed border-[#B9AC97] px-6 text-center sm:w-64">

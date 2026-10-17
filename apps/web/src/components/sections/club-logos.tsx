@@ -26,6 +26,7 @@ export async function ClubLogos() {
           nextCta={clubs.nextCta}
           prevLabel={clubs.prev}
           nextLabel={clubs.next}
+          readMore={clubs.readMore}
         />
       </div>
     </section>
