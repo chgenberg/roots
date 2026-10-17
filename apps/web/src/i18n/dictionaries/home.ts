@@ -177,8 +177,8 @@ export const home: Record<Locale, HomeCopy> = {
       ],
       cta: "Sälj med oss",
       ctaCalc: "Räkna på intäkten",
-      sellingAlt: "Fotbollsträning för ungdomar på en konstgräsplan en grå höstdag",
-      campAlt: "Innebandymatch för ungdomar i en sporthall",
+      sellingAlt: "Ett flicklag jublar tillsammans på fotbollsplanen",
+      campAlt: "En kille lämnar en leveranslåda från Roots till en kvinna i dörren",
     },
     gamification: {
       badge: "Milstolpar",
@@ -301,8 +301,8 @@ export const home: Record<Locale, HomeCopy> = {
       ],
       cta: "Sell with us",
       ctaCalc: "Calculate your earnings",
-      sellingAlt: "Youth football practice on an artificial pitch on a grey autumn day",
-      campAlt: "Youth floorball match in a sports hall",
+      sellingAlt: "A girls' team celebrating together on the football pitch",
+      campAlt: "A boy hands a Roots delivery box to a woman at her front door",
     },
     gamification: {
       badge: "Milestones",

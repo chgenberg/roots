@@ -229,7 +229,7 @@ export const guideDefinitions: GuideDefinition[] = [
     publishedAt: "2026-03-01",
     updatedAt: "2026-08-01",
     category: "forening",
-    heroImage: "/images/sport/basket-foto.jpg",
+    heroImage: "/images/sport/basket-foto-2.jpg",
     sv: {
       title: "Så fungerar Roots: från anmälan till utbetalning",
       description:
@@ -499,7 +499,7 @@ export const guideDefinitions: GuideDefinition[] = [
     publishedAt: "2026-03-10",
     updatedAt: "2026-08-01",
     category: "forening",
-    heroImage: "/images/sport/tennis-foto.jpg",
+    heroImage: "/images/sport/tennis-foto-2.jpg",
     sv: {
       title: "Personlig shop och QR: sälj utan lådor och kontanter",
       description:
@@ -1265,7 +1265,7 @@ export const guideDefinitions: GuideDefinition[] = [
     publishedAt: "2026-04-10",
     updatedAt: "2026-08-01",
     category: "harvard",
-    heroImage: "/images/sport/simidrott-foto.jpg",
+    heroImage: "/images/sport/simidrott-foto-2.jpg",
     sv: {
       title: "Stram hårbotten efter tvätt? Vanor som ofta hjälper",
       description:
