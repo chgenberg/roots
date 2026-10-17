@@ -71,7 +71,7 @@ export function GateRoom({
           fill
           priority
           sizes="100vw"
-          className="scale-105 object-cover blur-[1px]"
+          className="scale-105 object-cover object-[24%_center] blur-[1px] sm:object-center"
         />
         <div className="absolute inset-0 bg-gradient-to-b from-brand-900/40 via-brand-900/28 to-brand-900/55" />
       </div>
