@@ -13,7 +13,7 @@ export type ProductCopy = {
   badge: string | null;
   highlights: string[];
   /** Bundle-only: what is included. */
-  contains?: { slug: string; label: string; qty?: number }[];
+  contains?: { slug: string; label: string }[];
   /** Category label for structured data / crumbs. */
   category: string;
   ui: {
@@ -269,7 +269,7 @@ export const products: Record<
         "Lägst pris per flaska",
       ],
       contains: [
-        { slug: "shampoo", label: "2 × Roots Schampoo, 250 ml", qty: 2 },
+        { slug: "shampoo", label: "2 × Roots Schampoo, 250 ml" },
         { slug: "conditioner", label: "Roots Conditioner, 250 ml" },
         { slug: "body-wash", label: "Roots Body Wash, 250 ml" },
       ],
@@ -292,7 +292,7 @@ export const products: Record<
         "Lowest price per bottle",
       ],
       contains: [
-        { slug: "shampoo", label: "2 × Roots Schampoo, 250 ml", qty: 2 },
+        { slug: "shampoo", label: "2 × Roots Schampoo, 250 ml" },
         { slug: "conditioner", label: "Roots Conditioner, 250 ml" },
         { slug: "body-wash", label: "Roots Body Wash, 250 ml" },
       ],

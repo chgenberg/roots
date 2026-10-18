@@ -7,6 +7,8 @@ const BY_SKU: Record<string, ProductSlug> = {
   "ROOTS-CO-001": "conditioner",
   "ROOTS-BW-001": "body-wash",
   "ROOTS-KIT-001": "paket",
+  "ROOTS-KIT-002": "paket-basic",
+  "ROOTS-KIT-003": "paket-exclusive",
 };
 
 /**

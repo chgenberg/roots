@@ -5,7 +5,9 @@ const BY_SLUG: Record<string, { sv: string; en: string }> = {
   shampoo: { sv: "Roots Schampoo", en: "Roots Schampoo" },
   conditioner: { sv: "Roots Conditioner", en: "Roots Conditioner" },
   "body-wash": { sv: "Roots Body Wash", en: "Roots Body Wash" },
+  "paket-basic": { sv: "Roots Basicpaket", en: "Roots Basic pack" },
   paket: { sv: "Roots Premiumpaket", en: "Roots Premium pack" },
+  "paket-exclusive": { sv: "Roots Exclusivepaket", en: "Roots Exclusive pack" },
 };
 
 /** Short shop/catalog blurbs (DB seeds are Swedish — overlay for EN). */
@@ -22,9 +24,17 @@ const DESC_BY_SLUG: Record<string, { sv: string; en: string }> = {
     sv: "Skonsam dusch. Milda tensider, Panthenol och SyriCalm®. 250 ml.",
     en: "A gentle shower. Mild surfactants, panthenol and SyriCalm®. 250 ml.",
   },
+  "paket-basic": {
+    sv: "Grunden för håret. Schampo och balsam. 2 × 250 ml.",
+    en: "The foundation for your hair. Shampoo and conditioner. 2 × 250 ml.",
+  },
   paket: {
     sv: "Tre flaskor. En rutin. Schampo, balsam och body wash. 3 × 250 ml.",
     en: "Three bottles. One routine. Shampoo, conditioner and body wash. 3 × 250 ml.",
+  },
+  "paket-exclusive": {
+    sv: "Hela rutinen med ett extra schampo. Två schampo, balsam och body wash. 4 × 250 ml.",
+    en: "The whole routine plus an extra shampoo. Two shampoos, conditioner and body wash. 4 × 250 ml.",
   },
 };
 
@@ -33,6 +43,8 @@ const BY_SKU: Record<string, { sv: string; en: string }> = {
   "ROOTS-CO-001": BY_SLUG.conditioner,
   "ROOTS-BW-001": BY_SLUG["body-wash"],
   "ROOTS-KIT-001": BY_SLUG.paket,
+  "ROOTS-KIT-002": BY_SLUG["paket-basic"],
+  "ROOTS-KIT-003": BY_SLUG["paket-exclusive"],
 };
 
 const DESC_BY_SKU: Record<string, { sv: string; en: string }> = {
@@ -40,6 +52,8 @@ const DESC_BY_SKU: Record<string, { sv: string; en: string }> = {
   "ROOTS-CO-001": DESC_BY_SLUG.conditioner,
   "ROOTS-BW-001": DESC_BY_SLUG["body-wash"],
   "ROOTS-KIT-001": DESC_BY_SLUG.paket,
+  "ROOTS-KIT-002": DESC_BY_SLUG["paket-basic"],
+  "ROOTS-KIT-003": DESC_BY_SLUG["paket-exclusive"],
 };
 
 /** Hair-analysis pack names shown to the end user. */

@@ -28,8 +28,10 @@ import { cn } from "@/lib/utils";
 import {
   productImage,
   byCatalogOrder,
+  bundlePartsPrice,
   isBundleSlug,
   BUNDLE_SLUG,
+  PACKAGE_SLUGS,
 } from "@/lib/product-catalog";
 import { shop } from "@/i18n/dictionaries/shop";
 import { products, type ProductCopy } from "@/i18n/dictionaries/products";
@@ -44,7 +46,7 @@ const MARKETING_PRODUCT_SLUGS = new Set([
   "shampoo",
   "conditioner",
   "body-wash",
-  BUNDLE_SLUG,
+  ...PACKAGE_SLUGS,
 ]);
 
 function localizedCatalogCopy(
@@ -137,27 +139,28 @@ export default function SellerShopPage() {
       }, 0)
     : 0;
 
-  // Premiumpaketet först — det självklara valet. Flaskorna som tillval.
-  const sortedProducts = useMemo(
-    () =>
-      [...(shopData?.products ?? [])].sort((a, b) => {
-        const aBundle = isBundleSlug(a.slug) ? 0 : 1;
-        const bBundle = isBundleSlug(b.slug) ? 0 : 1;
-        if (aBundle !== bBundle) return aBundle - bBundle;
-        return byCatalogOrder(a, b);
-      }),
-    [shopData?.products]
-  );
+  // Premiumpaketet först — det självklara valet. Sedan Basic och Exclusive,
+  // och flaskorna som tillval.
+  const sortedProducts = useMemo(() => {
+    const rank = (slug: string) =>
+      slug === BUNDLE_SLUG ? 0 : isBundleSlug(slug) ? 1 : 2;
+    return [...(shopData?.products ?? [])].sort(
+      (a, b) => rank(a.slug) - rank(b.slug) || byCatalogOrder(a, b)
+    );
+  }, [shopData?.products]);
 
-  // Vad paketet sparar jämfört med att köpa delarna var för sig. Räknas ur
-  // katalogen så siffran inte kan bli fel när ett pris ändras.
+  // Vad varje paket sparar jämfört med att köpa flaskorna var för sig. Räknas
+  // ur kampanjens katalog så siffran inte kan bli fel när ett pris ändras.
   const bundleSavingOre = useMemo(() => {
-    const bundle = sortedProducts.find((p) => isBundleSlug(p.slug));
-    if (!bundle) return 0;
-    const parts = sortedProducts
-      .filter((p) => !isBundleSlug(p.slug))
-      .reduce((sum, p) => sum + p.priceOre, 0);
-    return parts > bundle.priceOre ? parts - bundle.priceOre : 0;
+    const priceBySlug = Object.fromEntries(
+      sortedProducts.map((p) => [p.slug, p.priceOre])
+    );
+    const saving: Record<string, number> = {};
+    for (const p of sortedProducts) {
+      const parts = bundlePartsPrice(p.slug, priceBySlug);
+      if (parts !== null && parts > p.priceOre) saving[p.slug] = parts - p.priceOre;
+    }
+    return saving;
   }, [sortedProducts]);
 
   // Shop accepts orders only while the campaign is ACTIVE. Showing the
@@ -336,7 +339,8 @@ export default function SellerShopPage() {
           {sortedProducts.map((product) => {
             const qty = cart[product.id] || 0;
             const imgSrc = productImage(product.slug);
-            const isBundle = isBundleSlug(product.slug);
+            const isFeatured = product.slug === BUNDLE_SLUG;
+            const savingOre = bundleSavingOre[product.slug] ?? 0;
             const copy = localizedCatalogCopy(product.slug, locale);
             const displayName = copy?.name ?? product.name;
             const displayDescription =
@@ -347,7 +351,7 @@ export default function SellerShopPage() {
                 key={product.id}
                 className={cn(
                   "overflow-hidden",
-                  isBundle && "ring-2 ring-brand-700/25"
+                  isFeatured && "ring-2 ring-brand-700/25"
                 )}
               >
                 <div className="flex">
@@ -363,7 +367,7 @@ export default function SellerShopPage() {
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="font-semibold">{displayName}</h3>
-                        {isBundle ? (
+                        {isFeatured ? (
                           <Badge
                             variant="secondary"
                             className="bg-brand-700 text-white"
@@ -371,13 +375,13 @@ export default function SellerShopPage() {
                             {t.recommended}
                           </Badge>
                         ) : null}
-                        {isBundle && bundleSavingOre > 0 && (
+                        {savingOre > 0 && (
                           <Badge
                             variant="secondary"
                             className="bg-brand-100 text-brand-800"
                           >
                             {tFill(t.saveAmount, {
-                              amount: formatKr(bundleSavingOre, locale),
+                              amount: formatKr(savingOre, locale),
                             })}
                           </Badge>
                         )}

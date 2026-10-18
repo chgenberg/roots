@@ -1,6 +1,16 @@
-import { BUNDLE_SKU, BUNDLE_SLUG, isBundleSlug } from "@roots/contracts";
+import {
+  BASIC_BUNDLE_SKU,
+  BASIC_BUNDLE_SLUG,
+  BUNDLE_SKU,
+  BUNDLE_SLUG,
+  BUNDLE_SLUGS,
+  EXCLUSIVE_BUNDLE_SKU,
+  EXCLUSIVE_BUNDLE_SLUG,
+  bundlePartsPrice,
+  isBundleSlug,
+} from "@roots/contracts";
 
-export { BUNDLE_SKU, BUNDLE_SLUG, isBundleSlug };
+export { BUNDLE_SKU, BUNDLE_SLUG, bundlePartsPrice, isBundleSlug };
 
 /**
  * Presentationsdata för katalogen — bild, typetikett och visningsordning.
@@ -17,22 +27,17 @@ const IMAGE_BY_SLUG: Record<string, string> = {
   conditioner: "/images/roots-conditioner-studio-w.jpg",
   "body-wash": "/images/roots-body-wash-studio-w.jpg",
   [BUNDLE_SLUG]: "/images/roots-collection-studio-s.jpg",
-  "paket-basic": "/images/roots-paket-basic-studio-s.jpg",
-  "paket-exclusive": "/images/roots-paket-exclusive-studio-s.jpg",
+  [BASIC_BUNDLE_SLUG]: "/images/roots-paket-basic-studio-s.jpg",
+  [EXCLUSIVE_BUNDLE_SLUG]: "/images/roots-paket-exclusive-studio-s.jpg",
 };
 
-/**
- * Paketen i den publika sajten, i prisordning. Bara Premium (`BUNDLE_SLUG`)
- * finns som rad i `products` och går att köpa i shoppen; Basic och Exclusive
- * saknar ännu databasrad, kassa och Fortnox-artikel.
- */
-export const PACKAGE_SLUGS = ["paket-basic", BUNDLE_SLUG, "paket-exclusive"] as const;
+/** Basic, Premium och Exclusive i prisordning. */
+export const PACKAGE_SLUGS = BUNDLE_SLUGS;
 
-/** Artikelnummer för paketens strukturerade data på /produkter/[slug]. */
 export const PACKAGE_SKU: Record<(typeof PACKAGE_SLUGS)[number], string> = {
-  "paket-basic": "ROOTS-KIT-002",
+  [BASIC_BUNDLE_SLUG]: BASIC_BUNDLE_SKU,
   [BUNDLE_SLUG]: BUNDLE_SKU,
-  "paket-exclusive": "ROOTS-KIT-003",
+  [EXCLUSIVE_BUNDLE_SLUG]: EXCLUSIVE_BUNDLE_SKU,
 };
 
 /** Kollektionsbilden visar alla tre produkterna — rimlig för okända slugs. */
@@ -44,10 +49,10 @@ export function productImage(slug: string): string {
 
 /**
  * Visningsordning i listor. API:et sorterar på namn, vilket skulle lägga
- * paketet mitt bland de enskilda produkterna. Paketet hör sist — man väljer det
- * efter att ha sett vad det innehåller.
+ * paketen mitt bland de enskilda produkterna. Paketen hör sist — man väljer
+ * dem efter att ha sett vad de innehåller.
  */
-const SLUG_ORDER = ["shampoo", "conditioner", "body-wash", BUNDLE_SLUG];
+const SLUG_ORDER = ["shampoo", "conditioner", "body-wash", ...BUNDLE_SLUGS];
 
 export function byCatalogOrder<T extends { slug: string }>(a: T, b: T): number {
   const rank = (slug: string) => {
@@ -85,12 +90,16 @@ export type ApiProductRow = {
 
 function typeFromSlug(slug: string, locale: "sv" | "en" = "sv"): string {
   if (locale === "en") {
+    if (slug === BASIC_BUNDLE_SLUG) return "Pack — shampoo and conditioner";
+    if (slug === EXCLUSIVE_BUNDLE_SLUG) return "Pack — four bottles";
     if (isBundleSlug(slug)) return "Pack — all three";
     if (slug.includes("shampoo")) return "Shampoo";
     if (slug.includes("conditioner")) return "Conditioner";
     if (slug.includes("body")) return "Body Wash";
     return "Product";
   }
+  if (slug === BASIC_BUNDLE_SLUG) return "Paket — schampo och balsam";
+  if (slug === EXCLUSIVE_BUNDLE_SLUG) return "Paket — fyra flaskor";
   if (isBundleSlug(slug)) return "Paket — alla tre";
   if (slug.includes("shampoo")) return "Schampo";
   if (slug.includes("conditioner")) return "Balsam";

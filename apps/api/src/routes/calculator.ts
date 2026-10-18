@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { and, eq, ne, sql, asc, inArray } from "drizzle-orm";
+import { and, eq, notInArray, sql, asc, inArray } from "drizzle-orm";
 import { db } from "@roots/db";
 import {
   calculatorLinks,
@@ -12,7 +12,7 @@ import {
   CalculatorInputsSchema,
   CALCULATOR_DEFAULTS,
   computeCalculator,
-  BUNDLE_SLUG,
+  BUNDLE_SLUGS,
   type CalculatorInputs,
 } from "@roots/contracts";
 import { calculatorLeadRateLimit } from "../lib/rate-limit";
@@ -27,8 +27,8 @@ const log = childLogger("calculator");
 /**
  * Priserna som kalkylatorn räknar snitt på.
  *
- * Paketet utesluts. Kalkylen skriver "en produkt kostar i snitt X kr", och
- * paketet är tre produkter till rabatterat pris — det skulle dra snittet till
+ * Paketen utesluts. Kalkylen skriver "en produkt kostar i snitt X kr", och
+ * ett paket är flera produkter till rabatterat pris — det skulle dra snittet till
  * ett belopp som ingen enskild flaska kostar.
  */
 function singleProductPrices() {
@@ -40,7 +40,7 @@ function singleProductPrices() {
       priceOre: products.priceOre,
     })
     .from(products)
-    .where(and(eq(products.active, true), ne(products.slug, BUNDLE_SLUG)));
+    .where(and(eq(products.active, true), notInArray(products.slug, [...BUNDLE_SLUGS])));
 }
 
 export const calculator = new Hono();

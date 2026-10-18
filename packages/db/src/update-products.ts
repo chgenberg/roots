@@ -15,7 +15,14 @@
  *   DATABASE_URL="postgres://..." pnpm --filter @roots/db exec tsx src/update-products.ts
  */
 import { eq } from "drizzle-orm";
-import { BUNDLE_SKU, BUNDLE_SLUG } from "@roots/contracts";
+import {
+  BASIC_BUNDLE_SKU,
+  BASIC_BUNDLE_SLUG,
+  BUNDLE_SKU,
+  BUNDLE_SLUG,
+  EXCLUSIVE_BUNDLE_SKU,
+  EXCLUSIVE_BUNDLE_SLUG,
+} from "@roots/contracts";
 import { db } from "./client";
 import { bundles, products } from "./schema";
 
@@ -57,6 +64,21 @@ const UPDATES: CatalogEntry[] = [
       "Schampo, balsam och kroppstvätt tillsammans — hela rutinen i ett paket. 3 × 250 ml.",
     slug: BUNDLE_SLUG,
     priceOre: 39900,
+  },
+  {
+    sku: BASIC_BUNDLE_SKU,
+    name: "Roots Basicpaket",
+    description: "Schampo och balsam tillsammans. 2 × 250 ml.",
+    slug: BASIC_BUNDLE_SLUG,
+    priceOre: 29900,
+  },
+  {
+    sku: EXCLUSIVE_BUNDLE_SKU,
+    name: "Roots Exclusivepaket",
+    description:
+      "Två schampo, balsam och kroppstvätt — hela rutinen med ett extra schampo. 4 × 250 ml.",
+    slug: EXCLUSIVE_BUNDLE_SLUG,
+    priceOre: 49900,
   },
 ];
 

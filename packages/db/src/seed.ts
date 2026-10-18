@@ -1,6 +1,13 @@
 import { eq } from "drizzle-orm";
 import { hash } from "@node-rs/argon2";
-import { BUNDLE_SKU, BUNDLE_SLUG } from "@roots/contracts";
+import {
+  BASIC_BUNDLE_SKU,
+  BASIC_BUNDLE_SLUG,
+  BUNDLE_SKU,
+  BUNDLE_SLUG,
+  EXCLUSIVE_BUNDLE_SKU,
+  EXCLUSIVE_BUNDLE_SLUG,
+} from "@roots/contracts";
 import { db } from "./client";
 import {
   organizations,
@@ -172,6 +179,23 @@ async function seed() {
       description:
         "Schampo, balsam och kroppstvätt tillsammans — hela rutinen i ett paket. 3 × 250 ml.",
       priceOre: 39900,
+      currency: "SEK",
+    },
+    {
+      sku: BASIC_BUNDLE_SKU,
+      name: "Roots Basicpaket",
+      slug: BASIC_BUNDLE_SLUG,
+      description: "Schampo och balsam tillsammans. 2 × 250 ml.",
+      priceOre: 29900,
+      currency: "SEK",
+    },
+    {
+      sku: EXCLUSIVE_BUNDLE_SKU,
+      name: "Roots Exclusivepaket",
+      slug: EXCLUSIVE_BUNDLE_SLUG,
+      description:
+        "Två schampo, balsam och kroppstvätt — hela rutinen med ett extra schampo. 4 × 250 ml.",
+      priceOre: 49900,
       currency: "SEK",
     },
   ] as const;

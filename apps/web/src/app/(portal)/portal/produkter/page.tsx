@@ -7,6 +7,7 @@ import {
   toPortalProductCard,
   publicProductHref,
   byCatalogOrder,
+  bundlePartsPrice,
   BUNDLE_SKU,
   FALLBACK_SKU_SLUG,
   type ApiProductRow,
@@ -112,12 +113,13 @@ export default function ProdukterPortalPage() {
   }, [locale]);
 
   const bundleSavingKr = useMemo(() => {
-    const bundle = products.find((p) => p.isBundle);
-    if (!bundle) return 0;
-    const parts = products
-      .filter((p) => !p.isBundle)
-      .reduce((sum, p) => sum + p.price, 0);
-    return parts > bundle.price ? parts - bundle.price : 0;
+    const priceBySlug = Object.fromEntries(products.map((p) => [p.slug, p.price]));
+    const saving: Record<string, number> = {};
+    for (const p of products) {
+      const parts = bundlePartsPrice(p.slug, priceBySlug);
+      if (parts !== null && parts > p.price) saving[p.slug] = parts - p.price;
+    }
+    return saving;
   }, [products]);
 
   function updateQty(sku: string, delta: number) {
@@ -172,9 +174,9 @@ export default function ProdukterPortalPage() {
                   className="object-cover"
                   sizes="(max-width: 768px) 100vw, 33vw"
                 />
-                {p.isBundle && bundleSavingKr > 0 && (
+                {(bundleSavingKr[p.slug] ?? 0) > 0 && (
                   <span className="absolute left-3 top-3 rounded-full bg-inverse-surface px-3 py-1 text-xs font-semibold text-inverse-on-surface shadow-sm">
-                    {tFill(t.saveBadge, { amount: bundleSavingKr })}
+                    {tFill(t.saveBadge, { amount: bundleSavingKr[p.slug] })}
                   </span>
                 )}
               </LocaleLink>

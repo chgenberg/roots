@@ -4,12 +4,13 @@ import { SectionEyebrow } from "@/components/section-eyebrow";
 import { LocaleLink } from "@/components/locale-link";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { BUNDLE_SLUG, PACKAGE_SLUGS, productImage } from "@/lib/product-catalog";
 import {
-  getPackageShowcase,
-  getProduct,
-  isProductSlug,
-} from "@/i18n/get-dictionary";
+  BUNDLE_SLUG,
+  PACKAGE_SLUGS,
+  bundlePartsPrice,
+  productImage,
+} from "@/lib/product-catalog";
+import { getPackageShowcase, getProduct, getProducts } from "@/i18n/get-dictionary";
 import { getRequestLocale } from "@/i18n/request-locale";
 
 function kr(n: number, locale: "sv" | "en") {
@@ -27,16 +28,14 @@ export async function PackageShowcase({
   const locale = await getRequestLocale();
   const t = getPackageShowcase(locale);
 
+  const priceBySlug = Object.fromEntries(
+    Object.entries(getProducts(locale)).map(([slug, p]) => [slug, p.priceSek])
+  );
+
   const packs = PACKAGE_SLUGS.map((slug) => {
     const copy = getProduct(slug, locale);
     const contains = copy.contains ?? [];
-    const compareAt = contains.reduce(
-      (sum, item) =>
-        isProductSlug(item.slug)
-          ? sum + getProduct(item.slug, locale).priceSek * (item.qty ?? 1)
-          : sum,
-      0
-    );
+    const compareAt = bundlePartsPrice(slug, priceBySlug) ?? copy.priceSek;
     return {
       slug,
       featured: slug === BUNDLE_SLUG,
