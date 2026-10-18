@@ -99,7 +99,7 @@ export const pages = {
         {
           step: "02",
           title: "Öppna butiken",
-          description: "Varje medlem får en länk och en QR-kod. Ingen minsta order.",
+          description: "Varje medlem får en länk och en QR-kod.",
         },
         {
           step: "03",
@@ -117,25 +117,6 @@ export const pages = {
         "Två ungdomar säljer Roots vid klubbstugan — tre flaskor på bordet",
       campImageAlt:
         "Lag på läger samlade vid stugor, med Roots-flaskor i förgrunden",
-      featuresTitle: "Vad ni slipper",
-      features: [
-        {
-          title: "Ingen minsta order",
-          description: "Beställ det ni behöver, när ni behöver det.",
-        },
-        {
-          title: "Ingen pärm",
-          description: "Portalen visar ordrar, mål och 35 % i realtid.",
-        },
-        {
-          title: "Ingen packning",
-          description: "Frakten syns i kassan. Fri frakt kan gälla över tröskeln där.",
-        },
-        {
-          title: "Ingen gissning",
-          description: "Ni ser exakt hur mycket föreningen har tjänat.",
-        },
-      ],
       bottomTitle: "Redo?",
       bottomBody:
         "Anslut föreningen. Medlemmarna får sina butiker. Ni ser pengarna komma in.",
@@ -170,7 +151,7 @@ export const pages = {
         {
           step: "02",
           title: "Open the shop",
-          description: "Every member gets a link and a QR code. No minimum order.",
+          description: "Every member gets a link and a QR code.",
         },
         {
           step: "03",
@@ -188,25 +169,6 @@ export const pages = {
         "Two young people selling Roots by the clubhouse — three bottles on the table",
       campImageAlt:
         "A team at camp gathered by the cabins, with Roots bottles in the foreground",
-      featuresTitle: "What you skip",
-      features: [
-        {
-          title: "No minimum order",
-          description: "Order what you need, when you need it.",
-        },
-        {
-          title: "No paperwork",
-          description: "The portal shows orders, goals and the 35% live.",
-        },
-        {
-          title: "No packing",
-          description: "Shipping is shown at checkout. Free shipping may apply above the threshold there.",
-        },
-        {
-          title: "No guessing",
-          description: "You see exactly how much the club has earned.",
-        },
-      ],
       bottomTitle: "Ready?",
       bottomBody:
         "Register the club. Members get their shops. You watch the money come in.",

@@ -162,7 +162,7 @@ export const home: Record<Locale, HomeCopy> = {
         {
           title: "Enkel försäljning",
           description:
-            "Inga listor, inga kontanter, ingen minsta order. Medlemmen delar. Kunden handlar. Klart.",
+            "Inga listor, inga kontanter, inga obetalda köp. Medlemmen delar. Kunden handlar. Klart.",
         },
         {
           title: "För föreningar",
@@ -286,7 +286,7 @@ export const home: Record<Locale, HomeCopy> = {
         {
           title: "Easy selling",
           description:
-            "No lists, no cash, no minimum order. The member shares. The customer buys. Done.",
+            "No lists, no cash, no unpaid orders. The member shares. The customer buys. Done.",
         },
         {
           title: "For clubs",

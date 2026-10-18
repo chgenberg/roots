@@ -1,8 +1,8 @@
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { BreadcrumbJsonLd, WebPageJsonLd } from "@/components/json-ld";
 import { LocaleLink } from "@/components/locale-link";
+import { SkipGrid } from "@/components/sections/skip-grid";
 import { pageMetadata } from "@/lib/seo";
 import { getPage } from "@/i18n/get-dictionary";
 import { getRequestLocale } from "@/i18n/request-locale";
@@ -116,31 +116,7 @@ export default async function ForeningslivPage() {
         </div>
       </section>
 
-      <section className="pb-16 md:pb-20">
-        <div className="mx-auto max-w-[1280px] px-6 md:px-10">
-          <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-3xl font-bold tracking-tight">
-              {t.featuresTitle}
-            </h2>
-          </div>
-
-          <div className="mt-16 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-            {t.features.map((f) => (
-              <Card
-                key={f.title}
-                className="border-0 shadow-sm hover:shadow-md transition-shadow duration-200"
-              >
-                <CardContent className="p-6">
-                  <h3 className="font-semibold">{f.title}</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {f.description}
-                  </p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </section>
+      <SkipGrid />
 
       <section className="px-6 pb-24 md:px-10 md:pb-32">
         <div className="group relative mx-auto max-w-[1280px] overflow-hidden rounded-3xl">
