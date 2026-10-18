@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import QRCode from "qrcode";
-import { ArrowRight, Sparkles } from "lucide-react";
+import { ArrowRight, Check, Loader2, Sparkles, X } from "lucide-react";
 import { RootsLogo } from "@/components/brand";
 import { LocaleLink } from "@/components/locale-link";
 import { ShareActions } from "@/components/share-actions";
@@ -19,6 +19,7 @@ import {
 } from "@/i18n/dictionaries/demo";
 import { getPublicSiteUrl } from "@/lib/site-url";
 import { rememberDemo } from "@/lib/visitor-memory";
+import { accentTokens, dominantColour, isHexColour, type AccentTokens } from "@/lib/club-brand/colour";
 import { cn } from "@/lib/utils";
 
 export type DemoProduct = { slug: string; name: string; priceSek: number; image: string };
@@ -28,8 +29,26 @@ type Props = {
   initialClub?: string;
   initialTeam?: string;
   initialGoalKr?: number;
+  initialWebsite?: string;
+  initialColour?: string;
   shared?: boolean;
 };
+
+type Brand = { host: string; name: string | null; color: string | null; colorSource: "club" | "theme" | null; logo: string | null };
+type BrandStatus = "idle" | "loading" | "found" | "nologo" | "error" | "limited";
+
+/** "https://www.brunfloik.se/" → "brunfloik.se". Det som står i delningslänken. */
+function compactSite(raw: string): string {
+  return raw
+    .trim()
+    .replace(/^https?:\/\//i, "")
+    .replace(/^www\./i, "")
+    .replace(/[?#].*$/, "")
+    .replace(/\/+$/, "")
+    .slice(0, 120);
+}
+
+const looksLikeSite = (v: string) => /^[^\s/]+\.[a-z]{2,}(\/\S*)?$/i.test(compactSite(v));
 
 function initials(name: string): string {
   const words = name
@@ -73,7 +92,15 @@ function useCountUp(target: number, durationMs = 900): number {
   return value;
 }
 
-export function DemoShop({ products, initialClub = "", initialTeam = "", initialGoalKr, shared }: Props) {
+export function DemoShop({
+  products,
+  initialClub = "",
+  initialTeam = "",
+  initialGoalKr,
+  initialWebsite = "",
+  initialColour,
+  shared,
+}: Props) {
   const { locale } = useLocale();
   const t = demo[locale];
   const [club, setClub] = useState(initialClub);
@@ -85,6 +112,56 @@ export function DemoShop({ products, initialClub = "", initialTeam = "", initial
   );
   const [qr, setQr] = useState<string | null>(null);
   const [meterReady, setMeterReady] = useState(false);
+  const [website, setWebsite] = useState(initialWebsite);
+  const [brand, setBrand] = useState<Brand | null>(null);
+  const [brandStatus, setBrandStatus] = useState<BrandStatus>("idle");
+  const [colour, setColour] = useState<string | null>(isHexColour(initialColour) ? initialColour : null);
+  /** Namnet fylldes i från sajten — då får nästa sajt byta det. */
+  const clubFromSite = useRef(false);
+  const site = compactSite(website);
+  const siteOk = looksLikeSite(website);
+  const accent = useMemo(() => (colour ? accentTokens(colour) : null), [colour]);
+
+  useEffect(() => {
+    if (!siteOk) {
+      setBrand(null);
+      setBrandStatus("idle");
+      setColour(null);
+      return;
+    }
+    const controller = new AbortController();
+    const id = window.setTimeout(async () => {
+      setBrandStatus("loading");
+      try {
+        const res = await fetch(`/api/klubbprofil?webb=${encodeURIComponent(site)}`, { signal: controller.signal });
+        const data = (await res.json()) as { ok: boolean; brand?: Brand; error?: string };
+        if (!data.ok || !data.brand) {
+          setBrand(null);
+          setBrandStatus(data.error === "limited" ? "limited" : "error");
+          return;
+        }
+        const found = data.brand;
+        const fromLogo =
+          found.colorSource === "club" ? null : found.logo ? await dominantColour(found.logo) : null;
+        if (controller.signal.aborted) return;
+        setBrand(found);
+        setColour(found.colorSource === "club" ? found.color : fromLogo ?? found.color);
+        setBrandStatus(found.logo ? "found" : "nologo");
+        if (found.name && (!club.trim() || clubFromSite.current)) {
+          setClub(found.name.slice(0, 60));
+          clubFromSite.current = true;
+        }
+      } catch {
+        if (!controller.signal.aborted) setBrandStatus("error");
+      }
+    }, 650);
+    return () => {
+      controller.abort();
+      window.clearTimeout(id);
+    };
+    // Bara adressen styr hämtningen; namnet läses vid svaret.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [site, siteOk]);
 
   const clubName = club.trim();
   const hasClub = clubName.length >= 2;
@@ -99,9 +176,11 @@ export function DemoShop({ products, initialClub = "", initialTeam = "", initial
     if (hasClub) p.set("forening", clubName);
     if (teamName) p.set("lag", teamName);
     if (goalKr !== DEMO_DEFAULT_GOAL_KR) p.set("mal", String(goalKr));
+    if (siteOk) p.set("webb", site);
+    if (siteOk && colour) p.set("farg", colour.slice(1));
     const qs = p.toString();
     return qs ? `?${qs}` : "";
-  }, [hasClub, clubName, teamName, goalKr]);
+  }, [hasClub, clubName, teamName, goalKr, siteOk, site, colour]);
 
   const [shareUrl, setShareUrl] = useState("");
   useEffect(() => {
@@ -117,10 +196,10 @@ export function DemoShop({ products, initialClub = "", initialTeam = "", initial
     const id = window.setTimeout(() => {
       const path = `${window.location.pathname}${query}`;
       window.history.replaceState(window.history.state, "", path);
-      if (hasClub) rememberDemo(clubName, teamName, goalKr);
+      if (hasClub) rememberDemo(clubName, teamName, goalKr, siteOk ? site : undefined, colour ?? undefined);
     }, 400);
     return () => window.clearTimeout(id);
-  }, [query, hasClub, clubName, teamName, goalKr]);
+  }, [query, hasClub, clubName, teamName, goalKr, siteOk, site, colour]);
 
   useEffect(() => {
     if (!shareUrl) return;
@@ -164,12 +243,59 @@ export function DemoShop({ products, initialClub = "", initialTeam = "", initial
               <input
                 id="demo-club"
                 value={club}
-                onChange={(e) => setClub(e.target.value.slice(0, 60))}
+                onChange={(e) => {
+                  clubFromSite.current = false;
+                  setClub(e.target.value.slice(0, 60));
+                }}
                 placeholder={t.clubPlaceholder}
                 autoComplete="organization"
                 autoFocus={!initialClub}
                 className="w-full rounded-xl border border-border bg-background px-4 py-3 text-lg text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/40"
               />
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="demo-site" className="text-sm font-medium text-foreground">
+                {t.websiteLabel}
+              </label>
+              <div className="relative">
+                <input
+                  id="demo-site"
+                  value={website}
+                  onChange={(e) => setWebsite(e.target.value.slice(0, 200))}
+                  placeholder={t.websitePlaceholder}
+                  inputMode="url"
+                  autoComplete="url"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  aria-describedby="demo-site-status"
+                  className="w-full rounded-xl border border-border bg-background px-4 py-2.5 pr-11 text-base text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/40"
+                />
+                {website && (
+                  <button
+                    type="button"
+                    onClick={() => setWebsite("")}
+                    aria-label={t.websiteClear}
+                    className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground hover:bg-muted"
+                  >
+                    <X className="h-4 w-4" aria-hidden />
+                  </button>
+                )}
+              </div>
+              <p id="demo-site-status" aria-live="polite" className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                {brandStatus === "loading" && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />}
+                {brandStatus === "found" && <Check className="h-3.5 w-3.5 text-brand-700" aria-hidden />}
+                {brandStatus === "loading"
+                  ? t.websiteLoading
+                  : brandStatus === "found"
+                    ? tFill(colour ? t.websiteFound : t.websiteLogoOnly, { host: brand?.host ?? site })
+                    : brandStatus === "nologo"
+                      ? tFill(t.websiteNoLogo, { host: brand?.host ?? site })
+                      : brandStatus === "error"
+                        ? t.websiteError
+                        : brandStatus === "limited"
+                          ? t.websiteLimited
+                          : t.websiteHint}
+              </p>
             </div>
             <div className="space-y-1.5">
               <label htmlFor="demo-team" className="text-sm font-medium text-foreground">
@@ -263,6 +389,9 @@ export function DemoShop({ products, initialClub = "", initialTeam = "", initial
           locale={locale}
           t={t}
           muted={!hasClub}
+          logo={brand?.logo ?? null}
+          accent={accent}
+          loading={brandStatus === "loading"}
         />
       </div>
     </div>
@@ -279,6 +408,9 @@ function PhonePreview({
   locale,
   t,
   muted,
+  logo,
+  accent,
+  loading,
 }: {
   club: string;
   team: string;
@@ -289,13 +421,23 @@ function PhonePreview({
   locale: "sv" | "en";
   t: (typeof demo)["sv"];
   muted: boolean;
+  logo: string | null;
+  accent: AccentTokens | null;
+  loading: boolean;
 }) {
   return (
     <div className="mx-auto w-full max-w-[360px]">
       <div className="rounded-[44px] bg-[#2B2620] p-2.5 shadow-[0_40px_80px_-30px_rgba(43,38,32,0.55)]">
         <div className="relative overflow-hidden rounded-[36px] bg-[#FBF9F5]">
           <div className="absolute left-1/2 top-2.5 z-10 h-6 w-24 -translate-x-1/2 rounded-full bg-[#2B2620]" aria-hidden />
-          <div className="bg-[linear-gradient(160deg,#F7F3EA_0%,#EFE8DD_55%,#DDD2C6_100%)] px-5 pb-6 pt-12">
+          <div
+            className="bg-[linear-gradient(160deg,#F7F3EA_0%,#EFE8DD_55%,#DDD2C6_100%)] px-5 pb-6 pt-12 transition-[background] duration-700"
+            style={
+              accent
+                ? { background: `linear-gradient(160deg, #F7F3EA 0%, ${accent.soft} 60%, ${accent.soft} 100%)` }
+                : undefined
+            }
+          >
             <div className="flex items-center justify-between">
               <RootsLogo variant="dark" className="h-5 w-[52px] opacity-80" />
               <span className="rounded-full bg-white/70 px-2.5 py-1 text-[10px] font-medium text-[#6D614D]">
@@ -306,17 +448,30 @@ function PhonePreview({
               <div
                 aria-hidden
                 className={cn(
-                  "flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#6D614D] text-lg font-semibold text-white transition-opacity duration-300",
-                  muted && "opacity-50"
+                  "relative flex shrink-0 items-center justify-center overflow-hidden rounded-2xl text-lg font-semibold transition-[opacity,background-color] duration-500",
+                  logo ? "h-[72px] w-[72px] bg-white p-1.5 shadow-sm ring-1 ring-black/5" : "h-14 w-14 bg-[#6D614D] text-white",
+                  muted && !logo && "opacity-50",
+                  loading && "animate-pulse"
                 )}
+                style={!logo && accent ? { backgroundColor: accent.solid, color: accent.onSolid } : undefined}
               >
-                {initials(club)}
+                {logo ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    key={logo.slice(-32)}
+                    src={logo}
+                    alt=""
+                    className="animate-in fade-in zoom-in-90 h-full w-full object-contain duration-500"
+                  />
+                ) : (
+                  initials(club)
+                )}
               </div>
               <div className="min-w-0">
                 <p
                   key={club}
                   className={cn(
-                    "animate-in fade-in slide-in-from-bottom-1 truncate text-lg font-semibold leading-tight text-[#3F372B] duration-300",
+                    "animate-in fade-in slide-in-from-bottom-1 line-clamp-2 text-lg font-semibold leading-tight text-[#3F372B] duration-300",
                     muted && "text-[#9A8D78]"
                   )}
                 >
@@ -340,7 +495,7 @@ function PhonePreview({
               <div className="mt-2.5 h-2.5 overflow-hidden rounded-full bg-[#EFE8DD]">
                 <div
                   className="h-full rounded-full bg-[linear-gradient(90deg,#8B7E69_0%,#6D614D_100%)]"
-                  style={{ width: `${pct}%` }}
+                  style={{ width: `${pct}%`, ...(accent ? { background: accent.meter } : {}) }}
                 />
               </div>
               <p className="mt-2 flex items-center gap-1 text-[11px] text-[#7F715B]">
@@ -360,7 +515,10 @@ function PhonePreview({
                   <p className="truncate text-sm font-medium text-[#3F372B]">{p.name}</p>
                   <p className="text-xs tabular-nums text-[#7F715B]">{kr(p.priceSek, locale)}</p>
                 </div>
-                <span className="rounded-full bg-[#6D614D] px-3 py-1.5 text-xs font-medium text-white">
+                <span
+                  className="rounded-full bg-[#6D614D] px-3 py-1.5 text-xs font-medium text-white transition-colors duration-500"
+                  style={accent ? { backgroundColor: accent.solid, color: accent.onSolid } : undefined}
+                >
                   {t.shopBuy}
                 </span>
               </li>

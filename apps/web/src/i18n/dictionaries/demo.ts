@@ -9,6 +9,16 @@ type DemoCopy = {
   lead: string;
   clubLabel: string;
   clubPlaceholder: string;
+  websiteLabel: string;
+  websitePlaceholder: string;
+  websiteHint: string;
+  websiteLoading: string;
+  websiteFound: string;
+  websiteNoLogo: string;
+  websiteLogoOnly: string;
+  websiteError: string;
+  websiteLimited: string;
+  websiteClear: string;
   teamLabel: string;
   teamPlaceholder: string;
   goalLabel: string;
@@ -68,6 +78,16 @@ export const demo: Record<Locale, DemoCopy> = {
     lead: "Skriv in föreningens namn så ser ni direkt hur er shop ser ut. Skicka den vidare till styrelsen eller lagets föräldrar.",
     clubLabel: "Föreningens namn",
     clubPlaceholder: "t.ex. Kullaviks IF",
+    websiteLabel: "Er webbplats (valfritt)",
+    websitePlaceholder: "t.ex. brunfloik.se eller laget.se/BrunfloIK",
+    websiteHint: "Vi hämtar er logga och era färger till förhandsvisningen. Inget sparas.",
+    websiteLoading: "Hämtar er logga och era färger …",
+    websiteFound: "Klart. Logga och färger från {host}.",
+    websiteNoLogo: "Vi hittade ingen logga på {host}. Shopen visar era initialer.",
+    websiteLogoOnly: "Klart. Loggan kommer från {host}.",
+    websiteError: "Vi kunde inte läsa sajten. Kontrollera adressen och prova igen.",
+    websiteLimited: "Många försök på kort tid. Vänta en stund och prova igen.",
+    websiteClear: "Ta bort",
     teamLabel: "Lag eller klass (valfritt)",
     teamPlaceholder: "t.ex. F13 eller klass 9B",
     goalLabel: "Vad vill ni samla in?",
@@ -125,6 +145,16 @@ export const demo: Record<Locale, DemoCopy> = {
     lead: "Type in your club's name and see your shop right away. Send it to the board or the team's parents.",
     clubLabel: "Club name",
     clubPlaceholder: "e.g. Kullavik IF",
+    websiteLabel: "Your website (optional)",
+    websitePlaceholder: "e.g. brunfloik.se or laget.se/BrunfloIK",
+    websiteHint: "We fetch your logo and colours for the preview. Nothing is saved.",
+    websiteLoading: "Fetching your logo and colours …",
+    websiteFound: "Done. Logo and colours from {host}.",
+    websiteNoLogo: "We found no logo on {host}. The shop shows your initials.",
+    websiteLogoOnly: "Done. The logo comes from {host}.",
+    websiteError: "We couldn't read the site. Check the address and try again.",
+    websiteLimited: "Lots of attempts in a short time. Wait a moment and try again.",
+    websiteClear: "Remove",
     teamLabel: "Team or class (optional)",
     teamPlaceholder: "e.g. U13 girls or class 9B",
     goalLabel: "How much do you want to raise?",

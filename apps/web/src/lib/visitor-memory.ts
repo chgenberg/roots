@@ -10,7 +10,14 @@ const DISMISS_KEY = "roots.memory.dismissed";
 const MAX_AGE_MS = 60 * 24 * 60 * 60 * 1000;
 
 export type CalcMemory = { earningsKr: number; clubName?: string; at: number };
-export type DemoMemory = { club: string; team?: string; goalKr?: number; at: number };
+export type DemoMemory = {
+  club: string;
+  team?: string;
+  goalKr?: number;
+  website?: string;
+  colour?: string;
+  at: number;
+};
 
 function read<T>(key: string): T | null {
   try {
@@ -38,9 +45,15 @@ export function rememberCalc(earningsKr: number, clubName?: string) {
   write(CALC_KEY, { earningsKr: Math.round(earningsKr), clubName: clubName?.trim() || undefined });
 }
 
-export function rememberDemo(club: string, team?: string, goalKr?: number) {
+export function rememberDemo(club: string, team?: string, goalKr?: number, website?: string, colour?: string) {
   if (club.trim().length < 2) return;
-  write(DEMO_KEY, { club: club.trim(), team: team?.trim() || undefined, goalKr });
+  write(DEMO_KEY, {
+    club: club.trim(),
+    team: team?.trim() || undefined,
+    goalKr,
+    website: website?.trim() || undefined,
+    colour: colour && /^#[0-9a-f]{6}$/i.test(colour) ? colour : undefined,
+  });
 }
 
 /** Tidpunkt då den här fliksessionen började. Sätts vid första anropet. */

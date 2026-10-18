@@ -28,6 +28,10 @@ export async function generateMetadata({ searchParams }: { searchParams: SearchP
   const og = new URLSearchParams({ forening: club, locale });
   const team = param(sp, "lag", 40);
   if (team) og.set("lag", team);
+  const site = param(sp, "webb", 120);
+  if (site) og.set("webb", site);
+  const colour = param(sp, "farg", 6);
+  if (/^[0-9a-f]{6}$/i.test(colour)) og.set("farg", colour);
   return pageMetadata({
     title: tFill(t.metaTitleFor, { clubGen: clubGenitive(club, locale) }),
     description: t.metaDescription,
@@ -45,6 +49,8 @@ export default async function ProvaPage({ searchParams }: { searchParams: Search
   const club = param(sp, "forening", 60);
   const team = param(sp, "lag", 40);
   const goal = Number(param(sp, "mal", 7)) || undefined;
+  const website = param(sp, "webb", 120);
+  const colour = param(sp, "farg", 6);
 
   const products: DemoProduct[] = PRODUCT_SLUGS.map((slug) => {
     const copy = getProduct(slug, locale);
@@ -69,6 +75,8 @@ export default async function ProvaPage({ searchParams }: { searchParams: Search
           initialClub={club}
           initialTeam={team}
           initialGoalKr={goal}
+          initialWebsite={website}
+          initialColour={/^[0-9a-f]{6}$/i.test(colour) ? `#${colour.toUpperCase()}` : undefined}
           shared={club.length >= 2}
         />
       </div>

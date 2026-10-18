@@ -41,6 +41,8 @@ export function WelcomeBack() {
       const p = new URLSearchParams({ forening: shop.club });
       if (shop.team) p.set("lag", shop.team);
       if (shop.goalKr) p.set("mal", String(shop.goalKr));
+      if (shop.website) p.set("webb", shop.website);
+      if (shop.website && shop.colour) p.set("farg", shop.colour.slice(1));
       next = {
         text: tFill(t.welcomeDemo, { clubGen: clubGenitive(shop.club, locale) }),
         cta: t.welcomeDemoCta,

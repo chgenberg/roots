@@ -1,9 +1,22 @@
 import { ImageResponse } from "next/og";
 import { clubGenitive, demo } from "@/i18n/dictionaries/demo";
 import { tFill } from "@/i18n/format";
+import { accentTokens } from "@/lib/club-brand/colour";
+import { readClubBrand } from "@/lib/club-brand/scrape";
 import { OG_SIZE, OgFrame, ogParam } from "../og-frame";
 
-export const runtime = "edge";
+export const runtime = "nodejs";
+
+/** Loggan från föreningens sajt, om den hinner hämtas. PNG/JPEG ritas säkert i delningsbilden. */
+async function clubLogo(site: string): Promise<{ logo: string | null; color: string | null }> {
+  if (!site) return { logo: null, color: null };
+  const brand = await Promise.race([
+    readClubBrand(site).catch(() => null),
+    new Promise<null>((r) => setTimeout(() => r(null), 5000)),
+  ]);
+  const logo = brand?.logo && /^data:image\/(png|jpeg|jpg);/.test(brand.logo) ? brand.logo : null;
+  return { logo, color: brand?.color ?? null };
+}
 
 function initials(name: string): string {
   const words = name.split(/\s+/).filter(Boolean);
@@ -12,12 +25,15 @@ function initials(name: string): string {
   return (words[0][0] + words[1][0]).toUpperCase();
 }
 
-export function GET(request: Request) {
+export async function GET(request: Request) {
   const url = new URL(request.url);
   const locale = url.searchParams.get("locale") === "en" ? "en" : "sv";
   const t = demo[locale];
   const club = ogParam(url, "forening", 60) || t.previewFallbackClub;
   const team = ogParam(url, "lag", 40);
+  const { logo, color } = await clubLogo(ogParam(url, "webb", 120));
+  const farg = ogParam(url, "farg", 6);
+  const accent = /^[0-9a-f]{6}$/i.test(farg) ? accentTokens(`#${farg}`) : color ? accentTokens(color) : null;
 
   return new ImageResponse(
     (
@@ -66,22 +82,28 @@ export function GET(request: Request) {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                width: 88,
-                height: 88,
-                borderRadius: 24,
-                background: "#6D614D",
-                color: "#FFFFFF",
+                width: 104,
+                height: 104,
+                borderRadius: 26,
+                background: logo ? "#FFFFFF" : accent?.solid ?? "#6D614D",
+                color: accent?.onSolid ?? "#FFFFFF",
                 fontSize: 36,
                 fontWeight: 600,
+                padding: logo ? 8 : 0,
               }}
             >
-              {initials(club)}
+              {logo ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={logo} alt="" width={88} height={88} style={{ objectFit: "contain" }} />
+              ) : (
+                initials(club)
+              )}
             </div>
             <div style={{ display: "flex", fontSize: 28, fontWeight: 600, marginTop: 24 }}>
               {tFill(t.shopSupport, { club })}
             </div>
             <div style={{ display: "flex", height: 16, marginTop: 24, borderRadius: 999, background: "#EFE8DD" }}>
-              <div style={{ display: "flex", width: "64%", borderRadius: 999, background: "#6D614D" }} />
+              <div style={{ display: "flex", width: "64%", borderRadius: 999, background: accent?.meter ?? "#6D614D" }} />
             </div>
           </div>
         </div>
