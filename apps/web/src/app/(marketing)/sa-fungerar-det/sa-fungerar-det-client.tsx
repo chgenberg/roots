@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CalculatorInputs, CalculatorResult } from "@roots/contracts";
 import { RevenueCalculator } from "@/components/calculator/revenue-calculator";
+import { demo } from "@/i18n/dictionaries/demo";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -182,6 +183,32 @@ function CalculatorBlock({
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [shared, setShared] = useState<{
+    inputs: Partial<CalculatorInputs>;
+    club: string;
+  } | null>(null);
+
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+    const num = (key: string, min: number, max: number) => {
+      const raw = sp.get(key);
+      if (raw === null || raw === "") return undefined;
+      const n = Math.round(Number(raw));
+      return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : undefined;
+    };
+    const sellers = num("saljare", 1, 1000);
+    const avg = num("snitt", 0, 5000);
+    if (sellers === undefined && avg === undefined) return;
+    const goal = num("mal", 0, 500_000);
+    setShared({
+      inputs: {
+        ...(sellers !== undefined ? { sellers } : {}),
+        ...(avg !== undefined ? { avgPerSellerKr: avg } : {}),
+        ...(goal ? { goalKr: goal } : {}),
+      },
+      club: (sp.get("forening") ?? "").trim().slice(0, 80),
+    });
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -247,10 +274,18 @@ function CalculatorBlock({
 
   return (
     <>
+      {shared && (
+        <p className="mb-6 rounded-2xl bg-[#F3EEE6] px-5 py-3.5 text-sm text-[#5E5341]">
+          {demo[locale].calcSharedBanner}
+        </p>
+      )}
       <RevenueCalculator
-        defaultInputs={presets}
+        key={shared ? "shared" : "default"}
+        defaultInputs={shared ? { ...presets, ...shared.inputs } : presets}
+        initialClubName={shared?.club}
         products={products}
         onChange={onCalcChange}
+        shareable
       />
 
       <Card className="mt-10 border-brand-200">

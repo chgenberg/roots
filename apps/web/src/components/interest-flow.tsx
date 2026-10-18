@@ -424,7 +424,11 @@ function CompleteForm({
   const { locale } = useLocale();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [organisation, setOrganisation] = useState("");
+  const [organisation, setOrganisation] = useState(() =>
+    typeof window === "undefined"
+      ? ""
+      : (new URLSearchParams(window.location.search).get("forening") ?? "").trim().slice(0, 120)
+  );
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 

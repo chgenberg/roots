@@ -1,4 +1,4 @@
-import Image from "next/image";
+import { SoftImage } from "@/components/soft-image";
 import { ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BreadcrumbJsonLd, WebPageJsonLd } from "@/components/json-ld";
@@ -79,7 +79,7 @@ export default async function OmOssPage() {
               i === 0 && "col-span-2 md:col-span-1"
             )}
           >
-            <Image
+            <SoftImage
               src={photo.src}
               alt={photo.alt}
               fill

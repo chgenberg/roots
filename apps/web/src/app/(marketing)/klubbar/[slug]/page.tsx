@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { ArrowRight, ArrowUpRight, Check } from "lucide-react";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { BreadcrumbJsonLd } from "@/components/json-ld";
+import { ClubMorphLink } from "@/components/club-morph-link";
 import { LocaleLink } from "@/components/locale-link";
 import { Button } from "@/components/ui/button";
 import { connectedClubs, getClub } from "@/content/clubs";
@@ -93,6 +94,9 @@ export default async function ClubPage({ params }: PageProps) {
             <aside className="space-y-5">
               <div className="mx-auto flex aspect-square max-w-[260px] items-center justify-center rounded-3xl bg-white p-10 md:max-w-none shadow-[0_1px_2px_rgba(94,83,65,0.06),0_12px_32px_-14px_rgba(94,83,65,0.25)] ring-1 ring-[#E6DED2]">
                 <Image
+                  key={club.slug}
+                  data-club-logo-target={club.slug}
+                  style={{ viewTransitionName: "club-logo" }}
                   src={club.logo}
                   alt={club.name}
                   width={club.width}
@@ -124,8 +128,8 @@ export default async function ClubPage({ params }: PageProps) {
           <ul className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-4">
             {others.map((other) => (
               <li key={other.slug}>
-                <LocaleLink
-                  href={`/klubbar/${other.slug}`}
+                <ClubMorphLink
+                  slug={other.slug}
                   className="group flex h-full flex-col items-center rounded-2xl bg-white p-5 text-center ring-1 ring-[#E6DED2] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_14px_32px_-16px_rgba(94,83,65,0.35)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <div className="flex h-16 w-full items-center justify-center">
@@ -135,12 +139,13 @@ export default async function ClubPage({ params }: PageProps) {
                       width={other.width}
                       height={other.height}
                       sizes="120px"
+                      data-morph-logo
                       className="h-auto max-h-16 w-auto max-w-[120px] object-contain"
                     />
                   </div>
                   <p className="mt-3 text-sm font-semibold leading-tight text-[#5E5341]">{other.name}</p>
                   <p className="mt-1 text-xs text-[#7F715B]">{other.copy[locale].sport}</p>
-                </LocaleLink>
+                </ClubMorphLink>
               </li>
             ))}
           </ul>

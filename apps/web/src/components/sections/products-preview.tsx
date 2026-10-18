@@ -1,4 +1,4 @@
-import Image from "next/image";
+import { SoftImage } from "@/components/soft-image";
 import { SectionEyebrow } from "@/components/section-eyebrow";
 import { LocaleLink } from "@/components/locale-link";
 import { getHome } from "@/i18n/get-dictionary";
@@ -25,7 +25,7 @@ export async function ProductsPreview() {
               className="group rounded-3xl text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <div className="relative aspect-[3/4] overflow-hidden rounded-3xl bg-brand-50">
-                <Image
+                <SoftImage
                   src={product.image}
                   alt={product.name}
                   fill

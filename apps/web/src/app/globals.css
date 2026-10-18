@@ -217,6 +217,45 @@
   }
 }
 
+/* Klubbloggan glider från kortet till klubbsidan (lib/view-transition.ts). */
+::view-transition-group(club-logo) {
+  animation-duration: 560ms;
+  animation-timing-function: cubic-bezier(0.22, 0.8, 0.24, 1);
+}
+::view-transition-old(club-logo),
+::view-transition-new(club-logo) {
+  height: 100%;
+  object-fit: contain;
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 320ms;
+}
+
+/* Bilder som skärps fram i stället för att poppa in (components/soft-image.tsx). */
+.soft-image {
+  transition:
+    opacity 700ms ease-out,
+    filter 900ms ease-out,
+    transform 1100ms cubic-bezier(0.22, 0.8, 0.24, 1),
+    scale 700ms ease-out;
+}
+@media (scripting: enabled) {
+  .soft-image[data-loaded="false"] {
+    opacity: 0;
+    filter: blur(14px);
+    transform: scale(1.04);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .soft-image,
+  .soft-image[data-loaded="false"] {
+    filter: none;
+    transform: none;
+    transition: opacity 150ms linear;
+  }
+}
+
 * {
   border-color: var(--color-border);
 }

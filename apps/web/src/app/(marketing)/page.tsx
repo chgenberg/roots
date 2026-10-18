@@ -1,6 +1,8 @@
 import { HeroSection } from "@/components/sections/hero";
 import { ClubLogos } from "@/components/sections/club-logos";
 import { ForForeningar } from "@/components/sections/for-foreningar";
+import { DemoTeaser } from "@/components/sections/demo-teaser";
+import { WelcomeBack } from "@/components/welcome-back";
 import { ProductsPreview } from "@/components/sections/products-preview";
 import { Gamification } from "@/components/sections/gamification";
 import { WebPageJsonLd } from "@/components/json-ld";
@@ -44,8 +46,10 @@ export default async function Home() {
       <HeroSection />
       <ClubLogos />
       <ForForeningar />
+      <DemoTeaser />
       <ProductsPreview />
       <Gamification />
+      <WelcomeBack />
     </>
   );
 }

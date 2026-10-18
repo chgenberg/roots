@@ -1,4 +1,4 @@
-import Image from "next/image";
+import { SoftImage } from "@/components/soft-image";
 import type { Metadata } from "next";
 import { ArrowRight } from "lucide-react";
 import { Breadcrumbs } from "@/components/breadcrumbs";
@@ -105,7 +105,7 @@ export default async function GuiderIndexPage() {
                     >
                       {guide.heroImage ? (
                         <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl sm:h-20 sm:w-28">
-                          <Image
+                          <SoftImage
                             src={guide.heroImage}
                             alt=""
                             fill

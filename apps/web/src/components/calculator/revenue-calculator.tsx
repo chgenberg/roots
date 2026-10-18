@@ -11,12 +11,17 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { GoalGauge } from "@/components/charts";
 import { cn } from "@/lib/utils";
-import { Download, Lock } from "lucide-react";
+import { Download, ImageDown, Lock } from "lucide-react";
 import { formatKr } from "@/lib/format";
 import { downloadCalculatorPdf } from "@/lib/calculator-pdf";
 import { useLocale } from "@/i18n/locale-context";
 import { marketingUi } from "@/i18n/dictionaries/marketing-ui";
 import { tFill } from "@/i18n/format";
+import { demo } from "@/i18n/dictionaries/demo";
+import { absoluteLocaleUrl } from "@/i18n/paths";
+import { ShareActions } from "@/components/share-actions";
+import { getPublicSiteUrl } from "@/lib/site-url";
+import { rememberCalc } from "@/lib/visitor-memory";
 
 const MEMBER_PRESETS = [20, 50, 100, 200, 300, 500] as const;
 const AVG_PRESETS = [1000, 1500, 2000, 2500, 3000, 4000] as const;
@@ -153,6 +158,10 @@ interface RevenueCalculatorProps {
   className?: string;
   /** Föreningens namn i PDF-rubriken. */
   associationName?: string;
+  /** Förifyllt namn i namnfältet, t.ex. från en delad länk. */
+  initialClubName?: string;
+  /** Visa "Skicka till lagets föräldragrupp" och spara resultatet lokalt. */
+  shareable?: boolean;
 }
 
 export function RevenueCalculator({
@@ -160,6 +169,8 @@ export function RevenueCalculator({
   onChange,
   className,
   associationName,
+  initialClubName,
+  shareable = false,
 }: RevenueCalculatorProps) {
   const { locale } = useLocale();
   const t = marketingUi[locale].calculator;
@@ -179,8 +190,12 @@ export function RevenueCalculator({
   const [showGoal, setShowGoal] = useState(Boolean(inputs.goalKr));
   const [ordersPerSeller, setOrdersPerSeller] = useState(3);
   const [avgOrderKr, setAvgOrderKr] = useState(500);
-  const [pdfClubName, setPdfClubName] = useState("");
+  const [pdfClubName, setPdfClubName] = useState(initialClubName ?? "");
+  const [touched, setTouched] = useState(false);
+  const [shareUrl, setShareUrl] = useState("");
   const knownClubName = associationName?.trim() ?? "";
+  const clubForShare = (knownClubName || pdfClubName).trim();
+  const share = demo[locale];
 
   const result = useMemo(() => computeCalculator(inputs), [inputs]);
   const money = (kr: number) => krLabel(kr, locale, t.currencySuffix);
@@ -193,10 +208,37 @@ export function RevenueCalculator({
     onChange?.(inputs, result);
   }, [inputs, result, onChange]);
 
+  useEffect(() => {
+    if (!shareable) return;
+    const p = new URLSearchParams({
+      saljare: String(inputs.sellers),
+      snitt: String(inputs.avgPerSellerKr),
+    });
+    if (inputs.goalKr) p.set("mal", String(inputs.goalKr));
+    if (clubForShare) p.set("forening", clubForShare);
+    setShareUrl(
+      absoluteLocaleUrl(getPublicSiteUrl(), `/sa-fungerar-det?${p.toString()}#rakna`, locale)
+    );
+  }, [shareable, inputs.sellers, inputs.avgPerSellerKr, inputs.goalKr, clubForShare, locale]);
+
+  useEffect(() => {
+    if (!shareable || !touched) return;
+    const id = window.setTimeout(() => rememberCalc(result.earningsKr, clubForShare), 600);
+    return () => window.clearTimeout(id);
+  }, [shareable, touched, result.earningsKr, clubForShare]);
+
+  const imageQuery = new URLSearchParams({
+    belopp: String(Math.round(result.earningsKr)),
+    locale,
+    ladda: "1",
+  });
+  if (clubForShare) imageQuery.set("forening", clubForShare);
+
   function set<K extends keyof CalculatorInputs>(
     key: K,
     value: CalculatorInputs[K]
   ) {
+    setTouched(true);
     setInputs((prev) => ({ ...prev, [key]: value }));
   }
 
@@ -362,7 +404,10 @@ export function RevenueCalculator({
                   maxLength={80}
                   autoComplete="organization"
                   placeholder={t.pdfClubPlaceholder}
-                  onChange={(e) => setPdfClubName(e.target.value)}
+                  onChange={(e) => {
+                    setTouched(true);
+                    setPdfClubName(e.target.value);
+                  }}
                   className="w-full rounded-lg border border-[#D5CABF] bg-white/70 px-3 py-2 text-sm text-[#5E5341] placeholder:text-[#8B7E69] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6D614D]/40"
                 />
               </div>
@@ -385,6 +430,31 @@ export function RevenueCalculator({
               <Download className="h-4 w-4" aria-hidden="true" />
               {t.downloadPdf}
             </button>
+            {shareable && (
+              <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-3 border-t border-[#D5CABF]/70 pt-5">
+                <ShareActions
+                  url={shareUrl}
+                  text={tFill(clubForShare ? share.calcShareText : share.calcShareTextNoClub, {
+                    club: clubForShare,
+                    amount: money(result.earningsKr),
+                  })}
+                  subject={share.calcShareButton}
+                  label={share.calcShareButton}
+                  labels={share}
+                  disabled={!shareUrl}
+                  buttonClassName="bg-[#3F372B] hover:bg-[#2B2620]"
+                  placement="top"
+                />
+                <a
+                  href={`/og/kalkyl?${imageQuery.toString()}`}
+                  download="roots-kalkyl.png"
+                  className="inline-flex items-center gap-1.5 text-sm font-medium text-[#5E5341] underline-offset-4 hover:underline"
+                >
+                  <ImageDown className="h-4 w-4" aria-hidden="true" />
+                  {share.calcDownloadImage}
+                </a>
+              </div>
+            )}
           </CardContent>
         </Card>
 

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
+import { SoftImage } from "@/components/soft-image";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -231,7 +232,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
                 <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-inset ring-black/5" />
               </div>
               <div className="group relative aspect-[4/3] overflow-hidden rounded-3xl bg-brand-50 shadow-xl shadow-brand-900/5 md:aspect-[3/2]">
-                <Image
+                <SoftImage
                   src={image2}
                   alt={`${name} ${product.ui.inUseAltSuffix}`}
                   fill

@@ -121,6 +121,7 @@ const GATE_BYPASS_PREFIXES = [
   "/llms.txt",
   "/opengraph-image",
   "/twitter-image",
+  "/og",
   "/.well-known",
   "/healthz",
   "/readyz",

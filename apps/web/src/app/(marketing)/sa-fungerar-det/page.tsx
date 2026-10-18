@@ -4,9 +4,33 @@ import { getPage } from "@/i18n/get-dictionary";
 import { getRequestLocale } from "@/i18n/request-locale";
 import { withLocale } from "@/i18n/paths";
 import type { Metadata } from "next";
+import { CALCULATOR_DEFAULTS, LOCKED_MARGIN_PERCENT, computeCalculator } from "@roots/contracts";
 import { SaFungerarDetClient } from "./sa-fungerar-det-client";
 
-export async function generateMetadata(): Promise<Metadata> {
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+function first(v: string | string[] | undefined): string {
+  return (Array.isArray(v) ? v[0] : v)?.trim() ?? "";
+}
+
+/** En delad kalkyllänk får en egen delningsbild med föreningens siffra. */
+function sharedCalcImage(sp: Record<string, string | string[] | undefined>, locale: string) {
+  const sellers = Math.round(Number(first(sp.saljare)));
+  const avg = Math.round(Number(first(sp.snitt)));
+  if (!Number.isFinite(sellers) || sellers < 1 || !Number.isFinite(avg) || avg < 0) return undefined;
+  const result = computeCalculator({
+    ...CALCULATOR_DEFAULTS,
+    sellers: Math.min(1000, sellers),
+    avgPerSellerKr: Math.min(5000, avg),
+    marginPercent: LOCKED_MARGIN_PERCENT,
+  });
+  const q = new URLSearchParams({ belopp: String(Math.round(result.earningsKr)), locale });
+  const club = first(sp.forening).slice(0, 60);
+  if (club) q.set("forening", club);
+  return `/og/kalkyl?${q.toString()}`;
+}
+
+export async function generateMetadata({ searchParams }: { searchParams: SearchParams }): Promise<Metadata> {
   const locale = await getRequestLocale();
   const t = getPage("saFungerarDet", locale);
   return pageMetadata({
@@ -14,6 +38,7 @@ export async function generateMetadata(): Promise<Metadata> {
     description: t.description,
     path: "/sa-fungerar-det",
     locale,
+    ogImage: sharedCalcImage(await searchParams, locale),
   });
 }
 

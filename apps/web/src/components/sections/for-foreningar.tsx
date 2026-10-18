@@ -1,4 +1,4 @@
-import Image from "next/image";
+import { SoftImage } from "@/components/soft-image";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import { LocaleLink } from "@/components/locale-link";
@@ -30,7 +30,7 @@ export async function ForForeningar() {
 
         <div className="mt-14 grid gap-6 md:grid-cols-2">
           <div className="group relative aspect-[4/3] overflow-hidden rounded-3xl">
-            <Image
+            <SoftImage
               src="/images/sport/tjejlaget-foto-2.jpg"
               alt={forClubs.sellingAlt}
               fill
@@ -39,7 +39,7 @@ export async function ForForeningar() {
             />
           </div>
           <div className="group relative aspect-[4/3] overflow-hidden rounded-3xl">
-            <Image
+            <SoftImage
               src="/images/sport/leverans-foto.jpg"
               alt={forClubs.campAlt}
               fill

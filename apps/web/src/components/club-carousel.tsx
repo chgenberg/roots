@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { LocaleLink } from "@/components/locale-link";
 import type { ClubLogo } from "@/content/clubs";
+import { morphToClub } from "@/lib/view-transition";
 import { cn } from "@/lib/utils";
 
 const SPEED_PX_PER_S = 28;
@@ -39,6 +41,7 @@ export function ClubCarousel({
   const dragging = useRef(false);
   const resumeAt = useRef(0);
   const dragStart = useRef({ x: 0, left: 0, moved: false });
+  const router = useRouter();
 
   const setWidth = useCallback(() => {
     const set = setRef.current;
@@ -154,7 +157,12 @@ export function ClubCarousel({
             tabIndex={copy === 0 ? undefined : -1}
             draggable={false}
             onClick={(e) => {
-              if (dragStart.current.moved) e.preventDefault();
+              if (dragStart.current.moved) {
+                e.preventDefault();
+                return;
+              }
+              if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+              if (morphToClub(e.currentTarget, club.slug, (href) => router.push(href))) e.preventDefault();
             }}
             className="group/card flex h-48 w-60 select-none flex-col items-center justify-center rounded-3xl bg-white px-6 shadow-[0_1px_2px_rgba(94,83,65,0.06),0_8px_24px_-12px_rgba(94,83,65,0.18)] ring-1 ring-[#E6DED2] transition duration-300 ease-out hover:-translate-y-1 hover:shadow-[0_2px_4px_rgba(94,83,65,0.08),0_18px_40px_-16px_rgba(94,83,65,0.35)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:w-64"
           >
@@ -165,6 +173,7 @@ export function ClubCarousel({
                 width={club.width}
                 height={club.height}
                 draggable={false}
+                data-morph-logo
                 sizes="176px"
                 className="h-auto max-h-24 w-auto max-w-[176px] object-contain transition-transform duration-500 ease-out group-hover/card:scale-105"
               />
