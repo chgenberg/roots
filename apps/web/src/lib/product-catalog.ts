@@ -17,6 +17,22 @@ const IMAGE_BY_SLUG: Record<string, string> = {
   conditioner: "/images/roots-conditioner-studio-w.jpg",
   "body-wash": "/images/roots-body-wash-studio-w.jpg",
   [BUNDLE_SLUG]: "/images/roots-collection-studio-s.jpg",
+  "paket-basic": "/images/roots-paket-basic-studio-s.jpg",
+  "paket-exclusive": "/images/roots-paket-exclusive-studio-s.jpg",
+};
+
+/**
+ * Paketen i den publika sajten, i prisordning. Bara Premium (`BUNDLE_SLUG`)
+ * finns som rad i `products` och går att köpa i shoppen; Basic och Exclusive
+ * saknar ännu databasrad, kassa och Fortnox-artikel.
+ */
+export const PACKAGE_SLUGS = ["paket-basic", BUNDLE_SLUG, "paket-exclusive"] as const;
+
+/** Artikelnummer för paketens strukturerade data på /produkter/[slug]. */
+export const PACKAGE_SKU: Record<(typeof PACKAGE_SLUGS)[number], string> = {
+  "paket-basic": "ROOTS-KIT-002",
+  [BUNDLE_SLUG]: BUNDLE_SKU,
+  "paket-exclusive": "ROOTS-KIT-003",
 };
 
 /** Kollektionsbilden visar alla tre produkterna — rimlig för okända slugs. */

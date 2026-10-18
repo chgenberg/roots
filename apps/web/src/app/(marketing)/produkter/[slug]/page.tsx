@@ -10,7 +10,7 @@ import { BreadcrumbJsonLd, ProductJsonLd } from "@/components/json-ld";
 import { ArrowLeft } from "lucide-react";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { LocaleLink } from "@/components/locale-link";
-import { BUNDLE_SKU, BUNDLE_SLUG, productImage } from "@/lib/product-catalog";
+import { BUNDLE_SLUG, PACKAGE_SKU, PACKAGE_SLUGS, productImage } from "@/lib/product-catalog";
 import { pageMetadata } from "@/lib/seo";
 import {
   getPage,
@@ -26,14 +26,16 @@ const SKU_BY_SLUG: Record<ProductSlug, string> = {
   shampoo: "ROOTS-SH-001",
   conditioner: "ROOTS-CO-001",
   "body-wash": "ROOTS-BW-001",
-  [BUNDLE_SLUG]: BUNDLE_SKU,
+  ...PACKAGE_SKU,
 };
 
 const IMAGE2_BY_SLUG: Record<ProductSlug, string> = {
   shampoo: "/images/roots-shampoo-lifestyle-s.jpg",
   conditioner: "/images/roots-conditioner-lifestyle-w.jpg",
   "body-wash": "/images/roots-body-wash-lifestyle-w.jpg",
+  "paket-basic": "/images/roots-shampoo-bath-s.jpg",
   [BUNDLE_SLUG]: "/images/roots-home-hero-s.jpg",
+  "paket-exclusive": "/images/roots-home-hero-s.jpg",
 };
 
 const INGREDIENTS: Partial<Record<ProductSlug, string[]>> = {
@@ -135,7 +137,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 export function generateStaticParams() {
-  return (["shampoo", "conditioner", "body-wash", BUNDLE_SLUG] as const).map(
+  return (["shampoo", "conditioner", "body-wash", ...PACKAGE_SLUGS] as const).map(
     (slug) => ({ slug })
   );
 }

@@ -21,7 +21,7 @@ export const pages = {
         "Schampo, balsam och body wash. Utvecklade i Norden. Utan sulfater, silikoner och parabener. 35 % av varje köp stannar i föreningen.",
       heroTitle: "Tre premiumprodukter",
       heroBody:
-        "Schampo, balsam och body wash utan sulfater, silikoner och parabener. Naturliga ingredienser där varje element tjänar ett tydligt syfte för att vårda hår och hud. Produkter för daglig användning av hög kvalitet. Var för sig eller som Premiumpaket.",
+        "Schampo, balsam och body wash utan sulfater, silikoner och parabener. Naturliga ingredienser där varje element tjänar ett tydligt syfte för att vårda hår och hud. Produkter för daglig användning av hög kvalitet. Var för sig eller i paket.",
       itemListName: "Roots produkter",
       breadcrumbHome: "Hem",
       values: [
@@ -47,7 +47,7 @@ export const pages = {
         "Shampoo, conditioner and body wash. Developed in the Nordics. No sulphates, silicones or parabens. 35% of every purchase stays with the club.",
       heroTitle: "Three premium products",
       heroBody:
-        "Shampoo, conditioner and body wash without sulphates, silicones or parabens. Natural ingredients where every element has a clear purpose in caring for hair and skin. High-quality products for everyday use. On their own or as a Premium pack.",
+        "Shampoo, conditioner and body wash without sulphates, silicones or parabens. Natural ingredients where every element has a clear purpose in caring for hair and skin. High-quality products for everyday use. On their own or in a pack.",
       itemListName: "Roots products",
       breadcrumbHome: "Home",
       values: [

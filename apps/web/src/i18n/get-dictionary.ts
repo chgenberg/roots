@@ -17,6 +17,7 @@ import { preview } from "./dictionaries/preview";
 import { interest } from "./dictionaries/interest";
 import { shop } from "./dictionaries/shop";
 import {
+  packageShowcase,
   productListingExtras,
   products,
   type ProductCopy,
@@ -104,8 +105,14 @@ export function getProducts(
     shampoo: products.shampoo[locale],
     conditioner: products.conditioner[locale],
     "body-wash": products["body-wash"][locale],
+    "paket-basic": products["paket-basic"][locale],
     paket: products.paket[locale],
+    "paket-exclusive": products["paket-exclusive"][locale],
   };
+}
+
+export function getPackageShowcase(locale: Locale) {
+  return packageShowcase[locale];
 }
 
 export function getProduct(

@@ -4,6 +4,7 @@ import { ForForeningar } from "@/components/sections/for-foreningar";
 import { DemoTeaser } from "@/components/sections/demo-teaser";
 import { WelcomeBack } from "@/components/welcome-back";
 import { ProductsPreview } from "@/components/sections/products-preview";
+import { PackageShowcase } from "@/components/sections/package-showcase";
 import { Gamification } from "@/components/sections/gamification";
 import { WebPageJsonLd } from "@/components/json-ld";
 import { pageMetadata } from "@/lib/seo";
@@ -48,6 +49,7 @@ export default async function Home() {
       <ForForeningar />
       <DemoTeaser />
       <ProductsPreview />
+      <PackageShowcase id="paket" className="bg-brand-50/40" />
       <Gamification />
       <WelcomeBack />
     </>

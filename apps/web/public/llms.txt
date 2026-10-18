@@ -24,7 +24,9 @@ Aktuella priser finns alltid på produktsidorna. Vägledande sortiment:
 - Roots Schampoo (250 ml) — https://roots.nu/produkter/shampoo
 - Roots Conditioner (250 ml) — https://roots.nu/produkter/conditioner
 - Roots Body Wash (250 ml) — https://roots.nu/produkter/body-wash
-- Roots Premiumpaket — https://roots.nu/produkter/paket
+- Roots Basicpaket (schampo + balsam, 299 kr) — https://roots.nu/produkter/paket-basic
+- Roots Premiumpaket (schampo + balsam + body wash, 399 kr) — https://roots.nu/produkter/paket
+- Roots Exclusivepaket (2 schampo + balsam + body wash, 499 kr) — https://roots.nu/produkter/paket-exclusive
 
 ## Viktiga URL:er
 

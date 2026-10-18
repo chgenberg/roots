@@ -13,7 +13,7 @@ export type ProductCopy = {
   badge: string | null;
   highlights: string[];
   /** Bundle-only: what is included. */
-  contains?: { slug: string; label: string }[];
+  contains?: { slug: string; label: string; qty?: number }[];
   /** Category label for structured data / crumbs. */
   category: string;
   ui: {
@@ -48,7 +48,7 @@ const sharedUi = {
 } as const;
 
 export const products: Record<
-  "shampoo" | "conditioner" | "body-wash" | "paket",
+  "shampoo" | "conditioner" | "body-wash" | "paket-basic" | "paket" | "paket-exclusive",
   LocalizedProduct
 > = {
   shampoo: {
@@ -164,6 +164,45 @@ export const products: Record<
     },
   },
 
+  "paket-basic": {
+    sv: {
+      name: "Roots Basicpaket",
+      subtitle: "Schampo och balsam",
+      tagline: "Grunden för håret.",
+      description:
+        "Schampo och balsam som är gjorda för att användas tillsammans. Schampot rengör skonsamt med sockerbaserade tensider. Balsamet ger fukt och smidighet utan att tynga. SyriCalm® av vass och svamp finns i båda. Doften är diskret och neutral. Som paket: 299 kr i stället för 398 kr var för sig.",
+      priceSek: 299,
+      priceOre: 29900,
+      volume: "2 × 250 ml",
+      badge: "Spara 99 kr",
+      highlights: ["Schampo och balsam", "Spara 99 kr", "SyriCalm® i båda"],
+      contains: [
+        { slug: "shampoo", label: "Roots Schampoo, 250 ml" },
+        { slug: "conditioner", label: "Roots Conditioner, 250 ml" },
+      ],
+      category: "Paket",
+      ui: { ...sharedUi.sv },
+    },
+    en: {
+      name: "Roots Basic pack",
+      subtitle: "Shampoo and conditioner",
+      tagline: "The foundation for your hair.",
+      description:
+        "Shampoo and conditioner made to be used together. The shampoo cleanses gently with sugar-based surfactants. The conditioner adds moisture and movement without the weight. SyriCalm®, from reed and mushroom, is in both. The scent is discreet and neutral. As a pack: SEK 299 instead of SEK 398 bought separately.",
+      priceSek: 299,
+      priceOre: 29900,
+      volume: "2 × 250 ml",
+      badge: "Save SEK 99",
+      highlights: ["Shampoo and conditioner", "Save SEK 99", "SyriCalm® in both"],
+      contains: [
+        { slug: "shampoo", label: "Roots Schampoo, 250 ml" },
+        { slug: "conditioner", label: "Roots Conditioner, 250 ml" },
+      ],
+      category: "Pack",
+      ui: { ...sharedUi.en },
+    },
+  },
+
   paket: {
     sv: {
       name: "Roots Premiumpaket",
@@ -209,6 +248,55 @@ export const products: Record<
         { slug: "body-wash", label: "Roots Body Wash, 250 ml" },
       ],
       category: "Premium pack",
+      ui: { ...sharedUi.en },
+    },
+  },
+
+  "paket-exclusive": {
+    sv: {
+      name: "Roots Exclusivepaket",
+      subtitle: "Två schampo, balsam och body wash",
+      tagline: "Hela rutinen, med schampo i reserv.",
+      description:
+        "Hela rutinen med ett extra schampo, för hushållet där schampot tar slut först. Schampo, balsam och body wash som är gjorda för att användas tillsammans. De rengör skonsamt, vårdar det som behöver vård och lämnar hårets och hudens balans i fred. SyriCalm® av vass och svamp finns i alla. Som paket: 499 kr i stället för 776 kr var för sig.",
+      priceSek: 499,
+      priceOre: 49900,
+      volume: "4 × 250 ml",
+      badge: "Spara 277 kr",
+      highlights: [
+        "Två schampo, balsam och body wash",
+        "Spara 277 kr",
+        "Lägst pris per flaska",
+      ],
+      contains: [
+        { slug: "shampoo", label: "2 × Roots Schampoo, 250 ml", qty: 2 },
+        { slug: "conditioner", label: "Roots Conditioner, 250 ml" },
+        { slug: "body-wash", label: "Roots Body Wash, 250 ml" },
+      ],
+      category: "Paket",
+      ui: { ...sharedUi.sv },
+    },
+    en: {
+      name: "Roots Exclusive pack",
+      subtitle: "Two shampoos, conditioner and body wash",
+      tagline: "The whole routine, with a spare shampoo.",
+      description:
+        "The whole routine plus an extra shampoo, for the household where shampoo runs out first. Shampoo, conditioner and body wash made to be used together. They cleanse gently, care for what needs care and leave hair and skin alone. SyriCalm®, from reed and mushroom, runs through them all. As a pack: SEK 499 instead of SEK 776 bought separately.",
+      priceSek: 499,
+      priceOre: 49900,
+      volume: "4 × 250 ml",
+      badge: "Save SEK 277",
+      highlights: [
+        "Two shampoos, conditioner and body wash",
+        "Save SEK 277",
+        "Lowest price per bottle",
+      ],
+      contains: [
+        { slug: "shampoo", label: "2 × Roots Schampoo, 250 ml", qty: 2 },
+        { slug: "conditioner", label: "Roots Conditioner, 250 ml" },
+        { slug: "body-wash", label: "Roots Body Wash, 250 ml" },
+      ],
+      category: "Pack",
       ui: { ...sharedUi.en },
     },
   },
@@ -259,20 +347,64 @@ export const productListingExtras: Record<
     sv: {
       listingTagline:
         "Tre flaskor. En rutin. Alla produkter till ett lägre pris.",
-      listingHighlights: [
-        "Alla tre produkterna",
-        "3 × 250 ml",
-        "Lägsta pris per flaska",
-      ],
+      listingHighlights: ["Alla tre produkterna", "3 × 250 ml", "Hela rutinen"],
     },
     en: {
       listingTagline:
         "Three bottles. One routine. All the products at a lower price.",
-      listingHighlights: [
-        "All three products",
-        "3 × 250 ml",
-        "Lowest price per bottle",
-      ],
+      listingHighlights: ["All three products", "3 × 250 ml", "The whole routine"],
+    },
+  },
+  "paket-basic": {
+    sv: {
+      listingTagline: "Schampo och balsam. Grunden för håret, till ett lägre pris.",
+      listingHighlights: ["Schampo och balsam", "2 × 250 ml", "Spara 99 kr"],
+    },
+    en: {
+      listingTagline: "Shampoo and conditioner. The foundation for your hair, for less.",
+      listingHighlights: ["Shampoo and conditioner", "2 × 250 ml", "Save SEK 99"],
+    },
+  },
+  "paket-exclusive": {
+    sv: {
+      listingTagline: "Hela rutinen med ett extra schampo. Lägst pris per flaska.",
+      listingHighlights: ["Fyra flaskor", "4 × 250 ml", "Spara 277 kr"],
+    },
+    en: {
+      listingTagline: "The whole routine plus an extra shampoo. Lowest price per bottle.",
+      listingHighlights: ["Four bottles", "4 × 250 ml", "Save SEK 277"],
     },
   },
 };
+
+/** Copy for the three-pack showcase on the home page and /produkter. */
+export const packageShowcase = {
+  sv: {
+    eyebrow: "Paket",
+    title: "Mer rutin, lägre pris",
+    body: "Samma produkter i tre paket. Ju mer som ingår, desto mer sparar du.",
+    popular: "Populärast",
+    save: "Du sparar {n} kr",
+    compareAt: "var för sig",
+    cta: "Se paketet",
+    tiers: {
+      "paket-basic": { label: "Basic", pitch: "Schampo och balsam." },
+      paket: { label: "Premium", pitch: "Hela rutinen för hår och hud." },
+      "paket-exclusive": { label: "Exclusive", pitch: "Hela rutinen, plus ett extra schampo." },
+    },
+  },
+  en: {
+    eyebrow: "Packs",
+    title: "More routine, lower price",
+    body: "The same products in three packs. The more you get, the more you save.",
+    popular: "Most popular",
+    save: "You save SEK {n}",
+    compareAt: "separately",
+    cta: "See the pack",
+    tiers: {
+      "paket-basic": { label: "Basic", pitch: "Shampoo and conditioner." },
+      paket: { label: "Premium", pitch: "The whole routine for hair and skin." },
+      "paket-exclusive": { label: "Exclusive", pitch: "The whole routine, plus an extra shampoo." },
+    },
+  },
+} as const;

@@ -6,13 +6,14 @@ import { ArrowUpRight } from "lucide-react";
 import { BreadcrumbJsonLd, ItemListJsonLd, WebPageJsonLd } from "@/components/json-ld";
 import { LocaleLink } from "@/components/locale-link";
 import { pageMetadata } from "@/lib/seo";
-import { BUNDLE_SLUG, productImage } from "@/lib/product-catalog";
+import { PACKAGE_SLUGS, productImage } from "@/lib/product-catalog";
+import { PackageShowcase } from "@/components/sections/package-showcase";
 import { getPage, getProduct, getProductListingExtras } from "@/i18n/get-dictionary";
 import { getRequestLocale } from "@/i18n/request-locale";
 import { withLocale } from "@/i18n/paths";
 import type { Metadata } from "next";
 
-const PRODUCT_SLUGS = ["shampoo", "conditioner", "body-wash", BUNDLE_SLUG] as const;
+const PRODUCT_SLUGS = ["shampoo", "conditioner", "body-wash"] as const;
 
 function formatPriceSek(priceSek: number, locale: "sv" | "en") {
   return locale === "en" ? `SEK ${priceSek}` : `${priceSek} kr`;
@@ -65,10 +66,16 @@ export default async function ProdukterPage() {
       />
       <ItemListJsonLd
         name={t.itemListName}
-        items={products.map((p) => ({
-          name: p.name,
-          url: withLocale(`/produkter/${p.slug}`, locale),
-        }))}
+        items={[
+          ...products.map((p) => ({
+            name: p.name,
+            url: withLocale(`/produkter/${p.slug}`, locale),
+          })),
+          ...PACKAGE_SLUGS.map((slug) => ({
+            name: getProduct(slug, locale).name,
+            url: withLocale(`/produkter/${slug}`, locale),
+          })),
+        ]}
       />
       <section className="bg-brand-50/40 py-16 md:py-20">
         <div className="mx-auto max-w-[1280px] px-6 md:px-10">
@@ -95,7 +102,9 @@ export default async function ProdukterPage() {
         </div>
       </section>
 
-      <section className="py-20 md:py-28">
+      <PackageShowcase id="paket" />
+
+      <section className="border-t border-border py-20 md:py-28">
         <div className="mx-auto max-w-[1280px] px-6 md:px-10">
           <div className="space-y-24">
             {products.map((product, idx) => (
