@@ -175,7 +175,7 @@ export function ClubCarousel({
                 draggable={false}
                 data-morph-logo
                 sizes="176px"
-                className="h-auto max-h-24 w-auto max-w-[176px] object-contain transition-transform duration-500 ease-out group-hover/card:scale-105"
+                className="h-auto max-h-24 w-auto max-w-[176px] object-contain grayscale transition-transform duration-500 ease-out group-hover/card:scale-105"
               />
             </div>
             <p className="mt-4 text-center text-sm font-semibold leading-tight text-[#5E5341]">{club.name}</p>

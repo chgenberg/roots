@@ -103,7 +103,7 @@ export default async function ClubPage({ params }: PageProps) {
                   height={club.height}
                   priority
                   sizes="240px"
-                  className="h-auto max-h-full w-auto max-w-full object-contain"
+                  className="h-auto max-h-full w-auto max-w-full object-contain grayscale"
                 />
               </div>
               <div className="rounded-3xl bg-[linear-gradient(160deg,#F7F3EA_0%,#EFE8DD_55%,#DDD2C6_100%)] p-6">
@@ -140,7 +140,7 @@ export default async function ClubPage({ params }: PageProps) {
                       height={other.height}
                       sizes="120px"
                       data-morph-logo
-                      className="h-auto max-h-16 w-auto max-w-[120px] object-contain"
+                      className="h-auto max-h-16 w-auto max-w-[120px] object-contain grayscale"
                     />
                   </div>
                   <p className="mt-3 text-sm font-semibold leading-tight text-[#5E5341]">{other.name}</p>
