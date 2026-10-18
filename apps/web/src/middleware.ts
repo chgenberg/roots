@@ -96,6 +96,8 @@ const GATE_BYPASS_PREFIXES = [
   // säljare skickar till föreningar — den måste fungera utan förhands-
   // visningslösenord även före lansering.
   "/kalkylator",
+  // Demo-shopen skickas vidare till styrelser och föräldrar — samma skäl.
+  "/prova",
   // Feedback-kontot ska kunna logga in utan preview-lösenordet. Portalen
   // och övriga sidor är fortfarande bakom grinden.
   "/login",
