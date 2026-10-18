@@ -8,6 +8,15 @@ export type HowItWorksFlow =
   | "result"
   | "repeat";
 
+export type SkipIcon =
+  | "orders"
+  | "payments"
+  | "reminders"
+  | "sorting"
+  | "home"
+  | "results"
+  | "material";
+
 type Step = {
   flow: HowItWorksFlow;
   title: string;
@@ -54,7 +63,10 @@ type HowItWorksCopy = {
     between: string;
   };
   skipTitle: string;
-  skip: { title: string; body: string }[];
+  skipIntro: string;
+  skip: { icon: SkipIcon; title: string; body: string }[];
+  skipSummaryTitle: string;
+  skipSummaryBody: string;
   allTheWayTitle: string;
   allTheWayBody: string;
   allTheWayCta: string;
@@ -176,15 +188,47 @@ export const howItWorks: Record<Locale, HowItWorksCopy> = {
       between: "Även mellan säljperioderna",
     },
     skipTitle: "Vad ni slipper",
+    skipIntro: "Med Roots försvinner de tunga momenten i en försäljning.",
     skip: [
-      { title: "Ingen minsta order", body: "Beställ det ni behöver, när ni behöver det." },
-      { title: "Ingen pärm", body: "Portalen visar ordrar, mål och 35 % i realtid." },
       {
-        title: "Ingen packning",
-        body: "Frakten syns i kassan. Fri frakt kan gälla över tröskeln där.",
+        icon: "orders",
+        title: "Slipp samla in beställningslistor",
+        body: "Kunden beställer direkt i säljarens personliga webbshop. Ni behöver inte samla in och registrera beställningar manuellt.",
       },
-      { title: "Ingen gissning", body: "Ni ser exakt hur mycket föreningen har tjänat." },
+      {
+        icon: "payments",
+        title: "Slipp hantera kundernas betalningar",
+        body: "Kunden betalar direkt i webbshoppen. Ni slipper samla in pengar, stämma av Swish och hålla reda på vem som har betalat.",
+      },
+      {
+        icon: "reminders",
+        title: "Slipp jaga obetalda köp",
+        body: "Betalningen sker vid beställningen, så ni behöver inte skicka påminnelser till kunderna.",
+      },
+      {
+        icon: "sorting",
+        title: "Slipp sortera och packa beställningar",
+        body: "Vid gemensam leverans kommer produkterna färdigsorterade per lag och säljare, med tydliga underlag för utdelningen.",
+      },
+      {
+        icon: "home",
+        title: "Slipp dela ut de köp som ska skickas hem",
+        body: "När kunden väljer hemleverans sköter Roots packning och leverans direkt till kunden.",
+      },
+      {
+        icon: "results",
+        title: "Slipp räkna ihop försäljning och förtjänst",
+        body: "Roots sammanställer resultatet per lag och säljare. Ni får underlag för att fördela föreningens förtjänst.",
+      },
+      {
+        icon: "material",
+        title: "Slipp ta fram allt säljmaterial själva",
+        body: "Ni får information, guider och material som hjälper deltagarna att komma igång och sprida sina personliga länkar.",
+      },
     ],
+    skipSummaryTitle: "Mer tid till gemenskapen",
+    skipSummaryBody:
+      "Ni fokuserar på målet och på att dela länken. Roots sköter beställningar, betalningar, leverans och redovisning.",
     allTheWayTitle: "Vi är med er hela vägen",
     allTheWayBody:
       "Från första samtalet till leverans, uppföljning och nästa försäljning. Vi använder modern teknik för att förenkla arbetet och personlig kontakt för att hjälpa er framåt.",
@@ -368,15 +412,47 @@ export const howItWorks: Record<Locale, HowItWorksCopy> = {
       between: "Even between sales periods",
     },
     skipTitle: "What you skip",
+    skipIntro: "With Roots, the heavy parts of a fundraising sale disappear.",
     skip: [
-      { title: "No minimum order", body: "Order what you need, when you need it." },
-      { title: "No binder", body: "The portal shows orders, goals and your 35% in real time." },
       {
-        title: "No packing",
-        body: "Shipping is shown at checkout. Free shipping may apply above the threshold shown there.",
+        icon: "orders",
+        title: "No order lists to collect",
+        body: "The customer orders directly in the seller's personal web shop. You don't need to collect and register orders by hand.",
       },
-      { title: "No guesswork", body: "You see exactly how much the club has earned." },
+      {
+        icon: "payments",
+        title: "No customer payments to handle",
+        body: "The customer pays directly in the web shop. No cash to collect, no Swish to reconcile and no keeping track of who has paid.",
+      },
+      {
+        icon: "reminders",
+        title: "No unpaid orders to chase",
+        body: "Payment happens when the order is placed, so you never need to send reminders to customers.",
+      },
+      {
+        icon: "sorting",
+        title: "No orders to sort and pack",
+        body: "With collected delivery, the products arrive sorted by team and seller, with clear notes for handing them out.",
+      },
+      {
+        icon: "home",
+        title: "No home deliveries to hand out",
+        body: "When the customer chooses home delivery, Roots handles packing and delivery straight to the customer.",
+      },
+      {
+        icon: "results",
+        title: "No sales and earnings to add up",
+        body: "Roots compiles the result per team and seller. You get the figures you need to share the club's earnings.",
+      },
+      {
+        icon: "material",
+        title: "No sales material to make yourselves",
+        body: "You get information, guides and material that help participants get started and share their personal links.",
+      },
     ],
+    skipSummaryTitle: "More time for the community",
+    skipSummaryBody:
+      "You focus on the goal and on sharing the link. Roots handles orders, payments, delivery and reporting.",
     allTheWayTitle: "We are with you all the way",
     allTheWayBody:
       "From the first call to delivery, follow-up and the next sale. We use modern technology to make the work simpler and personal contact to help you forward.",

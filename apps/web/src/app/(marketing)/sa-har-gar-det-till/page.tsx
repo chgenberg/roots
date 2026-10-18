@@ -1,11 +1,22 @@
 import type { Metadata } from "next";
-import { ArrowRight, ChevronDown } from "lucide-react";
+import {
+  ArrowRight,
+  BellOff,
+  ChartColumn,
+  ChevronDown,
+  ClipboardList,
+  CreditCard,
+  Megaphone,
+  PackageCheck,
+  Truck,
+  type LucideIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LocaleLink } from "@/components/locale-link";
 import { CopyTextButton } from "@/components/copy-text-button";
 import { HowItWorksFlowImage, HowItWorksStrip } from "@/components/how-it-works-flows";
 import { BreadcrumbJsonLd, FaqJsonLd, HowToJsonLd } from "@/components/json-ld";
-import { howItWorks } from "@/i18n/dictionaries/how-it-works";
+import { howItWorks, type SkipIcon } from "@/i18n/dictionaries/how-it-works";
 import { getPage } from "@/i18n/get-dictionary";
 import { withLocale } from "@/i18n/paths";
 import { getRequestLocale } from "@/i18n/request-locale";
@@ -13,6 +24,16 @@ import { pageMetadata } from "@/lib/seo";
 import { cn } from "@/lib/utils";
 
 const PATH = "/sa-har-gar-det-till";
+
+const SKIP_ICONS: Record<SkipIcon, LucideIcon> = {
+  orders: ClipboardList,
+  payments: CreditCard,
+  reminders: BellOff,
+  sorting: PackageCheck,
+  home: Truck,
+  results: ChartColumn,
+  material: Megaphone,
+};
 
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await getRequestLocale();
@@ -132,13 +153,29 @@ export default async function SaHarGarDetTillPage() {
             <h2 id="slipper-titel" className="text-center text-3xl tracking-tight">
               {t.skipTitle}
             </h2>
-            <ul className="mt-10 grid gap-x-8 gap-y-8 sm:grid-cols-2 lg:grid-cols-4">
-              {t.skip.map((item) => (
-                <li key={item.title} className="border-t border-brand-700/25 pt-4">
-                  <h3 className="text-lg font-semibold">{item.title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{item.body}</p>
-                </li>
-              ))}
+            <p className="mx-auto mt-3 max-w-xl text-center text-lg text-muted-foreground">
+              {t.skipIntro}
+            </p>
+            <ul className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {t.skip.map((item) => {
+                const Icon = SKIP_ICONS[item.icon];
+                return (
+                  <li
+                    key={item.title}
+                    className="flex flex-col rounded-2xl bg-white/85 p-6 shadow-sm shadow-brand-900/5 ring-1 ring-brand-700/10"
+                  >
+                    <span className="flex h-11 w-11 items-center justify-center rounded-full bg-brand-50 text-brand-700">
+                      <Icon className="h-5 w-5" aria-hidden />
+                    </span>
+                    <h3 className="mt-5 text-lg font-semibold leading-snug">{item.title}</h3>
+                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{item.body}</p>
+                  </li>
+                );
+              })}
+              <li className="flex flex-col justify-end rounded-2xl bg-brand-700 p-6 text-white">
+                <h3 className="text-lg font-semibold leading-snug">{t.skipSummaryTitle}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-white/85">{t.skipSummaryBody}</p>
+              </li>
             </ul>
           </div>
         </div>
