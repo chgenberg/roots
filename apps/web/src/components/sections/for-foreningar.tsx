@@ -40,7 +40,7 @@ export async function ForForeningar() {
           </div>
           <div className="group relative aspect-[4/3] overflow-hidden rounded-3xl">
             <SoftImage
-              src="/images/sport/leverans-foto.jpg"
+              src="/images/sport/leverans-funkis-foto.jpg"
               alt={forClubs.campAlt}
               fill
               className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.02]"
