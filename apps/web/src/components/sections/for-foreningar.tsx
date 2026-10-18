@@ -31,7 +31,7 @@ export async function ForForeningar() {
         <div className="mt-14 grid gap-6 md:grid-cols-2">
           <div className="group relative aspect-[4/3] overflow-hidden rounded-3xl">
             <SoftImage
-              src="/images/sport/tjejlaget-foto-2.jpg"
+              src="/images/sport/tjejlaget-match-foto.jpg"
               alt={forClubs.sellingAlt}
               fill
               className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.02]"

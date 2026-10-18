@@ -177,7 +177,7 @@ export const home: Record<Locale, HomeCopy> = {
       ],
       cta: "Sälj med oss",
       ctaCalc: "Räkna på intäkten",
-      sellingAlt: "Ett flicklag jublar tillsammans på fotbollsplanen",
+      sellingAlt: "Ett flicklag i matchställ samlas i en ring och jublar inför matchen",
       campAlt: "En kille lämnar en leveranslåda från Roots till en kvinna i dörren",
     },
     gamification: {
@@ -301,7 +301,7 @@ export const home: Record<Locale, HomeCopy> = {
       ],
       cta: "Sell with us",
       ctaCalc: "Calculate your earnings",
-      sellingAlt: "A girls' team celebrating together on the football pitch",
+      sellingAlt: "A girls' team in match kit huddles and cheers before kick-off",
       campAlt: "A boy hands a Roots delivery box to a woman at her front door",
     },
     gamification: {
