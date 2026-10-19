@@ -95,47 +95,53 @@ export const guideDefinitions: GuideDefinition[] = [
   {
     slug: "foreningsforsaljning",
     publishedAt: "2026-03-01",
-    updatedAt: "2026-08-01",
+    updatedAt: "2026-10-19",
     category: "forening",
     heroImage: "/images/roots-collection-studio-s.jpg",
     sv: {
-      title: "Föreningsförsäljning med något folk faktiskt använder",
+      title: "Föreningsförsäljning med premiumprodukter för vardagen",
       description:
-        "Många söker något annat än godis och lotter. Så fungerar modern föreningsförsäljning med egen shop och hemleverans, och därför passar hårvård så bra.",
+        "Föreningsförsäljning har länge hjälpt svenska föreningar att förverkliga sina mål. Roots bygger vidare på den traditionen med hår- och kroppsvård, enkel digital försäljning och möjlighet till återkommande intäkter.",
       sections: [
         {
           heading: "Föreningsförsäljning i korthet",
           paragraphs: [
-            "Föreningsförsäljning är när en klubb, ett lag eller en ideell förening säljer produkter för att finansiera verksamheten — cupresor, material, träningsavgifter eller lokalhyra. Modellen är välbekant i Sverige: medlemmar och föräldrar hjälper till, och intäkten går tillbaka till laget.",
-            "Det som förändrats är *vad* som säljs. Traditionellt har det handlat om godis, kakor eller lotter. Idag letar många efter alternativ som känns mer relevanta i vardagen — och som inte kräver att man bär runt på lådor eller hanterar kontanter.",
+            "Föreningsförsäljning är när en klubb, ett lag eller en klass säljer produkter för att finansiera exempelvis cupresor, material eller gemensamma aktiviteter. Medlemmar och föräldrar hjälps åt, och försäljningen skapar både intäkter och engagemang.",
+            "Genom åren har etablerade aktörer inom bland annat kakor, kläder, godis och lotter byggt upp en stark tradition. Deras arbete har gjort föreningsförsäljning till ett välkänt och uppskattat sätt att stötta föreningslivet.",
+            "Med Roots vill vi bidra till att utveckla den marknaden vidare. Vårt bidrag är premiumprodukter inom hår- och kroppsvård – produkter som används i vardagen, tar slut och behöver köpas igen.",
           ],
         },
         {
-          heading: "Varför premium hårvård passar föreningar",
+          heading: "Varför hår- och kroppsvård passar föreningar",
           paragraphs: [
-            "Hårvård är något de flesta redan köper. När föreningen erbjuder [Roots Schampoo](/produkter/shampoo), [Roots Conditioner](/produkter/conditioner) och [Roots Body Wash](/produkter/body-wash) säljer ni något människor har användning för — inte något som äts upp på en eftermiddag.",
-            "Premium betyder inte lyx för lyxens skull. Det betyder tydlig formulering, nordiska ingredienser och en produkt som går att stå för när man tipsar en kollega eller en granne. Det gör samtalet lättare för både ungdomar och föräldrar.",
+            "Schampo, conditioner och body wash finns redan på många människors inköpslista. När föreningen erbjuder [Roots Schampoo](/produkter/shampoo), [Roots Conditioner](/produkter/conditioner) och [Roots Body Wash](/produkter/body-wash) får kunden möjlighet att kombinera ett vardagsinköp med ett stöd till föreningslivet.",
+            "Bakom produkterna finns lång erfarenhet och kunskap inom hår- och hudvård. För oss handlar premium om genomtänkta produkter som kunden uppskattar och gärna väljer igen.",
+            "Just återköpet är en viktig del av Roots. När produkterna blir en del av kundens vardag kan stödet till föreningen fortsätta även efter den första försäljningsperioden. Det skapar möjlighet till en relation som håller över tid och ger återkommande intäkter.",
           ],
         },
         {
-          heading: "Hur Roots gör insamlingen enkel",
+          heading: "Hur Roots gör försäljningen enkel",
           paragraphs: [
-            "Varje säljare får en personlig shop och QR-kod. Kunden beställer online och får hemleverans — säljaren bär inte lådor och tar inte emot kontanter. Föreningen, laget eller klassen följer läget i portalen och får utbetalning enligt den fasta 35 %-modellen.",
-            "Premiumvård kan bli en återkommande vana: samma person som köpte via shoppen kan komma tillbaka nästa säsong. Läs mer i [Så här går det till](/sa-har-gar-det-till) eller se flödet i [Så fungerar det](/sa-fungerar-det).",
+            "Enkelhet är ett ledord för Roots. Vi vill vara den hjälpande handen som gör det lätt att komma igång och smidigt att genomföra försäljningen.",
+            "Varje säljare får en personlig shop och QR-kod som kan delas med familj, vänner och andra som vill stötta. Kunden beställer och betalar online. Leveransen kan samlas till föreningen, laget eller klassen, och kunden kan också välja hemleverans.",
+            "Föreningen följer försäljningen i portalen och får 35 procent av försäljningsvärdet under den gemensamma säljperioden. Digital beställning och betalning minskar administrationen och gör det enkelt att följa hur försäljningen går.",
+            "Läs mer i [Så här går det till](/sa-har-gar-det-till).",
           ],
         },
         {
           heading: "Vad ni behöver tänka på innan ni startar",
           paragraphs: [
-            "Välj ett erbjudande som speglar föreningens värderingar. Sätt ett tydligt mål (cupresa, nytt material, lägre träningsavgift). Ge säljarna en enkel pitch och en personlig länk. Och kommunicera öppet hur intäkten fördelas — transparens bygger engagemang.",
-            "Vill ni se hur det skulle landa hos er klubb? Boka en genomgång via [kontaktformuläret](/kontakt?intent=demo).",
+            "Börja med ett gemensamt mål. En cupresa, nytt material eller en aktivitet som alla ser fram emot gör det lättare att skapa engagemang.",
+            "Välj ett erbjudande som passar er förening och ge säljarna en enkel beskrivning av produkterna, sin personliga länk och ett tydligt mål att arbeta mot. Berätta också hur mycket försäljningen ger till föreningen och vad pengarna ska användas till.",
+            "Vill ni se hur Roots skulle kunna fungera hos er? Boka en genomgång via [kontaktformuläret](/kontakt?intent=demo).",
           ],
         },
         {
-          heading: "En modern insamling som känns bra att dela",
+          heading: "Ett köp i vardagen – ett stöd som kan fortsätta",
           paragraphs: [
-            "En lyckad kampanj ska fungera även en stressig tisdag mellan skola, jobb och träning. Därför är Roots byggt kring en enkel digital shop i stället för kartonger i hallen. Säljaren kan dela sin personliga länk när det passar, medan kunden väljer produkter och får dem levererade hem.",
-            "Det betyder inte att relationen försvinner. Tvärtom blir den tydligare: ett köp kan vara en konkret vardagsprodukt, ett stöd till laget och en vänlig rekommendation på samma gång. I [guiden om personlig shop](/guider/personlig-shop) finns idéer för hur länken blir enkel att använda utan att någon känner sig pressad.",
+            "En lyckad försäljning behöver fungera mellan skola, jobb och träning. Med den personliga shoppen finns erbjudandet nära till hands när säljaren träffar någon, skickar ett meddelande eller delar en länk.",
+            "Den personliga kontakten är fortfarande viktig. Det är engagemanget för laget, klassen eller föreningen som för försäljningen framåt. Roots gör det enkelt att omsätta det engagemanget i ett köp – och ger kunden anledning att komma tillbaka när produkterna tar slut.",
+            "Det är så vi vill bidra till föreningsförsäljningens nästa kapitel: med premium för vardagen, enkel hantering och möjlighet till ett långsiktigt stöd för föreningslivet.",
           ],
         },
       ],
@@ -148,7 +154,7 @@ export const guideDefinitions: GuideDefinition[] = [
         {
           question: "Behöver vi lagra produkter själva?",
           answer:
-            "Nej. Beställningar hanteras digitalt och levereras till kunden. Ni behöver inte ha lager i klubbstugan.",
+            "Nej. Beställningar hanteras digitalt och levereras samlat till föreningen, laget eller klassen eller hem till kunden. Ni behöver inte ha lager i klubbstugan.",
         },
         {
           question: "Passar det bara idrott?",
@@ -159,43 +165,49 @@ export const guideDefinitions: GuideDefinition[] = [
       cta: { href: "/sa-har-gar-det-till", label: "Så här går det till" },
     },
     en: {
-      title: "Club fundraising with something people actually use",
+      title: "Club fundraising with premium products for everyday life",
       description:
-        "Many look beyond candy and raffle tickets. How modern club fundraising works with a personal shop and home delivery, and why hair care fits so well.",
+        "Club fundraising has long helped Swedish clubs reach their goals. Roots builds on that tradition with hair and body care, simple digital selling and the chance of recurring income.",
       sections: [
         {
           heading: "Club fundraising in brief",
           paragraphs: [
-            "Club fundraising is when a club, team or non-profit sells products to fund its activities — tournament trips, kit, training fees or venue hire. The model is familiar across the Nordics: members and parents help out, and the revenue goes back to the team.",
-            "What has changed is *what* is sold. Traditionally it has been candy, cakes or raffle tickets. Today many look for alternatives that feel more relevant day to day — and that do not require carrying boxes around or handling cash.",
+            "Club fundraising is when a club, team or class sells products to fund things like tournament trips, equipment or shared activities. Members and parents help each other, and the sale creates both income and engagement.",
+            "Over the years, established players in cakes, clothing, sweets and raffle tickets, among others, have built a strong tradition. Their work has made club fundraising a well-known and appreciated way to support club life.",
+            "With Roots we want to help develop that market further. Our contribution is premium hair and body care – products that are used every day, run out and need to be bought again.",
           ],
         },
         {
-          heading: "Why premium hair care fits clubs",
+          heading: "Why hair and body care suits clubs",
           paragraphs: [
-            "Hair care is something most people already buy. When the club offers [Roots Schampoo](/produkter/shampoo), [Roots Conditioner](/produkter/conditioner) and [Roots Body Wash](/produkter/body-wash), you sell something people will use — not something eaten in an afternoon.",
-            "Premium does not mean luxury for luxury's sake. It means a clear formula, Nordic ingredients and a product you can stand behind when you recommend it to a colleague or a neighbour. That makes the conversation easier for both young sellers and parents.",
+            "Shampoo, conditioner and body wash are already on many people's shopping lists. When the club offers [Roots Schampoo](/produkter/shampoo), [Roots Conditioner](/produkter/conditioner) and [Roots Body Wash](/produkter/body-wash), the customer can combine an everyday purchase with support for club life.",
+            "Behind the products lies long experience and knowledge of hair and skin care. To us, premium means well-thought-out products that customers appreciate and happily choose again.",
+            "Repeat purchases are an important part of Roots. When the products become part of the customer's everyday life, the support for the club can continue beyond the first sales period. That creates the chance of a relationship that lasts and brings recurring income.",
           ],
         },
         {
-          heading: "How Roots makes fundraising simple",
+          heading: "How Roots makes selling simple",
           paragraphs: [
-            "Each seller gets a personal shop and QR code. The customer orders online and gets home delivery — the seller does not carry boxes or take cash. The club, team or class follows progress in the portal and receives payout according to the fixed 35% model.",
-            "Premium care can become a recurring habit: the same person who bought through the shop may return next season. Read more in [How it works](/sa-har-gar-det-till) or try the numbers in the [calculator](/sa-fungerar-det).",
+            "Simplicity is a guiding principle for Roots. We want to be the helping hand that makes it easy to get started and smooth to run the sale.",
+            "Every seller gets a personal shop and QR code to share with family, friends and others who want to help. The customer orders and pays online. Delivery can be collected to the club, team or class, and the customer can also choose home delivery.",
+            "The club follows the sale in the portal and receives 35 percent of the sales value during the shared sales period. Digital ordering and payment reduce admin and make it easy to see how the sale is going.",
+            "Read more in [How it works](/sa-har-gar-det-till).",
           ],
         },
         {
           heading: "What to think about before you start",
           paragraphs: [
-            "Choose an offer that reflects the club's values. Set a clear goal (tournament trip, new kit, lower training fees). Give sellers a simple pitch and a personal link. And communicate openly how revenue is shared — transparency builds engagement.",
-            "Want to see how it would work for your club? Book a walkthrough via the [contact form](/kontakt?intent=demo).",
+            "Start with a shared goal. A tournament trip, new equipment or an activity everyone is looking forward to makes it easier to build engagement.",
+            "Choose an offer that suits your club and give sellers a simple description of the products, their personal link and a clear goal to work towards. Also tell them how much the sale gives the club and what the money will be used for.",
+            "Want to see how Roots could work for you? Book a walkthrough via the [contact form](/kontakt?intent=demo).",
           ],
         },
         {
-          heading: "A modern fundraiser that feels good to share",
+          heading: "An everyday purchase – support that can continue",
           paragraphs: [
-            "A successful campaign should work even on a stressful Tuesday between school, work and training. That is why Roots is built around a simple digital shop instead of cardboard boxes in the hallway. The seller can share their personal link when it suits them, while the customer chooses products and has them delivered to their address.",
-            "That does not mean the relationship disappears. On the contrary, it becomes clearer: a purchase can be an everyday product, support for the team and a friendly recommendation at the same time. In the [guide to the personal shop](/guider/personlig-shop) you will find ideas for how the link becomes easy to use without anyone feeling pressured.",
+            "A successful sale has to work between school, work and training. With the personal shop, the offer is close at hand when the seller meets someone, sends a message or shares a link.",
+            "Personal contact still matters. It is the commitment to the team, class or club that drives the sale forward. Roots makes it easy to turn that commitment into a purchase – and gives the customer a reason to come back when the products run out.",
+            "That is how we want to contribute to the next chapter of club fundraising: with premium for everyday life, simple handling and the chance of long-term support for club life.",
           ],
         },
       ],
@@ -208,7 +220,7 @@ export const guideDefinitions: GuideDefinition[] = [
         {
           question: "Do we need to store products ourselves?",
           answer:
-            "No. Orders are handled digitally and delivered to the customer. You do not need stock in the clubhouse.",
+            "No. Orders are handled digitally and delivered either collected to the club, team or class or straight to the customer. You do not need stock in the clubhouse.",
         },
         {
           question: "Does it only suit sports?",
