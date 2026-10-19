@@ -3,6 +3,7 @@
 import { Instagram, Linkedin } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { LegalIdentityBlock } from "@/components/legal-identity-block";
+import { CookieSettingsButton } from "@/components/analytics-consent";
 import { RootsLogo } from "@/components/brand";
 import { HAIR_ANALYSIS_ENABLED } from "@/lib/feature-flags";
 import { LEGAL_IDENTITY } from "@/lib/legal-identity";
@@ -65,6 +66,11 @@ export function Footer() {
                     </LocaleLink>
                   </li>
                 ))}
+                {group.links.some((l) => l.href === "/integritet#cookies") && (
+                  <li>
+                    <CookieSettingsButton className="text-left text-sm text-muted-foreground transition-colors hover:text-foreground" />
+                  </li>
+                )}
               </ul>
             </div>
           ))}

@@ -900,7 +900,7 @@ export const pages = {
     sv: {
       title: "Integritetspolicy",
       description: "Så hanterar Roots dina personuppgifter enligt GDPR.",
-      updated: "Senast uppdaterad: 2 april 2026",
+      updated: "Senast uppdaterad: 19 oktober 2026",
       companyName: "Ourroots AB",
       contactEmail: "hej@roots.nu",
       sections: [
@@ -934,7 +934,7 @@ export const pages = {
             },
             {
               label: "Teknisk data",
-              text: "IP-adress, webbläsartyp och sidvisningar (via privacy-first-analys utan cookies).",
+              text: "IP-adress, webbläsartyp och sidvisningar. Besöksstatistik via Google Analytics samlas bara in om du har godkänt analyscookies.",
             },
           ],
         },
@@ -951,7 +951,7 @@ export const pages = {
             },
             {
               label: "Samtycke",
-              text: "skicka nyhetsbrev och marknadsföring. Du kan när som helst återkalla ditt samtycke (Art. 6.1 a GDPR).",
+              text: "skicka nyhetsbrev och marknadsföring samt mäta besöksstatistik med Google Analytics om du har godkänt analyscookies. Du kan när som helst återkalla ditt samtycke (Art. 6.1 a GDPR).",
             },
             {
               label: "Rättslig förpliktelse",
@@ -966,7 +966,7 @@ export const pages = {
             { text: "Kontouppgifter — tills kontot raderas." },
             { text: "Håranalysbilder — raderas direkt efter analys." },
             { text: "Nyhetsbrevsprenumeration — tills du avregistrerar dig." },
-            { text: "Analysdata (aggregerad) — 26 månader." },
+            { text: "Besöksstatistik i Google Analytics — 14 månader, sedan raderas den automatiskt." },
           ],
         },
         {
@@ -981,13 +981,16 @@ export const pages = {
             {
               text: "OpenAI — håranalys samt AI-chatt (både publik chatt-widget och portal-assistent). Data skickas krypterat och lagras inte av OpenAI för träning enligt vår enterprise-konfig.",
             },
+            {
+              text: "Google (Google Ireland Ltd) — Google Analytics 4 för besöksstatistik, bara om du har godkänt analyscookies. Googles annonsfunktioner används inte.",
+            },
             { text: "Hosting-leverantör (Railway) — infrastruktur inom EU/EES." },
           ],
         },
         {
           heading: "6. Överföring utanför EU/EES",
           paragraphs: [
-            "Vi strävar efter att hålla all data inom EU/EES. Vid överföring till tredje land (t.ex. OpenAI:s servrar i USA) säkerställer vi att det finns adekvata skyddsåtgärder, såsom EU-kommissionens standardavtalsklausuler (SCC) eller beslut om adekvat skyddsnivå.",
+            "Vi strävar efter att hålla all data inom EU/EES. Vid överföring till tredje land (t.ex. OpenAI:s och Googles servrar i USA) säkerställer vi att det finns adekvata skyddsåtgärder, såsom EU-kommissionens standardavtalsklausuler (SCC) eller beslut om adekvat skyddsnivå.",
           ],
         },
         {
@@ -1012,7 +1015,9 @@ export const pages = {
         {
           heading: "8. Cookies",
           paragraphs: [
-            "Vi använder inga tredjepartscookies för spårning. Vår analysplattform är privacy-first och cookiefri. Nödvändiga sessionscookies används enbart för att hantera inloggning och kundvagn.",
+            "Nödvändiga cookies används för inloggning och kundvagn, och ditt cookieval sparas i webbläsaren. De kräver inget samtycke.",
+            "Analyscookies från Google Analytics 4 (_ga och _ga_*) sätts bara om du klickar Acceptera i cookierutan. De visar hur besökare hittar till och använder sajten, sparas i upp till 2 år och används inte för annonsering. Klickar du Neka laddas Google Analytics inte alls.",
+            "Du kan ändra ditt val när som helst via Cookieinställningar längst ner på sidan.",
           ],
         },
         {
@@ -1038,7 +1043,7 @@ export const pages = {
     en: {
       title: "Privacy policy",
       description: "How Roots handles your personal data under the GDPR.",
-      updated: "Last updated: 2 April 2026",
+      updated: "Last updated: 19 October 2026",
       companyName: "Ourroots AB",
       contactEmail: "hej@roots.nu",
       sections: [
@@ -1072,7 +1077,7 @@ export const pages = {
             },
             {
               label: "Technical data",
-              text: "IP address, browser type and page views (via privacy-first analytics without cookies).",
+              text: "IP address, browser type and page views. Visitor statistics via Google Analytics are only collected if you have accepted analytics cookies.",
             },
           ],
         },
@@ -1089,7 +1094,7 @@ export const pages = {
             },
             {
               label: "Consent",
-              text: "sending newsletters and marketing. You may withdraw your consent at any time (Art. 6.1 a GDPR).",
+              text: "sending newsletters and marketing, and measuring visitor statistics with Google Analytics if you have accepted analytics cookies. You may withdraw your consent at any time (Art. 6.1 a GDPR).",
             },
             {
               label: "Legal obligation",
@@ -1104,7 +1109,7 @@ export const pages = {
             { text: "Account details — until the account is deleted." },
             { text: "Hair analysis images — deleted immediately after analysis." },
             { text: "Newsletter subscription — until you unsubscribe." },
-            { text: "Analytics data (aggregated) — 26 months." },
+            { text: "Visitor statistics in Google Analytics — 14 months, then deleted automatically." },
           ],
         },
         {
@@ -1120,6 +1125,9 @@ export const pages = {
               text: "OpenAI — hair analysis and AI chat (both the public chat widget and the portal assistant). Data is sent encrypted and is not stored by OpenAI for training under our enterprise configuration.",
             },
             {
+              text: "Google (Google Ireland Ltd) — Google Analytics 4 for visitor statistics, only if you have accepted analytics cookies. Google's advertising features are not used.",
+            },
+            {
               text: "Hosting provider (Railway) — infrastructure within the EU/EEA.",
             },
           ],
@@ -1127,7 +1135,7 @@ export const pages = {
         {
           heading: "6. Transfers outside the EU/EEA",
           paragraphs: [
-            "We aim to keep all data within the EU/EEA. When transferring to a third country (e.g. OpenAI's servers in the USA), we ensure adequate safeguards such as the European Commission's Standard Contractual Clauses (SCCs) or an adequacy decision.",
+            "We aim to keep all data within the EU/EEA. When transferring to a third country (e.g. OpenAI's and Google's servers in the USA), we ensure adequate safeguards such as the European Commission's Standard Contractual Clauses (SCCs) or an adequacy decision.",
           ],
         },
         {
@@ -1156,7 +1164,9 @@ export const pages = {
         {
           heading: "8. Cookies",
           paragraphs: [
-            "We do not use third-party cookies for tracking. Our analytics platform is privacy-first and cookie-free. Necessary session cookies are used only to manage login and the shopping cart.",
+            "Necessary cookies are used for login and the shopping cart, and your cookie choice is stored in your browser. These do not require consent.",
+            "Analytics cookies from Google Analytics 4 (_ga and _ga_*) are only set if you click Accept in the cookie banner. They show how visitors find and use the site, are kept for up to 2 years and are not used for advertising. If you click Decline, Google Analytics is not loaded at all.",
+            "You can change your choice at any time via Cookie settings at the bottom of the page.",
           ],
         },
         {

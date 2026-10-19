@@ -74,15 +74,16 @@ const nextConfig: NextConfig = {
       ...(!isProd ? ["'unsafe-eval'"] : []),
       "https://plausible.io",
       "https://*.sentry.io",
+      "https://www.googletagmanager.com",
     ].join(" ");
 
     const cspDirectives = [
       "default-src 'self'",
       scriptSrc,
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob:",
+      "img-src 'self' data: blob: https://*.google-analytics.com https://*.googletagmanager.com",
       "font-src 'self' data:",
-      "connect-src 'self' https://*.railway.app https://plausible.io https://*.sentry.io https://*.ingest.sentry.io",
+      "connect-src 'self' https://*.railway.app https://plausible.io https://*.sentry.io https://*.ingest.sentry.io https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com",
       "frame-src 'self'",
       "frame-ancestors 'none'",
       "base-uri 'self'",

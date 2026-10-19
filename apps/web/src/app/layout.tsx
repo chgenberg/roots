@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import { OrganizationJsonLd, SiteJsonLd } from "@/components/json-ld";
 import { Providers } from "./providers";
+import { AnalyticsConsent } from "@/components/analytics-consent";
 import { inter, alanSans } from "@/lib/fonts";
 import { getRequestLocale } from "@/i18n/request-locale";
 import { resolveCanonicalSiteUrl } from "@roots/contracts";
@@ -9,10 +10,19 @@ import "./globals.css";
 
 const siteUrl = resolveCanonicalSiteUrl();
 
+function gaMeasurementId(): string | null {
+  const id = process.env.GA_MEASUREMENT_ID?.trim();
+  return id && /^G-[A-Z0-9]+$/.test(id) ? id : null;
+}
+
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await getRequestLocale();
   const en = locale === "en";
+  const googleVerification = process.env.GOOGLE_SITE_VERIFICATION?.trim();
   return {
+    ...(googleVerification
+      ? { verification: { google: googleVerification } }
+      : {}),
     title: {
       template: "%s | Roots",
       default: "Roots",
@@ -64,6 +74,7 @@ export default async function RootLayout({
   children: React.ReactNode;
 }) {
   const plausibleDomain = process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN;
+  const measurementId = gaMeasurementId();
   const locale = await getRequestLocale();
   const skipLabel =
     locale === "en" ? "Skip to content" : "Hoppa till innehåll";
@@ -116,7 +127,10 @@ export default async function RootLayout({
         >
           {skipLabel}
         </a>
-        <Providers>{children}</Providers>
+        <Providers>
+          {children}
+          {measurementId && <AnalyticsConsent measurementId={measurementId} />}
+        </Providers>
       </body>
     </html>
   );
