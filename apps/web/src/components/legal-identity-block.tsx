@@ -24,7 +24,7 @@ export function LegalIdentityBlock({
   const { locale } = useLocale();
   const orgLabel = locale === "en" ? "Org no." : "Org.nr";
   const phone = LEGAL_IDENTITY.contact.phone;
-  const phoneDigits = phone?.replace(/\s+/g, "") ?? "";
+  const phoneDigits = LEGAL_IDENTITY.contact.phoneE164;
 
   if (variant === "block") {
     return (

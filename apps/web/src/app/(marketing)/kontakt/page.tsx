@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { Mail, MapPin, Send } from "lucide-react";
+import { Mail, MapPin, Phone, Send } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { LEGAL_IDENTITY } from "@/lib/legal-identity";
 import { useLocale } from "@/i18n/locale-context";
@@ -153,6 +153,27 @@ export default function KontaktPage() {
                 </div>
               </CardContent>
             </Card>
+
+            {LEGAL_IDENTITY.contact.phone && (
+              <Card className="border-0 shadow-sm">
+                <CardContent className="p-6">
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50">
+                      <Phone className="h-5 w-5 text-foreground" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold">{t.phoneLabel}</h3>
+                      <a
+                        href={`tel:${LEGAL_IDENTITY.contact.phoneE164}`}
+                        className="mt-1 block text-sm text-muted-foreground transition-colors hover:text-foreground"
+                      >
+                        {LEGAL_IDENTITY.contact.phone}
+                      </a>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             <Card className="border-0 shadow-sm">
               <CardContent className="p-6">

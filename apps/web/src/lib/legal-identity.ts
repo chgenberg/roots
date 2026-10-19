@@ -23,8 +23,8 @@ export const LEGAL_IDENTITY = {
   },
   contact: {
     email: "hej@roots.nu",
-    /** Omit until a real public phone number is published. */
-    phone: null as string | null,
+    phone: "0760-223111" as string | null,
+    phoneE164: "+46760223111",
   },
   social: {
     instagram: "https://www.instagram.com/roots.nordic",

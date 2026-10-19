@@ -99,7 +99,9 @@ export function OrganizationJsonLd({
   };
 
   if (phone) {
-    jsonLd.telephone = phone;
+    jsonLd.telephone = LEGAL_IDENTITY.contact.phoneE164;
+    (jsonLd.contactPoint as Record<string, unknown>).telephone =
+      LEGAL_IDENTITY.contact.phoneE164;
   }
 
   return <JsonLd data={jsonLd} />;
