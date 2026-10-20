@@ -696,6 +696,25 @@
       "source": "cursor",
       "createdAt": "2026-10-20T08:55:00.000Z",
       "updatedAt": "2026-10-20T09:12:00.000Z"
+    },
+    {
+      "id": "wb-lead-mail-oct20",
+      "title": "Lead-mejlagent för Kent och Niclas",
+      "body": "Excel-import (förening, kontakt, e-post, webbplats, medlemmar) → Niclas mall med räkneexempel 6 × 399 kr och 35 % → förslagslänk /f/:token till /prova med namn och logga → godkänn → skicka via Resend från avsändarens roots.nu, svar till egen inkorg. Excel-export med status. Utskick grindade: mejlpaus + explicit klick.",
+      "status": "blocked",
+      "domainId": "fundraising",
+      "playbook": "",
+      "files": [
+        "apps/api/src/routes/outreach.ts",
+        "apps/web/src/app/(portal)/portal/lead-mejl",
+        "apps/api/src/lib/outreach",
+        "packages/db/drizzle/0027_outreach.sql",
+        "apps/web/src/app/f/[token]/route.ts"
+      ],
+      "gate": "email",
+      "source": "cursor",
+      "createdAt": "2026-10-20T10:20:00.000Z",
+      "updatedAt": "2026-10-20T10:50:00.000Z"
     }
   ]
 }
