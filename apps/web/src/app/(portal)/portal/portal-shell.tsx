@@ -28,6 +28,7 @@ import {
   ShieldAlert,
   HelpCircle,
   Calculator,
+  Radio,
   Inbox,
   Network,
 } from "lucide-react";
@@ -93,6 +94,7 @@ function buildAdminNav(t: (typeof portalDict)[Locale]): NavItem[] {
     { href: "/portal/saljare", label: t.navSellers, icon: Users },
     { href: "/portal/bestallningar", label: t.navOrders, icon: ShoppingCart },
     { href: "/portal/statistik", label: t.navKpiStats, icon: BarChart3 },
+    { href: "/portal/trafik", label: t.navTraffic, icon: Radio },
     { href: "/portal/system", label: t.navSystem, icon: Activity },
     { href: "/portal/agenten", label: t.navAgenten, icon: Network },
     { href: "/portal/audit-log", label: t.navAuditLog, icon: ShieldCheck },

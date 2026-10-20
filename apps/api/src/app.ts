@@ -30,6 +30,7 @@ import { reviewer } from "./routes/reviewer";
 import { notifications } from "./routes/notifications";
 import { preview } from "./routes/preview";
 import { clientErrors } from "./routes/client-errors";
+import { trafficTelemetry } from "./routes/traffic";
 import { securityHeaders } from "./middleware/security-headers";
 import { resolveUiLocale, uiError } from "./lib/ui-locale";
 import { mfaRequired } from "./middleware/mfa-required";
@@ -176,6 +177,9 @@ const CSRF_EXEMPT_PATHS = [
   // stället hårt tak per IP i routes/client-errors.ts, och det finns
   // inget tillstånd att ändra: endpointen skriver bara till Sentry.
   "/v1/telemetry/client-errors",
+  // Anonym besöksstatistik via sendBeacon, se routes/traffic.ts. Samma
+  // resonemang: ingen session, inget tillstånd att ändra, tak per IP.
+  "/v1/telemetry/traffic",
 ];
 
 // Pre-push fix 2026-05-26: tidigare användes startsWith vilket gjorde
@@ -276,6 +280,7 @@ app.route("/v1/reviewer", reviewer);
 app.route("/v1/notifications", notifications);
 app.route("/v1/preview", preview);
 app.route("/v1/telemetry", clientErrors);
+app.route("/v1/telemetry", trafficTelemetry);
 app.route("/v1/integrations/fortnox", fortnoxWebhook);
 
 const v1Ai = new Hono();

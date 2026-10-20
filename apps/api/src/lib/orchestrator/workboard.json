@@ -679,6 +679,23 @@
       "source": "cursor",
       "createdAt": "2026-10-20T08:20:00.000Z",
       "updatedAt": "2026-10-20T08:20:00.000Z"
+    },
+    {
+      "id": "wb-traffic-live-oct20",
+      "title": "Live-trafik i admin (som hittayta /admin/trafik)",
+      "body": "Egen anonym spårning utan cookies: sidvisningar + klick på publika sidor. Ingen IP, ingen session sparas. 90 dagars lagring. Adminsida /portal/trafik med live-uppdatering och filter. Integritetstexten uppdateras.",
+      "status": "doing",
+      "domainId": "fundraising",
+      "playbook": "",
+      "files": [
+        "apps/api/src/routes/traffic.ts",
+        "apps/web/src/app/(portal)/portal/trafik",
+        "packages/db/src/schema/traffic-events.ts"
+      ],
+      "gate": "deploy",
+      "source": "cursor",
+      "createdAt": "2026-10-20T08:55:00.000Z",
+      "updatedAt": "2026-10-20T08:55:00.000Z"
     }
   ]
 }

@@ -900,7 +900,7 @@ export const pages = {
     sv: {
       title: "Integritetspolicy",
       description: "Så hanterar Roots dina personuppgifter enligt GDPR.",
-      updated: "Senast uppdaterad: 19 oktober 2026",
+      updated: "Senast uppdaterad: 20 oktober 2026",
       companyName: "Ourroots AB",
       contactEmail: "hej@roots.nu",
       sections: [
@@ -967,6 +967,7 @@ export const pages = {
             { text: "Håranalysbilder — raderas direkt efter analys." },
             { text: "Nyhetsbrevsprenumeration — tills du avregistrerar dig." },
             { text: "Besöksstatistik i Google Analytics — 14 månader, sedan raderas den automatiskt." },
+            { text: "Vår egen anonyma besöksstatistik — 90 dagar, sedan raderas den automatiskt." },
           ],
         },
         {
@@ -1017,6 +1018,7 @@ export const pages = {
           paragraphs: [
             "Nödvändiga cookies används för inloggning och kundvagn, och ditt cookieval sparas i webbläsaren. De kräver inget samtycke.",
             "Analyscookies från Google Analytics 4 (_ga och _ga_*) sätts bara om du klickar Acceptera i cookierutan. De visar hur besökare hittar till och använder sajten, sparas i upp till 2 år och används inte för annonsering. Klickar du Neka laddas Google Analytics inte alls.",
+            "Utöver det räknar vi själva sidvisningar och klick på de publika sidorna: vilken sida, vilken knapp eller länk, varifrån besöket kom och om det var mobil eller dator. Det sker utan cookies och utan att IP-adress eller något id sparas, så uppgifterna kan inte kopplas till dig. De sparas i 90 dagar.",
             "Du kan ändra ditt val när som helst via Cookieinställningar längst ner på sidan.",
           ],
         },
@@ -1043,7 +1045,7 @@ export const pages = {
     en: {
       title: "Privacy policy",
       description: "How Roots handles your personal data under the GDPR.",
-      updated: "Last updated: 19 October 2026",
+      updated: "Last updated: 20 October 2026",
       companyName: "Ourroots AB",
       contactEmail: "hej@roots.nu",
       sections: [
@@ -1110,6 +1112,7 @@ export const pages = {
             { text: "Hair analysis images — deleted immediately after analysis." },
             { text: "Newsletter subscription — until you unsubscribe." },
             { text: "Visitor statistics in Google Analytics — 14 months, then deleted automatically." },
+            { text: "Our own anonymous visitor statistics — 90 days, then deleted automatically." },
           ],
         },
         {
@@ -1166,6 +1169,7 @@ export const pages = {
           paragraphs: [
             "Necessary cookies are used for login and the shopping cart, and your cookie choice is stored in your browser. These do not require consent.",
             "Analytics cookies from Google Analytics 4 (_ga and _ga_*) are only set if you click Accept in the cookie banner. They show how visitors find and use the site, are kept for up to 2 years and are not used for advertising. If you click Decline, Google Analytics is not loaded at all.",
+            "In addition, we count page views and clicks on the public pages ourselves: which page, which button or link, where the visit came from and whether it was on mobile or desktop. This happens without cookies and without storing an IP address or any identifier, so the data cannot be linked to you. It is kept for 90 days.",
             "You can change your choice at any time via Cookie settings at the bottom of the page.",
           ],
         },

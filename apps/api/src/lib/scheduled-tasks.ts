@@ -1,6 +1,7 @@
 import { registerScheduledTask } from "./scheduler";
 import { purgeDueDeletions } from "./deletion-purge";
 import { purgeExpiredHairAnalysisLeads } from "./lead-retention";
+import { purgeOldTrafficEvents } from "./traffic-retention";
 import { recordJobRun } from "./monitoring/heartbeat";
 import { runMonitoringCheck } from "./monitoring/alerts";
 import { auditLog } from "./audit";
@@ -61,6 +62,19 @@ export function registerScheduledTasks(): void {
         userId: null,
         action: "cron.lead_retention",
         meta: { trigger: "scheduler", ...result },
+      });
+      return result;
+    },
+  });
+
+  registerScheduledTask({
+    name: "traffic-retention",
+    intervalMs: 24 * 60 * 60 * 1000,
+    run: async () => {
+      const result = await purgeOldTrafficEvents();
+      await recordJobRun("traffic-retention", {
+        trigger: "scheduler",
+        deleted: result.deleted,
       });
       return result;
     },

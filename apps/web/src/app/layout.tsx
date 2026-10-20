@@ -3,6 +3,7 @@ import Script from "next/script";
 import { OrganizationJsonLd, SiteJsonLd } from "@/components/json-ld";
 import { Providers } from "./providers";
 import { AnalyticsConsent } from "@/components/analytics-consent";
+import { TrafficTracker } from "@/components/traffic-tracker";
 import { inter, alanSans } from "@/lib/fonts";
 import { getRequestLocale } from "@/i18n/request-locale";
 import { resolveCanonicalSiteUrl } from "@roots/contracts";
@@ -130,6 +131,7 @@ export default async function RootLayout({
         <Providers>
           {children}
           {measurementId && <AnalyticsConsent measurementId={measurementId} />}
+          <TrafficTracker />
         </Providers>
       </body>
     </html>

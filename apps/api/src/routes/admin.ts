@@ -15,7 +15,7 @@
 
 import { Hono } from "hono";
 import type { Context } from "hono";
-import { and, asc, desc, eq, gte, inArray, like, lt, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, inArray, like, lt, lte, or, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { db } from "@roots/db";
 import {
@@ -25,6 +25,7 @@ import {
   reviewerThreads,
   reviewerMessages,
   contactMessages,
+  trafficEvents,
 } from "@roots/db/schema";
 import type { SessionData } from "../lib/session";
 import { requireSession } from "../lib/http-session";
@@ -441,6 +442,84 @@ admin.patch("/contact-messages", async (c) => {
     .returning({ id: contactMessages.id });
   if (updated.length === 0) return c.json({ error: "NOT_FOUND" }, 404);
   return c.json({ ok: true });
+});
+
+// ── GET /traffic ─────────────────────────────────────────────────
+// Live-vyn på /portal/trafik. Raderna är anonyma (se schema/traffic-events).
+const TRAFFIC_HOURS = new Set([1, 24, 168]);
+
+admin.get("/traffic", async (c) => {
+  const guard = await requireInternalAdmin(c);
+  if (!guard.ok) return c.json({ error: guard.error }, guard.status);
+
+  const hoursRaw = Number(c.req.query("hours"));
+  const hours = TRAFFIC_HOURS.has(hoursRaw) ? hoursRaw : 24;
+  const kindRaw = c.req.query("kind");
+  const kind = kindRaw === "pages" ? "page" : kindRaw === "clicks" ? "click" : null;
+  const q = (c.req.query("q") ?? "").trim().slice(0, 80);
+  const path = (c.req.query("path") ?? "").trim().slice(0, 300);
+
+  const since = new Date(Date.now() - hours * 60 * 60 * 1000);
+  const inWindow = gte(trafficEvents.createdAt, since);
+  const conds: SQL[] = [inWindow];
+  if (kind) conds.push(eq(trafficEvents.kind, kind));
+  if (path) conds.push(eq(trafficEvents.path, path));
+  if (q) {
+    const pattern = `%${q.replace(/[\\%_]/g, (m) => `\\${m}`)}%`;
+    conds.push(
+      or(
+        ilike(trafficEvents.path, pattern),
+        ilike(trafficEvents.label, pattern),
+        ilike(trafficEvents.href, pattern),
+        ilike(trafficEvents.source, pattern)
+      )!
+    );
+  }
+  const where = and(...conds);
+
+  const [rows, [totals], [recent], kindCounts, topPages] = await Promise.all([
+    db
+      .select()
+      .from(trafficEvents)
+      .where(where)
+      .orderBy(desc(trafficEvents.createdAt))
+      .limit(200),
+    db.select({ n: sql<number>`count(*)::int` }).from(trafficEvents).where(where),
+    db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(trafficEvents)
+      .where(gte(trafficEvents.createdAt, new Date(Date.now() - 5 * 60 * 1000))),
+    db
+      .select({ kind: trafficEvents.kind, n: sql<number>`count(*)::int` })
+      .from(trafficEvents)
+      .where(inWindow)
+      .groupBy(trafficEvents.kind),
+    db
+      .select({ path: trafficEvents.path, n: sql<number>`count(*)::int` })
+      .from(trafficEvents)
+      .where(and(inWindow, eq(trafficEvents.kind, "page")))
+      .groupBy(trafficEvents.path)
+      .orderBy(desc(sql`count(*)`))
+      .limit(8),
+  ]);
+
+  return c.json({
+    rows: rows.map((r) => ({
+      id: r.id,
+      kind: r.kind,
+      path: r.path,
+      label: r.label,
+      href: r.href,
+      source: r.source,
+      device: r.device,
+      at: r.createdAt.toISOString(),
+    })),
+    total: totals?.n ?? 0,
+    last5m: recent?.n ?? 0,
+    pageViews: kindCounts.find((k) => k.kind === "page")?.n ?? 0,
+    clicks: kindCounts.find((k) => k.kind === "click")?.n ?? 0,
+    topPages: topPages.map((p) => ({ path: p.path, count: p.n })),
+  });
 });
 
 // keep `lte`/`requireInternalAdmin`-helpers from being tree-shaken if

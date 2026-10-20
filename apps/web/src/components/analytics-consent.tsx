@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { LocaleLink } from "@/components/locale-link";
 import { useLocale } from "@/i18n/locale-context";
+import { isTrackable } from "@/lib/trackable-path";
 
 /**
  * Cookiebanner + Google Analytics 4.
@@ -13,9 +14,8 @@ import { useLocale } from "@/i18n/locale-context";
  * laddas förrän besökaren aktivt klickat Acceptera. Neka laddar ingenting.
  * Annonssignalerna i Consent Mode v2 är alltid nekade.
  *
- * GA får bara se publika sidor utan personuppgifter i adressen. Portalen,
- * inbjudningslänkar med token, orderbekräftelser och delade kalkyllänkar
- * (`?saljare=`) skickas aldrig till Google.
+ * GA får bara se publika sidor utan personuppgifter i adressen, se
+ * `lib/trackable-path.ts`.
  */
 
 const STORAGE_KEY = "roots-consent-v1";
@@ -24,41 +24,6 @@ const READY_EVENT = "roots:consent-ready";
 const READY_FLAG = "__rootsConsentReady";
 
 type Choice = "granted" | "denied";
-
-const PUBLIC_PREFIXES = [
-  "/produkter",
-  "/guider",
-  "/om-oss",
-  "/kontakt",
-  "/sa-har-gar-det-till",
-  "/sa-fungerar-det",
-  "/klubbar",
-  "/hjalp",
-  "/haranalys",
-  "/intresseanmalan",
-  "/prova",
-  "/villkor",
-  "/integritet",
-  "/foreningsliv",
-];
-const SHOP_PATH = /^\/shop\/[^/]+(\/kassa)?\/?$/;
-const SAFE_QUERY_KEY = /^(utm_[a-z]+|gclid|gbraid|wbraid|fbclid|lang)$/;
-
-function stripLocale(pathname: string): string {
-  return pathname.replace(/^\/en(?=\/|$)/, "") || "/";
-}
-
-function isTrackable(pathname: string, search: string): boolean {
-  const path = stripLocale(pathname);
-  const pathOk =
-    path === "/" ||
-    SHOP_PATH.test(path) ||
-    PUBLIC_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`));
-  if (!pathOk) return false;
-  return [...new URLSearchParams(search).keys()].every((k) =>
-    SAFE_QUERY_KEY.test(k)
-  );
-}
 
 function readChoice(): Choice | null {
   try {
