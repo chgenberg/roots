@@ -46,6 +46,8 @@ const ROLES = new Set(["INTERNAL_ADMIN", "SALES_ADMIN", "SALES_REP"]);
 const MANAGER_ROLES = new Set(["INTERNAL_ADMIN", "SALES_ADMIN"]);
 const MANUAL_STATUSES = ["draft", "replied", "meeting", "declined"] as const;
 const SEND_BATCH = 12;
+/** Webbens proxy avbryter efter 25 s. */
+const SEND_BUDGET_MS = 15_000;
 
 export const STATUS_LABELS: Record<string, string> = {
   draft: "Utkast",
@@ -193,16 +195,34 @@ outreach.get("/senders", async (c) => {
   });
 });
 
+/** Domänen som Resend är verifierad för, t.ex. roots.nu ur "Roots <hej@roots.nu>". */
+export function sendingDomain(): string {
+  const from = process.env.RESEND_FROM_ADDRESS || "Roots <hej@roots.nu>";
+  return (from.match(/@([^>\s]+)/)?.[1] ?? "roots.nu").toLowerCase();
+}
+
+const DISPLAY_NAME = /^[^<>"\r\n,;@]+$/;
+
 const SenderSchema = z.object({
-  name: z.string().trim().min(2).max(120),
-  title: z.string().trim().min(2).max(120).default("Föreningsrepresentant"),
-  phone: z.string().trim().max(40).optional().nullable(),
-  email: z.string().trim().toLowerCase().email().max(255),
+  name: z.string().trim().min(2).max(120).regex(DISPLAY_NAME),
+  title: z.string().trim().min(2).max(120).regex(/^[^\r\n]+$/).default("Föreningsrepresentant"),
+  phone: z.string().trim().max(40).regex(/^[^\r\n]*$/).optional().nullable(),
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .email()
+    .max(255)
+    .refine((e) => e.endsWith(`@${sendingDomain()}`)),
   subjectTemplate: z.string().trim().min(3).max(300).optional(),
   bodyTemplate: z.string().trim().min(20).max(20_000).optional(),
   dailyCap: z.number().int().min(1).max(200).optional(),
   userEmail: z.string().trim().toLowerCase().email().optional().nullable(),
 });
+
+function senderError(): string {
+  return `Fyll i namn (utan tecken som < > " , ;) och en e-postadress som slutar på @${sendingDomain()}`;
+}
 
 async function userIdFor(email: string | null | undefined): Promise<string | null | "missing"> {
   if (!email) return null;
@@ -217,7 +237,7 @@ outreach.post("/senders", async (c) => {
     return c.json({ error: "Behörighet saknas" }, 403);
   }
   const parsed = SenderSchema.safeParse(await c.req.json().catch(() => null));
-  if (!parsed.success) return c.json({ error: "Fyll i namn och en giltig e-postadress" }, 400);
+  if (!parsed.success) return c.json({ error: senderError() }, 400);
   const userId = await userIdFor(parsed.data.userEmail);
   if (userId === "missing") return c.json({ error: "Det finns inget konto med den e-postadressen" }, 400);
   const [row] = await db
@@ -243,8 +263,11 @@ outreach.patch("/senders/:id", async (c) => {
   const sender = await loadSender(c, g.session, c.req.param("id"));
   if (sender instanceof Response) return sender;
   const parsed = SenderSchema.partial().safeParse(await c.req.json().catch(() => null));
-  if (!parsed.success) return c.json({ error: "Ogiltiga uppgifter" }, 400);
+  if (!parsed.success) return c.json({ error: senderError() }, 400);
   const { userEmail, ...rest } = parsed.data;
+  if (rest.email !== undefined && rest.email !== sender.email && !MANAGER_ROLES.has(g.session.role)) {
+    return c.json({ error: "Bara admin kan byta avsändaradress" }, 403);
+  }
   let userId: string | null | undefined;
   if (userEmail !== undefined) {
     if (!MANAGER_ROLES.has(g.session.role)) return c.json({ error: "Behörighet saknas" }, 403);
@@ -496,6 +519,27 @@ outreach.post("/leads/approve", async (c) => {
 
 // ── Utskick ──────────────────────────────────────────────────────
 
+/** Tar nästa godkända rad. Två samtidiga utskick kan aldrig få samma rad. */
+export async function claimNextApproved(senderId: string): Promise<Lead | null> {
+  const [lead] = await db
+    .update(outreachLeads)
+    .set({ status: "sending", updatedAt: new Date() })
+    .where(
+      and(
+        eq(outreachLeads.status, "approved"),
+        eq(
+          outreachLeads.id,
+          sql`(select ${outreachLeads.id} from ${outreachLeads}
+               where ${outreachLeads.senderId} = ${senderId} and ${outreachLeads.status} = 'approved'
+               order by ${outreachLeads.approvedAt} asc
+               limit 1 for update skip locked)`
+        )
+      )
+    )
+    .returning();
+  return lead ?? null;
+}
+
 outreach.post("/senders/:id/send", async (c) => {
   const g = await guard(c);
   if (!g.ok) return g.res;
@@ -511,27 +555,33 @@ outreach.post("/senders/:id/send", async (c) => {
     return c.json({ sent: 0, failed: 0, remainingToday: 0, more: false, capReached: true });
   }
 
-  const take = Math.min(SEND_BATCH, remaining);
-  const claimed = await db
+  // Rader som fastnat i "sending" (processen dog mitt i) skickas inte om
+  // automatiskt — mejlet kan ha gått iväg. En människa får kolla och godkänna igen.
+  await db
     .update(outreachLeads)
-    .set({ status: "sending", updatedAt: new Date() })
+    .set({
+      status: "failed",
+      lastError: "Utskicket avbröts. Kolla i Skickat om mejlet gick iväg innan du godkänner igen.",
+      updatedAt: new Date(),
+    })
     .where(
-      inArray(
-        outreachLeads.id,
-        db
-          .select({ id: outreachLeads.id })
-          .from(outreachLeads)
-          .where(and(eq(outreachLeads.senderId, sender.id), eq(outreachLeads.status, "approved")))
-          .orderBy(asc(outreachLeads.approvedAt))
-          .limit(take)
+      and(
+        eq(outreachLeads.senderId, sender.id),
+        eq(outreachLeads.status, "sending"),
+        sql`${outreachLeads.updatedAt} < now() - interval '10 minutes'`
       )
-    )
-    .returning();
+    );
 
+  const take = Math.min(SEND_BATCH, remaining);
+  const startedAt = Date.now();
   const emailSender = getEmailSender();
   let sent = 0;
   let failed = 0;
-  for (const lead of claimed) {
+  let claimedAny = false;
+  for (let i = 0; i < take && Date.now() - startedAt < SEND_BUDGET_MS; i++) {
+    const lead = await claimNextApproved(sender.id);
+    if (!lead) break;
+    claimedAny = true;
     const mail = render(sender, lead);
     if (mail.missing.length) {
       await db
@@ -580,7 +630,7 @@ outreach.post("/senders/:id/send", async (c) => {
     sent,
     failed,
     remainingToday,
-    more: (left?.n ?? 0) > 0 && remainingToday > 0 && claimed.length > 0,
+    more: (left?.n ?? 0) > 0 && remainingToday > 0 && claimedAny,
     capReached: remainingToday === 0,
   });
 });

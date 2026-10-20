@@ -89,6 +89,7 @@ export function SenderForm({
             <input
               type="email"
               value={email}
+              disabled={Boolean(sender) && !canManage}
               onChange={(e) => setEmail(e.target.value)}
               className={field}
               placeholder="niclas@roots.nu"
