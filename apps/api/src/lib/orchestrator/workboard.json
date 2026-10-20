@@ -700,8 +700,8 @@
     {
       "id": "wb-lead-mail-oct20",
       "title": "Lead-mejlagent för Kent och Niclas",
-      "body": "Excel-import (förening, kontakt, e-post, webbplats, medlemmar) → Niclas mall med räkneexempel 6 × 399 kr och 35 % → förslagslänk /f/:token till /prova med namn och logga → godkänn → skicka via Resend från avsändarens roots.nu, svar till egen inkorg. Excel-export med status. Utskick grindade: mejlpaus + explicit klick.",
-      "status": "blocked",
+      "body": "Excel-import (förening, kontakt, e-post, webbplats, medlemmar) → Niclas mall med räkneexempel 6 × 399 kr och 35 % → förslagslänk /f/:token till /prova med namn och logga → godkänn → skicka via Resend från avsändarens roots.nu, svar till egen inkorg. Excel-export med status. Utskick grindade: mejlpaus + explicit klick. Deployat 0d725b4. Kvar hos Christopher: Resend-domän + nyckel + lyfta mejlpausen.",
+      "status": "done",
       "domainId": "fundraising",
       "playbook": "",
       "files": [
@@ -714,7 +714,7 @@
       "gate": "email",
       "source": "cursor",
       "createdAt": "2026-10-20T10:20:00.000Z",
-      "updatedAt": "2026-10-20T10:50:00.000Z"
+      "updatedAt": "2026-10-20T11:12:00.000Z"
     }
   ]
 }
