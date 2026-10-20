@@ -158,15 +158,15 @@ function AgentMap({
               width="16"
               height="10"
               rx="2"
-              fill={hot ? "#6B794F" : "#FAF6EF"}
-              stroke={hot ? "#1D1D1B" : "#C9C4B8"}
+              fill={hot ? "#6D614D" : "#FAF6EF"}
+              stroke={hot ? "#4A4134" : "#C9C4B8"}
               strokeWidth="0.35"
             />
             <text
               x={node.x}
               y={node.y + 0.6}
               textAnchor="middle"
-              fill={hot ? "#FAF6EF" : "#1D1D1B"}
+              fill={hot ? "#FAF6EF" : "#4A4134"}
               fontSize="2.4"
               fontWeight="500"
             >
@@ -177,7 +177,7 @@ function AgentMap({
                 x={node.x + 7.2}
                 y={node.y - 3.2}
                 textAnchor="middle"
-                fill="#6B794F"
+                fill="#6D614D"
                 fontSize="2.2"
                 fontWeight="600"
               >

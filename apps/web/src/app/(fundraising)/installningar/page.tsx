@@ -459,7 +459,12 @@ export default function InstallningarPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex gap-2">
-              <Input readOnly value={shopUrl} className="font-mono text-xs" />
+              <Input
+                readOnly
+                value={shopUrl}
+                aria-label={t.yourShop}
+                className="font-mono text-xs"
+              />
               <Button
                 size="sm"
                 variant="outline"
@@ -473,7 +478,12 @@ export default function InstallningarPage() {
                 )}
               </Button>
               <Button size="sm" variant="outline" asChild>
-                <a href={shopUrl} target="_blank" rel="noopener noreferrer">
+                <a
+                  href={shopUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={t.openShop}
+                >
                   <ExternalLink className="h-4 w-4" />
                 </a>
               </Button>

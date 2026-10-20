@@ -20,17 +20,19 @@ import { useLocale } from "@/i18n/locale-context";
 import { fundraisingPages } from "@/i18n/dictionaries/fundraising-pages";
 import { tFill } from "@/i18n/format";
 
+export type ShareChannel = "SMS" | "WHATSAPP" | "EMAIL" | "INSTAGRAM" | "FACEBOOK";
+
 interface ShareTemplate {
   id: string;
   label: string;
-  channel: "SMS" | "WHATSAPP" | "EMAIL" | "INSTAGRAM" | "FACEBOOK";
+  channel: ShareChannel;
   icon: React.ComponentType<{ className?: string }>;
   body: string;
   subject?: string;
 }
 
-function shareHref(
-  channel: ShareTemplate["channel"],
+export function shareHref(
+  channel: ShareChannel,
   body: string,
   subject?: string
 ): string | null {
@@ -49,6 +51,8 @@ export interface ShareTemplatesProps {
   shopUrl: string;
   campaignName: string;
   teamName: string;
+  /** Visa bara de första mallarna tills användaren klickar Visa fler. */
+  initialCount?: number;
 }
 
 export function ShareTemplates({
@@ -56,10 +60,12 @@ export function ShareTemplates({
   shopUrl,
   campaignName,
   teamName,
+  initialCount,
 }: ShareTemplatesProps) {
   const { locale } = useLocale();
   const t = fundraisingPages.shareTemplates[locale];
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
 
   const vars = useMemo(
     () => ({
@@ -121,6 +127,10 @@ export function ShareTemplates({
     [t, vars]
   );
 
+  const limit = initialCount ?? templates.length;
+  const visible = expanded ? templates : templates.slice(0, limit);
+  const hidden = templates.length - limit;
+
   async function copy(id: string, text: string) {
     try {
       await navigator.clipboard.writeText(text);
@@ -148,7 +158,7 @@ export function ShareTemplates({
       </CardHeader>
       <CardContent>
         <div className="grid gap-3 sm:grid-cols-2">
-          {templates.map((tpl) => {
+          {visible.map((tpl) => {
             const href = shareHref(tpl.channel, tpl.body, tpl.subject);
             const Icon = tpl.icon;
             const copied = copiedId === tpl.id;
@@ -195,6 +205,17 @@ export function ShareTemplates({
             );
           })}
         </div>
+        {hidden > 0 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="mt-3 text-xs"
+            onClick={() => setExpanded((v) => !v)}
+            aria-expanded={expanded}
+          >
+            {expanded ? t.showLess : tFill(t.showMore, { n: hidden })}
+          </Button>
+        )}
       </CardContent>
     </Card>
   );

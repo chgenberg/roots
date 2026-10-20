@@ -13,7 +13,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MiniTrendCard } from "@/components/charts/mini-trend-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Copy,
   CheckCircle2,
@@ -33,6 +32,7 @@ import { formatKr, formatKrValue, pluralSv } from "@/lib/format";
 import { orderStatusColor, orderStatusLabel } from "@/lib/order-status";
 import { getPublicSiteUrl } from "@/lib/site-url";
 import { ForestHero, forestHeroActionClassName } from "@/components/forest-hero";
+import { NotStartedCard, TeamInviteCard } from "@/components/team-invite-card";
 import { LOCKED_MARGIN_PERCENT } from "@roots/contracts";
 
 const PODIUM_ICONS = ["🥇", "🥈", "🥉"];
@@ -134,6 +134,13 @@ export default function TeamDashboard() {
   const marginPercent = LOCKED_MARGIN_PERCENT;
   const orders = data?.orders || [];
   const milestones = data?.milestones;
+  const inviteUrl = data.team?.inviteToken
+    ? absoluteLocaleUrl(
+        getPublicSiteUrl(),
+        `/registrera/saljare/${data.team.inviteToken}`,
+        locale
+      )
+    : null;
   const sortedSellers = [...sellers].sort(
     (a: Seller, b: Seller) => b.totalSalesOre - a.totalSalesOre
   );
@@ -174,6 +181,13 @@ export default function TeamDashboard() {
         )}
       </ForestHero>
 
+      {inviteUrl && (
+        <TeamInviteCard
+          inviteUrl={inviteUrl}
+          campaignName={data.campaign?.name || data.team?.name || ""}
+        />
+      )}
+
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
         <Card>
           <CardContent className="p-4 sm:p-5">
@@ -191,7 +205,7 @@ export default function TeamDashboard() {
             </p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="col-span-2 lg:col-span-1">
           <CardContent className="p-4 sm:p-5">
             <p className="text-xs text-muted-foreground sm:text-sm">{c.sellers}</p>
             <p className="mt-1 text-xl font-bold sm:text-2xl">{sellers.length}</p>
@@ -199,79 +213,7 @@ export default function TeamDashboard() {
         </Card>
       </div>
 
-      {/* Försäljningstrend */}
-      {data.team?.id && (
-        <MiniTrendCard
-          path={`/v1/dashboard/team/${data.team.id}/stats`}
-          href="/lag/statistik"
-        />
-      )}
-
-      {/* Milestones */}
-      {milestones && (milestones.achieved?.length > 0 || milestones.next) && (
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Award className="h-4 w-4 text-brand-500" />
-              {c.milestones}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {milestones.next && (
-              <div className="rounded-lg bg-brand-50 p-3 flex items-center gap-3">
-                <Star className="h-5 w-5 text-brand-500 shrink-0" />
-                <div>
-                  <p className="text-sm font-medium">{tFill(c.nextMilestone, { label: milestoneLabel(milestones.next.id ?? milestones.next.label, locale) })}</p>
-                  <p className="text-xs text-muted-foreground">{milestoneRemaining(milestones.next.remaining, locale)}</p>
-                </div>
-              </div>
-            )}
-            {milestones.achieved?.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {milestones.achieved.map((m: Milestone) => (
-                  <Badge
-                    key={m.id}
-                    className="bg-brand-100 text-brand-700 text-xs py-1"
-                  >
-                    <Award className="h-3 w-3 mr-1" />
-                    {milestoneLabel(m.id, locale, m.label)}
-                  </Badge>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Invite link */}
-      {data?.team?.inviteToken && (
-        <Card>
-          <CardContent className="p-5">
-            <p className="mb-2 text-sm font-medium">
-              {t.invitePlayers}
-            </p>
-            <div className="flex gap-2">
-              <Input
-                readOnly
-                aria-label={t.invitePlayers}
-                value={absoluteLocaleUrl(
-                  getPublicSiteUrl(),
-                  `/registrera/saljare/${data.team.inviteToken}`,
-                  locale
-                )}
-                className="text-xs"
-              />
-              <Button size="sm" variant="outline" onClick={copyInviteLink} aria-label={locale === "en" ? "Copy link" : "Kopiera länk"}>
-                {copied ? (
-                  <CheckCircle2 className="h-4 w-4 text-success" />
-                ) : (
-                  <Copy className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <NotStartedCard sellers={sellers} />
 
       {/* Seller leaderboard */}
       <Card>
@@ -318,6 +260,50 @@ export default function TeamDashboard() {
           )}
         </CardContent>
       </Card>
+
+      {/* Försäljningstrend */}
+      {data.team?.id && (
+        <MiniTrendCard
+          path={`/v1/dashboard/team/${data.team.id}/stats`}
+          href="/lag/statistik"
+        />
+      )}
+
+      {/* Milestones */}
+      {milestones && (milestones.achieved?.length > 0 || milestones.next) && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Award className="h-4 w-4 text-brand-500" />
+              {c.milestones}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {milestones.next && (
+              <div className="rounded-lg bg-brand-50 p-3 flex items-center gap-3">
+                <Star className="h-5 w-5 text-brand-500 shrink-0" />
+                <div>
+                  <p className="text-sm font-medium">{tFill(c.nextMilestone, { label: milestoneLabel(milestones.next.id ?? milestones.next.label, locale) })}</p>
+                  <p className="text-xs text-muted-foreground">{milestoneRemaining(milestones.next.remaining, locale)}</p>
+                </div>
+              </div>
+            )}
+            {milestones.achieved?.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {milestones.achieved.map((m: Milestone) => (
+                  <Badge
+                    key={m.id}
+                    className="bg-brand-100 text-brand-700 text-xs py-1"
+                  >
+                    <Award className="h-3 w-3 mr-1" />
+                    {milestoneLabel(m.id, locale, m.label)}
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Recent orders */}
       <Card>

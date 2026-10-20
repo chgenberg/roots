@@ -48,11 +48,10 @@
 @theme extend {
   /* ── Brand palette (remapped to brandbook hues) ─────────────────
    *
-   * The 50→900 ramp now climbs from warm sand off-white to charcoal
-   * ink. brand-700 is the "primary accent" slot — we route it to
-   * Forest (the brandbook's strongest secondary) so every existing
-   * "bg-brand-700"/"text-brand-700" call site picks up the new
-   * primary brand colour without code changes.
+   * The 50→900 ramp climbs from warm sand off-white to dark brown.
+   * Hela sajten är brun, även portalen och lagvyerna: text, knappar,
+   * aktiva menyrader och brand-700-ytor. Forest finns kvar som
+   * sekundärfärg (accent-forest) och för "lyckat" (success).
    */
   --color-brand-50:  #FAF6EF;   /* warmest off-white (was cold #F5F3F1) */
   --color-brand-100: #F1EBE2;   /* very light sand */
@@ -61,10 +60,10 @@
   --color-brand-400: #C1BF99;   /* brandbook olive (was warm grey) */
   --color-brand-500: #B2A491;   /* brandbook sand-medium */
   --color-brand-600: #8B7E69;   /* mid sand-dark transition */
-  --color-brand-700: #6B794F;   /* brandbook FOREST — primary accent */
-  --color-brand-800: #7F715B;   /* brandbook sand-dark */
-  --color-brand-900: #1D1D1B;   /* brandbook ink */
-  --color-brand-accent: #6B794F;
+  --color-brand-700: #6D614D;   /* Roots-brun — primär accent */
+  --color-brand-800: #5E5341;
+  --color-brand-900: #4A4134;
+  --color-brand-accent: #6D614D;
 
   /* ── Sekundärfärger (new tokens — additive) ──────────────────── */
   --color-accent-forest:     #6B794F;
@@ -76,17 +75,17 @@
 
   /* ── Semantic tokens ─────────────────────────────────────────── */
   --color-background:           #FFFFFF;
-  --color-foreground:           #1D1D1B;
+  --color-foreground:           #5E5341;
   --color-muted:                #FAF6EF;
   --color-muted-foreground:     #7F715B;
   --color-border:               #E5DDD2;
-  --color-ring:                 #1D1D1B;
-  --color-primary:              #1D1D1B;
+  --color-ring:                 #6D614D;
+  --color-primary:              #6D614D;
   --color-primary-foreground:   #FFFFFF;
   --color-secondary:            #FAF6EF;
-  --color-secondary-foreground: #1D1D1B;
+  --color-secondary-foreground: #5E5341;
   --color-accent:               #F1EBE2;
-  --color-accent-foreground:    #1D1D1B;
+  --color-accent-foreground:    #5E5341;
   --color-destructive:          #C76A50;     /* terracotta-dark for AA contrast on white */
   --color-destructive-foreground: #FFFFFF;
   --color-success:              #6B794F;     /* forest */
@@ -104,15 +103,14 @@
 
   /* ── Surfaces ────────────────────────────────────────────────── */
   --color-card:                 #FFFFFF;
-  --color-card-foreground:      #1D1D1B;
+  --color-card-foreground:      #5E5341;
   --color-popover:              #FFFFFF;
-  --color-popover-foreground:   #1D1D1B;
+  --color-popover-foreground:   #5E5341;
 
-  /* Dark UI chrome — used by the dashboard sidebar. Stays ink in
-   * both light and dark mode so the chrome is its own surface. */
-  --color-inverse-surface:        #1D1D1B;
+  /* Mörka ytor (aktiv menyrad, primära pillerknappar). */
+  --color-inverse-surface:        #6D614D;
   --color-inverse-on-surface:     #FFFFFF;
-  --color-inverse-surface-hover:  #2A2A28;
+  --color-inverse-surface-hover:  #5E5341;
 
   /* ── Legacy compat (some components still read these) ────────── */
   --color-bg-primary:      #FFFFFF;
@@ -309,27 +307,6 @@ h5, h6 { font-weight: 600; letter-spacing: -0.005em; line-height: 1.35; }
 }
 [data-marketing] h2 {
   font-weight: 400 !important;
-}
-
-/* Publika sajten är brun, inte svart eller grön: text, rubriker, siffror,
- * knappar och överrubriker. Portalen behåller sin palett. `:not(.dark)`
- * krävs eftersom variablerna ärvs från närmaste element som sätter dem —
- * annars skulle de ljusa bruna värdena skriva över mörkt läge. `color`
- * sätts om här eftersom body redan räknat ut sin färg från roten. */
-:root:not(.dark) [data-marketing] {
-  --color-foreground:           #5E5341;
-  --color-card-foreground:      #5E5341;
-  --color-popover-foreground:   #5E5341;
-  --color-secondary-foreground: #5E5341;
-  --color-accent-foreground:    #5E5341;
-  --color-primary:              #6D614D;
-  --color-ring:                 #6D614D;
-  --color-brand-700:            #6D614D;
-  --color-brand-800:            #5E5341;
-  --color-brand-900:            #4A4134;
-  --color-inverse-surface:       #6D614D;
-  --color-inverse-surface-hover: #5E5341;
-  color: var(--color-foreground);
 }
 
 ::selection {

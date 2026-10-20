@@ -176,6 +176,13 @@
       "when": 1791886000000,
       "tag": "0024_interest_complement",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1792484000000,
+      "tag": "0025_contact_messages",
+      "breakpoints": true
     }
   ]
 }

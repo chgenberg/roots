@@ -1,4 +1,7 @@
 import { Hono } from "hono";
+import { eq } from "drizzle-orm";
+import { db } from "@roots/db";
+import { contactMessages } from "@roots/db/schema";
 import { getEmailSender } from "../lib/email";
 import { checkRateLimit } from "../lib/rate-limit";
 import { childLogger } from "../lib/logger";
@@ -60,6 +63,27 @@ contact.post("/", async (c) => {
     return c.json({ error: uiError(locale, "rateLimited") }, 429);
   }
 
+  let savedId: string | null = null;
+  try {
+    const [row] = await db
+      .insert(contactMessages)
+      .values({
+        name: name.trim(),
+        email: email.trim(),
+        subject: subject.trim(),
+        message: message.trim(),
+        locale,
+      })
+      .returning({ id: contactMessages.id });
+    savedId = row?.id ?? null;
+  } catch (err) {
+    log.error({ err }, "Failed to save contact message");
+  }
+
+  const emailPaused =
+    process.env.FEATURE_EMAIL_DISABLED?.trim().toLowerCase() === "true";
+  if (emailPaused && savedId) return c.json({ ok: true });
+
   try {
     const sender = getEmailSender();
     const recipientEmail = process.env.CONTACT_FORM_EMAIL || "hej@roots.nu";
@@ -98,15 +122,24 @@ contact.post("/", async (c) => {
 
     if (!result.success) {
       log.warn("Contact form email rejected by provider");
+      if (savedId) return c.json({ ok: true });
       return c.json(
         { error: uiError(locale, "contactSendFailed") },
         502
       );
     }
 
+    if (savedId) {
+      await db
+        .update(contactMessages)
+        .set({ emailed: true })
+        .where(eq(contactMessages.id, savedId))
+        .catch((err) => log.warn({ err }, "Failed to flag contact message as emailed"));
+    }
     return c.json({ ok: true });
   } catch (err) {
     log.error({ err }, "Failed to send contact email");
+    if (savedId) return c.json({ ok: true });
     return c.json(
       { error: uiError(locale, "contactSendFailedRetry") },
       500

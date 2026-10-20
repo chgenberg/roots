@@ -6,10 +6,10 @@ import type { Locale } from "@/i18n/config";
 import { fundraisingPages } from "@/i18n/dictionaries/fundraising-pages";
 
 export const CHART = {
-  // Primärt dataspår — brandbook FOREST (brand-700).
-  primary: "#6B794F",
-  // Bläck/ink — brandbook (brand-900). Används som mörk kontrast-stapel.
-  ink: "#1D1D1B",
+  // Primärt dataspår — Roots-brun (brand-700).
+  primary: "#6D614D",
+  // Mörk kontrast-stapel (brand-900).
+  ink: "#4A4134",
   // Spår/bakgrund för staplar (brand-100).
   track: "#F1EBE2",
   // Rutnät + axlar (brand-200 / border).
@@ -21,13 +21,13 @@ export const CHART = {
 // Distinkt men dämpad serie-palett (brandbook sekundärfärger) för
 // donut/kategorier. Ordningen är vald för bra kontrast bredvid varandra.
 export const SERIES = [
+  "#6D614D", // brun
   "#6B794F", // forest
   "#A7BBC5", // sky
   "#E18754", // terracotta
   "#ECD488", // sun
   "#C1BF99", // olive
   "#B2A491", // sand-medium
-  "#1D1D1B", // ink
 ] as const;
 
 export function seriesColor(i: number): string {

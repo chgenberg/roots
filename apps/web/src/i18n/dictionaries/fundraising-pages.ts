@@ -330,14 +330,14 @@ export const fundraisingPages = {
   miniTrend: d(
     {
       title: "Försäljningstrend",
-      last90: "Senaste 90 dagarna",
+      last90: "Sålt totalt över tid · senaste 90 dagarna",
       allStats: "All statistik",
       paidOrders: "{n} betalda ordrar",
       empty: "Trenden visas när ni fått era första betalda ordrar.",
     },
     {
       title: "Sales trend",
-      last90: "Last 90 days",
+      last90: "Total sold over time · last 90 days",
       allStats: "All statistics",
       paidOrders: "{n} paid orders",
       empty: "The trend appears once you have your first paid orders.",
@@ -346,12 +346,16 @@ export const fundraisingPages = {
 
   onboardingBanner: d(
     {
-      title: "Slutför uppstarten — {done} av {total} klara",
+      title: "Uppstart: {done} av {total} steg klara",
       body: "Vi har en checklista som tar er hela vägen till första försäljningen.",
+      nextStep: "Nästa steg: {label}",
+      allSteps: "Visa alla steg",
     },
     {
-      title: "Finish getting started — {done} of {total} done",
+      title: "Getting started: {done} of {total} steps done",
       body: "We have a checklist that takes you all the way to your first sale.",
+      nextStep: "Next step: {label}",
+      allSteps: "View all steps",
     }
   ),
 
@@ -359,6 +363,10 @@ export const fundraisingPages = {
     {
       title: "Förenings-dashboard",
       campaignLabel: "Kampanj: {name}",
+      daysLeft: "{n} dagar kvar",
+      oneDayLeft: "1 dag kvar",
+      lastDay: "Sista dagen i dag",
+      campaignEnded: "Kampanjen är avslutad",
       noActiveCampaign: "Ingen aktiv kampanj",
       newCampaign: "Ny kampanj",
       startCampaign: "Starta kampanj",
@@ -409,6 +417,10 @@ export const fundraisingPages = {
     {
       title: "Club dashboard",
       campaignLabel: "Campaign: {name}",
+      daysLeft: "{n} days left",
+      oneDayLeft: "1 day left",
+      lastDay: "Last day today",
+      campaignEnded: "The campaign has ended",
       noActiveCampaign: "No active campaign",
       newCampaign: "New campaign",
       startCampaign: "Start campaign",
@@ -804,6 +816,20 @@ export const fundraisingPages = {
       sellerRanking: "Säljare-ranking",
       noSellersYet:
         "Inga säljare har anslutit ännu. Dela inbjudningslänken!",
+      inviteTitle: "Bjud in spelarna",
+      inviteHint:
+        "Spelarna skapar sin egen shop via länken. Visa QR-koden på träningen eller skicka länken i lagets chatt.",
+      inviteMessage:
+        "Hej! Vi säljer Roots för {campaign}. Skapa din egen shop här, det tar en minut: {url}",
+      inviteQrAlt: "QR-kod till inbjudan",
+      copyLink: "Kopiera länk",
+      notStartedTitle: "Har inte kommit igång",
+      notStartedHint:
+        "De här spelarna har inte sålt något än. Skicka en påminnelse med deras egen shop-länk.",
+      copyReminder: "Kopiera påminnelse",
+      reminderCopied: "Kopierad",
+      reminderMessage:
+        "Hej {name}! Glöm inte att dela din shop med familj och vänner. Varje köp går till laget: {url}",
     },
     {
       titleFallback: "Team dashboard",
@@ -815,6 +841,20 @@ export const fundraisingPages = {
       invitePlayers: "Send this link to your players",
       sellerRanking: "Seller leaderboard",
       noSellersYet: "No sellers have joined yet. Share the invite link!",
+      inviteTitle: "Invite your players",
+      inviteHint:
+        "Players create their own shop from the link. Show the QR code at practice or post the link in the team chat.",
+      inviteMessage:
+        "Hi! We're selling Roots for {campaign}. Create your own shop here, it takes a minute: {url}",
+      inviteQrAlt: "QR code for the invite",
+      copyLink: "Copy link",
+      notStartedTitle: "Not started yet",
+      notStartedHint:
+        "These players haven't sold anything yet. Send a reminder with their own shop link.",
+      copyReminder: "Copy reminder",
+      reminderCopied: "Copied",
+      reminderMessage:
+        "Hi {name}! Don't forget to share your shop with family and friends. Every purchase supports the team: {url}",
     }
   ),
 
@@ -1029,6 +1069,7 @@ export const fundraisingPages = {
       yourLevel: "Din nivå",
       levelHint: "Baserat på total försäljning",
       yourGoal: "Ditt mål",
+      progressTitle: "Din resa",
       goalReached: "Mål uppnått! Fantastiskt!",
       shareShop: "Dela",
       shareHeroHint:
@@ -1053,6 +1094,7 @@ export const fundraisingPages = {
       yourLevel: "Your level",
       levelHint: "Based on total sales",
       yourGoal: "Your goal",
+      progressTitle: "Your progress",
       goalReached: "Goal reached! Fantastic!",
       shareShop: "Share",
       shareHeroHint:
@@ -1178,6 +1220,7 @@ export const fundraisingPages = {
       yourShopDesc:
         "Den publika länken till just din shop. Dela den med familj, vänner och i sociala medier.",
       copyShopLink: "Kopiera shop-länk",
+      openShop: "Öppna shop",
       changePassword: "Byt lösenord",
       passwordDesc:
         "Minst 12 tecken. Använd ett unikt lösenord som du inte använt någon annanstans.",
@@ -1236,6 +1279,7 @@ export const fundraisingPages = {
       yourShopDesc:
         "The public link to your shop. Share it with family, friends and on social media.",
       copyShopLink: "Copy shop link",
+      openShop: "Open shop",
       changePassword: "Change password",
       passwordDesc:
         "At least 12 characters. Use a unique password you have not used elsewhere.",
@@ -1395,6 +1439,8 @@ export const fundraisingPages = {
       copied: "Kopierat",
       open: "Öppna",
       copyPrompt: "Kopiera texten:",
+      showMore: "Visa fler texter ({n})",
+      showLess: "Visa färre",
       labelSmsShort: "SMS · Kort & snabb",
       labelWaFamily: "WhatsApp · Familj & nära",
       labelInstagram: "Instagram · Story / caption",
@@ -1423,6 +1469,8 @@ export const fundraisingPages = {
       copied: "Copied",
       open: "Open",
       copyPrompt: "Copy the text:",
+      showMore: "Show more texts ({n})",
+      showLess: "Show fewer",
       labelSmsShort: "SMS · Short & quick",
       labelWaFamily: "WhatsApp · Family & close friends",
       labelInstagram: "Instagram · Story / caption",

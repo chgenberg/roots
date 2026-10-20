@@ -176,6 +176,9 @@ export default function SellerDashboard() {
       ? Math.min(100, Math.round((totalSales / (goal * 100)) * 100))
       : null;
   const milestones = data.milestones;
+  const hasMilestones = Boolean(
+    milestones && (milestones.achieved?.length > 0 || milestones.next)
+  );
 
   return (
     <div className="page-enter space-y-6">
@@ -239,7 +242,7 @@ export default function SellerDashboard() {
         </div>
       </section>
 
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
         <Card>
           <CardContent className="p-4 sm:p-5">
             <p className="text-xs text-muted-foreground sm:text-sm">{t.sold}</p>
@@ -254,7 +257,7 @@ export default function SellerDashboard() {
             <p className="mt-1 text-xl font-bold sm:text-2xl">{orderCount}</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="col-span-2 lg:col-span-1">
           <CardContent className="p-4 sm:p-5">
             <div className="flex items-center gap-1.5">
               <TrendingUp className="h-3.5 w-3.5 shrink-0 text-brand-400" />
@@ -264,101 +267,87 @@ export default function SellerDashboard() {
               {formatKr(estimatedEarnings, locale)}
             </p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {tFill(c.percentMargin, { n: LOCKED_MARGIN_PERCENT })}
+              {tFill(c.ofSales, { n: LOCKED_MARGIN_PERCENT })}
             </p>
           </CardContent>
         </Card>
-        {progress !== null && (
-          <Card>
-            <CardContent className="p-4 sm:p-5">
-              <p className="text-xs text-muted-foreground sm:text-sm">{t.goal}</p>
-              <p className="mt-1 text-xl font-bold sm:text-2xl">{progress}%</p>
-            </CardContent>
-          </Card>
-        )}
       </div>
 
-      {/* Försäljningstrend */}
-      <MiniTrendCard path="/v1/dashboard/seller/stats" href="/min-shop/statistik" />
-
-      {/* Grade card */}
-      {data.grade && (
-        <Card>
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <GradeBadge grade={data.grade} size="lg" />
-                <div>
-                  <p className="text-sm font-medium">{t.yourLevel}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {t.levelHint}
-                  </p>
-                </div>
-              </div>
-            </div>
-            <GradeProgress grade={data.grade} className="mt-4" />
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Progress bar */}
-      {progress !== null && (
-        <Card>
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-medium">{t.yourGoal}</p>
-              <p className="text-sm text-muted-foreground">
-                {formatKr(totalSales, locale)} /{" "}
-                {locale === "en"
-                  ? `SEK ${goal.toLocaleString(dateLocale)}`
-                  : `${goal.toLocaleString(dateLocale)} kr`}
-              </p>
-            </div>
-            <div className="h-3 overflow-hidden rounded-full bg-brand-100">
-              <div
-                className="h-full rounded-full bg-brand-700 transition-all duration-700"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-            {progress >= 100 && (
-              <p className="mt-2 text-sm font-medium text-success">
-                {t.goalReached}
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Milestones */}
-      {milestones && (milestones.achieved?.length > 0 || milestones.next) && (
+      {(progress !== null || data.grade || hasMilestones) && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <Award className="h-4 w-4 text-brand-500" />
-              {c.milestones}
+              {t.progressTitle}
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            {milestones.next && (
-              <div className="rounded-lg bg-brand-50 p-3 flex items-center gap-3">
-                <Star className="h-5 w-5 text-brand-500 shrink-0" />
-                <div>
-                  <p className="text-sm font-medium">{tFill(c.nextMilestone, { label: milestoneLabel(milestones.next.id ?? milestones.next.label, locale) })}</p>
-                  <p className="text-xs text-muted-foreground">{milestoneRemaining(milestones.next.remaining, locale)}</p>
+          <CardContent className="divide-y divide-border [&>*]:py-5 [&>*:first-child]:pt-0 [&>*:last-child]:pb-0">
+            {progress !== null && (
+              <div>
+                <div className="mb-2 flex items-baseline justify-between gap-3">
+                  <p className="text-sm font-medium">{t.yourGoal}</p>
+                  <p className="text-sm tabular-nums text-muted-foreground">
+                    {formatKr(totalSales, locale)} /{" "}
+                    {locale === "en"
+                      ? `SEK ${goal.toLocaleString(dateLocale)}`
+                      : `${goal.toLocaleString(dateLocale)} kr`}
+                    <span className="ml-2 font-semibold text-foreground">{progress} %</span>
+                  </p>
                 </div>
+                <div className="h-3 overflow-hidden rounded-full bg-brand-100">
+                  <div
+                    className="h-full rounded-full bg-brand-700 transition-all duration-700"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+                {progress >= 100 && (
+                  <p className="mt-2 text-sm font-medium text-success">
+                    {t.goalReached}
+                  </p>
+                )}
               </div>
             )}
-            {milestones.achieved?.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {milestones.achieved.map((m: Milestone) => (
-                  <Badge
-                    key={m.id}
-                    className="bg-brand-100 text-brand-700 text-xs py-1"
-                  >
-                    <Award className="h-3 w-3 mr-1" />
-                    {milestoneLabel(m.id, locale, m.label)}
-                  </Badge>
-                ))}
+
+            {data.grade && (
+              <div>
+                <div className="flex items-center gap-4">
+                  <GradeBadge grade={data.grade} size="lg" />
+                  <div>
+                    <p className="text-sm font-medium">{t.yourLevel}</p>
+                    <p className="text-xs text-muted-foreground">{t.levelHint}</p>
+                  </div>
+                </div>
+                <GradeProgress grade={data.grade} className="mt-4" />
+              </div>
+            )}
+
+            {hasMilestones && (
+              <div className="space-y-3">
+                {milestones.next && (
+                  <div className="flex items-center gap-3 rounded-lg bg-brand-50 p-3">
+                    <Star className="h-5 w-5 shrink-0 text-brand-500" />
+                    <div>
+                      <p className="text-sm font-medium">
+                        {tFill(c.nextMilestone, {
+                          label: milestoneLabel(milestones.next.id ?? milestones.next.label, locale),
+                        })}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {milestoneRemaining(milestones.next.remaining, locale)}
+                      </p>
+                    </div>
+                  </div>
+                )}
+                {milestones.achieved?.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {milestones.achieved.map((m: Milestone) => (
+                      <Badge key={m.id} className="bg-brand-100 py-1 text-xs text-brand-700">
+                        <Award className="mr-1 h-3 w-3" />
+                        {milestoneLabel(m.id, locale, m.label)}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </CardContent>
@@ -366,15 +355,14 @@ export default function SellerDashboard() {
       )}
 
       {/* Sprint E12: ready-made share copy. Sellers told us the hardest
-          part isn't sharing — it's writing the message. Six pre-filled
-          templates covering SMS, WhatsApp, Insta, Facebook and email. */}
+          part isn't sharing — it's writing the message. */}
       <ShareTemplates
         displayName={data.seller.displayName}
         shopUrl={shopUrl}
         campaignName={data.campaign?.name ?? c.ourTeam}
         teamName={data.team?.name ?? c.ourTeam}
+        initialCount={2}
       />
-
 
       {/* Recent orders */}
       <Card>
@@ -425,6 +413,8 @@ export default function SellerDashboard() {
           )}
         </CardContent>
       </Card>
+
+      <MiniTrendCard path="/v1/dashboard/seller/stats" href="/min-shop/statistik" />
 
       <OrderDetailDialog
         open={detailOpen}

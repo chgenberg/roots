@@ -162,7 +162,8 @@ function localizeMilestone(def: MilestoneDef, locale: UiLocale): Milestone {
 }
 
 function formatPackagesLeft(n: number, locale: UiLocale): string {
-  return locale === "en" ? `${n} packages left` : `${n} paket kvar`;
+  if (locale === "en") return `${n} ${n === 1 ? "package" : "packages"} left`;
+  return `${n} paket kvar`;
 }
 
 function formatAmountLeft(ore: number, locale: UiLocale): string {
@@ -294,6 +295,14 @@ export function getNextMilestone(
   for (const def of MILESTONE_DEFS) {
     if (achievedIds.has(def.id)) continue;
     const m = localizeMilestone(def, locale);
+
+    if (m.id === "first_sale") {
+      return {
+        id: m.id,
+        label: m.label,
+        remaining: formatPackagesLeft(1, locale),
+      };
+    }
 
     if (m.id === "halfway") {
       if (ctx.goalPackages) {

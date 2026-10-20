@@ -8,7 +8,7 @@ import { LocaleLink } from "@/components/locale-link";
 
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { OnboardingBanner } from "@/components/onboarding-banner";
+import { OnboardingBanner, type OnboardingStatus } from "@/components/onboarding-banner";
 import { MiniTrendCard } from "@/components/charts/mini-trend-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,6 +43,17 @@ import { ForestHero, forestHeroActionClassName } from "@/components/forest-hero"
 import { LOCKED_MARGIN_PERCENT } from "@roots/contracts";
 
 const API_URL = getBrowserApiBase();
+
+/** Hela dagar kvar till kampanjens slutdatum (0 = sista dagen, negativt = slut). */
+function daysUntil(endDate: string | null): number | null {
+  if (!endDate) return null;
+  const end = new Date(endDate);
+  if (Number.isNaN(end.getTime())) return null;
+  const today = new Date();
+  const startOfToday = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+  const endDay = Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate());
+  return Math.round((endDay - startOfToday) / 86_400_000);
+}
 
 // Helper for the campaign-form date defaults: today + 60 days as a sane
 // initial end date so the user doesn't have to type both ends manually.
@@ -110,10 +121,18 @@ function AssociationDashboardInner() {
   const [detailOrderId, setDetailOrderId] = useState<string | null>(null);
 
   const { toast } = useToast();
+  const [onboarding, setOnboarding] = useState<OnboardingStatus | null>(null);
 
   async function load(silent = false) {
     try {
-      const res = await rootsFetch(`${API_URL}/v1/dashboard/association`);
+      const [res] = await Promise.all([
+        rootsFetch(`${API_URL}/v1/dashboard/association`),
+        apiFetch<OnboardingStatus>("/v1/association/onboarding-status").then(
+          ({ ok, data: status }) => {
+            if (ok && status) setOnboarding(status);
+          }
+        ),
+      ]);
       if (res.ok) {
         setData(await res.json());
       } else if (!silent) {
@@ -223,6 +242,18 @@ function AssociationDashboardInner() {
         )
       : 0;
 
+  const daysLeft = daysUntil(activeCampaign?.endDate ?? null);
+  const timeLeft =
+    daysLeft === null
+      ? null
+      : daysLeft < 0
+        ? t.campaignEnded
+        : daysLeft === 0
+          ? t.lastDay
+          : daysLeft === 1
+            ? t.oneDayLeft
+            : tFill(t.daysLeft, { n: daysLeft });
+
   const sortedTeams = [...teams].sort(
     (a, b) => b.totalSalesOre - a.totalSalesOre
   );
@@ -239,15 +270,20 @@ function AssociationDashboardInner() {
     <div className="page-enter space-y-6">
       {/* MASTERPLAN_01 KC3.1: persistent onboarding-nudge. Gömmer sig
           själv när alla steg är klara — vi behöver inte tracking-flag. */}
-      <OnboardingBanner />
+      <OnboardingBanner status={onboarding} />
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">{t.title}</h1>
+          <h1 className="text-2xl font-bold">{onboarding?.orgName || t.title}</h1>
           <p className="text-sm text-muted-foreground">
             {activeCampaign
               ? tFill(t.campaignLabel, { name: activeCampaign.name })
               : t.noActiveCampaign}
+            {timeLeft ? (
+              <span className="ml-2 inline-flex items-center rounded-full bg-brand-100 px-2 py-0.5 text-xs font-medium text-brand-800">
+                {timeLeft}
+              </span>
+            ) : null}
           </p>
         </div>
         {activeCampaign ? (

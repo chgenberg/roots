@@ -3,7 +3,7 @@
 import { ArrowRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AreaTrend } from "./area-trend";
+import { AreaTrend, type TrendPoint } from "./area-trend";
 import { useStats, buildDailyAxis } from "./use-stats";
 import { formatKr } from "./theme";
 import { LocaleLink } from "@/components/locale-link";
@@ -17,6 +17,17 @@ interface MiniTrendCardProps {
   path: string;
   /** Länk till hela statistik-sidan. */
   href: string;
+}
+
+const MIN_DAYS = 14;
+const LEAD_DAYS = 3;
+
+/** Kapar nolldagarna före första försäljningen så kurvan inte blir en platt linje. */
+function fromFirstSale(points: TrendPoint[]): TrendPoint[] {
+  const first = points.findIndex((p) => p.value > 0);
+  if (first < 0) return points;
+  const start = Math.max(0, Math.min(first - LEAD_DAYS, points.length - MIN_DAYS));
+  return points.slice(start);
 }
 
 export function MiniTrendCard({ path, href }: MiniTrendCardProps) {
@@ -55,14 +66,14 @@ export function MiniTrendCard({ path, href }: MiniTrendCardProps) {
               })}
             </p>
             <AreaTrend
-              points={
+              points={fromFirstSale(
                 buildDailyAxis(
                   data.daily,
                   data.periodStart,
                   data.periodEnd,
                   locale
-                ).sales
-              }
+                ).cumulative
+              )}
               format={(ore) => formatKr(ore, locale)}
               height={140}
             />

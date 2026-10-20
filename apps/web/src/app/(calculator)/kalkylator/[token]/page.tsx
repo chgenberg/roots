@@ -201,7 +201,7 @@ export default function PublicCalculatorPage() {
                     type="checkbox"
                     checked={consent}
                     onChange={(e) => setConsent(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 accent-[#6B794F]"
+                    className="mt-0.5 h-4 w-4 accent-[#6D614D]"
                   />
                   <span>
                     {t.consentBefore}

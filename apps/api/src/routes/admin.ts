@@ -18,7 +18,14 @@ import type { Context } from "hono";
 import { and, asc, desc, eq, gte, inArray, like, lt, lte, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { db } from "@roots/db";
-import { auditLogs, users, organizations, reviewerThreads, reviewerMessages } from "@roots/db/schema";
+import {
+  auditLogs,
+  users,
+  organizations,
+  reviewerThreads,
+  reviewerMessages,
+  contactMessages,
+} from "@roots/db/schema";
 import type { SessionData } from "../lib/session";
 import { requireSession } from "../lib/http-session";
 import { childLogger } from "../lib/logger";
@@ -383,6 +390,53 @@ admin.patch("/feedback", async (c) => {
       )
     )
     .returning({ id: reviewerThreads.id });
+  if (updated.length === 0) return c.json({ error: "NOT_FOUND" }, 404);
+  return c.json({ ok: true });
+});
+
+admin.get("/contact-messages", async (c) => {
+  const guard = await requireInternalAdmin(c);
+  if (!guard.ok) return c.json({ error: guard.error }, guard.status);
+
+  const rows = await db
+    .select()
+    .from(contactMessages)
+    .orderBy(desc(contactMessages.createdAt))
+    .limit(200);
+  return c.json({
+    messages: rows.map((m) => ({
+      id: m.id,
+      name: m.name,
+      email: m.email,
+      subject: m.subject,
+      message: m.message,
+      locale: m.locale,
+      emailed: m.emailed,
+      handledAt: m.handledAt?.toISOString() ?? null,
+      createdAt: m.createdAt.toISOString(),
+    })),
+  });
+});
+
+admin.patch("/contact-messages", async (c) => {
+  const guard = await requireInternalAdmin(c);
+  if (!guard.ok) return c.json({ error: guard.error }, guard.status);
+
+  const body = (await c.req.json().catch(() => null)) as {
+    id?: unknown;
+    handled?: unknown;
+  } | null;
+  const id = typeof body?.id === "string" ? body.id : "";
+  if (!id) return c.json({ error: "MISSING_ID" }, 400);
+  if (typeof body?.handled !== "boolean") {
+    return c.json({ error: "INVALID_ACTION" }, 400);
+  }
+
+  const updated = await db
+    .update(contactMessages)
+    .set({ handledAt: body.handled ? new Date() : null })
+    .where(eq(contactMessages.id, id))
+    .returning({ id: contactMessages.id });
   if (updated.length === 0) return c.json({ error: "NOT_FOUND" }, 404);
   return c.json({ ok: true });
 });
