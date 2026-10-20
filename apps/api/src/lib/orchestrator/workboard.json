@@ -668,7 +668,7 @@
       "id": "wb-dashboard-ux-oct20",
       "title": "Dashboards UX + kontaktformulär sparas",
       "body": "Kontaktmeddelanden sparas i DB (mejl är av). A11y-etiketter. Brun skala i dashboards. Säljare: samlat mål/nivå-kort, mallar Visa fler, graf ackumulerad. Lagledare: spelarlänk överst med QR/delning + ej igång. Förening: namn, dagar kvar, nästa steg. 35 % och priser orörda.",
-      "status": "doing",
+      "status": "done",
       "domainId": "fundraising",
       "playbook": "",
       "files": [
