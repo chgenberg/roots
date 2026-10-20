@@ -230,10 +230,21 @@ export default function LeadMailPage() {
       {meta && meta.senders.length === 0 && (
         <div className="rounded-2xl bg-background p-10 text-center ring-1 ring-inset ring-border">
           <Send className="mx-auto h-7 w-7 text-muted-foreground" aria-hidden />
-          <p className="mt-3 font-semibold text-foreground">Börja med att lägga till en avsändare</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            T.ex. Niclas eller Kent, med namn, titel, telefon och roots.nu-adress. Sedan importerar du deras lista.
-          </p>
+          {meta.canManage ? (
+            <>
+              <p className="mt-3 font-semibold text-foreground">Börja med att lägga till en avsändare</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                T.ex. Niclas eller Kent, med namn, titel, telefon och roots.nu-adress. Sedan importerar du deras lista.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="mt-3 font-semibold text-foreground">Ingen avsändare är kopplad till ditt konto än</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Be en admin lägga upp dig som avsändare, så dyker din lista upp här.
+              </p>
+            </>
+          )}
         </div>
       )}
 
