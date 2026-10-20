@@ -427,7 +427,9 @@ admin.patch("/contact-messages", async (c) => {
     handled?: unknown;
   } | null;
   const id = typeof body?.id === "string" ? body.id : "";
-  if (!id) return c.json({ error: "MISSING_ID" }, 400);
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    return c.json({ error: "MISSING_ID" }, 400);
+  }
   if (typeof body?.handled !== "boolean") {
     return c.json({ error: "INVALID_ACTION" }, 400);
   }
