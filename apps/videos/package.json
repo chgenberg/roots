@@ -10,15 +10,15 @@
     "build:all": "npm run build:forening && npm run build:saljare && npm run build:company"
   },
   "dependencies": {
-    "@remotion/cli": "latest",
-    "@remotion/google-fonts": "latest",
-    "@remotion/transitions": "latest",
+    "@remotion/cli": "4.0.513",
+    "@remotion/google-fonts": "4.0.513",
+    "@remotion/transitions": "4.0.513",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "remotion": "latest"
+    "remotion": "4.0.513"
   },
   "devDependencies": {
-    "@remotion/eslint-config": "latest",
+    "@remotion/eslint-config": "4.0.513",
     "@types/react": "^19.0.0",
     "typescript": "^5.7"
   }
