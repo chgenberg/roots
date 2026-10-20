@@ -29,6 +29,7 @@ import {
   HelpCircle,
   Calculator,
   Radio,
+  Send,
   Inbox,
   Network,
 } from "lucide-react";
@@ -76,6 +77,7 @@ function buildSalesNav(t: (typeof portalDict)[Locale]): NavItem[] {
     { href: "/portal", label: t.navOverview, icon: LayoutDashboard },
     { href: "/portal/pipeline", label: t.navPipeline, icon: Target },
     { href: "/portal/klubbar", label: t.navClubs, icon: Building2 },
+    { href: "/portal/lead-mejl", label: t.navLeadMail, icon: Send },
     { href: "/portal/offerter", label: t.navQuotes, icon: FileText },
     { href: "/portal/raknesnurra", label: t.navCalculator, icon: Calculator },
     { href: "/portal/statistik", label: t.navStats, icon: BarChart3 },
@@ -91,6 +93,7 @@ function buildAdminNav(t: (typeof portalDict)[Locale]): NavItem[] {
     { href: "/portal/feedback", label: t.navFeedback, icon: Inbox },
     { href: "/portal/utbetalningar", label: t.navPayouts, icon: FileText },
     { href: "/portal/klubbar", label: t.navAllClubs, icon: Building2 },
+    { href: "/portal/lead-mejl", label: t.navLeadMail, icon: Send },
     { href: "/portal/saljare", label: t.navSellers, icon: Users },
     { href: "/portal/bestallningar", label: t.navOrders, icon: ShoppingCart },
     { href: "/portal/statistik", label: t.navKpiStats, icon: BarChart3 },

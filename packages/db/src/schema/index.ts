@@ -21,6 +21,7 @@ export * from "./master-segment";
 export * from "./waitlist";
 export * from "./contact-messages";
 export * from "./traffic-events";
+export * from "./outreach";
 export * from "./calculator";
 export * from "./reviewer";
 export * from "./orchestrator";

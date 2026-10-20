@@ -31,6 +31,7 @@ import { notifications } from "./routes/notifications";
 import { preview } from "./routes/preview";
 import { clientErrors } from "./routes/client-errors";
 import { trafficTelemetry } from "./routes/traffic";
+import { outreach } from "./routes/outreach";
 import { securityHeaders } from "./middleware/security-headers";
 import { resolveUiLocale, uiError } from "./lib/ui-locale";
 import { mfaRequired } from "./middleware/mfa-required";
@@ -77,6 +78,8 @@ const largeLimits: Array<[RegExp, ReturnType<typeof bodyLimitFor>]> = [
   [/^\/v1\/dashboard\/team\/[^/]+\/sellers\/import$/, bodyLimitFor(4)],
   // Feedback-skärmdumpar (PNG/JPEG upp till 3.5 MB).
   [/^\/v1\/reviewer\/upload$/, bodyLimitFor(4)],
+  // Lead-listor som Excel (base64 i JSON). Den nationella listan är ~1 MB.
+  [/^\/v1\/outreach\/senders\/[^/]+\/import$/, bodyLimitFor(15)],
 ];
 
 app.use("*", (c, next) => {
@@ -281,6 +284,7 @@ app.route("/v1/notifications", notifications);
 app.route("/v1/preview", preview);
 app.route("/v1/telemetry", clientErrors);
 app.route("/v1/telemetry", trafficTelemetry);
+app.route("/v1/outreach", outreach);
 app.route("/v1/integrations/fortnox", fortnoxWebhook);
 
 const v1Ai = new Hono();

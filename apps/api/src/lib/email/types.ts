@@ -3,6 +3,9 @@ export interface EmailMessage {
   subject: string;
   html: string;
   text?: string;
+  /** Annan avsändare än standardadressen, t.ex. "Niclas Corse <niclas@roots.nu>". */
+  from?: string;
+  replyTo?: string;
 }
 
 // Scout fix 2026-05-26 (Integration CRIT-email): expose `error` så

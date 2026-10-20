@@ -25,11 +25,12 @@ export class ResendEmailSender implements EmailSender {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          from: this.fromAddress,
+          from: message.from ?? this.fromAddress,
           to: [message.to],
           subject: message.subject,
           html: message.html,
           text: message.text,
+          ...(message.replyTo ? { reply_to: message.replyTo } : {}),
         }),
         signal: controller.signal,
       });

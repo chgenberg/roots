@@ -98,6 +98,8 @@ const GATE_BYPASS_PREFIXES = [
   "/kalkylator",
   // Demo-shopen skickas vidare till styrelser och föräldrar — samma skäl.
   "/prova",
+  // Förslagslänken i lead-mejlen leder vidare till /prova.
+  "/f",
   // Feedback-kontot ska kunna logga in utan preview-lösenordet. Portalen
   // och övriga sidor är fortfarande bakom grinden.
   "/login",
