@@ -24,6 +24,14 @@ describe("suggestMapping", () => {
     const m = suggestMapping(["Kundnamn", "Län", "E-post", "Telefonnummer", "Kontaktperson"]);
     expect(m).toMatchObject({ orgName: 0, email: 2, contactName: 4, website: null, memberCount: null });
   });
+
+  it("läser utskicksflikarna, där Antal deltagare är räknetalet och källans medlemsantal står bredvid", () => {
+    const m = suggestMapping([
+      "Förening", "Kontaktperson", "E-post", "Fler e-postadresser", "Webbplats",
+      "Antal deltagare", "Medlemmar enligt källa",
+    ]);
+    expect(m).toEqual({ orgName: 0, contactName: 1, email: 2, website: 4, memberCount: 5 });
+  });
 });
 
 describe("parseLeads", () => {

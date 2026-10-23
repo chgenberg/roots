@@ -54,7 +54,7 @@ function norm(header: string): string {
 const PATTERNS: Array<[LeadField, RegExp]> = [
   ["email", /^(epost|epostadress|email|mail|mejl|mejladress)$/],
   ["website", /^(url|webbplats|hemsida|webb|website|webbadress|webbsida|lank|länk)$/],
-  ["memberCount", /^(antalmedlemmar|medlemmar|antalsäljandemedlemmar|säljandemedlemmar|antalmedl|medlemsantal)$/],
+  ["memberCount", /^(antaldeltagare|deltagare|antalmedlemmar|medlemmar|antalsäljandemedlemmar|säljandemedlemmar|antalmedl|medlemsantal)$/],
   ["contactName", /^(kontaktperson|kontakt|kontaktnamn|förnamn|fornamn)$/],
   ["orgName", /^(förening|forening|föreningsnamn|foreningsnamn|kundnamn|klubb|klubbnamn|organisation|organisationsnamn)$/],
 ];

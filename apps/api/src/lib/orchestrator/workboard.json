@@ -715,6 +715,23 @@
       "source": "cursor",
       "createdAt": "2026-10-20T10:20:00.000Z",
       "updatedAt": "2026-10-20T11:12:00.000Z"
+    },
+    {
+      "id": "wb-lead-batch2-oct23",
+      "title": "Lead-mejl sats 2: Kents och Niclas lista + uppvärmning",
+      "body": "Sats 2 enligt Johans arbetsplan (23 okt): brett introduktionsmejl vecka 1 (Kent/Niclas avsändare på sina, övriga från namngiven HK-kontakt), personligt mejl med räkneexempel efter 5–7 arbetsdagar. Klart: ~/Desktop/Leadslista_utskick_Kent_Niclas.xlsx (docs/leads/build_utskick.py, antal deltagare = alla medlemmar), Umeå Ryttarförening i klubbkarusellen. Kvar: introläge utan räkneexempel, kontaktsida 'Jag vill veta mer', öppning/klick via Resend-webhooks, avregistreringslänk, dagstak per dag, DNS (DKIM/DMARC) + Resend-nyckel + mejlpaus = Christopher.",
+      "status": "doing",
+      "domainId": "fundraising",
+      "playbook": "",
+      "files": [
+        "docs/leads/build_utskick.py",
+        "apps/api/src/lib/outreach",
+        "apps/web/src/content/clubs.ts"
+      ],
+      "gate": "email",
+      "source": "cursor",
+      "createdAt": "2026-10-23T10:45:00.000Z",
+      "updatedAt": "2026-10-23T12:30:00.000Z"
     }
   ]
 }

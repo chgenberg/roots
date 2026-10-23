@@ -226,6 +226,47 @@ export const connectedClubs: ClubLogo[] = [
       },
     },
   },
+  {
+    slug: "umea-ryttarforening",
+    name: "Umeå Ryttarförening",
+    town: "Umeå",
+    logo: "/images/klubbar/umea-ryttarforening.png",
+    width: 475,
+    height: 480,
+    website: "https://www.hippologum.se/",
+    copy: {
+      sv: {
+        sport: "Ridsport",
+        summary:
+          "En av Sveriges större ridklubbar, med cirka 750 medlemmar och rötter tillbaka till 1925.",
+        body: [
+          "Umeå Ryttarförening håller till på Hippologum, fem kilometer utanför Umeå, med ridterräng runt knuten. Historien börjar 1925 med Umeå Fältrittarklubb på K4, och 1967 bildades föreningen som den heter i dag.",
+          "Ridskolan tar ryttare från nybörjare till avancerade hopp- och dressyrgrupper, och här finns också anpassad ridning och voltige. Föreningen samarbetar med Forslundagymnasiet och har en aktiv tävlingssektion i hoppning, dressyr och körning, som gör den till en av landets flitigaste tävlingsarrangörer.",
+        ],
+        facts: [
+          "Cirka 750 medlemmar",
+          "Anläggningen Hippologum utanför Umeå",
+          "Ridskola, anpassad ridning och voltige",
+          "Tävlingar i hoppning, dressyr och körning",
+        ],
+      },
+      en: {
+        sport: "Equestrian",
+        summary:
+          "One of Sweden's larger riding clubs, with around 750 members and roots going back to 1925.",
+        body: [
+          "Umeå Ryttarförening is based at Hippologum, five kilometres outside Umeå, with riding trails right on the doorstep. Its history starts in 1925 with Umeå Fältrittarklubb at the K4 regiment, and the club took its current name in 1967.",
+          "The riding school takes riders from beginners to advanced jumping and dressage groups, alongside adapted riding and vaulting. The club works with Forslundagymnasiet and has an active competition section in jumping, dressage and driving, making it one of the country's busiest competition organisers.",
+        ],
+        facts: [
+          "Around 750 members",
+          "Hippologum facility outside Umeå",
+          "Riding school, adapted riding and vaulting",
+          "Competitions in jumping, dressage and driving",
+        ],
+      },
+    },
+  },
 ];
 
 export function getClub(slug: string): ClubLogo | undefined {
