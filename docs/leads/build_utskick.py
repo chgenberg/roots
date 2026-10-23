@@ -1,7 +1,7 @@
-"""Bygger utskicksfilen för lead-mejl sats 2 (Kent och Niclas).
+"""Bygger utskicksfilen för lead-mejl sats 2 (Kent, Niclas och Johan).
 
 Läser Leadslista_kompletterad.xlsx, behåller flikarna Leadsbas och Kontroll
-orörda och lägger till: Läs mig, en utskicksflik per säljare, Uppvärmning
+orörda och lägger till: Läs mig, en flik per avsändare, Uppvärmning
 och Antaganden. Utskicksflikarna har rubriken på rad 1 så att de går att
 importera direkt i /portal/lead-mejl.
 
@@ -23,16 +23,19 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
 
-SELLERS = ("Kent", "Niclas")
+# Föreningar utan "Säljare Roots" får introduktionen från Johan (HK).
+SELLERS = ("Kent", "Niclas", "Johan")
+CENTRAL = "Johan"
 PACKS, PACK_PRICE, CLUB_SHARE = 6, 399, 0.35
 BIG_CLUB = 1000
 
-# Leadsbas, kolumnindex (0-baserat). Rubrikerna är dubblerade, därför index.
+# Leadsbas, kolumnindex (0-baserat), version 2 av listan (21 kolumner).
 C_NAME, C_LAN, C_KOMMUN, C_ORG, C_SPORT, C_SELLER = 0, 1, 2, 3, 4, 5
-C_SURPLUS, C_KUVERT, C_ORGNR, C_EMAIL, C_PHONE, C_CONTACT, C_SKIP, C_ROLE = 6, 7, 8, 9, 10, 11, 12, 13
-C_ORGNR2, C_SITE, C_MEMBERS, C_YEAR, C_EMAIL2 = 15, 16, 17, 18, 19
-C_EMAIL_EXTRA = (20, 21, 22, 23)
-C_PHONE2 = 24
+C_SURPLUS, C_KUVERT, C_ORGNR, C_SITE, C_MEMBERS, C_YEAR = 6, 7, 8, 9, 10, 11
+C_CONTACT, C_ROLE = 12, 13
+C_EMAILS = (14, 15, 16, 17)
+C_PHONE, C_SKIP, C_CATEGORY = 18, 19, 20
+EXPECTED_HEADERS = {C_SELLER: "Säljare Roots", C_EMAILS[0]: "E-post 1", C_CATEGORY: "Kategori"}
 
 EMAIL_RE = re.compile(r"^[^@\s,;<>]+@[^@\s,;<>]+\.[a-z]{2,}$", re.I)
 
@@ -58,7 +61,7 @@ def text(v) -> str:
 
 def emails_of(row) -> list[str]:
     out: list[str] = []
-    for i in (C_EMAIL2, C_EMAIL, *C_EMAIL_EXTRA):
+    for i in C_EMAILS:
         for part in re.split(r"[;,\s/]+", text(row[i])):
             p = part.lower().removeprefix("mailto:")
             if EMAIL_RE.match(p) and p not in out:
@@ -81,17 +84,24 @@ def number(v) -> float:
 
 
 def collect(ws):
+    header = [c.value for c in ws[1]]
+    for i, name in EXPECTED_HEADERS.items():
+        if header[i] != name:
+            raise SystemExit(f"Kolumn {i + 1} heter {header[i]!r}, väntade {name!r}. Fel version av listan?")
     leads = {s: [] for s in SELLERS}
     skipped = []
     for rownum, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
-        seller = text(row[C_SELLER])
-        if seller not in leads:
+        if not text(row[C_NAME]):
             continue
+        seller = text(row[C_SELLER]) or CENTRAL
+        if seller not in leads:
+            raise SystemExit(f"Okänd säljare {seller!r} på rad {rownum}.")
         if text(row[C_SKIP]):
             skipped.append((seller, text(row[C_NAME]), rownum))
             continue
         mails = emails_of(row)
-        members = members_of(row)
+        if seller == CENTRAL and not mails:
+            continue
         leads[seller].append({
             "row": rownum,
             "name": text(row[C_NAME]),
@@ -99,15 +109,16 @@ def collect(ws):
             "email": mails[0] if mails else "",
             "more": ", ".join(mails[1:]),
             "site": site_of(row),
-            "phone": text(row[C_PHONE2]) or text(row[C_PHONE]),
+            "phone": text(row[C_PHONE]),
             "kommun": text(row[C_KOMMUN]),
-            "lan": text(row[C_LAN]).title() if text(row[C_LAN]) != "Tillagd" else "Tillagd",
+            "lan": text(row[C_LAN]).title(),
             "sport": text(row[C_SPORT]),
-            "orgnr": text(row[C_ORGNR2]) or text(row[C_ORGNR]),
-            "members": members,
+            "orgnr": text(row[C_ORGNR]),
+            "members": members_of(row),
             "year": row[C_YEAR] if isinstance(row[C_YEAR], int) and row[C_YEAR] > 0 else None,
             "surplus": number(row[C_SURPLUS]),
             "kuvert": number(row[C_KUVERT]),
+            "category": text(row[C_CATEGORY]).upper(),
             "check": "",
         })
     return leads, skipped
@@ -125,7 +136,7 @@ def mark_shared(leads) -> int:
         if len(group) < 2:
             continue
         shared += 1
-        group.sort(key=lambda l: (l["members"] is None, -l["surplus"]))
+        group.sort(key=lambda l: (l["category"] != "A", l["members"] is None, -l["surplus"]))
         keeper = group[0]
         for other in group[1:]:
             other["check"] = (
@@ -163,21 +174,25 @@ def mark_dead_domains(leads) -> int:
     n = 0
     for seller in SELLERS:
         for lead in leads[seller]:
-            if lead["email"] and lead["email"].split("@")[1] in dead and not lead["check"]:
-                lead["check"] = (
-                    f"Domänen {lead['email'].split('@')[1]} tar inte emot mejl. "
-                    "Hitta en ny adress och töm sedan den här rutan."
-                )
+            if lead["email"] and lead["email"].split("@")[1] in dead:
+                lead["check"] = " ".join(x for x in [
+                    f"{lead['email']}: domänen tar inte emot mejl. Hitta en ny adress, "
+                    "skriv den i E-post och töm sedan den här rutan.",
+                    lead["check"],
+                ] if x)
+                lead["email"] = ""
                 n += 1
     return n
 
 
+def ready_personal(lead) -> bool:
+    return bool(lead["email"]) and lead["members"] is not None and not lead["check"]
+
+
 def priority(lead) -> int:
-    ready = bool(lead["email"]) and lead["members"] is not None and not lead["check"]
-    if ready and lead["surplus"] > 0:
-        return 1
-    if ready:
-        return 2
+    """1 = klar för personligt mejl och prioriterad (kategori A eller tidigare försäljning)."""
+    if ready_personal(lead):
+        return 1 if lead["category"] == "A" or lead["surplus"] > 0 else 2
     return 3
 
 
@@ -194,10 +209,12 @@ HEADERS = [
     ("Belopp per deltagare", 11, "calc"),
     ("Total försäljning", 13, "calc"),
     ("Behållning 35 %", 13, "calc"),
-    ("Klar att skicka", 22, "calc"),
+    ("Klar för intro", 12, "calc"),
+    ("Klar för personligt mejl", 22, "calc"),
     ("Att göra", 34, "calc"),
     ("Kontrollera", 40, "fill"),
     ("Prioritet", 8, "base"),
+    ("Kategori", 8, "base"),
     ("Telefon", 15, "base"),
     ("Kommun", 15, "base"),
     ("Län", 14, "base"),
@@ -242,7 +259,8 @@ def write_seller_sheet(wb, title: str, leads: list[dict]):
         ws.column_dimensions[get_column_letter(i)].width = width
     ws.row_dimensions[1].height = 34
 
-    leads = sorted(leads, key=lambda l: (priority(l), -l["surplus"], l["name"].lower()))
+    leads = sorted(leads, key=lambda l: (
+        priority(l), l["category"] != "A", not l["email"], -l["surplus"], l["name"].lower()))
     fill_me = PatternFill("solid", fgColor=FILL_ME)
     for r, lead in enumerate(leads, start=2):
         e, n, b, t, k, chk = (COL[h] for h in (
@@ -260,7 +278,8 @@ def write_seller_sheet(wb, title: str, leads: list[dict]):
             "Belopp per deltagare": "=Antaganden!$B$4",
             "Total försäljning": f'=IF({n}{r}="","",{n}{r}*{b}{r})',
             "Behållning 35 %": f'=IF({t}{r}="","",ROUND({t}{r}*Antaganden!$B$5,0))',
-            "Klar att skicka": (
+            "Klar för intro": f'=IF({e}{r}="","Nej","Ja")',
+            "Klar för personligt mejl": (
                 f'=IF({e}{r}="","Nej – saknar e-post",'
                 f'IF(OR({n}{r}="",{n}{r}=0),"Nej – saknar antal deltagare",'
                 f'IF({k}{r}<>"","Nej – se Kontrollera","Ja")))'
@@ -273,6 +292,7 @@ def write_seller_sheet(wb, title: str, leads: list[dict]):
             ),
             "Kontrollera": lead["check"] or None,
             "Prioritet": priority(lead),
+            "Kategori": lead["category"] or None,
             "Telefon": lead["phone"] or None,
             "Kommun": lead["kommun"] or None,
             "Län": lead["lan"] or None,
@@ -297,7 +317,7 @@ def write_seller_sheet(wb, title: str, leads: list[dict]):
     last = max(2, len(leads) + 1)
     ws.freeze_panes = "B2"
     ws.auto_filter.ref = f"A1:{get_column_letter(len(HEADERS))}{last}"
-    klar = COL["Klar att skicka"]
+    klar = COL["Klar för personligt mejl"]
     ws.conditional_formatting.add(
         f"A2:{get_column_letter(len(HEADERS))}{last}",
         FormulaRule(formula=[f'${klar}2="Ja"'], fill=PatternFill("solid", fgColor=READY)),
@@ -321,6 +341,8 @@ def stats(leads):
         "members": sum(l["members"] is not None for l in leads),
         "ready": sum(priority(l) < 3 for l in leads),
         "prio1": sum(priority(l) == 1 for l in leads),
+        "cat_a": sum(l["category"] == "A" for l in leads),
+        "cat_a_need": sum(l["category"] == "A" and not ready_personal(l) for l in leads),
         "contact": sum(has(l, "contact") for l in leads),
         "site": sum(has(l, "site") for l in leads),
         "no_email": sum(not l["email"] and not l["check"] for l in leads),
@@ -360,59 +382,118 @@ def write_assumptions(wb):
     ws.row_dimensions[8].height = 36
 
 
-def write_warmup(wb, ready: dict[str, int], total_mail: dict[str, int]):
+INTRO_DAYS = [
+    (date(2026, 10, 27), 150), (date(2026, 10, 28), 250), (date(2026, 10, 29), 400),
+    (date(2026, 10, 30), 600), (date(2026, 11, 2), 800), (date(2026, 11, 3), 1000),
+    (date(2026, 11, 4), 1000), (date(2026, 11, 5), 1000),
+]
+WEEKDAYS = ["mån", "tis", "ons", "tor", "fre", "lör", "sön"]
+
+
+def intro_schedule(counts: dict[str, int]) -> list[tuple[date, int, dict[str, int]]]:
+    """Kents och Niclas föreningar först (i proportion), sedan Johans, inom dagstaket."""
+    left = dict(counts)
+    days = []
+    for day, cap in INTRO_DAYS:
+        room, split = cap, {}
+        districts = left["Kent"] + left["Niclas"]
+        if districts:
+            take = min(room, districts)
+            kent = min(left["Kent"], round(take * left["Kent"] / districts))
+            nic = min(left["Niclas"], take - kent)
+            kent = take - nic
+            split.update(Kent=kent, Niclas=nic)
+            left["Kent"] -= kent
+            left["Niclas"] -= nic
+            room -= take
+        if room and left[CENTRAL]:
+            take = min(room, left[CENTRAL])
+            split[CENTRAL] = take
+            left[CENTRAL] -= take
+            room -= take
+        days.append((day, cap - room, split))
+        if not any(left.values()):
+            break
+    return days
+
+
+def write_warmup(wb, intro: dict[str, int], ready: dict[str, int]):
     ws = wb.create_sheet("Uppvärmning")
-    widths = {"A": 16, "B": 16, "C": 14, "D": 14, "E": 14, "F": 16, "G": 60}
+    widths = {"A": 16, "B": 12, "C": 12, "D": 12, "E": 12, "F": 14, "G": 62}
     for k, v in widths.items():
         ws.column_dimensions[k].width = v
     ws["A1"] = "Uppvärmning av utskicken"
     ws["A1"].font = Font(bold=True, size=14, color=BROWN)
-    ws["A2"] = ("Förslag. Få mejl per dag i början så att roots.nu bygger rykte och hamnar i inkorgen, "
-                "och så att Kent och Niclas hinner följa upp de som öppnar. Siffrorna i gult går att ändra.")
+    ws["A2"] = ("Få mejl per dag i början så att roots.nu bygger rykte och hamnar i inkorgen, och så att "
+                "Kent, Niclas och Johan hinner ta hand om svaren. Under Resends tak för en ny domän "
+                "(150 dag 1, 250, 400, 700, 1 000, 1 500, 2 000).")
     ws["A2"].alignment = Alignment(wrap_text=True)
     ws.merge_cells("A2:G2")
     ws.row_dimensions[2].height = 32
 
-    head = ["Vecka", "Vardagar", "Kent per dag", "Niclas per dag", "Totalt per dag", "Totalt hittills", "Fokus"]
+    ws["A4"] = "1. Introduktionsmejlet (samma text till alla, inget räkneexempel)"
+    ws["A4"].font = Font(bold=True, color=BROWN)
+    head = ["Dag", "Kent", "Niclas", "Johan", "Totalt", "Totalt hittills", "Kommentar"]
     for i, h in enumerate(head, start=1):
-        c = ws.cell(4, i, h)
+        c = ws.cell(5, i, h)
+        c.fill, c.font = HEAD_FILL["base"], HEAD_FONT["base"]
+    r = 6
+    first = r
+    for n, (day, total, split) in enumerate(intro_schedule(intro)):
+        ws.cell(r, 1, f"{WEEKDAYS[day.weekday()]} {day.day}/{day.month}")
+        for col, seller in ((2, "Kent"), (3, "Niclas"), (4, CENTRAL)):
+            ws.cell(r, col, split.get(seller) or None)
+        ws.cell(r, 5, f"=SUM(B{r}:D{r})")
+        ws.cell(r, 6, f"=E{r}" if r == first else f"=F{r - 1}+E{r}")
+        note = {0: "Testmejl till egna adresser först. Kolla att det landar i inkorgen."}.get(n, "")
+        if not note and split.get(CENTRAL) and not any(split.get(s) for s in ("Kent", "Niclas")):
+            note = "Bara Johans föreningar kvar."
+        ws.cell(r, 7, note or None)
+        r += 1
+    ws.cell(r, 1, "Summa").font = Font(bold=True)
+    for col in (2, 3, 4, 5):
+        L = get_column_letter(col)
+        ws.cell(r, col, f"=SUM({L}{first}:{L}{r - 1})").font = Font(bold=True)
+
+    r += 2
+    ws.cell(r, 1, "2. Personligt mejl med räkneexempel och shopförslag").font = Font(bold=True, color=BROWN)
+    r += 1
+    ws.cell(r, 1, ("Startar 5–7 arbetsdagar efter att föreningen fick introduktionen, med prioritet 1 först "
+                   "(Niclas kategori A, Kents tidigare försäljning). Bara rader där Klar för personligt mejl = Ja."))
+    ws.cell(r, 1).alignment = Alignment(wrap_text=True)
+    ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=7)
+    ws.row_dimensions[r].height = 30
+    r += 1
+    for i, h in enumerate(["Vecka", "Vardagar", "Kent per dag", "Niclas per dag", "Totalt per dag", "Totalt hittills", "Fokus"], start=1):
+        c = ws.cell(r, i, h)
         c.fill, c.font = HEAD_FILL["base"], HEAD_FONT["base"]
     plan = [
-        (1, 5, 10, 5, "Prioritet 1 först (tidigare kontakt). Följ upp öppnade samma vecka."),
-        (2, 5, 20, 8, "Håll studs under 4 %. Pausa om många studsar eller svarar 'sluta'."),
-        (3, 5, 30, 8, "Fortsätt med prioritet 2 och de rader Kent/Niclas har kompletterat."),
-        (4, 5, 40, 8, "40 per dag och säljare är agentens tak idag."),
+        ("Från 3/11", 5, 10, 10, "Ring de som inte svarat efter 3–5 arbetsdagar."),
+        ("Från 10/11", 5, 20, 20, "Håll studs under 4 %. Pausa om många studsar eller svarar 'sluta'."),
+        ("Från 17/11", 5, 30, 30, "Fortsätt med prioritet 2 och de rader som har kompletterats."),
+        ("Från 24/11", 5, 40, 40, "40 per dag och säljare är agentens tak idag."),
     ]
-    for i, (v, days, kent, nic, focus) in enumerate(plan, start=5):
-        ws.cell(i, 1, f"Vecka {v}")
+    start = r + 1
+    for i, (v, days, kent, nic, focus) in enumerate(plan, start=start):
+        ws.cell(i, 1, v)
         ws.cell(i, 2, days)
         ws.cell(i, 3, kent).fill = PatternFill("solid", fgColor=FILL_ME)
         ws.cell(i, 4, nic).fill = PatternFill("solid", fgColor=FILL_ME)
         ws.cell(i, 5, f"=C{i}+D{i}")
-        ws.cell(i, 6, f"=B{i}*E{i}" if i == 5 else f"=F{i-1}+B{i}*E{i}")
+        ws.cell(i, 6, f"=B{i}*E{i}" if i == start else f"=F{i - 1}+B{i}*E{i}")
         ws.cell(i, 7, focus)
+    r = start + len(plan)
+    ws.cell(r, 1, f"Klara för personligt mejl nu: Kent {ready['Kent']}, Niclas {ready['Niclas']}.")
+    ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=7)
 
-    r = 11
-    ws.cell(r, 1, "Läget i listan").font = Font(bold=True)
-    labels = [
-        ("Kent: klara att skicka nu", ready["Kent"]),
-        ("Kent: har e-post", total_mail["Kent"]),
-        ("Niclas: klara att skicka nu", ready["Niclas"]),
-        ("Niclas: har e-post", total_mail["Niclas"]),
-    ]
-    for i, (a, b) in enumerate(labels, start=r + 1):
-        ws.cell(i, 1, a)
-        ws.cell(i, 3, b)
-
-    r = 18
+    r += 2
     ws.cell(r, 1, "Regler").font = Font(bold=True)
     rules = [
-        "Bara vardagar, 08–16. Ingen massutskick-knapp på kvällen.",
-        "Börja med ett testmejl till egna adresser på Gmail, Outlook/Hotmail och Telia och kolla att det landar i inkorgen.",
+        "Bara vardagar, 08–16.",
         "Studs (felaktig adress) under 4 % och skräppostanmälan under 0,08 % (Resends gränser). Går det över: pausa och rensa listan.",
-        "Den som öppnar förslaget eller klickar 'Jag vill veta mer' får ett samtal inom två vardagar.",
-        "Svar och avregistreringar markeras i agenten samma dag. Den som säger nej mejlas aldrig igen.",
-        "Resend tillåter mer (ny domän: 150 dag 1 upp till 2 000 dag 7), men kalla mejl från en personlig adress mår bäst av lugnt tempo.",
+        "Den som klickar 'Jag vill veta mer' eller svarar kontaktas inom två arbetsdagar.",
+        "Den som svarar eller anmäler intresse får inga fler standardmejl. Den som säger nej mejlas aldrig igen.",
+        "'Öppnat' är en fingervisning (Apple Mail visar nästan allt som öppnat). Klick och svar är de säkra signalerna.",
     ]
     for i, t in enumerate(rules, start=r + 1):
         ws.cell(i, 1, f"• {t}")
@@ -421,51 +502,53 @@ def write_warmup(wb, ready: dict[str, int], total_mail: dict[str, int]):
         ws.row_dimensions[i].height = 30
 
 
-def write_readme(wb, st: dict[str, dict], skipped, shared: int):
+def write_readme(wb, st: dict[str, dict], skipped, shared: int, dead: int):
     ws = wb.create_sheet("Läs mig", 0)
     ws.column_dimensions["A"].width = 4
     ws.column_dimensions["B"].width = 110
+    k, n, j = st["Kent"], st["Niclas"], st[CENTRAL]
+    intro_total = k["email"] + n["email"] + j["email"]
     lines: list[tuple[str, str]] = [
-        ("h1", "Leadslista sats 2 – Kent och Niclas"),
-        ("p", f"Byggd {date.today():%Y-%m-%d} från Leadslista_kompletterad.xlsx och mejltexten "
-              "'Enklare föreningsförsäljning för [Föreningsnamn]'. Flikarna Leadsbas och Kontroll är orörda."),
+        ("h1", "Leadslista sats 2 – Kent, Niclas och Johan"),
+        ("p", f"Byggd {date.today():%Y-%m-%d} från Leadslista_kompletterad.xlsx (version med Säljare Roots och "
+              "Kategori). Flikarna Leadsbas och Kontroll är orörda."),
+        ("h2", "Två utskick"),
+        ("p", "1. Introduktionsmejlet 'Möt Roots – enklare försäljning för er förening' går brett från tisdag 27 okt. "
+              "Samma text till alla, med knappen 'Jag vill veta mer'. Kräver bara e-post."),
+        ("p", "2. Det personliga mejlet med räkneexempel och shopförslag kommer 5–7 arbetsdagar senare, från Kent "
+              "och Niclas till deras egna föreningar. Kräver e-post och antal deltagare."),
         ("h2", "Flikarna"),
-        ("p", "Kent – utskick / Niclas – utskick: en rad per förening som är tilldelad säljaren. "
-              "Importeras direkt i Lead-mejl (välj fliken vid import)."),
-        ("p", "Antaganden: belopp per deltagare (6 × 399 kr = 2 394 kr) och 35 % till föreningen. Styr räkneexemplet."),
-        ("p", "Uppvärmning: hur många mejl per dag de första veckorna, och reglerna för uppföljning."),
+        ("p", "Kent – utskick / Niclas – utskick: alla föreningar som är taggade på säljaren. Importeras i Lead-mejl."),
+        ("p", f"{CENTRAL} – intro: föreningar utan säljare som har e-post. Får introduktionen från Johan Lindqvist."),
+        ("p", "Uppvärmning: hur många mejl per dag, dag för dag, och reglerna för uppföljning."),
+        ("p", "Antaganden: belopp per deltagare (6 × 399 kr = 2 394 kr) och 35 % till föreningen."),
         ("h2", "Färgerna i rubrikraden"),
         ("p", "Gul = Kent och Niclas fyller i (tomma gula rutor saknas). Brun = från listan. "
-              "Ljusbrun = räknas automatiskt. Grön = fylls i efter utskick (skickat, öppnat, svarat, nästa steg)."),
-        ("p", "Hela raden blir grön när den är klar att skicka."),
+              "Ljusbrun = räknas automatiskt. Grön = fylls i efter utskick (skickat, öppnat, svarat, nästa steg). "
+              "Hela raden blir grön när den är klar för det personliga mejlet."),
         ("h2", "Läget"),
-    ]
-    for seller in SELLERS:
-        s = st[seller]
-        lines.append(("p", (
-            f"{seller}: {s['total']} föreningar. {s['email']} har e-post, {s['members']} har medlemsantal, "
-            f"{s['ready']} är klara att skicka nu (varav {s['prio1']} med tidigare försäljning, prioritet 1). "
-            f"{s['contact']} har kontaktperson, {s['site']} har webbplats."
-        )))
-    lines += [
-        ("p", f"{len(skipped)} föreningar markerade 'Ta ej med' är inte med i utskicksflikarna."),
-        ("p", f"{shared} e-postadresser delas av flera föreningar. Adressen står kvar på en rad; "
-              "övriga rader har en förklaring i Kontrollera."),
-        ("h2", "Manuellt jobb för Kent och Niclas (i den här ordningen)"),
-    ]
-    k, n = st["Kent"], st["Niclas"]
-    lines += [
-        ("p", "Antal deltagare är förifyllt med föreningens alla medlemmar. Bedöm och justera där det "
-              "behövs, så räknas försäljning och behållning om direkt."),
-        ("p", f"1. Fyll i Antal deltagare där e-post finns men antal saknas (Kent {k['need_members']}, "
-              f"Niclas {n['need_members']}). Sortera på Prioritet och Överskott så tas de viktigaste först."),
-        ("p", f"2. Gå igenom rutan Kontrollera ({k['check'] + n['check']} rader): delade adresser, "
-              "stora föreningar och adresser vars domän inte tar emot mejl. Töm rutan när det är löst."),
-        ("p", f"3. Hitta e-post för de som saknar (Kent {k['no_email']}, Niclas {n['no_email']})."),
+        ("p", f"Introduktionen: {intro_total} föreningar med e-post (Kent {k['email']}, Niclas {n['email']}, "
+              f"Johan {j['email']}). Varje adress finns bara på en rad."),
+        ("p", f"Kent: {k['total']} föreningar, {k['members']} med medlemsantal, {k['ready']} klara för personligt "
+              f"mejl ({k['prio1']} med tidigare försäljning = prioritet 1)."),
+        ("p", f"Niclas: {n['total']} föreningar, varav {n['cat_a']} i kategori A. {n['members']} med medlemsantal, "
+              f"{n['ready']} klara för personligt mejl."),
+        ("p", f"{len(skipped)} föreningar markerade 'Ta ej med' är inte med. {shared} adresser delas av flera "
+              f"föreningar och står bara på en rad. {dead} adresser ligger på domäner som inte tar emot mejl "
+              "och är flyttade till Kontrollera."),
+        ("h2", "Manuellt jobb för Kent och Niclas"),
+        ("p", "Antal deltagare är förifyllt med föreningens alla medlemmar där det finns. Bedöm och justera, "
+              "så räknas försäljning och behållning om direkt."),
+        ("p", f"1. Niclas: fyll i Antal deltagare för kategori A först ({n['cat_a_need']} rader). "
+              f"Kent: börja med prioritet och överskott ({k['need_members']} rader med e-post saknar antal)."),
+        ("p", f"2. Gå igenom Kontrollera (Kent {k['check']}, Niclas {n['check']}): delade adresser, stora "
+              "föreningar och döda adresser. Töm rutan när det är löst."),
+        ("p", f"3. Hitta e-post där den saknas (Kent {k['no_email']}, Niclas {n['no_email']}). Nya adresser "
+              "före måndag kväll hinner med i introduktionen."),
         ("p", "4. Valfritt: kontaktperson (ger 'Hej Anna!' i stället för 'Hej!') och webbplats "
               "(ger föreningens logga i shopförslaget)."),
         ("p", "Skriv bara i gula kolumner och de gröna uppföljningskolumnerna. Ändra inte Förening eller Rad i Leadsbas."),
-        ("h2", "Så används kolumnerna i mejlet"),
+        ("h2", "Så används kolumnerna i det personliga mejlet"),
         ("p", "[Föreningsnamn] = Förening. [Förnamn] = första namnet i Kontaktperson. "
               "[antal deltagare] = Antal deltagare. [belopp] = Belopp per deltagare. "
               "[total försäljning] = Total försäljning. [Behållning] = Behållning 35 %. "
@@ -501,15 +584,16 @@ def main(src: str, dst: str):
     dead = mark_dead_domains(leads)
     st = {}
     for seller in SELLERS:
-        write_seller_sheet(wb, f"{seller} – utskick", leads[seller])
+        title = f"{seller} – intro" if seller == CENTRAL else f"{seller} – utskick"
+        write_seller_sheet(wb, title, leads[seller])
         st[seller] = stats(leads[seller])
     write_warmup(
         wb,
-        {s: st[s]["ready"] for s in SELLERS},
         {s: st[s]["email"] for s in SELLERS},
+        {s: st[s]["ready"] for s in SELLERS},
     )
     write_assumptions(wb)
-    write_readme(wb, st, skipped, shared)
+    write_readme(wb, st, skipped, shared, dead)
     originals = [wb["Leadsbas"], wb["Kontroll"]]
     wb._sheets = [ws for ws in wb.worksheets if ws not in originals] + originals
     wb.active = 0
