@@ -5,11 +5,18 @@ orörda och lägger till: Läs mig, en flik per avsändare, Uppvärmning
 och Antaganden. Utskicksflikarna har rubriken på rad 1 så att de går att
 importera direkt i /portal/lead-mejl.
 
-    python3 docs/leads/build_utskick.py IN.xlsx UT.xlsx
+    python3 docs/leads/build_utskick.py IN.xlsx UT.xlsx \
+        [--berikning berikning.jsonl ...] [--kontakter Niclas=fil.xlsx]
+
+--berikning läser utdata från enrich_members.py (webbplats, e-post och
+medlemsantal med källa). --kontakter läser en säljares egen kontaktlista
+(Kundnamn, Kontaktperson, Telefonnummer, E-post).
 """
 
 from __future__ import annotations
 
+import argparse
+import json
 import re
 import subprocess
 import sys
@@ -120,8 +127,109 @@ def collect(ws):
             "kuvert": number(row[C_KUVERT]),
             "category": text(row[C_CATEGORY]).upper(),
             "check": "",
+            "contact_from": "Listan" if text(row[C_CONTACT]) else "",
+            "total": members_of(row),
+            "active": None,
+            "member_status": "Från listan" if members_of(row) else "",
+            "member_source": "",
+            "member_quote": "",
         })
     return leads, skipped
+
+
+def norm_name(s: str) -> str:
+    return re.sub(r"[^a-zåäö0-9]", "", s.lower())
+
+
+def apply_contacts(leads, seller: str, path: str) -> int:
+    """Säljarens egen kontaktlista: kontaktperson, telefon och hans e-post först."""
+    rows = load_workbook(path, read_only=True).worksheets[0].iter_rows(min_row=2, values_only=True)
+    mine = leads[seller]
+    by_name = defaultdict(list)
+    by_mail = defaultdict(list)
+    for lead in mine:
+        by_name[norm_name(lead["name"])].append(lead)
+        for m in [lead["email"], *lead["more"].split(", ")]:
+            if m:
+                by_mail[m].append(lead)
+    n = 0
+    for r in rows:
+        name, person, phone, mails = text(r[3]), text(r[4]), text(r[5]), text(r[6])
+        if not name:
+            continue
+        own = [m.strip().lower() for m in re.split(r"[;,\s]+", mails) if EMAIL_RE.match(m.strip())]
+        hits = by_name.get(norm_name(name)) or next((by_mail[m] for m in own if m in by_mail), [])
+        if not hits:
+            continue
+        lead = sorted(hits, key=lambda l: l["category"] != "A")[0]
+        n += 1
+        lead["category"] = "A"
+        if person:
+            names = []
+            for p in person.split(";"):
+                last, _, first = p.strip().partition(", ")
+                names.append(f"{first} {last}".strip() if first else p.strip())
+            lead["contact"] = "; ".join(n for n in names if n)
+            owner = seller if seller.endswith("s") else f"{seller}s"
+            lead["contact_from"] = f"{owner} lista 2021 – bekräfta att personen är kvar"
+        if phone and not lead["phone"]:
+            lead["phone"] = phone
+        if own:
+            known = [m for m in [lead["email"], *lead["more"].split(", ")] if m]
+            ordered = own + [m for m in known if m not in own]
+            lead["email"], lead["more"] = ordered[0], ", ".join(ordered[1:])
+    return n
+
+
+def apply_enrichment(leads, path: str) -> int:
+    """Agentens sökning: webbplats, e-post och medlemsantal med källa och status."""
+    by_row = {l["row"]: l for s in SELLERS for l in leads[s]}
+    n = 0
+    for line in open(path, encoding="utf-8"):
+        if not line.strip():
+            continue
+        rec = json.loads(line)
+        lead = by_row.get(rec["row"])
+        if not lead:
+            continue
+        n += 1
+        f, ck = rec["found"], rec["check"]
+        if f.get("website") and not lead["site"]:
+            lead["site"] = f["website"]
+        mail = (f.get("email") or "").strip().lower()
+        if mail and ck.get("email_mx") and EMAIL_RE.match(mail):
+            known = [m for m in [lead["email"], *lead["more"].split(", ")] if m]
+            if not lead["email"] and ck.get("email_on_page"):
+                lead["email"] = mail
+            elif mail not in known:
+                lead["more"] = ", ".join(x for x in [lead["more"], mail] if x)
+        if lead["member_status"]:
+            continue
+        total, active, year = f.get("members_total"), f.get("members_active"), f.get("members_year")
+        if not (total or active):
+            continue
+        lead["total"], lead["active"] = total, active
+        lead["year"] = year
+        lead["member_source"] = f.get("members_source") or ""
+        lead["member_quote"] = " ".join(x for x in [f.get("members_quote"), f.get("note")] if x)
+        value = active or total
+        if (active and total and active > total) or value < 50:
+            lead["member_status"] = "Misstänkt fel"
+            lead["check"] = " ".join(x for x in [
+                f"Agenten hittade {total or '–'} medlemmar ({active or '–'} aktiva), som ser fel ut. "
+                "Fyll i rätt antal deltagare och töm rutan.", lead["check"]] if x)
+            continue
+        lead["members"] = value
+        if year and year >= 2023 and ck.get("members_on_page"):
+            lead["member_status"] = "Agenten – källa kontrollerad"
+        elif year and year >= 2023:
+            lead["member_status"] = "Agenten – kontrollera källan"
+        else:
+            lead["member_status"] = "Agenten – gammal siffra"
+            lead["check"] = " ".join(x for x in [
+                f"Medlemsantalet är från {year or 'okänt år'}. Bekräfta antal deltagare och töm rutan.",
+                lead["check"]] if x)
+    return n
 
 
 def mark_shared(leads) -> int:
@@ -206,6 +314,10 @@ HEADERS = [
     ("Antal deltagare", 11, "fill"),
     ("Medlemmar enligt källa", 11, "base"),
     ("Medlemsår", 9, "base"),
+    ("Aktiva enligt källa", 10, "base"),
+    ("Medlemsuppgift", 24, "base"),
+    ("Källa medlemsantal", 30, "base"),
+    ("Citat och kommentar", 44, "base"),
     ("Belopp per deltagare", 11, "calc"),
     ("Total försäljning", 13, "calc"),
     ("Behållning 35 %", 13, "calc"),
@@ -216,6 +328,7 @@ HEADERS = [
     ("Prioritet", 8, "base"),
     ("Kategori", 8, "base"),
     ("Telefon", 15, "base"),
+    ("Kontaktperson från", 22, "base"),
     ("Kommun", 15, "base"),
     ("Län", 14, "base"),
     ("Idrott", 16, "base"),
@@ -273,8 +386,13 @@ def write_seller_sheet(wb, title: str, leads: list[dict]):
             "Fler e-postadresser": lead["more"] or None,
             "Webbplats": lead["site"] or None,
             "Antal deltagare": lead["members"],
-            "Medlemmar enligt källa": lead["members"],
+            "Medlemmar enligt källa": lead["total"],
             "Medlemsår": lead["year"],
+            "Aktiva enligt källa": lead["active"],
+            "Medlemsuppgift": lead["member_status"] or None,
+            "Källa medlemsantal": lead["member_source"] or None,
+            "Citat och kommentar": lead["member_quote"] or None,
+            "Kontaktperson från": lead["contact_from"] or None,
             "Belopp per deltagare": "=Antaganden!$B$4",
             "Total försäljning": f'=IF({n}{r}="","",{n}{r}*{b}{r})',
             "Behållning 35 %": f'=IF({t}{r}="","",ROUND({t}{r}*Antaganden!$B$5,0))',
@@ -313,6 +431,10 @@ def write_seller_sheet(wb, title: str, leads: list[dict]):
         for h in ("Skickat", "Följ upp senast"):
             ws[f"{COL[h]}{r}"].number_format = "yyyy-mm-dd"
         ws[f"{COL['Kontrollera']}{r}"].alignment = Alignment(wrap_text=True, vertical="top")
+        src = ws[f"{COL['Källa medlemsantal']}{r}"]
+        if lead["member_source"].startswith("http"):
+            src.hyperlink = lead["member_source"]
+            src.font = Font(color="1F5FA8", underline="single")
 
     last = max(2, len(leads) + 1)
     ws.freeze_panes = "B2"
@@ -512,11 +634,21 @@ def write_readme(wb, st: dict[str, dict], skipped, shared: int, dead: int):
         ("h1", "Leadslista sats 2 – Kent, Niclas och Johan"),
         ("p", f"Byggd {date.today():%Y-%m-%d} från Leadslista_kompletterad.xlsx (version med Säljare Roots och "
               "Kategori). Flikarna Leadsbas och Kontroll är orörda."),
-        ("h2", "Två utskick"),
-        ("p", "1. Introduktionsmejlet 'Möt Roots – enklare försäljning för er förening' går brett från tisdag 27 okt. "
-              "Samma text till alla, med knappen 'Jag vill veta mer'. Kräver bara e-post."),
-        ("p", "2. Det personliga mejlet med räkneexempel och shopförslag kommer 5–7 arbetsdagar senare, från Kent "
-              "och Niclas till deras egna föreningar. Kräver e-post och antal deltagare."),
+        ("h2", "Utskicket"),
+        ("p", "Start måndag 2 november, 10–20 mejl per dag de första två veckorna (uppvärmning av adressen), "
+              "sedan ökar vi. Kents och Niclas viktigaste föreningar går först."),
+        ("p", "Personligt mejl (räkneexempel och shopförslag) kräver e-post och antal deltagare. Övriga får det "
+              "generella mejlet med 'Jag vill veta mer', med Kent eller Niclas som avsändare. Föreningar med avtal "
+              "och pågående dialog får inget utskick."),
+        ("p", "Fliken Uppvärmning visar den gamla, snabbare takten och gäller inte längre."),
+        ("h2", "Ifyllt av agenten"),
+        ("p", "Medlemsuppgift visar var antalet kommer ifrån: 'Från listan', 'Agenten – källa kontrollerad' "
+              "(siffran står på källsidan, 2023 eller senare), 'Agenten – kontrollera källan' (aktuell men sidan "
+              "gick inte att läsa), 'Agenten – gammal siffra' och 'Misstänkt fel'. Källan är klickbar och "
+              "citatet visar exakt vad som står. Antal deltagare är förifyllt med aktiva där källan skiljer på "
+              "aktiva och stödmedlemmar, annars med alla medlemmar."),
+        ("p", "Kontaktperson från visar om kontakten kommer från säljarens egen lista (2020–2021) och behöver "
+              "bekräftas."),
         ("h2", "Flikarna"),
         ("p", "Kent – utskick / Niclas – utskick: alla föreningar som är taggade på säljaren. Importeras i Lead-mejl."),
         ("p", f"{CENTRAL} – intro: föreningar utan säljare som har e-post. Får introduktionen från Johan Lindqvist."),
@@ -537,14 +669,14 @@ def write_readme(wb, st: dict[str, dict], skipped, shared: int, dead: int):
               f"föreningar och står bara på en rad. {dead} adresser ligger på domäner som inte tar emot mejl "
               "och är flyttade till Kontrollera."),
         ("h2", "Manuellt jobb för Kent och Niclas"),
-        ("p", "Antal deltagare är förifyllt med föreningens alla medlemmar där det finns. Bedöm och justera, "
+        ("p", "Antal deltagare är förifyllt där det finns en siffra. Bedöm och justera till aktiva medlemmar, "
               "så räknas försäljning och behållning om direkt."),
         ("p", f"1. Niclas: fyll i Antal deltagare för kategori A först ({n['cat_a_need']} rader). "
               f"Kent: börja med prioritet och överskott ({k['need_members']} rader med e-post saknar antal)."),
         ("p", f"2. Gå igenom Kontrollera (Kent {k['check']}, Niclas {n['check']}): delade adresser, stora "
               "föreningar och döda adresser. Töm rutan när det är löst."),
         ("p", f"3. Hitta e-post där den saknas (Kent {k['no_email']}, Niclas {n['no_email']}). Nya adresser "
-              "före måndag kväll hinner med i introduktionen."),
+              "före söndag kväll 1 november hinner med från start."),
         ("p", "4. Valfritt: kontaktperson (ger 'Hej Anna!' i stället för 'Hej!') och webbplats "
               "(ger föreningens logga i shopförslaget)."),
         ("p", "Skriv bara i gula kolumner och de gröna uppföljningskolumnerna. Ändra inte Förening eller Rad i Leadsbas."),
@@ -576,9 +708,14 @@ def write_readme(wb, st: dict[str, dict], skipped, shared: int, dead: int):
     ws.sheet_view.showGridLines = False
 
 
-def main(src: str, dst: str):
+def main(src: str, dst: str, enrichments: list[str], contacts: list[str]):
     wb = load_workbook(src)
     leads, skipped = collect(wb["Leadsbas"])
+    for spec in contacts:
+        seller, _, path = spec.partition("=")
+        print(f"kontakter {seller}:", apply_contacts(leads, seller, path))
+    for path in enrichments:
+        print(f"berikning {path}:", apply_enrichment(leads, path))
     shared = mark_shared(leads)
     mark_big(leads)
     dead = mark_dead_domains(leads)
@@ -606,4 +743,10 @@ def main(src: str, dst: str):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1], sys.argv[2])
+    ap = argparse.ArgumentParser()
+    ap.add_argument("src")
+    ap.add_argument("dst")
+    ap.add_argument("--berikning", action="append", default=[])
+    ap.add_argument("--kontakter", action="append", default=[])
+    a = ap.parse_args()
+    main(a.src, a.dst, a.berikning, a.kontakter)
