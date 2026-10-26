@@ -267,6 +267,47 @@ export const connectedClubs: ClubLogo[] = [
       },
     },
   },
+  {
+    slug: "ange-ridklubb",
+    name: "Ånge Ridklubb",
+    town: "Ånge",
+    logo: "/images/klubbar/ange-ridklubb.png",
+    width: 480,
+    height: 432,
+    website: "https://angeridklubb.se/",
+    copy: {
+      sv: {
+        sport: "Ridsport",
+        summary:
+          "En liten ridklubb med stort hjärta mitt i Sverige, med ridning för alla sedan 1968.",
+        body: [
+          "Ånge Ridklubb bildades 1968, och anläggningen på Södra Borgsjövägen är byggd med hjälp av ideella krafter. Här finns isolerat ridhus, paddock, en stor utebana och stall för 20 hästar, varav 13 är ridskolehästar och ponnyer.",
+          "Ridskolan har lektioner för barn, ungdomar, vuxna och personer med funktionsnedsättning, från nybörjare till mer avancerade grupper. Varje år arrangerar klubben tävlingar i hoppning och dressyr, och medlemmarna hjälps åt med stalljour, café och försäljningar för att få verksamheten att gå runt.",
+        ],
+        facts: [
+          "Bildad 1968",
+          "13 ridskolehästar och ponnyer",
+          "Anpassad ridning två dagar i veckan",
+          "Tävlingar i hoppning och dressyr varje år",
+        ],
+      },
+      en: {
+        sport: "Equestrian",
+        summary:
+          "A small riding club with a big heart in the middle of Sweden, offering riding for everyone since 1968.",
+        body: [
+          "Ånge Ridklubb was founded in 1968, and its facility on Södra Borgsjövägen was built with the help of volunteers. It has an insulated indoor arena, a paddock, a large outdoor arena and stabling for 20 horses, 13 of them riding school horses and ponies.",
+          "The riding school offers lessons for children, young people, adults and people with disabilities, from beginners to more advanced groups. Every year the club hosts jumping and dressage competitions, and members pitch in with stable duty, the café and fundraising sales to keep things running.",
+        ],
+        facts: [
+          "Founded in 1968",
+          "13 riding school horses and ponies",
+          "Adapted riding two days a week",
+          "Jumping and dressage competitions every year",
+        ],
+      },
+    },
+  },
 ];
 
 export function getClub(slug: string): ClubLogo | undefined {
