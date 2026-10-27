@@ -53,6 +53,20 @@ FILL_ME = "FFF2C2"
 TRACK = "E6EEE8"
 READY = "DDEFD9"
 
+SEG_PERSONAL = "Personligt mejl"
+SEG_GENERAL = "Generellt mejl"
+SEG_DIALOG = "Pågående dialog – påstötning"
+SEG_AGREEMENT = "Avtal – skicka inte"
+SEG_SKIP = "Skicka inte"
+SEGMENTS = [SEG_PERSONAL, SEG_GENERAL, SEG_DIALOG, SEG_AGREEMENT, SEG_SKIP]
+SEGMENT_FILL = {
+    SEG_PERSONAL: "DDEFD9",
+    SEG_GENERAL: "EEE6DA",
+    SEG_DIALOG: "F6D3A8",
+    SEG_AGREEMENT: "D9D9D9",
+    SEG_SKIP: "D9D9D9",
+}
+
 STATUSES = [
     "Ej skickad", "Skickad", "Öppnad", "Öppnat förslaget", "Vill veta mer",
     "Svarat", "Möte bokat", "Inte intresserad", "Studsade", "Avregistrerad",
@@ -382,6 +396,13 @@ def ready_personal(lead) -> bool:
     return bool(lead["email"]) and lead["members"] is not None and not lead["check"]
 
 
+def suggested_segment(lead, seller: str) -> str:
+    """Förslag; Kent, Niclas och Johan ändrar. Pågående dialog sätts bara av dem."""
+    if seller != CENTRAL and (priority(lead) < 3 or lead["category"] == "A"):
+        return SEG_PERSONAL
+    return SEG_GENERAL
+
+
 def priority(lead) -> int:
     """1 = klar för personligt mejl och prioriterad (kategori A eller tidigare försäljning)."""
     if ready_personal(lead):
@@ -392,6 +413,7 @@ def priority(lead) -> int:
 HEADERS = [
     # (rubrik, bredd, grupp) grupp: base | fill | calc | track
     ("Förening", 34, "base"),
+    ("Segment", 26, "fill"),
     ("Kontaktperson", 20, "fill"),
     ("E-post", 32, "fill"),
     ("Fler e-postadresser", 28, "base"),
@@ -410,7 +432,7 @@ HEADERS = [
     ("Klar för personligt mejl", 22, "calc"),
     ("Att göra", 34, "calc"),
     ("Kontrollera", 40, "fill"),
-    ("Prioritet", 8, "base"),
+    ("Ordning", 8, "base"),
     ("Kategori", 8, "base"),
     ("Telefon", 15, "base"),
     ("Kontaktperson från", 22, "base"),
@@ -452,7 +474,7 @@ HEAD_FONT = {
 THIN = Side(style="thin", color="E2D8CC")
 
 
-def write_seller_sheet(wb, title: str, leads: list[dict]):
+def write_seller_sheet(wb, title: str, seller: str, leads: list[dict]):
     ws = wb.create_sheet(title)
     for i, (h, width, group) in enumerate(HEADERS, start=1):
         c = ws.cell(1, i, h)
@@ -465,11 +487,13 @@ def write_seller_sheet(wb, title: str, leads: list[dict]):
         priority(l), l["category"] != "A", not l["email"], -l["surplus"], l["name"].lower()))
     fill_me = PatternFill("solid", fgColor=FILL_ME)
     for r, lead in enumerate(leads, start=2):
-        e, n, b, t, k, chk = (COL[h] for h in (
+        e, n, b, t, k, chk, s = (COL[h] for h in (
             "E-post", "Antal deltagare", "Belopp per deltagare",
-            "Total försäljning", "Kontrollera", "Kontaktperson"))
+            "Total försäljning", "Kontrollera", "Kontaktperson", "Segment"))
+        personal = f'{s}{r}="{SEG_PERSONAL}"'
         values = {
             "Förening": lead["name"],
+            "Segment": suggested_segment(lead, seller),
             "Kontaktperson": lead["contact"] or None,
             "E-post": lead["email"] or None,
             "Fler e-postadresser": lead["more"] or None,
@@ -491,18 +515,20 @@ def write_seller_sheet(wb, title: str, leads: list[dict]):
             "Behållning 35 %": f'=IF({t}{r}="","",ROUND({t}{r}*Antaganden!$B$5,0))',
             "Klar för intro": f'=IF({e}{r}="","Nej","Ja")',
             "Klar för personligt mejl": (
-                f'=IF({e}{r}="","Nej – saknar e-post",'
+                f'=IF(NOT({personal}),"–",'
+                f'IF({e}{r}="","Nej – saknar e-post",'
                 f'IF(OR({n}{r}="",{n}{r}=0),"Nej – saknar antal deltagare",'
-                f'IF({k}{r}<>"","Nej – se Kontrollera","Ja")))'
+                f'IF({k}{r}<>"","Nej – se Kontrollera","Ja"))))'
             ),
             "Att göra": (
-                f'=TRIM(IF({e}{r}="","Hitta e-post. ","")'
-                f'&IF(OR({n}{r}="",{n}{r}=0),"Fyll i antal deltagare. ","")'
+                f'=IF(OR({s}{r}="{SEG_AGREEMENT}",{s}{r}="{SEG_SKIP}"),"",'
+                f'TRIM(IF({e}{r}="","Hitta e-post. ","")'
+                f'&IF(AND({personal},OR({n}{r}="",{n}{r}=0)),"Fyll i antal deltagare. ","")'
                 f'&IF({k}{r}<>"","Kolla rutan Kontrollera. ","")'
-                f'&IF({chk}{r}="","Valfritt: kontaktperson.",""))'
+                f'&IF(AND({personal},{chk}{r}=""),"Valfritt: kontaktperson.","")))'
             ),
             "Kontrollera": lead["check"] or None,
-            "Prioritet": priority(lead),
+            "Ordning": priority(lead),
             "Kategori": lead["category"] or None,
             "Telefon": lead["phone"] or None,
             "Kommun": lead["kommun"] or None,
@@ -530,8 +556,19 @@ def write_seller_sheet(wb, title: str, leads: list[dict]):
             src.font = Font(color="1F5FA8", underline="single")
 
     last = max(2, len(leads) + 1)
-    ws.freeze_panes = "B2"
+    ws.freeze_panes = "C2"
     ws.auto_filter.ref = f"A1:{get_column_letter(len(HEADERS))}{last}"
+    seg = DataValidation(type="list", formula1='"' + ",".join(SEGMENTS) + '"', allow_blank=False,
+                         showErrorMessage=True, errorTitle="Segment",
+                         error="Välj ett segment i listan.")
+    ws.add_data_validation(seg)
+    seg.add(f"{COL['Segment']}2:{COL['Segment']}{last}")
+    for name, color in SEGMENT_FILL.items():
+        ws.conditional_formatting.add(
+            f"{COL['Segment']}2:{COL['Segment']}{last}",
+            FormulaRule(formula=[f'${COL["Segment"]}2="{name}"'], fill=PatternFill("solid", fgColor=color),
+                        stopIfTrue=True),
+        )
     klar = COL["Klar för personligt mejl"]
     ws.conditional_formatting.add(
         f"A2:{get_column_letter(len(HEADERS))}{last}",
@@ -734,6 +771,17 @@ def write_readme(wb, st: dict[str, dict], skipped, shared: int, dead: int):
               "generella mejlet med 'Jag vill veta mer', med Kent eller Niclas som avsändare. Föreningar med avtal "
               "och pågående dialog får inget utskick."),
         ("p", "Fliken Uppvärmning visar den gamla, snabbare takten och gäller inte längre."),
+        ("h2", "Segment – vilket utskick föreningen åker med i"),
+        ("p", "Kolumn B. Välj i listan; det är den kolumnen systemet läser."),
+        ("p", f"{SEG_PERSONAL}: räkneexempel och shopförslag, från Kent eller Niclas. Kräver e-post och antal "
+              "deltagare. Förifyllt för Niclas kategori A och föreningar som redan har allt."),
+        ("p", f"{SEG_GENERAL}: introduktionen med 'Jag vill veta mer'. Kräver bara e-post. Förifyllt för övriga."),
+        ("p", f"{SEG_DIALOG}: föreningar ni redan pratar med. Får inget massutskick, bara påstötningen "
+              "('det går bra, dags att bestämma sig') från er egen inkorg. Sätts bara av er."),
+        ("p", f"{SEG_AGREEMENT} och {SEG_SKIP}: får ingenting."),
+        ("p", "Ordning (1–3) är något annat: den säger hur komplett underlaget är och styr vem som går först "
+              "inom ett segment. 1 = klar för personligt mejl och tidigare försäljning eller kategori A, "
+              "2 = klar, 3 = något saknas."),
         ("h2", "Ifyllt av agenten"),
         ("p", "Medlemsuppgift visar var antalet kommer ifrån: 'Från listan', 'Agenten – källa kontrollerad' "
               "(siffran står på källsidan, 2023 eller senare), 'Agenten – kontrollera källan' (aktuell men sidan "
@@ -757,17 +805,19 @@ def write_readme(wb, st: dict[str, dict], skipped, shared: int, dead: int):
         ("p", f"Introduktionen: {intro_total} föreningar med e-post (Kent {k['email']}, Niclas {n['email']}, "
               f"Johan {j['email']}). Varje adress finns bara på en rad."),
         ("p", f"Kent: {k['total']} föreningar, {k['members']} med medlemsantal, {k['ready']} klara för personligt "
-              f"mejl ({k['prio1']} med tidigare försäljning = prioritet 1)."),
+              f"mejl ({k['prio1']} med tidigare försäljning = ordning 1)."),
         ("p", f"Niclas: {n['total']} föreningar, varav {n['cat_a']} i kategori A. {n['members']} med medlemsantal, "
               f"{n['ready']} klara för personligt mejl."),
         ("p", f"{len(skipped)} föreningar markerade 'Ta ej med' är inte med. {shared} adresser delas av flera "
               f"föreningar och står bara på en rad. {dead} adresser ligger på domäner som inte tar emot mejl "
               "och är flyttade till Kontrollera."),
         ("h2", "Manuellt jobb för Kent och Niclas"),
+        ("p", f"0. Sätt Segment. Först {SEG_DIALOG} på föreningarna ni redan har dialog med, sedan justera "
+              "Personligt och Generellt."),
         ("p", "Antal deltagare är förifyllt där det finns en siffra. Bedöm och justera till aktiva medlemmar, "
               "så räknas försäljning och behållning om direkt."),
         ("p", f"1. Niclas: fyll i Antal deltagare för kategori A först ({n['cat_a_need']} rader). "
-              f"Kent: börja med prioritet och överskott ({k['need_members']} rader med e-post saknar antal)."),
+              f"Kent: börja med ordning 1 och överskott ({k['need_members']} rader med e-post saknar antal)."),
         ("p", f"2. Gå igenom Kontrollera (Kent {k['check']}, Niclas {n['check']}): delade adresser, stora "
               "föreningar och döda adresser. Töm rutan när det är löst."),
         ("p", f"3. Hitta e-post där den saknas (Kent {k['no_email']}, Niclas {n['no_email']}). Nya adresser "
@@ -819,7 +869,7 @@ def main(src: str, dst: str, enrichments: list[str], contacts: list[str], newwav
     st = {}
     for seller in SELLERS:
         title = f"{seller} – intro" if seller == CENTRAL else f"{seller} – utskick"
-        write_seller_sheet(wb, title, leads[seller])
+        write_seller_sheet(wb, title, seller, leads[seller])
         st[seller] = stats(leads[seller])
     write_warmup(
         wb,
