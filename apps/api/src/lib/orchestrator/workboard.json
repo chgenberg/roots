@@ -736,8 +736,8 @@
     {
       "id": "wb-club-brand-oct27",
       "title": "Klubbprofil: logga och färger från föreningens webbplats",
-      "body": "När en klubb skapas (pipeline, registrering, inställningar) läses webbplatsen/webbshoppen: logga + signaturfärger. Sparas i organization_brands. Används i shop, föreningens/lagets/säljarens dashboards och inbjudningssidor ihop med Roots bruna. Deploy kräver bug-hunt + ja. Klart lokalt i f76e520; väntar på bug-hunt och ja till deploy.",
-      "status": "blocked",
+      "body": "När en klubb skapas (pipeline, registrering, inställningar) läses webbplatsen/webbshoppen: logga + signaturfärger. Sparas i organization_brands. Används i shop, föreningens/lagets/säljarens dashboards och inbjudningssidor ihop med Roots bruna. Deploy kräver bug-hunt + ja. Deployat 879871a 27 okt efter bug-hunt (0 CRITICAL/HIGH, två MEDIUM åtgärdade).",
+      "status": "done",
       "domainId": "fundraising",
       "playbook": "",
       "files": [
@@ -748,7 +748,7 @@
       "gate": "deploy",
       "source": "cursor",
       "createdAt": "2026-10-27T12:00:00.000Z",
-      "updatedAt": "2026-10-27T16:00:00.000Z"
+      "updatedAt": "2026-10-27T16:10:00.000Z"
     }
   ]
 }
