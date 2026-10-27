@@ -197,6 +197,13 @@
       "when": 1792490000000,
       "tag": "0027_outreach",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1792493000000,
+      "tag": "0028_organization_brands",
+      "breakpoints": true
     }
   ]
 }

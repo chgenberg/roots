@@ -61,6 +61,11 @@ import { useLocale } from "@/i18n/locale-context";
 import { portalPages, portalShared } from "@/i18n/dictionaries/portal-pages";
 import { tFill } from "@/i18n/format";
 import { appCommon } from "@/i18n/dictionaries/app-common";
+import { clubBrand } from "@/i18n/dictionaries/club-brand";
+import {
+  ClubBrandPicker,
+  type BrandDraft,
+} from "@/components/club-brand/club-brand-picker";
 
 const LEAD_SOURCE_KEYS = [
   "INBOUND",
@@ -246,6 +251,7 @@ export default function PipelinePage() {
   const [leadScore, setLeadScore] = useState("50");
   const [leadMunicipality, setLeadMunicipality] = useState("");
   const [leadWebsite, setLeadWebsite] = useState("");
+  const [leadBrand, setLeadBrand] = useState<BrandDraft | null>(null);
   const [leadOrgNumber, setLeadOrgNumber] = useState("");
   const { toast } = useToast();
 
@@ -463,6 +469,7 @@ export default function PipelinePage() {
           municipality: leadMunicipality.trim() || undefined,
           website: leadWebsite.trim() || undefined,
           orgNumber: leadOrgNumber.trim() || undefined,
+          brand: leadWebsite.trim() && leadBrand ? leadBrand : undefined,
         },
       });
       if (res.ok && res.data?.id) {
@@ -471,6 +478,7 @@ export default function PipelinePage() {
         setLeadName("");
         setLeadMunicipality("");
         setLeadWebsite("");
+        setLeadBrand(null);
         setLeadOrgNumber("");
         void loadPipeline();
       } else {
@@ -934,6 +942,17 @@ export default function PipelinePage() {
                 onChange={(e) => setLeadWebsite(e.target.value)}
                 placeholder="https://"
               />
+              <p className="mt-1 text-xs text-muted-foreground">
+                {clubBrand[locale].websiteHint}
+              </p>
+              <div className="mt-2">
+                <ClubBrandPicker
+                  website={leadWebsite}
+                  clubName={leadName.trim()}
+                  value={leadBrand}
+                  onChange={setLeadBrand}
+                />
+              </div>
             </div>
           </div>
 

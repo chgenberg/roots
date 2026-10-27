@@ -30,6 +30,7 @@ import { useLocale } from "@/i18n/locale-context";
 import { portalPages, portalShared } from "@/i18n/dictionaries/portal-pages";
 import { tFill } from "@/i18n/format";
 import { appCommon } from "@/i18n/dictionaries/app-common";
+import { ClubBrandCard } from "@/components/club-brand/club-brand-card";
 
 export interface PipelineDealRef {
   kind: PipelineDealKind;
@@ -389,6 +390,10 @@ export function PipelineDealDialog({
                   />
                 </dl>
               </div>
+
+              {detail.org?.id && (
+                <ClubBrandCard orgId={detail.org.id} orgName={detail.org.name} />
+              )}
 
               {detail.lines.length > 0 && (
                 <div>

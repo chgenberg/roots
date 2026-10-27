@@ -80,6 +80,14 @@ import { auditLog, requestContext } from "../lib/audit";
 import { noteConductorEvent } from "../lib/orchestrator/conductor-rules";
 import { scheduleOrgNormalize } from "../lib/jobs/schedule-org-normalize";
 import { shopSlug as makeShopSlug } from "../lib/slug";
+import {
+  brandErrorKey,
+  brandOrgIdForUser,
+  loadOrgBrand,
+  parseBrandInput,
+  saveOrgBrand,
+  type OrgBrand,
+} from "../lib/club-brand";
 
 const log = childLogger("auth");
 
@@ -1600,6 +1608,7 @@ auth.get("/me", async (c) => {
       let email = "";
       let name = "";
       let orgName = "";
+      let orgBrand: OrgBrand | null = null;
 
       try {
         const [user] = await db
@@ -1620,6 +1629,7 @@ auth.get("/me", async (c) => {
               .limit(1);
             orgName = org?.name ?? "";
           }
+          orgBrand = await loadOrgBrand(await brandOrgIdForUser(user.id, user.orgId));
         } else if (session.demoProfile) {
           email = session.demoProfile.email;
           name = session.demoProfile.name;
@@ -1635,6 +1645,7 @@ auth.get("/me", async (c) => {
           orgName,
           orgId: session.orgId,
           userId: session.userId,
+          orgBrand,
           // Rollen kräver tvåfaktor men ingen app är registrerad. /me är en
           // av få endpoints som mfa-guarden släpper igenom, just för att
           // klienten ska kunna visa vägen ut istället för att bara få 403
@@ -1682,6 +1693,8 @@ auth.post("/register/association", async (c) => {
     addressLine1,
     city,
     postalCode,
+    website,
+    brand: brandRaw,
   } = body;
 
   if (!orgName || !email || !password || !contactName) {
@@ -1690,6 +1703,14 @@ auth.post("/register/association", async (c) => {
 
   const pwErr = validatePassword(password, locale);
   if (pwErr) return c.json({ error: pwErr }, 400);
+
+  const brandInput =
+    typeof website === "string" && website.trim()
+      ? parseBrandInput({ ...(brandRaw && typeof brandRaw === "object" ? brandRaw : {}), website })
+      : null;
+  if (brandInput && !brandInput.ok) {
+    return c.json({ error: uiError(locale, brandErrorKey(brandInput.error)) }, 400);
+  }
 
   try {
     const [existing] = await db
@@ -1730,6 +1751,8 @@ auth.post("/register/association", async (c) => {
           postalCode: postalCode || null,
         })
         .returning();
+
+      if (brandInput?.ok) await saveOrgBrand(org.id, brandInput.value, user.id, tx);
 
       return { org, user };
     });
@@ -1966,6 +1989,49 @@ auth.post("/register/team-leader", async (c) => {
   } catch (err) {
     log.error({ err }, "Team leader registration failed");
     return c.json({ error: uiError(locale, "registrationFailed") }, 500);
+  }
+});
+
+// Inbjudningslänken till säljare: lagets och föreningens namn och profil,
+// så att registreringssidan kan visa föreningens logga och färger.
+auth.get("/seller-invite/:token", async (c) => {
+  const locale = resolveUiLocale(c);
+  const token = c.req.param("token");
+  if (!token || token.length < 16 || token.length > 64) {
+    return c.json({ error: uiError(locale, "inviteNotFound") }, 404);
+  }
+  try {
+    const [team] = await db
+      .select({
+        name: teams.name,
+        orgId: teams.orgId,
+        expiresAt: teams.inviteTokenExpiresAt,
+        maxUses: teams.inviteTokenMaxUses,
+        useCount: teams.inviteTokenUseCount,
+      })
+      .from(teams)
+      .where(eq(teams.inviteToken, token))
+      .limit(1);
+    if (
+      !team ||
+      (team.expiresAt && team.expiresAt.getTime() < Date.now()) ||
+      (team.maxUses !== null && team.useCount >= team.maxUses)
+    ) {
+      return c.json({ error: uiError(locale, "inviteNotFound") }, 404);
+    }
+    const [org] = await db
+      .select({ name: organizations.name })
+      .from(organizations)
+      .where(eq(organizations.id, team.orgId))
+      .limit(1);
+    return c.json({
+      teamName: team.name,
+      orgName: org?.name ?? null,
+      orgBrand: await loadOrgBrand(team.orgId),
+    });
+  } catch (err) {
+    log.error({ err }, "seller invite preview failed");
+    return c.json({ error: uiError(locale, "couldNotFetchInvite") }, 500);
   }
 });
 

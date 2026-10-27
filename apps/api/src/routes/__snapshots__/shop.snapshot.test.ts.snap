@@ -31,6 +31,7 @@ exports[`GET /v1/shop/by-slug/:slug > returns full shop payload for an active se
     "story": "Vi samlar pengar till nytt cuplag.",
   },
   "organization": {
+    "brand": null,
     "name": "IFK Roots",
   },
   "products": [

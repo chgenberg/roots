@@ -37,6 +37,8 @@ import { shop } from "@/i18n/dictionaries/shop";
 import { products, type ProductCopy } from "@/i18n/dictionaries/products";
 import { tFill } from "@/i18n/format";
 import { useLocale } from "@/i18n/locale-context";
+import { clubThemeVars, type OrgBrand } from "@/lib/club-brand/theme";
+import { ClubMark } from "@/components/club-brand/club-mark";
 import type { ProductSlug } from "@/i18n/get-dictionary";
 
 const API_URL = getBrowserApiBase();
@@ -94,7 +96,7 @@ interface ShopData {
     shippingFeeOre: number | null;
     status: string;
   } | null;
-  organization: { name: string } | null;
+  organization: { name: string; brand?: OrgBrand | null } | null;
   products: Product[];
   stats: {
     totalSoldOre: number;
@@ -216,8 +218,11 @@ export default function SellerShopPage() {
     );
   }
 
+  const brand = shopData.organization?.brand ?? null;
+  const branded = Boolean(brand && (brand.color || brand.logoPath));
+
   return (
-    <div className="min-h-screen bg-brand-50/30">
+    <div className="min-h-screen bg-brand-50/30" style={clubThemeVars(brand)}>
       <BreadcrumbJsonLd
         items={[
           { name: t.breadcrumbHome, url: href("/") },
@@ -272,65 +277,77 @@ export default function SellerShopPage() {
           </div>
         )}
 
-        <section className="mb-8 rounded-2xl border border-brand-100 bg-background p-6 sm:p-8">
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-700">
-            {[shopData.team?.name, shopData.organization?.name]
-              .filter(Boolean)
-              .join(" · ") || "Roots"}
-          </p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight">
-            {shopData.team?.name
-              ? tFill(t.sellingFor, {
-                  name: shopData.seller.displayName,
-                  team: shopData.team.name,
-                })
-              : tFill(t.buyFrom, { name: shopData.seller.displayName })}
-          </h1>
-          {shopData.campaign?.story ? (
-            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-              {shopData.campaign.story}
-            </p>
-          ) : shopData.campaign?.name ? (
-            <p className="mt-3 text-sm text-muted-foreground">
-              {shopData.campaign.name}
-            </p>
-          ) : null}
-
-          {goalProgress !== null ? (
-            <div className="mt-6">
-              <div className="mb-2 flex items-center justify-between text-sm">
-                <span className="font-medium">
-                  {shopData.campaign?.name || t.goalHeading}
-                </span>
-                <span className="tabular-nums">{goalProgress}%</span>
-              </div>
-              <div className="h-2.5 overflow-hidden rounded-full bg-brand-100">
-                <div
-                  className="h-full rounded-full bg-brand-700 transition-all duration-700"
-                  style={{ width: `${goalProgress}%` }}
+        <section className="mb-8 overflow-hidden rounded-2xl border border-brand-100 bg-background">
+          {branded && <div className="club-stripe h-1.5" />}
+          <div className={cn("p-6 sm:p-8", branded && "club-soft")}>
+            <div className="flex items-center gap-4">
+              {branded && shopData.organization && (
+                <ClubMark
+                  brand={brand}
+                  name={shopData.organization.name}
+                  className="h-14 w-14 sm:h-16 sm:w-16"
                 />
-              </div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {tFill(t.ordersSoFar, { count: shopData.stats.orderCount })}
+              )}
+              <p className="club-ink text-xs font-semibold uppercase tracking-[0.14em]">
+                {[shopData.team?.name, shopData.organization?.name]
+                  .filter(Boolean)
+                  .join(" · ") || "Roots"}
               </p>
             </div>
-          ) : null}
+            <h1 className="mt-2 text-3xl font-bold tracking-tight">
+              {shopData.team?.name
+                ? tFill(t.sellingFor, {
+                    name: shopData.seller.displayName,
+                    team: shopData.team.name,
+                  })
+                : tFill(t.buyFrom, { name: shopData.seller.displayName })}
+            </h1>
+            {shopData.campaign?.story ? (
+              <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                {shopData.campaign.story}
+              </p>
+            ) : shopData.campaign?.name ? (
+              <p className="mt-3 text-sm text-muted-foreground">
+                {shopData.campaign.name}
+              </p>
+            ) : null}
 
-          <p className="mt-6 text-sm text-muted-foreground">
-            {shopData.campaign?.deliveryType === "BULK"
-              ? t.deliveryBulk
-              : shopData.campaign?.deliveryType === "BOTH"
-                ? t.deliveryChoice
-                : t.deliveryDirect}
-            {shopData.campaign?.shippingThresholdOre
-              ? tFill(t.freeShippingOver, {
-                  amount: formatKr(
-                    shopData.campaign.shippingThresholdOre,
-                    locale
-                  ),
-                })
-              : ""}
-          </p>
+            {goalProgress !== null ? (
+              <div className="mt-6">
+                <div className="mb-2 flex items-center justify-between text-sm">
+                  <span className="font-medium">
+                    {shopData.campaign?.name || t.goalHeading}
+                  </span>
+                  <span className="tabular-nums">{goalProgress}%</span>
+                </div>
+                <div className="h-2.5 overflow-hidden rounded-full bg-brand-100">
+                  <div
+                    className="club-meter h-full rounded-full transition-all duration-700"
+                    style={{ width: `${goalProgress}%` }}
+                  />
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {tFill(t.ordersSoFar, { count: shopData.stats.orderCount })}
+                </p>
+              </div>
+            ) : null}
+
+            <p className="mt-6 text-sm text-muted-foreground">
+              {shopData.campaign?.deliveryType === "BULK"
+                ? t.deliveryBulk
+                : shopData.campaign?.deliveryType === "BOTH"
+                  ? t.deliveryChoice
+                  : t.deliveryDirect}
+              {shopData.campaign?.shippingThresholdOre
+                ? tFill(t.freeShippingOver, {
+                    amount: formatKr(
+                      shopData.campaign.shippingThresholdOre,
+                      locale
+                    ),
+                  })
+                : ""}
+            </p>
+          </div>
         </section>
 
         {/* Products */}

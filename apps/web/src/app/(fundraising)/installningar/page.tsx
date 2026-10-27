@@ -58,6 +58,7 @@ import { LanguageSwitcher } from "@/components/language-switcher";
 import { apiFetch, rootsFetch } from "@/lib/api";
 import { getBrowserApiBase } from "@/lib/api-base";
 import { getPublicSiteUrl } from "@/lib/site-url";
+import { ClubBrandCard } from "@/components/club-brand/club-brand-card";
 
 const API_URL = getBrowserApiBase();
 
@@ -66,6 +67,7 @@ interface MeUser {
   role: string;
   name: string;
   orgName: string;
+  orgId?: string | null;
 }
 
 
@@ -443,6 +445,10 @@ export default function InstallningarPage() {
             </form>
           </CardContent>
         </Card>
+      )}
+
+      {me.role === "ASSOCIATION_ADMIN" && me.orgId && (
+        <ClubBrandCard orgId={me.orgId} orgName={me.orgName} />
       )}
 
       {/* ── Shop URL (only for sellers) ─────────────────────────── */}

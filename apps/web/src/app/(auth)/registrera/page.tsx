@@ -29,6 +29,11 @@ import { auth } from "@/i18n/dictionaries/auth";
 import { cn } from "@/lib/utils";
 import { tFill } from "@/i18n/format";
 import { useLocale } from "@/i18n/locale-context";
+import { clubBrand } from "@/i18n/dictionaries/club-brand";
+import {
+  ClubBrandPicker,
+  type BrandDraft,
+} from "@/components/club-brand/club-brand-picker";
 
 const MIN_PASSWORD_LENGTH = 12;
 
@@ -58,6 +63,8 @@ export default function RegisterPage() {
   const [orgNumber, setOrgNumber] = useState("");
   const [nationalFederation, setNationalFederation] = useState("");
   const [sportType, setSportType] = useState("");
+  const [website, setWebsite] = useState("");
+  const [brand, setBrand] = useState<BrandDraft | null>(null);
 
   // Team fields
   const [teamName, setTeamName] = useState("");
@@ -75,6 +82,8 @@ export default function RegisterPage() {
               orgNumber: orgNumber || undefined,
               nationalFederation: nationalFederation || undefined,
               sportType: sportType || undefined,
+              website: website.trim() || undefined,
+              brand: website.trim() && brand ? brand : undefined,
               email,
               password,
               contactName,
@@ -306,6 +315,26 @@ export default function RegisterPage() {
                 placeholder={t.sportTypePlaceholder}
                 value={sportType}
                 onChange={(e) => setSportType(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="website">{clubBrand[locale].websiteLabel}</Label>
+              <Input
+                id="website"
+                inputMode="url"
+                autoComplete="url"
+                placeholder="www.foreningen.se"
+                value={website}
+                onChange={(e) => setWebsite(e.target.value)}
+              />
+              <p className="text-pretty text-xs text-muted-foreground">
+                {clubBrand[locale].websiteHint}
+              </p>
+              <ClubBrandPicker
+                website={website}
+                clubName={orgName.trim()}
+                value={brand}
+                onChange={setBrand}
               />
             </div>
             <Button

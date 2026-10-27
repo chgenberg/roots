@@ -29,6 +29,7 @@ import { requireSession } from "../lib/http-session";
 import { auditLog, requestContext } from "../lib/audit";
 import { childLogger } from "../lib/logger";
 import { resolveUiLocale, uiError } from "../lib/ui-locale";
+import { brandErrorKey, hasBrand, parseBrandInput, saveOrgBrand } from "../lib/club-brand";
 
 const log = childLogger("sales");
 
@@ -64,6 +65,8 @@ sales.post("/leads", async (c) => {
     website?: string;
     orgNumber?: string;
     notes?: string; // accepted but not stored — keeps payload future-proof
+    /** Logga och färger från förhandsvisningen av webbplatsen. */
+    brand?: unknown;
   };
 
   let body: Body;
@@ -112,6 +115,11 @@ sales.post("/leads", async (c) => {
   const municipality = body.municipality?.trim() || null;
   const website = body.website?.trim() || null;
 
+  const brandInput = body.brand ? parseBrandInput({ ...(body.brand as object), website }) : null;
+  if (brandInput && !brandInput.ok) {
+    return c.json({ error: uiError(locale, brandErrorKey(brandInput.error)) }, 400);
+  }
+
   try {
     if (orgNumber) {
       const [existing] = await db
@@ -152,6 +160,12 @@ sales.post("/leads", async (c) => {
         verifiedByUserId: session.userId,
       })
       .returning();
+
+    if (brandInput?.ok && hasBrand(brandInput.value)) {
+      await saveOrgBrand(lead.id, brandInput.value, session.userId).catch((err) =>
+        log.warn({ err, orgId: lead.id }, "lead brand save failed")
+      );
+    }
 
     void auditLog({
       userId: session.userId,

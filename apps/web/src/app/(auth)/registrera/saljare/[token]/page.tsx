@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +22,8 @@ import { cn } from "@/lib/utils";
 import { auth } from "@/i18n/dictionaries/auth";
 import { tFill } from "@/i18n/format";
 import { useLocale } from "@/i18n/locale-context";
+import { clubThemeVars, type OrgBrand } from "@/lib/club-brand/theme";
+import { ClubMark } from "@/components/club-brand/club-mark";
 
 const CURRENT_YEAR = new Date().getFullYear();
 const MIN_PASSWORD_LENGTH = 12;
@@ -44,6 +46,25 @@ export default function SellerRegistrationPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [shopSlug, setShopSlug] = useState("");
+  const [club, setClub] = useState<{
+    teamName: string;
+    orgName: string | null;
+    orgBrand: OrgBrand | null;
+  } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    apiFetch<{ teamName: string; orgName: string | null; orgBrand: OrgBrand | null }>(
+      `/v1/auth/seller-invite/${encodeURIComponent(inviteToken)}`
+    )
+      .then((res) => {
+        if (!cancelled && res.ok) setClub(res.data);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [inviteToken]);
 
   // Vi jämför bara årtal, precis som servern, så gränsfall hamnar på den
   // säkra sidan: den som fyller 18 senare i år får ändå frågan.
@@ -152,12 +173,28 @@ export default function SellerRegistrationPage() {
     );
   }
 
+  const brand = club?.orgBrand ?? null;
+  const branded = Boolean(club?.orgName && brand && (brand.color || brand.logoPath));
+
   return (
-    <Card className={cn(GATE_CARD, "mx-auto max-w-md")}>
+    <Card
+      className={cn(GATE_CARD, "mx-auto max-w-md overflow-hidden")}
+      style={clubThemeVars(brand)}
+    >
+      {branded && <div className="club-stripe h-1.5" />}
       <CardHeader className="text-center">
-        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-brand-100">
-          <ShoppingBag className="h-6 w-6 text-brand-700" />
-        </div>
+        {branded && club?.orgName ? (
+          <div className="mx-auto mb-3 flex flex-col items-center gap-2">
+            <ClubMark brand={brand} name={club.orgName} className="h-16 w-16" />
+            <span className="club-ink text-sm font-semibold">
+              {[club.teamName, club.orgName].filter(Boolean).join(" · ")}
+            </span>
+          </div>
+        ) : (
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-brand-100">
+            <ShoppingBag className="h-6 w-6 text-brand-700" />
+          </div>
+        )}
         <CardTitle role="heading" aria-level={1} className="text-2xl">{t.title}</CardTitle>
         <CardDescription>{t.description}</CardDescription>
       </CardHeader>

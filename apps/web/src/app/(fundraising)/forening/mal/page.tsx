@@ -285,7 +285,7 @@ export default function GoalsPage() {
                 </div>
                 <div className="h-2 overflow-hidden rounded-full bg-brand-100">
                   <div
-                    className="h-full rounded-full bg-brand-700 transition-all duration-500"
+                    className="club-meter h-full rounded-full transition-all duration-500"
                     style={{ width: `${progress}%` }}
                   />
                 </div>

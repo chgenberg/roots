@@ -49,6 +49,7 @@ import {
   withLocalePath,
 } from "../lib/email/templates";
 import { resolveUiLocale, uiError, type UiLocale } from "../lib/ui-locale";
+import { loadOrgBrand } from "../lib/club-brand";
 import {
   localizeDemoCampaignName,
   localizeDemoOrgName,
@@ -558,6 +559,7 @@ association.get("/team-invites/:token", async (c) => {
         ? localizeDemoCampaignName(locale, campaign.name)
         : uiError(locale, "unknownCampaign"),
       expiresAt: invite.expiresAt.toISOString(),
+      orgBrand: await loadOrgBrand(org?.id),
     });
   } catch (err) {
     log.error({ err }, "team invite preview failed");

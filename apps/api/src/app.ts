@@ -32,6 +32,7 @@ import { preview } from "./routes/preview";
 import { clientErrors } from "./routes/client-errors";
 import { trafficTelemetry } from "./routes/traffic";
 import { outreach } from "./routes/outreach";
+import { brand } from "./routes/brand";
 import { securityHeaders } from "./middleware/security-headers";
 import { resolveUiLocale, uiError } from "./lib/ui-locale";
 import { mfaRequired } from "./middleware/mfa-required";
@@ -285,6 +286,7 @@ app.route("/v1/preview", preview);
 app.route("/v1/telemetry", clientErrors);
 app.route("/v1/telemetry", trafficTelemetry);
 app.route("/v1/outreach", outreach);
+app.route("/v1/brand", brand);
 app.route("/v1/integrations/fortnox", fortnoxWebhook);
 
 const v1Ai = new Hono();

@@ -41,6 +41,9 @@ import {
   useDocumentTitle,
   titleFromNav,
 } from "@/lib/use-document-title";
+import { clubThemeVars, type OrgBrand } from "@/lib/club-brand/theme";
+import { ClubMark } from "@/components/club-brand/club-mark";
+import { CLUB_BRAND_EVENT } from "@/components/club-brand/club-brand-card";
 
 const API_URL = getBrowserApiBase();
 
@@ -51,6 +54,7 @@ interface FundraisingUser {
   orgName: string;
   orgId?: string;
   userId?: string;
+  orgBrand?: OrgBrand | null;
 }
 
 function buildNavItems(role: string, t: (typeof fundraisingDict)[Locale]) {
@@ -134,6 +138,13 @@ export function FundraisingShell({ children }: { children: React.ReactNode }) {
       }
     }
     load();
+    async function reloadBrand() {
+      const res = await rootsFetch(`${API_URL}/v1/auth/me`).catch(() => null);
+      const data = res?.ok ? await res.json().catch(() => null) : null;
+      if (data?.user) setUser(data.user);
+    }
+    window.addEventListener(CLUB_BRAND_EVENT, reloadBrand);
+    return () => window.removeEventListener(CLUB_BRAND_EVENT, reloadBrand);
   }, [router, href]);
 
   async function handleLogout() {
@@ -181,8 +192,11 @@ export function FundraisingShell({ children }: { children: React.ReactNode }) {
       .map((p) => p[0]?.toUpperCase() ?? "")
       .join("") || "?";
 
+  const brand = user.orgBrand ?? null;
+  const branded = Boolean(brand && (brand.color || brand.logoPath));
+
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen" style={clubThemeVars(brand)}>
       <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r bg-background lg:flex">
         <div className="flex h-16 items-center gap-2 border-b px-4">
           <LocaleLink
@@ -204,11 +218,28 @@ export function FundraisingShell({ children }: { children: React.ReactNode }) {
             <NotificationBell />
           </div>
         </div>
-        <div className="px-4 pt-4">
-          <Badge className={`text-xs ${roleBadge.className}`}>
-            {roleBadge.label}
-          </Badge>
-        </div>
+        {branded && user.orgName ? (
+          <div className="mx-3 mt-3 overflow-hidden rounded-xl border">
+            <div className="club-stripe h-1" />
+            <div className="club-soft flex items-center gap-3 p-3">
+              <ClubMark brand={brand} name={user.orgName} className="h-10 w-10" />
+              <div className="min-w-0">
+                <p className="club-ink truncate text-sm font-semibold" title={user.orgName}>
+                  {user.orgName}
+                </p>
+                <Badge className={`mt-0.5 text-[10px] ${roleBadge.className}`}>
+                  {roleBadge.label}
+                </Badge>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="px-4 pt-4">
+            <Badge className={`text-xs ${roleBadge.className}`}>
+              {roleBadge.label}
+            </Badge>
+          </div>
+        )}
         <nav className="flex-1 space-y-1 overflow-y-auto p-3" aria-label={c.mainMenu}>
           {navItems.map((item) => {
             const active = barePath === item.href;
@@ -218,7 +249,7 @@ export function FundraisingShell({ children }: { children: React.ReactNode }) {
                 href={item.href}
                 className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
                   active
-                    ? "bg-brand-100 font-medium text-foreground"
+                    ? "bg-brand-100 font-medium text-foreground shadow-[inset_3px_0_0_var(--club-solid,transparent)]"
                     : "text-muted-foreground hover:bg-brand-50 hover:text-foreground"
                 }`}
               >
@@ -267,6 +298,12 @@ export function FundraisingShell({ children }: { children: React.ReactNode }) {
           >
             <RootsLogo variant="auto" className="h-6 w-[60px]" />
           </LocaleLink>
+          {branded && user.orgName && (
+            <span className="ml-3 mr-auto flex min-w-0 items-center gap-2 border-l pl-3">
+              <ClubMark brand={brand} name={user.orgName} className="h-7 w-7 rounded-lg" />
+              <span className="club-ink truncate text-xs font-semibold">{user.orgName}</span>
+            </span>
+          )}
           <div className="flex items-center gap-1">
             <NotificationBell />
             <LocaleLink
@@ -322,7 +359,7 @@ export function FundraisingShell({ children }: { children: React.ReactNode }) {
                   onClick={() => setMobileOpen(false)}
                   className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
                     active
-                      ? "bg-brand-100 font-medium text-foreground"
+                      ? "bg-brand-100 font-medium text-foreground shadow-[inset_3px_0_0_var(--club-solid,transparent)]"
                       : "text-muted-foreground hover:bg-brand-50 hover:text-foreground"
                   }`}
                 >

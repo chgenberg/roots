@@ -44,17 +44,39 @@ export type AccentTokens = {
   meter: string;
   /** Ljus ton för sidhuvudet i shopen. */
   soft: string;
+  /** Ljusare ton för ytor i shop och dashboards, som toning från Roots kräm. */
+  tint: string;
+  /** Samma ton mot mörkt tema. */
+  softDark: string;
+  /** Färgen som text på vitt — mörkas tills den håller AA. */
+  ink: string;
+  /** Samma mot mörkt tema — ljusas tills den håller AA. */
+  inkDark: string;
 };
 
 const INK: Rgb = [28, 20, 16];
 const WHITE: Rgb = [255, 255, 255];
 const CREAM: Rgb = [247, 243, 234];
+const NIGHT: Rgb = [34, 31, 27];
 
 export function accentTokens(hex: string): AccentTokens {
   const base = toRgb(hex);
   const onSolid = contrast(base, WHITE) >= contrast(base, INK) ? "#FFFFFF" : "#1C1410";
   const meter = luminance(base) > 0.55 ? toHex(mix(base, INK, 0.3)) : toHex(base);
-  return { solid: toHex(base), onSolid, meter, soft: toHex(mix(base, CREAM, 0.84)) };
+  let ink = base;
+  for (let t = 0.1; contrast(ink, WHITE) < 4.5 && t <= 0.8; t += 0.1) ink = mix(base, INK, t);
+  let inkDark = base;
+  for (let t = 0.1; contrast(inkDark, NIGHT) < 4.5 && t <= 0.8; t += 0.1) inkDark = mix(base, WHITE, t);
+  return {
+    solid: toHex(base),
+    onSolid,
+    meter,
+    soft: toHex(mix(base, CREAM, 0.84)),
+    tint: toHex(mix(base, CREAM, 0.9)),
+    softDark: toHex(mix(base, NIGHT, 0.78)),
+    ink: toHex(ink),
+    inkDark: toHex(inkDark),
+  };
 }
 
 /** Huvudfärgen i en logga (data-URL). Vitt, svart och grått räknas inte. */

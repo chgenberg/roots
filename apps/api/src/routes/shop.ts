@@ -15,6 +15,7 @@ import {
 import { childLogger } from "../lib/logger";
 import { resolveCampaignCatalog, catalogToList } from "../lib/campaign-catalog";
 import { resolveUiLocale, uiError } from "../lib/ui-locale";
+import { loadOrgBrand } from "../lib/club-brand";
 import {
   localizedProductDescription,
   localizedProductName,
@@ -191,7 +192,10 @@ shop.get("/by-slug/:slug", async (c) => {
           }
         : null,
       organization: org
-        ? { name: localizeDemoOrgName(locale, org.name) }
+        ? {
+            name: localizeDemoOrgName(locale, org.name),
+            brand: await loadOrgBrand(team?.orgId),
+          }
         : null,
       products: productList,
       bundles: bundleList.map((b) => ({

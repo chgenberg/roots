@@ -296,7 +296,7 @@ export default function SellerDashboard() {
                 </div>
                 <div className="h-3 overflow-hidden rounded-full bg-brand-100">
                   <div
-                    className="h-full rounded-full bg-brand-700 transition-all duration-700"
+                    className="club-meter h-full rounded-full transition-all duration-700"
                     style={{ width: `${progress}%` }}
                   />
                 </div>

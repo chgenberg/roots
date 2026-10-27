@@ -576,7 +576,7 @@ export default function TeamSellersPage() {
                       <div>
                         <div className="h-1.5 overflow-hidden rounded-full bg-brand-100 mt-1">
                           <div
-                            className="h-full rounded-full bg-brand-700 transition-all duration-700"
+                            className="club-meter h-full rounded-full transition-all duration-700"
                             style={{
                               width: `${Math.min(
                                 100,

@@ -17,7 +17,7 @@ function limited(ip: string): boolean {
   return recent.length > MAX_PER_WINDOW;
 }
 
-/** Namn, färg och logga från en förenings webbplats — bara för förhandsvisningen på /prova. */
+/** Namn, färg och logga från en förenings webbplats — förhandsvisningen på /prova och föreningens profil när en klubb skapas. */
 export async function GET(request: Request) {
   const site = new URL(request.url).searchParams.get("webb") ?? "";
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "okänd";

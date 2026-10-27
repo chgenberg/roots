@@ -36,6 +36,8 @@ import { cn } from "@/lib/utils";
 import { auth } from "@/i18n/dictionaries/auth";
 import { tFill } from "@/i18n/format";
 import { useLocale } from "@/i18n/locale-context";
+import { clubThemeVars, type OrgBrand } from "@/lib/club-brand/theme";
+import { ClubMark } from "@/components/club-brand/club-mark";
 
 const API_URL = getBrowserApiBase();
 
@@ -45,6 +47,7 @@ interface InvitePreview {
   orgName: string;
   campaignName: string;
   expiresAt: string;
+  orgBrand?: OrgBrand | null;
 }
 
 export default function TeamLeaderClaimPage() {
@@ -187,9 +190,22 @@ export default function TeamLeaderClaimPage() {
     );
   }
 
+  const brand = preview.orgBrand ?? null;
+  const branded = Boolean(brand && (brand.color || brand.logoPath));
+
   return (
-    <Card className={cn(GATE_CARD, "mx-auto max-w-md")}>
+    <Card
+      className={cn(GATE_CARD, "mx-auto max-w-md overflow-hidden")}
+      style={clubThemeVars(brand)}
+    >
+      {branded && <div className="club-stripe h-1.5" />}
       <CardHeader>
+        {branded && (
+          <div className="mb-3 flex items-center gap-3">
+            <ClubMark brand={brand} name={preview.orgName} className="h-12 w-12" />
+            <span className="club-ink text-sm font-semibold">{preview.orgName}</span>
+          </div>
+        )}
         <div className="mb-2 flex items-center gap-2">
           <Users className="h-5 w-5 text-brand-600" />
           <span className="text-xs font-medium uppercase tracking-wide text-brand-600">

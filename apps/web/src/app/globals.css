@@ -396,3 +396,45 @@ a, button {
   outline: 2px solid var(--color-ring);
   outline-offset: 2px;
 }
+
+/* Föreningens färger (ClubTheme sätter --club-*). Utan profil: Roots bruna. */
+.club-solid {
+  background-color: var(--club-solid, var(--color-brand-700));
+  color: var(--club-on, var(--color-primary-foreground));
+}
+.club-meter {
+  background-color: var(--club-meter, var(--color-brand-700));
+}
+.club-soft {
+  background: linear-gradient(
+    160deg,
+    var(--color-brand-50) 0%,
+    var(--club-soft, var(--color-brand-50)) 100%
+  );
+}
+.dark .club-soft {
+  background: linear-gradient(
+    160deg,
+    var(--color-brand-50) 0%,
+    var(--club-soft-dark, var(--color-brand-50)) 100%
+  );
+}
+.club-ink {
+  color: var(--club-ink, var(--color-brand-700));
+}
+.dark .club-ink {
+  color: var(--club-ink-dark, var(--color-brand-700));
+}
+.club-edge {
+  border-color: var(--club-solid, var(--color-border));
+}
+.club-stripe {
+  background: linear-gradient(
+    90deg,
+    var(--club-solid, var(--color-brand-700)) 0%,
+    var(--club-solid, var(--color-brand-700)) 55%,
+    var(--club-second, var(--color-brand-500)) 55%,
+    var(--club-second, var(--color-brand-500)) 80%,
+    var(--color-brand-700) 80%
+  );
+}
