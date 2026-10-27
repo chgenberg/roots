@@ -6,7 +6,7 @@ och Antaganden. Utskicksflikarna har rubriken på rad 1 så att de går att
 importera direkt i /portal/lead-mejl.
 
     python3 docs/leads/build_utskick.py IN.xlsx UT.xlsx \
-        [--berikning berikning.jsonl ...] [--kontakter Niclas=fil.xlsx]
+        [--berikning berikning.jsonl ...] [--kontakter Niclas=fil.xlsx] [--newwave per_rad.json]
 
 --berikning läser utdata från enrich_members.py (webbplats, e-post och
 medlemsantal med källa). --kontakter läser en säljares egen kontaktlista
@@ -133,8 +133,62 @@ def collect(ws):
             "member_status": "Från listan" if members_of(row) else "",
             "member_source": "",
             "member_quote": "",
+            "socials": "",
+            "shop": "",
+            "founded": "",
+            "about": "",
         })
     return leads, skipped
+
+
+NOT_SHOP = re.compile(r"/butiker/|gclid|gad_source|(^|\.)(ica|coop|willys|hemkop|lidl|happyhomes|bolist)\.se", re.I)
+PLATFORM_MAIL = re.compile(r"@(laget|svenskalag|idrottonline|klubbenonline|sportadmin|ibis)\.", re.I)
+NEWWAVE_MIN_CONFIDENCE = 60
+
+
+def add_extras(lead, socials=None, shop=None, founded=None, about=None) -> None:
+    if socials and not lead["socials"]:
+        lead["socials"] = "\n".join(socials)
+    if shop and not lead["shop"] and not NOT_SHOP.search(shop):
+        lead["shop"] = shop
+    if founded and not lead["founded"] and re.fullmatch(r"(18|19|20)\d\d", str(founded)) \
+            and int(founded) <= date.today().year:
+        lead["founded"] = str(founded)
+    if about and not lead["about"] and len(about) > 25:
+        lead["about"] = about[:300]
+
+
+def apply_newwave(leads, path: str) -> int:
+    """Newwaves klubbregister (gratis skrapning): webbplats, e-post, sociala medier, webbshop."""
+    data = {int(k): v for k, v in json.load(open(path, encoding="utf-8")).items()}
+    seen = defaultdict(int)
+    for v in data.values():
+        for m in v.get("emails") or []:
+            seen[m.lower()] += 1
+    n = 0
+    for seller in SELLERS:
+        for lead in leads[seller]:
+            v = data.get(lead["row"])
+            if not v or (v.get("confidence") or 0) < NEWWAVE_MIN_CONFIDENCE:
+                continue
+            n += 1
+            if v.get("url") and not lead["site"]:
+                lead["site"] = v["url"]
+            mails = [m.lower() for m in v.get("emails") or []
+                     if EMAIL_RE.match(m) and seen[m.lower()] <= 2 and not PLATFORM_MAIL.search(m)]
+            known = [m for m in [lead["email"], *lead["more"].split(", ")] if m]
+            for m in mails:
+                if m in known:
+                    continue
+                if not lead["email"] and not lead["check"]:
+                    lead["email"] = m
+                else:
+                    lead["more"] = ", ".join(x for x in [lead["more"], m] if x)
+                known.append(m)
+            socials = v.get("socials") or {}
+            add_extras(lead, socials=list(socials.values()) if isinstance(socials, dict) else socials,
+                       shop=v.get("shop"), founded=v.get("founded"), about=v.get("description"))
+    return n
 
 
 def norm_name(s: str) -> str:
@@ -181,6 +235,31 @@ def apply_contacts(leads, seller: str, path: str) -> int:
     return n
 
 
+def normalize_record(rec: dict) -> dict:
+    """enrich_cheap.py sparar egen sidläsning, modell och sökning var för sig; gör om till enrich_members-form."""
+    if "found" in rec:
+        return rec
+    free, model = rec.get("free") or {}, rec.get("model") or {}
+    search = rec.get("search") or {}
+    if search.get("found"):
+        found, check = dict(search["found"]), search.get("check") or {}
+    else:
+        found = {k: model.get(k) for k in (
+            "members_total", "members_active", "members_year", "members_quote", "members_source")}
+        found.update(website=free.get("site"), email=None, note=None)
+        check = {}
+    if not found.get("website"):
+        found["website"] = free.get("site")
+    if not found.get("email") and free.get("emails"):
+        found["email"], check["email_mx"], check["email_on_page"] = free["emails"][0], True, True
+    contact = model.get("contact_name")
+    if contact and model.get("contact_role"):
+        contact = f"{contact} ({model['contact_role']})"
+    return {"row": rec["row"], "found": found, "check": check, "extras": {
+        "socials": free.get("socials"), "shop": (free.get("shops") or [None])[0],
+        "founded": free.get("founded"), "about": model.get("description"), "contact": contact}}
+
+
 def apply_enrichment(leads, path: str) -> int:
     """Agentens sökning: webbplats, e-post och medlemsantal med källa och status."""
     by_row = {l["row"]: l for s in SELLERS for l in leads[s]}
@@ -188,12 +267,18 @@ def apply_enrichment(leads, path: str) -> int:
     for line in open(path, encoding="utf-8"):
         if not line.strip():
             continue
-        rec = json.loads(line)
+        rec = normalize_record(json.loads(line))
         lead = by_row.get(rec["row"])
         if not lead:
             continue
         n += 1
         f, ck = rec["found"], rec["check"]
+        x = rec.get("extras") or {}
+        add_extras(lead, socials=x.get("socials"), shop=x.get("shop"),
+                   founded=x.get("founded"), about=x.get("about"))
+        if x.get("contact") and not lead["contact"]:
+            lead["contact"] = x["contact"]
+            lead["contact_from"] = "Agenten, föreningens webbplats"
         if f.get("website") and not lead["site"]:
             lead["site"] = f["website"]
         mail = (f.get("email") or "").strip().lower()
@@ -329,6 +414,10 @@ HEADERS = [
     ("Kategori", 8, "base"),
     ("Telefon", 15, "base"),
     ("Kontaktperson från", 22, "base"),
+    ("Sociala medier", 30, "base"),
+    ("Webbshop", 30, "base"),
+    ("Grundår", 8, "base"),
+    ("Om föreningen", 44, "base"),
     ("Kommun", 15, "base"),
     ("Län", 14, "base"),
     ("Idrott", 16, "base"),
@@ -393,6 +482,10 @@ def write_seller_sheet(wb, title: str, leads: list[dict]):
             "Källa medlemsantal": lead["member_source"] or None,
             "Citat och kommentar": lead["member_quote"] or None,
             "Kontaktperson från": lead["contact_from"] or None,
+            "Sociala medier": lead["socials"] or None,
+            "Webbshop": lead["shop"] or None,
+            "Grundår": int(lead["founded"]) if lead["founded"] else None,
+            "Om föreningen": lead["about"] or None,
             "Belopp per deltagare": "=Antaganden!$B$4",
             "Total försäljning": f'=IF({n}{r}="","",{n}{r}*{b}{r})',
             "Behållning 35 %": f'=IF({t}{r}="","",ROUND({t}{r}*Antaganden!$B$5,0))',
@@ -649,6 +742,8 @@ def write_readme(wb, st: dict[str, dict], skipped, shared: int, dead: int):
               "aktiva och stödmedlemmar, annars med alla medlemmar."),
         ("p", "Kontaktperson från visar om kontakten kommer från säljarens egen lista (2020–2021) och behöver "
               "bekräftas."),
+        ("p", "Sociala medier, Webbshop, Grundår och Om föreningen kommer från föreningens egen webbplats. "
+              "Webbshop betyder att föreningen redan säljer kläder eller produkter, en bra öppning i samtalet."),
         ("h2", "Flikarna"),
         ("p", "Kent – utskick / Niclas – utskick: alla föreningar som är taggade på säljaren. Importeras i Lead-mejl."),
         ("p", f"{CENTRAL} – intro: föreningar utan säljare som har e-post. Får introduktionen från Johan Lindqvist."),
@@ -708,7 +803,7 @@ def write_readme(wb, st: dict[str, dict], skipped, shared: int, dead: int):
     ws.sheet_view.showGridLines = False
 
 
-def main(src: str, dst: str, enrichments: list[str], contacts: list[str]):
+def main(src: str, dst: str, enrichments: list[str], contacts: list[str], newwave: str | None):
     wb = load_workbook(src)
     leads, skipped = collect(wb["Leadsbas"])
     for spec in contacts:
@@ -716,6 +811,8 @@ def main(src: str, dst: str, enrichments: list[str], contacts: list[str]):
         print(f"kontakter {seller}:", apply_contacts(leads, seller, path))
     for path in enrichments:
         print(f"berikning {path}:", apply_enrichment(leads, path))
+    if newwave:
+        print("newwave:", apply_newwave(leads, newwave))
     shared = mark_shared(leads)
     mark_big(leads)
     dead = mark_dead_domains(leads)
@@ -748,5 +845,6 @@ if __name__ == "__main__":
     ap.add_argument("dst")
     ap.add_argument("--berikning", action="append", default=[])
     ap.add_argument("--kontakter", action="append", default=[])
+    ap.add_argument("--newwave", help="newwave_per_rad.json: Newwaves klubbregister per rad i Leadsbas")
     a = ap.parse_args()
-    main(a.src, a.dst, a.berikning, a.kontakter)
+    main(a.src, a.dst, a.berikning, a.kontakter, a.newwave)
