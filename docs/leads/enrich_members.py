@@ -92,6 +92,8 @@ def ask(lead: dict) -> tuple[dict, dict]:
         "tools": [{"type": "web_search", "search_context_size": "low",
                    "user_location": {"type": "approximate", "country": "SE"}}],
         "input": PROMPT.format(**lead),
+        **({"max_tool_calls": int(os.environ["ENRICH_MAX_SEARCHES"])}
+           if os.environ.get("ENRICH_MAX_SEARCHES") else {}),
         "text": {"format": {"type": "json_schema", "name": "forening",
                             "schema": SCHEMA, "strict": True}},
     }
