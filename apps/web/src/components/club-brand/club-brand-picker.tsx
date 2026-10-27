@@ -82,6 +82,7 @@ export function ClubBrandPicker({
         const data = (await res.json()) as { ok: boolean; brand?: Scraped; error?: string };
         if (controller.signal.aborted) return;
         if (!data.ok || !data.brand) {
+          if (auto) onChange(null);
           setStatus(
             data.error === "limited" ? "limited" : data.error === "invalid" ? "invalid" : "unreachable"
           );
@@ -95,6 +96,7 @@ export function ClubBrandPicker({
           theme: found.colorSource === "theme" ? found.color : null,
         });
         if (!logo && colours.length === 0) {
+          if (auto) onChange(null);
           setStatus("nothing");
           return;
         }
@@ -106,7 +108,9 @@ export function ClubBrandPicker({
           logoOnDark: logo?.onDark ?? false,
         });
       } catch {
-        if (!controller.signal.aborted) setStatus("unreachable");
+        if (controller.signal.aborted) return;
+        if (auto) onChange(null);
+        setStatus("unreachable");
       }
     }, nonce > 0 ? 0 : 700);
     return () => {

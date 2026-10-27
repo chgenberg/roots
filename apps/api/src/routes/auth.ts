@@ -2027,7 +2027,7 @@ auth.get("/seller-invite/:token", async (c) => {
     return c.json({
       teamName: team.name,
       orgName: org?.name ?? null,
-      orgBrand: await loadOrgBrand(team.orgId),
+      orgBrand: await loadOrgBrand(team.orgId).catch(() => null),
     });
   } catch (err) {
     log.error({ err }, "seller invite preview failed");

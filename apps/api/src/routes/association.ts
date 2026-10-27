@@ -559,7 +559,7 @@ association.get("/team-invites/:token", async (c) => {
         ? localizeDemoCampaignName(locale, campaign.name)
         : uiError(locale, "unknownCampaign"),
       expiresAt: invite.expiresAt.toISOString(),
-      orgBrand: await loadOrgBrand(org?.id),
+      orgBrand: await loadOrgBrand(org?.id).catch(() => null),
     });
   } catch (err) {
     log.error({ err }, "team invite preview failed");

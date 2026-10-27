@@ -194,7 +194,7 @@ shop.get("/by-slug/:slug", async (c) => {
       organization: org
         ? {
             name: localizeDemoOrgName(locale, org.name),
-            brand: await loadOrgBrand(team?.orgId),
+            brand: await loadOrgBrand(team?.orgId).catch(() => null),
           }
         : null,
       products: productList,

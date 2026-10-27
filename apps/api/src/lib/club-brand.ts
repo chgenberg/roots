@@ -7,7 +7,7 @@
  * PNG som webbläsaren redan ritat om, så att ingen SVG eller okänt format
  * från en främmande sajt sparas och serveras från vår domän.
  */
-import { eq, inArray, sql } from "drizzle-orm";
+import { desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@roots/db";
 import { organizationBrands, sellers, teams, organizations } from "@roots/db/schema";
 
@@ -231,6 +231,7 @@ export async function brandOrgIdForUser(
     .from(sellers)
     .innerJoin(teams, eq(teams.id, sellers.teamId))
     .where(eq(sellers.userId, userId))
+    .orderBy(desc(sellers.createdAt))
     .limit(1);
   return row?.orgId ?? null;
 }

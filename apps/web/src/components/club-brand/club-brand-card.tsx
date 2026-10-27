@@ -24,6 +24,7 @@ export function ClubBrandCard({ orgId, orgName }: { orgId: string; orgName: stri
   const common = appCommon[locale];
   const { toast } = useToast();
   const [loaded, setLoaded] = useState(false);
+  const [readable, setReadable] = useState(false);
   const [website, setWebsite] = useState("");
   const [saved, setSaved] = useState<OrgBrand | null>(null);
   const [draft, setDraft] = useState<BrandDraft | null>(null);
@@ -37,7 +38,9 @@ export function ClubBrandCard({ orgId, orgName }: { orgId: string; orgName: stri
         setWebsite(res.data.website ?? "");
         setSaved(res.data.brand);
         setDraft(draftFromBrand(res.data.brand));
+        setReadable(true);
       })
+      .catch(() => {})
       .finally(() => !cancelled && setLoaded(true));
     return () => {
       cancelled = true;
@@ -71,7 +74,8 @@ export function ClubBrandCard({ orgId, orgName }: { orgId: string; orgName: stri
     }
   }
 
-  if (!loaded) return null;
+  // Utan läst profil skulle Spara skriva över den sparade med ett tomt formulär.
+  if (!loaded || !readable) return null;
 
   return (
     <Card>
