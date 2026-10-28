@@ -76,6 +76,9 @@ export function suggestMapping(headers: string[]): ColumnMapping {
     if (mapping.orgName === undefined) mapping.orgName = nameCol;
     else if (mapping.contactName === undefined) mapping.contactName = nameCol;
   }
+  // Originalnamnet står kvar för matchning mot källfilen; mejlet ska ha det rensade.
+  const corrected = headers.findIndex((h) => norm(h) === "korrigeratnamn");
+  if (corrected >= 0) mapping.orgName = corrected;
   for (const f of LEAD_FIELDS) if (mapping[f] === undefined) mapping[f] = null;
   return mapping;
 }

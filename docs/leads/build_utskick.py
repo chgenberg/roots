@@ -23,6 +23,7 @@ import sys
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date
+from pathlib import Path
 
 from openpyxl import load_workbook
 from openpyxl.formatting.rule import FormulaRule
@@ -58,14 +59,18 @@ SEG_GENERAL = "Generellt mejl"
 SEG_DIALOG = "Pågående dialog – påstötning"
 SEG_AGREEMENT = "Avtal – skicka inte"
 SEG_SKIP = "Skicka inte"
-SEGMENTS = [SEG_PERSONAL, SEG_GENERAL, SEG_DIALOG, SEG_AGREEMENT, SEG_SKIP]
+SEG_TEAM = "Lag – eget utskick"
+SEGMENTS = [SEG_PERSONAL, SEG_GENERAL, SEG_DIALOG, SEG_TEAM, SEG_AGREEMENT, SEG_SKIP]
 SEGMENT_FILL = {
     SEG_PERSONAL: "DDEFD9",
     SEG_GENERAL: "EEE6DA",
     SEG_DIALOG: "F6D3A8",
     SEG_AGREEMENT: "D9D9D9",
     SEG_SKIP: "D9D9D9",
+    SEG_TEAM: "D6E4F0",
 }
+NAME_FIXED = "FBE3D6"
+TEAM_SHEET = "Lag"
 
 STATUSES = [
     "Ej skickad", "Skickad", "Öppnad", "Öppnat förslaget", "Vill veta mer",
@@ -78,6 +83,32 @@ def text(v) -> str:
         return ""
     s = str(v).strip()
     return "" if s in ("0", "None") else s
+
+
+# Säljarnas anteckningar i namnet. Slutat/upphört tas bort ur utskicket, övriga flaggas.
+STOPPED = re.compile(r"\bslutat?\b|upphör", re.I)
+DORMANT = re.compile(r"\b(konkurs|vilande|inaktiv|kundförl\w*)\b", re.I)
+STATUS_SUFFIX = re.compile(r"\s*/\s*(konkurs|vilande|inaktiv|kundförl\w*)\s*$", re.I)
+PARENS = re.compile(r"\s*\([^)]*\)?")
+# Ordet lag (Lag: P-07, laget, damlaget, A-lag) och lagbeteckningar som (Team P05), (P-05), (F-06/07).
+TEAM_WORD = re.compile(r"(?<![\wåäö])(\w*-)?(dam|herr|flick|pojk|ungdoms|junior)?lag(et|en)?(?![\wåäö])", re.I)
+TEAM_PARENS = re.compile(r"\(\s*(team|trupp|grupp)\b|\(\s*[PFU][\s/-]*\d|\(\s*(dam|flickor|pojkar)\s*\)", re.I)
+
+
+def clean_name(name: str) -> str:
+    """Namnet utan parenteser och statusanteckningar. Originalet i Förening lämnas orört."""
+    s = PARENS.sub("", name)
+    s = STATUS_SUFFIX.sub("", s)
+    s = re.sub(r"\s+", " ", s).strip(" -/,.")
+    return s or name.strip()
+
+
+def team_reason(name: str) -> str:
+    if TEAM_WORD.search(name):
+        return "Ordet lag i namnet"
+    if TEAM_PARENS.search(name):
+        return "Lagbeteckning i namnet (Team, P-05, F-06)"
+    return ""
 
 
 def emails_of(row) -> list[str]:
@@ -111,6 +142,7 @@ def collect(ws):
             raise SystemExit(f"Kolumn {i + 1} heter {header[i]!r}, väntade {name!r}. Fel version av listan?")
     leads = {s: [] for s in SELLERS}
     skipped = []
+    stopped = []
     for rownum, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
         if not text(row[C_NAME]):
             continue
@@ -123,9 +155,18 @@ def collect(ws):
         mails = emails_of(row)
         if seller == CENTRAL and not mails:
             continue
+        if STOPPED.search(text(row[C_NAME])):
+            stopped.append((seller, text(row[C_NAME]), rownum))
+            continue
+        dormant = DORMANT.search(text(row[C_NAME]))
         leads[seller].append({
             "row": rownum,
+            "seller": seller,
             "name": text(row[C_NAME]),
+            "clean": clean_name(text(row[C_NAME])),
+            "fixed": "",
+            "fixed_why": "",
+            "team": team_reason(text(row[C_NAME])),
             "contact": text(row[C_CONTACT]),
             "email": mails[0] if mails else "",
             "more": ", ".join(mails[1:]),
@@ -140,7 +181,8 @@ def collect(ws):
             "surplus": number(row[C_SURPLUS]),
             "kuvert": number(row[C_KUVERT]),
             "category": text(row[C_CATEGORY]).upper(),
-            "check": "",
+            "check": (f"Namnet säger '{dormant.group(1)}'. Kontrollera att föreningen finns kvar "
+                      "innan den får mejl, töm sedan rutan.") if dormant else "",
             "contact_from": "Listan" if text(row[C_CONTACT]) else "",
             "total": members_of(row),
             "active": None,
@@ -152,7 +194,7 @@ def collect(ws):
             "founded": "",
             "about": "",
         })
-    return leads, skipped
+    return leads, skipped, stopped
 
 
 NOT_SHOP = re.compile(r"/butiker/|gclid|gad_source|(^|\.)(ica|coop|willys|hemkop|lidl|happyhomes|bolist)\.se", re.I)
@@ -346,10 +388,11 @@ def mark_shared(leads) -> int:
         group.sort(key=lambda l: (l["category"] != "A", l["members"] is None, -l["surplus"]))
         keeper = group[0]
         for other in group[1:]:
-            other["check"] = (
+            other["check"] = " ".join(x for x in [
                 f"Samma adress ({mail}) som {keeper['name']}, rad {keeper['row']} i Leadsbas. "
-                "Hitta egen adress eller töm rutan om ett gemensamt mejl räcker."
-            )
+                "Hitta egen adress eller töm rutan om ett gemensamt mejl räcker.",
+                other["check"],
+            ] if x)
             other["email"] = ""
             other["more"] = ", ".join(x for x in [mail, other["more"]] if x)
     return shared
@@ -413,6 +456,8 @@ def priority(lead) -> int:
 HEADERS = [
     # (rubrik, bredd, grupp) grupp: base | fill | calc | track
     ("Förening", 34, "base"),
+    ("Korrigerat namn", 30, "fill"),
+    ("Namnändring", 30, "base"),
     ("Segment", 26, "fill"),
     ("Kontaktperson", 20, "fill"),
     ("E-post", 32, "fill"),
@@ -457,6 +502,7 @@ HEADERS = [
     ("Följ upp senast", 12, "track"),
     ("Anteckning", 36, "track"),
 ]
+TEAM_HEADERS = [("Säljare", 10, "base"), ("Varför i Lag-fliken", 30, "base")]
 COL = {h: get_column_letter(i + 1) for i, (h, _, _) in enumerate(HEADERS)}
 
 HEAD_FILL = {
@@ -474,17 +520,31 @@ HEAD_FONT = {
 THIN = Side(style="thin", color="E2D8CC")
 
 
-def write_seller_sheet(wb, title: str, seller: str, leads: list[dict]):
+def name_change(lead) -> str:
+    parts = []
+    if lead["clean"] != lead["name"]:
+        parts.append("Parentes eller anteckning borttagen")
+    if lead["fixed"]:
+        parts.append(f"Stavning: {lead['fixed_why']}" if lead["fixed_why"] else "Stavning rättad")
+    return ". ".join(parts)
+
+
+def write_seller_sheet(wb, title: str, seller: str | None, leads: list[dict]):
+    """seller=None är Lag-fliken: alla säljares lag samlade, med säljare och skäl längst bak."""
     ws = wb.create_sheet(title)
-    for i, (h, width, group) in enumerate(HEADERS, start=1):
+    headers = HEADERS + (TEAM_HEADERS if seller is None else [])
+    for i, (h, width, group) in enumerate(headers, start=1):
         c = ws.cell(1, i, h)
         c.fill, c.font = HEAD_FILL[group], HEAD_FONT[group]
         c.alignment = Alignment(wrap_text=True, vertical="center")
         ws.column_dimensions[get_column_letter(i)].width = width
     ws.row_dimensions[1].height = 34
 
-    leads = sorted(leads, key=lambda l: (
-        priority(l), l["category"] != "A", not l["email"], -l["surplus"], l["name"].lower()))
+    if seller is None:
+        leads = sorted(leads, key=lambda l: (l["clean"].lower(), l["name"].lower()))
+    else:
+        leads = sorted(leads, key=lambda l: (
+            priority(l), l["category"] != "A", not l["email"], -l["surplus"], l["name"].lower()))
     fill_me = PatternFill("solid", fgColor=FILL_ME)
     for r, lead in enumerate(leads, start=2):
         e, n, b, t, k, chk, s = (COL[h] for h in (
@@ -493,7 +553,11 @@ def write_seller_sheet(wb, title: str, seller: str, leads: list[dict]):
         personal = f'{s}{r}="{SEG_PERSONAL}"'
         values = {
             "Förening": lead["name"],
-            "Segment": suggested_segment(lead, seller),
+            "Korrigerat namn": lead["fixed"] or lead["clean"],
+            "Namnändring": name_change(lead) or None,
+            "Segment": SEG_TEAM if seller is None else suggested_segment(lead, seller),
+            "Säljare": lead["seller"],
+            "Varför i Lag-fliken": lead["team"],
             "Kontaktperson": lead["contact"] or None,
             "E-post": lead["email"] or None,
             "Fler e-postadresser": lead["more"] or None,
@@ -540,11 +604,13 @@ def write_seller_sheet(wb, title: str, seller: str, leads: list[dict]):
             "Rad i Leadsbas": lead["row"],
             "Status": "Ej skickad",
         }
-        for i, (h, _, group) in enumerate(HEADERS, start=1):
+        for i, (h, _, group) in enumerate(headers, start=1):
             c = ws.cell(r, i, values.get(h))
             c.border = Border(bottom=THIN)
             if group == "fill" and values.get(h) in (None, ""):
                 c.fill = fill_me
+        if lead["fixed"]:
+            ws[f"{COL['Korrigerat namn']}{r}"].fill = PatternFill("solid", fgColor=NAME_FIXED)
         for h in ("Belopp per deltagare", "Total försäljning", "Behållning 35 %", "Överskott H20–V21"):
             ws[f"{COL[h]}{r}"].number_format = '# ##0" kr"'
         for h in ("Skickat", "Följ upp senast"):
@@ -556,8 +622,8 @@ def write_seller_sheet(wb, title: str, seller: str, leads: list[dict]):
             src.font = Font(color="1F5FA8", underline="single")
 
     last = max(2, len(leads) + 1)
-    ws.freeze_panes = "C2"
-    ws.auto_filter.ref = f"A1:{get_column_letter(len(HEADERS))}{last}"
+    ws.freeze_panes = f"{COL['Namnändring']}2"
+    ws.auto_filter.ref = f"A1:{get_column_letter(len(headers))}{last}"
     seg = DataValidation(type="list", formula1='"' + ",".join(SEGMENTS) + '"', allow_blank=False,
                          showErrorMessage=True, errorTitle="Segment",
                          error="Välj ett segment i listan.")
@@ -754,7 +820,25 @@ def write_warmup(wb, intro: dict[str, int], ready: dict[str, int]):
         ws.row_dimensions[i].height = 30
 
 
-def write_readme(wb, st: dict[str, dict], skipped, shared: int, dead: int):
+def apply_spelling(leads, path: str) -> int:
+    changes = json.loads(Path(path).read_text())["changes"]
+    n = 0
+    for lead in (l for s in leads for l in leads[s]):
+        fix = changes.get(lead["clean"])
+        if fix and fix.get("verified") and fix["fixed"] != lead["clean"]:
+            lead["fixed"], lead["fixed_why"] = fix["fixed"], fix["why"]
+            n += 1
+    return n
+
+
+def split_teams(leads) -> list[dict]:
+    teams = [l for s in leads for l in leads[s] if l["team"]]
+    for s in leads:
+        leads[s] = [l for l in leads[s] if not l["team"]]
+    return teams
+
+
+def write_readme(wb, st: dict[str, dict], skipped, shared: int, dead: int, stopped, teams, names: dict):
     ws = wb.create_sheet("Läs mig", 0)
     ws.column_dimensions["A"].width = 4
     ws.column_dimensions["B"].width = 110
@@ -772,12 +856,13 @@ def write_readme(wb, st: dict[str, dict], skipped, shared: int, dead: int):
               "och pågående dialog får inget utskick."),
         ("p", "Fliken Uppvärmning visar den gamla, snabbare takten och gäller inte längre."),
         ("h2", "Segment – vilket utskick föreningen åker med i"),
-        ("p", "Kolumn B. Välj i listan; det är den kolumnen systemet läser."),
+        ("p", f"Kolumn {COL['Segment']}. Välj i listan; det är den kolumnen systemet läser."),
         ("p", f"{SEG_PERSONAL}: räkneexempel och shopförslag, från Kent eller Niclas. Kräver e-post och antal "
               "deltagare. Förifyllt för Niclas kategori A och föreningar som redan har allt."),
         ("p", f"{SEG_GENERAL}: introduktionen med 'Jag vill veta mer'. Kräver bara e-post. Förifyllt för övriga."),
         ("p", f"{SEG_DIALOG}: föreningar ni redan pratar med. Får inget massutskick, bara påstötningen "
               "('det går bra, dags att bestämma sig') från er egen inkorg. Sätts bara av er."),
+        ("p", f"{SEG_TEAM}: förifyllt i fliken Lag. Lagen behandlas för sig och får inte det vanliga utskicket."),
         ("p", f"{SEG_AGREEMENT} och {SEG_SKIP}: får ingenting."),
         ("p", "Ordning (1–3) är något annat: den säger hur komplett underlaget är och styr vem som går först "
               "inom ett segment. 1 = klar för personligt mejl och tidigare försäljning eller kategori A, "
@@ -792,9 +877,27 @@ def write_readme(wb, st: dict[str, dict], skipped, shared: int, dead: int):
               "bekräftas."),
         ("p", "Sociala medier, Webbshop, Grundår och Om föreningen kommer från föreningens egen webbplats. "
               "Webbshop betyder att föreningen redan säljer kläder eller produkter, en bra öppning i samtalet."),
+        ("h2", "Namnen"),
+        ("p", "Förening är namnet precis som i originalfilen och ändras aldrig. Matcha händelser mot "
+              "originalet med Förening eller Rad i Leadsbas (radnumret i fliken Leadsbas); e-postadressen "
+              "är också unik per rad."),
+        ("p", "Korrigerat namn är det som står i mejlen: utan parenteser (till exempel '(Lag: P-07)'), "
+              "utan anteckningar som '/Konkurs' och med stavningen kontrollerad. Rosa ruta = stavningen är "
+              "ändrad, Namnändring säger vad. Skriv över Korrigerat namn om något blev fel."),
+        ("p", f"Borttagna: {len(stopped)} föreningar med 'slutat' eller 'upphört' i namnet finns inte med "
+              "(listan längst ner). "
+              f"{names['dormant']} med 'konkurs', 'vilande', 'inaktiv' eller 'kundförl' i namnet är kvar men "
+              "flaggade i Kontrollera."),
+        ("p", f"Stavning: {names['spelled']} namn rättade. {names['cleaned']} namn har fått parentes eller "
+              "anteckning borttagen."),
         ("h2", "Flikarna"),
-        ("p", "Kent – utskick / Niclas – utskick: alla föreningar som är taggade på säljaren. Importeras i Lead-mejl."),
+        ("p", "Kent – utskick / Niclas – utskick: alla föreningar som är taggade på säljaren, utom lagen. "
+              "Importeras i Lead-mejl."),
         ("p", f"{CENTRAL} – intro: föreningar utan säljare som har e-post. Får introduktionen från Johan Lindqvist."),
+        ("p", f"{TEAM_SHEET}: {len(teams)} lag, flyttade från säljarflikarna så att de kan behandlas för sig. "
+              f"{sum(t['team'].startswith('Ordet') for t in teams)} har ordet lag i namnet (Lag: P-07, Damlaget, "
+              f"A-lag), {sum(not t['team'].startswith('Ordet') for t in teams)} har en lagbeteckning utan ordet "
+              "(Team P05, P-05, F-06/07, Trupp). Säljare och Varför i Lag-fliken står längst till höger."),
         ("p", "Uppvärmning: hur många mejl per dag, dag för dag, och reglerna för uppföljning."),
         ("p", "Antaganden: belopp per deltagare (6 × 399 kr = 2 394 kr) och 35 % till föreningen."),
         ("h2", "Färgerna i rubrikraden"),
@@ -824,9 +927,10 @@ def write_readme(wb, st: dict[str, dict], skipped, shared: int, dead: int):
               "före söndag kväll 1 november hinner med från start."),
         ("p", "4. Valfritt: kontaktperson (ger 'Hej Anna!' i stället för 'Hej!') och webbplats "
               "(ger föreningens logga i shopförslaget)."),
-        ("p", "Skriv bara i gula kolumner och de gröna uppföljningskolumnerna. Ändra inte Förening eller Rad i Leadsbas."),
+        ("p", "Skriv bara i gula kolumner och de gröna uppföljningskolumnerna. Ändra inte Förening eller Rad i Leadsbas, "
+              "de behövs för att matcha mot originalfilen."),
         ("h2", "Så används kolumnerna i det personliga mejlet"),
-        ("p", "[Föreningsnamn] = Förening. [Förnamn] = första namnet i Kontaktperson. "
+        ("p", "[Föreningsnamn] = Korrigerat namn. [Förnamn] = första namnet i Kontaktperson. "
               "[antal deltagare] = Antal deltagare. [belopp] = Belopp per deltagare. "
               "[total försäljning] = Total försäljning. [Behållning] = Behållning 35 %. "
               "[Se shopförslaget] = länk till föreningens egen shop, med logga från Webbplats."),
@@ -834,6 +938,10 @@ def write_readme(wb, st: dict[str, dict], skipped, shared: int, dead: int):
     if skipped:
         lines.append(("h2", "Ta ej med"))
         for seller, name, row in skipped:
+            lines.append(("p", f"{name} ({seller}, rad {row} i Leadsbas)"))
+    if stopped:
+        lines.append(("h2", "Borttagna: slutat eller upphört"))
+        for seller, name, row in stopped:
             lines.append(("p", f"{name} ({seller}, rad {row} i Leadsbas)"))
 
     r = 1
@@ -853,9 +961,10 @@ def write_readme(wb, st: dict[str, dict], skipped, shared: int, dead: int):
     ws.sheet_view.showGridLines = False
 
 
-def main(src: str, dst: str, enrichments: list[str], contacts: list[str], newwave: str | None):
+def main(src: str, dst: str, enrichments: list[str], contacts: list[str], newwave: str | None,
+         spelling: str | None):
     wb = load_workbook(src)
-    leads, skipped = collect(wb["Leadsbas"])
+    leads, skipped, stopped = collect(wb["Leadsbas"])
     for spec in contacts:
         seller, _, path = spec.partition("=")
         print(f"kontakter {seller}:", apply_contacts(leads, seller, path))
@@ -866,18 +975,26 @@ def main(src: str, dst: str, enrichments: list[str], contacts: list[str], newwav
     shared = mark_shared(leads)
     mark_big(leads)
     dead = mark_dead_domains(leads)
+    everyone = [l for s in leads for l in leads[s]]
+    names = {
+        "spelled": apply_spelling(leads, spelling) if spelling else 0,
+        "cleaned": sum(l["clean"] != l["name"] for l in everyone),
+        "dormant": sum(bool(DORMANT.search(l["name"])) for l in everyone),
+    }
+    teams = split_teams(leads)
     st = {}
     for seller in SELLERS:
         title = f"{seller} – intro" if seller == CENTRAL else f"{seller} – utskick"
         write_seller_sheet(wb, title, seller, leads[seller])
         st[seller] = stats(leads[seller])
+    write_seller_sheet(wb, TEAM_SHEET, None, teams)
     write_warmup(
         wb,
         {s: st[s]["email"] for s in SELLERS},
         {s: st[s]["ready"] for s in SELLERS},
     )
     write_assumptions(wb)
-    write_readme(wb, st, skipped, shared, dead)
+    write_readme(wb, st, skipped, shared, dead, stopped, teams, names)
     originals = [wb["Leadsbas"], wb["Kontroll"]]
     wb._sheets = [ws for ws in wb.worksheets if ws not in originals] + originals
     wb.active = 0
@@ -887,6 +1004,7 @@ def main(src: str, dst: str, enrichments: list[str], contacts: list[str], newwav
     for seller in SELLERS:
         print(seller, st[seller])
     print("ta ej med:", len(skipped), "delade adresser:", shared, "döda domäner:", dead)
+    print("slutat/upphört:", len(stopped), "lag:", len(teams), "namn:", names)
 
 
 if __name__ == "__main__":
@@ -896,5 +1014,6 @@ if __name__ == "__main__":
     ap.add_argument("--berikning", action="append", default=[])
     ap.add_argument("--kontakter", action="append", default=[])
     ap.add_argument("--newwave", help="newwave_per_rad.json: Newwaves klubbregister per rad i Leadsbas")
+    ap.add_argument("--stavning", help="namn_stavning.json från spellcheck_names.py")
     a = ap.parse_args()
-    main(a.src, a.dst, a.berikning, a.kontakter, a.newwave)
+    main(a.src, a.dst, a.berikning, a.kontakter, a.newwave, a.stavning)

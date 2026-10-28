@@ -32,6 +32,11 @@ describe("suggestMapping", () => {
     ]);
     expect(m).toEqual({ orgName: 0, contactName: 1, email: 2, website: 4, memberCount: 5 });
   });
+
+  it("tar Korrigerat namn före Förening, så att originalnamnet bara används för matchning", () => {
+    const m = suggestMapping(["Förening", "Korrigerat namn", "Namnändring", "Segment", "Kontaktperson", "E-post"]);
+    expect(m).toMatchObject({ orgName: 1, contactName: 4, email: 5 });
+  });
 });
 
 describe("parseLeads", () => {
