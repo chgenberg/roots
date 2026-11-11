@@ -200,12 +200,15 @@ async function fromLaget(clubUrlName: string, host: string): Promise<ClubBrand |
 const NOT_A_LOGO =
   /sponsor|partner|samarbet|footer|payment|klarna|swish|visa|mastercard|flag|flagga|lang|cookie|facebook|instagram|twitter|youtube|tiktok|linkedin|app-?store|google-?play|avatar|search|sok|menu|meny|cart/i;
 
+/** Sajtbyggarnas egna standardikoner — tomma eller plattformens märke, aldrig föreningens. */
+const PLATFORM_DEFAULT_ICON = /static\.parastorage\.com\/client\/pfavico\.ico|wix\.com\/favicon\.ico/i;
+
 type Candidate = { src: string; score: number };
 
 function candidates(html: string, base: URL): Candidate[] {
   const out: Candidate[] = [];
   const add = (src: string, score: number) => {
-    if (!src || src.startsWith("data:")) return;
+    if (!src || src.startsWith("data:") || PLATFORM_DEFAULT_ICON.test(src)) return;
     try {
       out.push({ src: new URL(src, base).toString(), score });
     } catch {
@@ -256,7 +259,11 @@ function siteName(html: string): string | null {
   const og = html.match(/<meta[^>]+property=["']og:site_name["'][^>]*>/i)?.[0];
   const fromOg = og ? attr(og, "content") : "";
   const title = decode(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? "");
-  const raw = fromOg || title;
+  // Wix kapar og:site_name till 20 tecken; titeln har oftast hela namnet.
+  const fullFromTitle = fromOg
+    ? title.split(/\s+[|–—-]\s+|\s*\|\s*/).find((p) => p.length > fromOg.length && p.startsWith(fromOg))
+    : undefined;
+  const raw = fullFromTitle || fromOg || title;
   if (!raw) return null;
   const first = raw
     .split(/\s+[|–—-]\s+|\s*\|\s*/)[0]
@@ -275,7 +282,8 @@ function themeColor(html: string): string | null {
 }
 
 async function imageDataUrl(url: URL): Promise<string | null> {
-  const res = await safeFetch(url, "image/avif,image/webp,image/png,image/svg+xml,image/*;q=0.8", MAX_IMAGE).catch(
+  // Ingen avif i Accept: CDN:er som Wix svarar då med avif, som alla webbläsare inte kan rita på canvas.
+  const res = await safeFetch(url, "image/webp,image/png,image/svg+xml,image/*;q=0.8", MAX_IMAGE).catch(
     () => null
   );
   if (!res) return null;
