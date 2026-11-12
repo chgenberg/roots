@@ -23,12 +23,10 @@ import {
   Award,
   Star,
   TrendingUp,
-  PlusCircle,
 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { GradeBadge, GradeProgress } from "@/components/seller-grade";
 import { OrderDetailDialog } from "@/components/order-detail-dialog";
-import { ManualOrderDialog } from "@/components/manual-order-dialog";
 import { MiniTrendCard } from "@/components/charts/mini-trend-card";
 import { ShareTemplates } from "@/components/share-templates";
 import type { SellerDashboard as SellerDashboardData, Milestone } from "@/types/fundraising";
@@ -56,7 +54,6 @@ export default function SellerDashboard() {
   const [qrDataUrl, setQrDataUrl] = useState("");
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailOrderId, setDetailOrderId] = useState<string | null>(null);
-  const [manualOpen, setManualOpen] = useState(false);
   const { toast } = useToast();
 
   const load = useCallback(async (silent = false) => {
@@ -190,10 +187,6 @@ export default function SellerDashboard() {
             {data.campaign ? ` · ${data.campaign.name}` : ""}
           </p>
         </div>
-        <Button variant="outline" onClick={() => setManualOpen(true)}>
-          <PlusCircle className="mr-2 h-4 w-4" />
-          {t.registerOrder}
-        </Button>
       </div>
 
       <section className="overflow-hidden rounded-2xl border border-brand-200 bg-brand-50/70 p-6 sm:p-8">
@@ -422,13 +415,6 @@ export default function SellerDashboard() {
         orderId={detailOrderId}
         // Säljarens egen försäljning och nivå räknas om på servern.
         onStatusChange={() => void load(true)}
-      />
-
-      <ManualOrderDialog
-        open={manualOpen}
-        onOpenChange={setManualOpen}
-        onCreated={() => load(true)}
-        shopSlug={data?.seller?.shopSlug}
       />
     </div>
   );

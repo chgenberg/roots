@@ -80,7 +80,7 @@ export const pages = {
       heroTitleLead: "Ni säljer.",
       heroTitleAccent: "Vi sköter resten.",
       heroBody:
-        "Varje medlem får en egen butik. Kunden handlar med Swish eller kort. Roots levererar. Föreningen behåller 35 %.",
+        "Varje medlem får en egen butik. Kunden betalar med kort. Roots levererar. Föreningen behåller 35 %.",
       heroImageAlt: "Ishockeyträning för barn i en ishall",
       ctaPrimary: "Sälj med oss",
       ctaSecondary: "Kontakta oss",
@@ -132,7 +132,7 @@ export const pages = {
       heroTitleLead: "You sell.",
       heroTitleAccent: "We handle the rest.",
       heroBody:
-        "Every member gets their own shop. The customer pays with Swish or card. Roots delivers. The club keeps 35%.",
+        "Every member gets their own shop. The customer pays by card. Roots delivers. The club keeps 35%.",
       heroImageAlt: "Kids' ice hockey practice in a local rink",
       ctaPrimary: "Sell with us",
       ctaSecondary: "Contact us",
@@ -230,11 +230,11 @@ export const pages = {
           eyebrow: "Steg 3",
           title: "Medlemmen säljer",
           description:
-            "Spelaren får sin egen personliga shop-länk. Hen delar den med släkt och vänner — som handlar med Swish eller kort på några sekunder.",
+            "Spelaren får sin egen personliga shop-länk. Hen delar den med släkt och vänner — som handlar och betalar med kort på några sekunder.",
           bullets: [
             "Egen personlig webshop-sida",
             "Dela via SMS, sociala medier eller QR-kod",
-            "Swish och kort direkt i mobilen",
+            "Kortbetalning direkt i mobilen",
           ],
         },
       ],
@@ -321,11 +321,11 @@ export const pages = {
           eyebrow: "Step 3",
           title: "The member sells",
           description:
-            "The player gets their own personal shop link. They share it with family and friends — who pay with Swish or card in seconds.",
+            "The player gets their own personal shop link. They share it with family and friends — who order and pay by card in seconds.",
           bullets: [
             "A personal webshop page",
             "Share via SMS, social media or QR code",
-            "Swish and card right on the phone",
+            "Card payment right on the phone",
           ],
         },
       ],

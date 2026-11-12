@@ -197,7 +197,7 @@ export default function TeamSettlementPage() {
         </Card>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className={`grid gap-4 ${directOrders.length > 0 ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
         <Card>
           <CardContent className="p-5">
             <div className="flex items-center gap-1.5 mb-1">
@@ -212,20 +212,23 @@ export default function TeamSettlementPage() {
             </p>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="p-5">
-            <div className="flex items-center gap-1.5 mb-1">
-              <ArrowDownRight className="h-3.5 w-3.5 text-brand-500" />
-              <p className="text-sm font-medium">{t.payToLeader}</p>
-            </div>
-            <p className="text-xl font-bold">
-              {formatKr(directPaidTotal, locale)}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {tFill(t.directHint, { n: directOrders.length })}
-            </p>
-          </CardContent>
-        </Card>
+        {/* Manuella ordrar går inte längre att skapa. Rutan finns kvar för äldre sådana. */}
+        {directOrders.length > 0 && (
+          <Card>
+            <CardContent className="p-5">
+              <div className="flex items-center gap-1.5 mb-1">
+                <ArrowDownRight className="h-3.5 w-3.5 text-brand-500" />
+                <p className="text-sm font-medium">{t.payToLeader}</p>
+              </div>
+              <p className="text-xl font-bold">
+                {formatKr(directPaidTotal, locale)}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {tFill(t.directHint, { n: directOrders.length })}
+              </p>
+            </CardContent>
+          </Card>
+        )}
         <Card>
           <CardContent className="p-5">
             <div className="flex items-center gap-1.5 mb-1">

@@ -601,7 +601,6 @@ const ERRORS = {
   expiresInDaysRange: { sv: "expiresInDays måste vara 0–365 (0 = ingen utgång).", en: "expiresInDays must be 0–365 (0 = no expiry)." },
   maxUsesRange: { sv: "maxUses måste vara mellan 1 och 10000 (eller utelämnat).", en: "maxUses must be between 1 and 10000 (or omitted)." },
   couldNotRotateInviteLink: { sv: "Kunde inte rotera inbjudningslänken just nu.", en: "Could not rotate the invitation link right now." },
-  demoCannotRegisterOrders: { sv: "Demoläget kan inte registrera riktiga ordrar.", en: "Demo mode cannot register real orders." },
   atLeastOneItemRequired: { sv: "Minst en vara krävs.", en: "At least one item is required." },
   sellerProfileInactive: { sv: "Din säljprofil är inte aktiv.", en: "Your seller profile is not active." },
   salesPeriodInactive: {
@@ -659,7 +658,10 @@ const ERRORS = {
     en: "Invoice could not be created with the supplier",
   },
   cartEmpty: { sv: "Varukorgen är tom.", en: "The basket is empty." },
-  couldNotRegisterOrder: { sv: "Kunde inte registrera ordern.", en: "Could not register the order." },
+  manualOrdersClosed: {
+    sv: "Det går inte längre att registrera en order för hand. All försäljning går via din butik och betalas med kort.",
+    en: "Orders can no longer be registered by hand. All sales go through your shop and are paid by card.",
+  },
   demoCannotChangeDelivery: { sv: "Demoläget kan inte ändra leveransstatus.", en: "Demo mode cannot change delivery status." },
   statusShippedDeliveredPaid: { sv: "status måste vara SHIPPED, DELIVERED eller PAID.", en: "status must be SHIPPED, DELIVERED or PAID." },
   onlyPaidOrdersShipDeliver: { sv: "Endast betalda ordrar kan markeras som skickade/levererade.", en: "Only paid orders can be marked as shipped/delivered." },

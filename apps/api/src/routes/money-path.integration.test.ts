@@ -287,6 +287,44 @@ describe.skipIf(!HAS_DB)("pengavägen (integration)", () => {
     return { cookie: `rootsSessionId=${sessionId}` };
   }
 
+  /**
+   * En manuell order från tiden innan de stängdes av (kontant eller Swish
+   * vid dörren). De går inte längre att skapa via API:t, men äldre rader
+   * finns kvar och ska fortsätta hanteras rätt av bekräftelse, avbokning
+   * och avräkning. Raden ser ut som den vägen skapade den.
+   */
+  async function seedLegacyManualOrder(qty: number, customerName: string) {
+    const [order] = await db
+      .insert(schema.customerOrders)
+      .values({
+        orgId: ids.org,
+        campaignId: ids.campaign,
+        teamId: ids.team,
+        sellerId: ids.seller,
+        customerName,
+        customerEmail: "",
+        deliveryType: "BULK",
+        paymentMethod: "DIRECT_TO_LEADER",
+        selectedPaymentMethod: "cash",
+        status: "PAID",
+        totalOre: CAMPAIGN_PRICE_ORE * qty,
+        shippingOre: 0,
+        countsTowardStats: true,
+        isManual: true,
+        placedByUserId: ids.sellerUser,
+        marginPercentAtSale: CAMPAIGN_MARGIN_PERCENT,
+      })
+      .returning();
+    await db.insert(schema.customerOrderLines).values({
+      orderId: order.id,
+      productId: ids.productA,
+      qty,
+      unitPriceOre: CAMPAIGN_PRICE_ORE,
+    });
+    orderIds.push(order.id);
+    return order;
+  }
+
   it("visar bara kampanjens produkter, och till kampanjens pris", async () => {
     const res = await request(`/v1/shop/by-slug/${shopSlug}`);
     expect(res.status).toBe(200);
@@ -481,25 +519,38 @@ describe.skipIf(!HAS_DB)("pengavägen (integration)", () => {
     expect(body.status).toBe("PAID");
   });
 
-  it("håller en obekräftad manuell order utanför avräkningen", async () => {
+  it("låter inte säljaren registrera en order för hand", async () => {
+    // Bara kortbetalning i kassan gäller. En order som betalats kontant
+    // eller med Swish vid dörren passerar aldrig plattformen, och ska
+    // därför inte kunna läggas in och räknas i en utbetalning.
     const seller = await asUser(ids.sellerUser);
-    const manualRes = await request("/v1/dashboard/seller/orders", {
-      method: "POST",
-      headers: { "content-type": "application/json", cookie: seller.cookie },
-      body: JSON.stringify({
-        items: [{ productId: ids.productA, qty: 3 }],
-        paymentMethod: "swish",
-        customerName: "Kontantkund",
-      }),
-    });
-    expect(manualRes.status).toBe(200);
-    const manual = (await manualRes.json()) as {
-      order: { id: string; status: string };
-    };
-    orderIds.push(manual.order.id);
-    // Säljaren säger att pengarna finns i handen, så statistiken tror på
-    // det direkt — men ingen utbetalning får bygga på det ännu.
-    expect(manual.order.status).toBe("PAID");
+    const before = await db
+      .select({ id: schema.customerOrders.id })
+      .from(schema.customerOrders)
+      .where(eq(schema.customerOrders.campaignId, ids.campaign));
+    for (const paymentMethod of ["cash", "swish", "card"]) {
+      const res = await request("/v1/dashboard/seller/orders", {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie: seller.cookie },
+        body: JSON.stringify({
+          items: [{ productId: ids.productA, qty: 3 }],
+          paymentMethod,
+          customerName: "Kontantkund",
+        }),
+      });
+      expect(res.status).toBe(410);
+    }
+    const after = await db
+      .select({ id: schema.customerOrders.id })
+      .from(schema.customerOrders)
+      .where(eq(schema.customerOrders.campaignId, ids.campaign));
+    expect(after).toHaveLength(before.length);
+  });
+
+  it("håller en äldre obekräftad manuell order utanför avräkningen", async () => {
+    // Raden räknas i statistiken direkt, men ingen utbetalning får bygga
+    // på den förrän någon bekräftat att pengarna kommit in.
+    await seedLegacyManualOrder(3, "Kontantkund");
 
     // Avräkning kräver avslutad kampanj.
     await db
@@ -691,26 +742,16 @@ describe.skipIf(!HAS_DB)("pengavägen (integration)", () => {
     // CANCELLED och REFUNDED har funnits i statusenumen sedan första
     // migrationen utan att någon kodväg satte dem. En felregistrerad order
     // gick alltså bara att rätta direkt i databasen.
-    // Tidigare tester avslutade och avräknade kampanjen. En säljare kan bara
-    // registrera i en aktiv kampanj, så den öppnas igen här.
+    // Tidigare tester avslutade och avräknade kampanjen. Den öppnas igen här,
+    // så att rättningen prövas under pågående försäljning.
     await db
       .update(schema.campaigns)
       .set({ status: "ACTIVE" })
       .where(eq(schema.campaigns.id, ids.campaign));
 
     const seller = await asUser(ids.sellerUser);
-    const createRes = await request("/v1/dashboard/seller/orders", {
-      method: "POST",
-      headers: { "content-type": "application/json", cookie: seller.cookie },
-      body: JSON.stringify({
-        items: [{ productId: ids.productA, qty: 4 }],
-        paymentMethod: "cash",
-        customerName: "Felregistrerad kund",
-      }),
-    });
-    expect(createRes.status).toBe(200);
-    const created = (await createRes.json()) as { order: { id: string } };
-    orderIds.push(created.order.id);
+    const legacy = await seedLegacyManualOrder(4, "Felregistrerad kund");
+    const created = { order: { id: legacy.id } };
 
     // Utan skäl går det inte att skilja ett misstag från en ångrad kund i
     // efterhand, så tomt skäl ska nekas.

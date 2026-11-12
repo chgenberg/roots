@@ -1,6 +1,5 @@
 import { Hono } from "hono";
 import { eq, and, sql, inArray, gte, desc } from "drizzle-orm";
-import { createHash } from "node:crypto";
 import { hash } from "@node-rs/argon2";
 import { db } from "@roots/db";
 import {
@@ -27,7 +26,6 @@ import { welcomeEmail } from "../lib/email/templates";
 import { childLogger } from "../lib/logger";
 import { stockholmDateIso } from "../lib/date";
 import { auditLog, requestContext } from "../lib/audit";
-import { resolveCampaignCatalog } from "../lib/campaign-catalog";
 import { validatePassword } from "./auth";
 import { resolveUiLocale, uiError } from "../lib/ui-locale";
 import { localizedProductName } from "../lib/product-i18n";
@@ -1367,217 +1365,22 @@ dashboard.get("/seller", async (c) => {
 });
 
 /**
- * MASTERPLAN_02: order lagd av säljaren själv (manuell order).
+ * Manuella ordrar är avstängda (beslut 12 nov 2026). All försäljning går via
+ * säljarens butik och betalas med kort i kassan.
  *
- * Säljaren tar emot kontant/Swish/kort vid dörren och registrerar
- * ordern i appen. Den attribueras till säljarens egen profil, markeras
- * `isManual=true` och `paymentMethod=DIRECT_TO_LEADER` (pengarna går via
- * laget, inte Klarna). Den räknas i topplistor om den ligger inom
- * kampanjens säljperiod, precis som online-ordrar.
+ * Tidigare registrerade säljaren här en order som betalats kontant eller med
+ * Swish vid dörren. De pengarna passerade aldrig plattformen, men räknades
+ * ändå in i lagets utbetalning.
  *
- * Body:
- *   items: [{ productId, qty }]   (obligatoriskt, qty 1–100)
- *   customerName?: string          (valfritt — "Kontantkund" om tomt)
- *   paymentMethod?: "swish" | "cash" | "card"  (default "cash")
- *   note?: string
+ * Vägen ligger kvar och svarar med ett tydligt besked, så en gammal klient
+ * inte får ett okänt fel. Äldre manuella ordrar finns kvar i databasen och
+ * hanteras som förut av bekräftelse, avbokning och avräkning.
  */
 dashboard.post("/seller/orders", async (c) => {
   const session = await requireSession(c);
-  let locale = resolveUiLocale(c);
+  const locale = resolveUiLocale(c);
   if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
-  if (isDemoSession(session)) {
-    return c.json({ error: uiError(locale, "demoCannotRegisterOrders") }, 403);
-  }
-
-  // Rå body behövs för idempotensnyckeln — ett dubbeltryck eller en retry
-  // på mobilen ska inte bli två ordrar som båda hamnar i avräkningen.
-  const rawBody = await c.req.text();
-  let body: any;
-  try {
-    body = JSON.parse(rawBody);
-  } catch {
-    return c.json({ error: uiError(locale, "invalidJson") }, 400);
-  }
-  locale = resolveUiLocale(c, (body as { locale?: unknown }).locale);
-
-  const headerKey = c.req.header("idempotency-key")?.trim() ?? "";
-  const idempotencyKey = createHash("sha256")
-    .update(`manual:${session.userId}:${headerKey}:${rawBody}`)
-    .digest("hex")
-    .slice(0, 120);
-
-  const items = Array.isArray(body?.items) ? body.items : [];
-  if (items.length === 0) {
-    return c.json({ error: uiError(locale, "atLeastOneItemRequired") }, 400);
-  }
-  for (const item of items) {
-    if (
-      !item?.productId ||
-      typeof item.qty !== "number" ||
-      !Number.isInteger(item.qty) ||
-      item.qty < 1 ||
-      item.qty > 100
-    ) {
-      return c.json(
-        { error: uiError(locale, "invalidQty") },
-        400
-      );
-    }
-  }
-
-  const paymentRaw =
-    typeof body?.paymentMethod === "string"
-      ? body.paymentMethod.toLowerCase().trim()
-      : "cash";
-  const selectedPaymentMethod = ["swish", "cash", "card"].includes(paymentRaw)
-    ? paymentRaw
-    : "cash";
-  const customerName =
-    typeof body?.customerName === "string" && body.customerName.trim().length > 0
-      ? body.customerName.trim().slice(0, 255)
-      : locale === "en"
-        ? "Cash customer"
-        : "Kontantkund";
-  const note =
-    typeof body?.note === "string" && body.note.trim().length > 0
-      ? body.note.trim().slice(0, 2000)
-      : null;
-
-  try {
-    const [existingByKey] = await db
-      .select()
-      .from(customerOrders)
-      .where(eq(customerOrders.idempotencyKey, idempotencyKey))
-      .limit(1);
-    if (existingByKey) {
-      return c.json({
-        ok: true,
-        idempotent: true,
-        order: {
-          id: existingByKey.id,
-          totalOre: existingByKey.totalOre,
-          status: existingByKey.status,
-          selectedPaymentMethod: existingByKey.selectedPaymentMethod,
-          countsTowardStats: existingByKey.countsTowardStats,
-          createdAt: existingByKey.createdAt,
-        },
-      });
-    }
-
-    const [seller] = await db
-      .select()
-      .from(sellers)
-      .where(eq(sellers.userId, session.userId))
-      .limit(1);
-    if (!seller) return c.json({ error: uiError(locale, "noSellerProfile") }, 404);
-    if (seller.status !== "ACTIVE") {
-      return c.json({ error: uiError(locale, "sellerProfileInactive") }, 403);
-    }
-
-    const [team] = await db
-      .select()
-      .from(teams)
-      .where(eq(teams.id, seller.teamId))
-      .limit(1);
-    if (!team) return c.json({ error: uiError(locale, "teamNotFoundShort") }, 404);
-
-    const [campaign] = await db
-      .select()
-      .from(campaigns)
-      .where(eq(campaigns.id, seller.campaignId))
-      .limit(1);
-    if (!campaign || campaign.status !== "ACTIVE") {
-      return c.json({ error: uiError(locale, "campaignInactive") }, 400);
-    }
-
-    // Samma periodlogik som publika checkout (Europe/Stockholm).
-    const todayStr = stockholmDateIso();
-    const withinPeriod =
-      campaign.startDate <= todayStr && todayStr <= campaign.endDate;
-    if (!withinPeriod && !campaign.allowSalesOutsidePeriod) {
-      return c.json(
-        { error: uiError(locale, "salesPeriodInactive") },
-        400
-      );
-    }
-    const countsTowardStats = withinPeriod;
-
-    // Samma katalog och samma pris som den publika kassan använder.
-    const productMap = await resolveCampaignCatalog(seller.campaignId);
-
-    let totalOre = 0;
-    const lines: Array<{ productId: string; qty: number; unitPriceOre: number }> =
-      [];
-    for (const item of items) {
-      const product = productMap.get(item.productId);
-      if (!product) {
-        return c.json({ error: uiError(locale, "productNotFoundPrefix") + item.productId }, 400);
-      }
-      totalOre += product.effectivePriceOre * item.qty;
-      lines.push({
-        productId: product.id,
-        qty: item.qty,
-        unitPriceOre: product.effectivePriceOre,
-      });
-    }
-    if (totalOre === 0) {
-      return c.json({ error: uiError(locale, "cartEmpty") }, 400);
-    }
-
-    const [order] = await db.transaction(async (tx) => {
-      const [created] = await tx
-        .insert(customerOrders)
-        .values({
-          orgId: team.orgId,
-          campaignId: seller.campaignId,
-          teamId: seller.teamId,
-          sellerId: seller.id,
-          customerName,
-          // Manuella ordrar saknar kunddata; använd säljarens placeholder.
-          customerEmail: "",
-          deliveryType: "BULK",
-          paymentMethod: "DIRECT_TO_LEADER",
-          selectedPaymentMethod,
-          // Säljaren säger att hen fått kontanter i handen. Vi tror på det i
-          // statistiken, men ordern räknas inte in i någon utbetalning förrän
-          // lagledare eller föreningsadmin bekräftat den (verifiedAt).
-          status: "PAID",
-          totalOre,
-          shippingOre: 0,
-          countsTowardStats,
-          isManual: true,
-          placedByUserId: session.userId,
-          marginPercentAtSale: LOCKED_MARGIN_PERCENT,
-          idempotencyKey,
-          note,
-        })
-        .returning();
-      for (const line of lines) {
-        await tx.insert(customerOrderLines).values({
-          orderId: created.id,
-          productId: line.productId,
-          qty: line.qty,
-          unitPriceOre: line.unitPriceOre,
-        });
-      }
-      return [created];
-    });
-
-    return c.json({
-      ok: true,
-      order: {
-        id: order.id,
-        totalOre: order.totalOre,
-        status: order.status,
-        selectedPaymentMethod: order.selectedPaymentMethod,
-        countsTowardStats: order.countsTowardStats,
-        createdAt: order.createdAt,
-      },
-    });
-  } catch (err) {
-    log.error({ err }, "Failed to create manual seller order");
-    return c.json({ error: uiError(locale, "couldNotRegisterOrder") }, 500);
-  }
+  return c.json({ error: uiError(locale, "manualOrdersClosed") }, 410);
 });
 
 /**
