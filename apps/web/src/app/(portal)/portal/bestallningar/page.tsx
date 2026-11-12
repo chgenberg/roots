@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { newAttemptKey } from "@/lib/attempt-key";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -221,6 +222,7 @@ export default function BestallningarPage() {
   const cartCount = Object.values(cart).reduce((s, q) => s + q, 0);
 
   const [submitting, setSubmitting] = useState(false);
+  const attemptKey = useRef<string>(newAttemptKey());
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailOrderId, setDetailOrderId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -247,7 +249,12 @@ export default function BestallningarPage() {
           totalOre: number;
           status: string;
         };
-      }>("/orders", { method: "POST", body: { items } });
+      }>("/orders", {
+        method: "POST",
+        body: { items },
+        // En nyckel per beställning: samma varor som förra månaden ska bli en ny order.
+        headers: { "Idempotency-Key": attemptKey.current },
+      });
 
       if (!created.order) {
         toast(t.createFailed, "error");
@@ -280,6 +287,7 @@ export default function BestallningarPage() {
         },
         ...prev,
       ]);
+      attemptKey.current = newAttemptKey();
       setCart({});
       setSubmitted(true);
     } catch (err) {

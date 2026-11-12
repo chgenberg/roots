@@ -1806,9 +1806,11 @@ dashboard.patch("/orders/:orderId/fulfillment", async (c) => {
       );
     }
 
-    // Endast betalda/bekräftade ordrar kan markeras skickade/levererade.
+    // Leveransstatus rör bara ordrar som redan är betalda. Det gäller också
+    // "ångra leveransmarkering" (status: PAID): utan kravet kunde en order
+    // som aldrig betalats sättas som betald den vägen, och sedan räknas in
+    // i avräkningen.
     if (
-      (status === "SHIPPED" || status === "DELIVERED") &&
       order.status !== "PAID" &&
       order.status !== "CONFIRMED" &&
       order.status !== "SHIPPED" &&
@@ -1840,8 +1842,19 @@ dashboard.patch("/orders/:orderId/fulfillment", async (c) => {
     const [updated] = await db
       .update(customerOrders)
       .set(patch)
-      .where(eq(customerOrders.id, orderId))
+      .where(
+        and(
+          eq(customerOrders.id, orderId),
+          // Optimistisk låsning: en avbokning eller återbetalning som hann
+          // emellan får inte skrivas över med en leveransstatus.
+          eq(customerOrders.status, order.status)
+        )
+      )
       .returning();
+
+    if (!updated) {
+      return c.json({ error: uiError(locale, "orderChangedByOther") }, 409);
+    }
 
     return c.json({
       ok: true,

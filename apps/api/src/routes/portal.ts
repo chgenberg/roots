@@ -809,6 +809,11 @@ portal.get("/members", async (c) => {
   const session = await requireSession(c);
   let locale = resolveUiLocale(c);
   if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
+  // Säljare och lagledare bär föreningens orgId. Utan rollkontrollen kunde
+  // en säljare lista namn och e-post för alla konton i föreningen.
+  if (!isPortalRole(session.role)) {
+    return c.json({ error: uiError(locale, "permissionDenied") }, 403);
+  }
 
   try {
     let memberList: MemberRow[];

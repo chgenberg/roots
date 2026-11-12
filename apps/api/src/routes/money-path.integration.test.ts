@@ -446,6 +446,27 @@ describe.skipIf(!HAS_DB)("pengavägen (integration)", () => {
     expect(rows).toHaveLength(1);
   });
 
+  it("låter inte en obetald order bli betald via leveransstatus", async () => {
+    // "Ångra leveransmarkering" sätter status till PAID. Utan krav på att
+    // ordern redan är betald kunde en lagledare göra en order betald som
+    // ingen betalat för, och den räknades sedan in i avräkningen.
+    const orderId = orderIds[0];
+    const leader = await asUser(ids.leaderUser);
+    for (const status of ["PAID", "SHIPPED", "DELIVERED"]) {
+      const res = await request(`/v1/dashboard/orders/${orderId}/fulfillment`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json", cookie: leader.cookie },
+        body: JSON.stringify({ status }),
+      });
+      expect(res.status).toBe(400);
+    }
+    const [row] = await db
+      .select()
+      .from(schema.customerOrders)
+      .where(eq(schema.customerOrders.id, orderId));
+    expect(row.status).toBe("PENDING");
+  });
+
   it("flyttar ordern till PAID via bekräftelsepollningen", async () => {
     const orderId = orderIds[0];
     const token = viewTokens[orderId];

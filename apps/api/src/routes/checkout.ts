@@ -825,6 +825,9 @@ checkout.post("/create", async (c) => {
         metadata: {
           sellerId: seller.id,
           locale,
+          // Flera miljöer kan dela Stripe-konto. Webhooken använder märket för
+          // att skilja den här sajtens ordrar från en annan miljös.
+          site: SITE_URL,
         },
       });
     } catch (stripeErr) {
@@ -967,7 +970,27 @@ checkout.post("/webhook/stripe", async (c) => {
   try {
     const existingOrder = await findOrderForStripeSession(snapshot);
     if (!existingOrder) {
-      return c.json({ received: true });
+      // En session som inte bär den här sajtens märke kommer från något annat
+      // på samma Stripe-konto (en annan miljö, en annan produkt), och ett
+      // misslyckat köp utan order har inget att stänga. Båda kvitteras.
+      const paidForOurOrder =
+        Boolean(snapshot.orderId) &&
+        snapshot.site === SITE_URL &&
+        isStripePaidEvent(eventType) &&
+        snapshot.paid;
+      if (!paidForOurOrder) {
+        return c.json({ received: true });
+      }
+      // En betalning som pekar på en order vi inte hittar. Svarade vi 200
+      // slutade Stripe försöka och kunden stod betald utan order. Vi släpper
+      // dedup-nyckeln och svarar fel, så Stripe försöker igen och leveransen
+      // syns som misslyckad i deras logg.
+      log.error(
+        { sessionId: snapshot.sessionId, orderId: snapshot.orderId, eventType },
+        "Stripe reports a payment for an order we cannot find — asking Stripe to retry"
+      );
+      await clearWebhookEventSeen("stripe", dedupKey);
+      return c.json({ error: "Order not found" }, 404);
     }
 
     if (isStripeFailEvent(eventType) && !snapshot.paid) {

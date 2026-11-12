@@ -19,6 +19,7 @@ import { isDemoSession, type SessionData } from "../lib/session";
 import { requireSession } from "../lib/http-session";
 import { getEmailSender, isRealEmailSend, type SendEmailResult } from "../lib/email";
 import { childLogger } from "../lib/logger";
+import { redis } from "../lib/redis";
 import {
   DEFAULT_BODY_TEMPLATE,
   DEFAULT_SUBJECT_TEMPLATE,
@@ -48,6 +49,8 @@ const MANUAL_STATUSES = ["draft", "replied", "meeting", "declined"] as const;
 const SEND_BATCH = 12;
 /** Webbens proxy avbryter efter 25 s. */
 const SEND_BUDGET_MS = 15_000;
+/** Längre än en omgång kan ta (budget + ett sista mejl), så låset inte löper ut mitt i. */
+const SEND_LOCK_TTL_S = 120;
 
 export const STATUS_LABELS: Record<string, string> = {
   draft: "Utkast",
@@ -267,6 +270,10 @@ outreach.patch("/senders/:id", async (c) => {
   const { userEmail, ...rest } = parsed.data;
   if (rest.email !== undefined && rest.email !== sender.email && !MANAGER_ROLES.has(g.session.role)) {
     return c.json({ error: "Bara admin kan byta avsändaradress" }, 403);
+  }
+  // Dagstaket skyddar avsändardomänen. Den som skickar får inte höja sitt eget.
+  if (rest.dailyCap !== undefined && rest.dailyCap !== sender.dailyCap && !MANAGER_ROLES.has(g.session.role)) {
+    return c.json({ error: "Bara admin kan ändra antal mejl per dag" }, 403);
   }
   let userId: string | null | undefined;
   if (userEmail !== undefined) {
@@ -553,6 +560,40 @@ outreach.post("/senders/:id/send", async (c) => {
     return c.json({ error: "Mejl är pausade. Inget skickades.", code: "EMAIL_PAUSED" }, 409);
   }
 
+  // Ett utskick i taget per avsändare. Dagstaket räknas en gång per körning,
+  // så två samtidiga körningar (två flikar, ett dubbelklick) kunde annars
+  // skicka en hel omgång var över taket.
+  const lockKey = `outreach:send:${sender.id}`;
+  const lockToken = randomBytes(12).toString("hex");
+  let locked: "OK" | null = "OK";
+  try {
+    locked = (await redis.set(lockKey, lockToken, "EX", SEND_LOCK_TTL_S, "NX")) as "OK" | null;
+  } catch (err) {
+    log.error({ err, senderId: sender.id }, "outreach send lock unavailable (redis)");
+    if (process.env.NODE_ENV === "production") {
+      return c.json({ error: "Utskicket kunde inte starta just nu. Försök igen om en stund." }, 503);
+    }
+  }
+  if (locked === null) {
+    return c.json(
+      { error: "Ett utskick pågår redan för den här avsändaren.", code: "SEND_IN_PROGRESS" },
+      409
+    );
+  }
+  try {
+    return await sendBatch(c, sender);
+  } finally {
+    // Släpp bara vårt eget lås. Har det hunnit löpa ut och tagits av en annan
+    // körning ska den få behålla det.
+    await redis
+      .get(lockKey)
+      .then((held) => (held === lockToken ? redis.del(lockKey) : 0))
+      .catch(() => {});
+  }
+});
+
+/** Skickar nästa omgång godkända rader, upp till dagstaket. Anropas med avsändarens lås taget. */
+async function sendBatch(c: Context, sender: Sender): Promise<Response> {
   const remaining = Math.max(0, sender.dailyCap - (await sentToday(sender.id)));
   if (remaining === 0) {
     return c.json({ sent: 0, failed: 0, remainingToday: 0, more: false, capReached: true });
@@ -636,7 +677,7 @@ outreach.post("/senders/:id/send", async (c) => {
     more: (left?.n ?? 0) > 0 && remainingToday > 0 && claimedAny,
     capReached: remainingToday === 0,
   });
-});
+}
 
 // ── Export ───────────────────────────────────────────────────────
 

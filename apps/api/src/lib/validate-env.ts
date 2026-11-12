@@ -293,6 +293,24 @@ function crossCheck(env: NodeJS.ProcessEnv): string[] {
     }
   }
 
+  // MFA_REQUIRED_ROLES ersätter standardrollerna, den lägger inte till. En
+  // tom lista, en felstavad roll eller en lista utan INTERNAL_ADMIN tar därför
+  // bort tvåfaktor från kontot som ser allt. Osatt variabel ger
+  // standardrollerna, se mfa.ts.
+  const mfaRoles = env.MFA_REQUIRED_ROLES;
+  if (mfaRoles !== undefined) {
+    const named = mfaRoles
+      .split(",")
+      .map((role) => role.trim().toUpperCase())
+      .filter(Boolean);
+    if (!named.includes("INTERNAL_ADMIN")) {
+      conflicts.push(
+        "MFA_REQUIRED_ROLES är satt utan INTERNAL_ADMIN, vilket stänger av tvåfaktor för intern admin. " +
+          "Ta bort variabeln för standardrollerna, eller låt listan innehålla INTERNAL_ADMIN (t.ex. INTERNAL_ADMIN,SALES_ADMIN)."
+      );
+    }
+  }
+
   // Demokonton i prod kräver ett eget, starkt lösenord — se auth.ts.
   if (env.ROOTS_ENABLE_DEMO_ACCOUNTS?.trim().toLowerCase() === "true") {
     const demoPw = env.ROOTS_DEMO_PASSWORD?.trim();

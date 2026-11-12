@@ -101,7 +101,13 @@ export function SenderForm({
           </label>
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-muted-foreground">Max antal mejl per dag</span>
-            <input inputMode="numeric" value={dailyCap} onChange={(e) => setDailyCap(e.target.value)} className={field} />
+            <input
+              inputMode="numeric"
+              value={dailyCap}
+              onChange={(e) => setDailyCap(e.target.value)}
+              className={field}
+              disabled={Boolean(sender) && !canManage}
+            />
           </label>
           {canManage && (
             <label className="block">

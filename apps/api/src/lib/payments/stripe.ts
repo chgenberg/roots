@@ -62,6 +62,8 @@ export interface StripeCheckoutSession {
 export interface StripeSessionSnapshot {
   sessionId: string;
   orderId: string | null;
+  /** Sajten som skapade sessionen (metadata.site). Null för äldre sessioner och andras. */
+  site: string | null;
   paid: boolean;
   expired: boolean;
   amountTotalOre: number | null;
@@ -142,6 +144,7 @@ export async function getCheckoutSession(
     return {
       sessionId,
       orderId: null,
+      site: null,
       paid: true,
       expired: false,
       amountTotalOre: null,
@@ -218,6 +221,7 @@ export function snapshotFromSession(
   return {
     sessionId: session.id,
     orderId,
+    site: session.metadata?.site || null,
     paid: session.payment_status === "paid",
     expired: session.status === "expired",
     amountTotalOre:

@@ -302,3 +302,20 @@ describe("checkEnv (non-production)", () => {
     expect(r.placeholders).toEqual([]);
   });
 });
+
+describe("checkEnv — tvåfaktor får inte tas bort från intern admin", () => {
+  it("fäller MFA_REQUIRED_ROLES som är tom, felstavad eller saknar INTERNAL_ADMIN", () => {
+    for (const value of ["", " ", ",", " , ", "none", "INTERNAL_ADMINN", "ASSOCIATION_ADMIN,SALES_ADMIN"]) {
+      const r = checkEnv({ ...FULL_PROD_ENV, MFA_REQUIRED_ROLES: value }, true);
+      expect(r.ok).toBe(false);
+      expect(r.conflicts.join(" ")).toContain("MFA_REQUIRED_ROLES");
+    }
+  });
+
+  it("godkänner osatt variabel och en lista som innehåller INTERNAL_ADMIN", () => {
+    expect(checkEnv(FULL_PROD_ENV, true).conflicts).toEqual([]);
+    for (const value of ["INTERNAL_ADMIN,SALES_ADMIN", "internal_admin", " SALES_ADMIN , INTERNAL_ADMIN "]) {
+      expect(checkEnv({ ...FULL_PROD_ENV, MFA_REQUIRED_ROLES: value }, true).ok).toBe(true);
+    }
+  });
+});

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -19,6 +19,7 @@ import { useLocale } from "@/i18n/locale-context";
 import { fundraisingPages } from "@/i18n/dictionaries/fundraising-pages";
 import { displayProductName } from "@/i18n/product-name";
 import { tFill } from "@/i18n/format";
+import { newAttemptKey } from "@/lib/attempt-key";
 
 interface Product {
   id: string;
@@ -56,6 +57,10 @@ export function ManualOrderDialog({
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
+  // En nyckel per försäljning. Servern slår ihop två anrop med samma nyckel
+  // (dubbelklick, nytt försök efter nätfel) men ska aldrig slå ihop två
+  // försäljningar som råkar se likadana ut, t.ex. ett paket till två grannar.
+  const attemptKey = useRef(newAttemptKey());
 
   const paymentOptions = [
     { id: "swish", label: "Swish" },
@@ -112,20 +117,29 @@ export function ManualOrderDialog({
       return;
     }
     setSaving(true);
-    const { ok, data } = await apiFetch<{ error?: string }>(
-      "/v1/dashboard/seller/orders",
-      {
-        method: "POST",
-        body: {
-          items,
-          paymentMethod,
-          customerName: customerName.trim() || undefined,
-          note: note.trim() || undefined,
-        },
-      }
-    );
-    setSaving(false);
+    let ok = false;
+    let data: { error?: string } | null = null;
+    try {
+      ({ ok, data } = await apiFetch<{ error?: string }>(
+        "/v1/dashboard/seller/orders",
+        {
+          method: "POST",
+          headers: { "Idempotency-Key": attemptKey.current },
+          body: {
+            items,
+            paymentMethod,
+            customerName: customerName.trim() || undefined,
+            note: note.trim() || undefined,
+          },
+        }
+      ));
+    } catch {
+      // Nätfel: samma nyckel behålls, så ett nytt försök inte blir en andra order.
+    } finally {
+      setSaving(false);
+    }
     if (ok) {
+      attemptKey.current = newAttemptKey();
       toast(t.success, "success");
       setQty({});
       setCustomerName("");

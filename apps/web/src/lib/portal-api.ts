@@ -23,11 +23,17 @@ interface ParseableSchema<T> {
  */
 export async function portalFetch<T>(
   path: string,
-  options: { method?: string; body?: unknown; signal?: AbortSignal; schema: ParseableSchema<T> }
+  options: {
+    method?: string;
+    body?: unknown;
+    signal?: AbortSignal;
+    headers?: Record<string, string>;
+    schema: ParseableSchema<T>;
+  }
 ): Promise<T>;
 export async function portalFetch<T>(
   path: string,
-  options?: { method?: string; body?: unknown; signal?: AbortSignal }
+  options?: { method?: string; body?: unknown; signal?: AbortSignal; headers?: Record<string, string> }
 ): Promise<T>;
 export async function portalFetch<T>(
   path: string,
@@ -35,6 +41,7 @@ export async function portalFetch<T>(
     method?: string;
     body?: unknown;
     signal?: AbortSignal;
+    headers?: Record<string, string>;
     schema?: ParseableSchema<T>;
   } = {}
 ): Promise<T> {

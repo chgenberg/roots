@@ -8,6 +8,11 @@ const WINDOW_MS = 10 * 60 * 1000;
 const MAX_PER_WINDOW = 30;
 const hits = new Map<string, number[]>();
 
+/**
+ * Spärr per adress. Den bygger på en header som avsändaren själv kan sätta,
+ * så den håller bara mot den som inte försöker. Taket som inte går att kringgå
+ * ligger i readClubBrand och räknar riktiga uppslag, oavsett vem som frågar.
+ */
 function limited(ip: string): boolean {
   const now = Date.now();
   const recent = (hits.get(ip) ?? []).filter((t) => now - t < WINDOW_MS);
@@ -32,6 +37,7 @@ export async function GET(request: Request) {
     );
   } catch (err) {
     const code = err instanceof BrandError ? err.code : "unreachable";
-    return NextResponse.json({ ok: false, error: code }, { status: code === "invalid" ? 400 : 422 });
+    const status = code === "invalid" ? 400 : code === "limited" ? 429 : 422;
+    return NextResponse.json({ ok: false, error: code }, { status });
   }
 }
