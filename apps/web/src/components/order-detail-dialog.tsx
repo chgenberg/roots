@@ -28,7 +28,7 @@
  * stay readable.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -54,6 +54,7 @@ import {
   Ban,
 } from "lucide-react";
 import { countsAsRevenue } from "@roots/contracts";
+import { OrderRefundSection } from "@/components/order-refund-section";
 import { getBrowserApiBase } from "@/lib/api-base";
 import { apiFetch, rootsFetch } from "@/lib/api";
 import { orderStatusColor, orderStatusLabel } from "@/lib/order-status";
@@ -89,8 +90,18 @@ export interface OrderDetail {
     cancelReason?: string | null;
     /** Om användaren får flytta ordern mellan betald/skickad/levererad. */
     canManageFulfillment?: boolean;
-    /** Om användaren får avboka eller återbetala ordern. */
+    /** Om användaren får avboka ordern (aldrig en betald kortorder). */
     canCancel?: boolean;
+    /** Om användaren får återbetala via Stripe. Bara intern admin. */
+    canRefund?: boolean;
+    /** Summan som gått tillbaka till kunden, och hur mycket av den som var frakt. */
+    refundedOre?: number;
+    refundedShippingOre?: number;
+    refundedAt?: string | null;
+    /** Satt när Roots lämnat ordern till lagret. */
+    sentToWarehouseAt?: string | null;
+    /** Betald, men inte lämnad till lagret än: lag och förening kan inte markera leverans. */
+    awaitingWarehouse?: boolean;
     customer: {
       name: string;
       email: string;
@@ -111,6 +122,16 @@ export interface OrderDetail {
     qty: number;
     unitPriceOre: number;
     lineTotalOre: number;
+  }>;
+  /** Ett återbetalningsförsök som blev liggande. Bara intern admin får det. */
+  unfinishedRefund?: { amountOre: number; createdAt: string } | null;
+  /** Genomförda återbetalningar. Skälet följer bara med till intern admin. */
+  refunds?: Array<{
+    id: string;
+    amountOre: number;
+    shippingOre: number;
+    reason: string | null;
+    createdAt: string;
   }>;
 }
 
@@ -191,7 +212,28 @@ export function OrderDetailDialog({
   const [cancelKind, setCancelKind] = useState<"CANCELLED" | "REFUNDED">(
     "CANCELLED"
   );
+  /** Vad den senaste återbetalningen gjorde med lagets utbetalning. */
+  const [refundPayoutNote, setRefundPayoutNote] = useState<string | null>(null);
   const { toast } = useToast();
+
+  // Vilken order dialogen visar just nu. Ett sent svar för en order som
+  // inte längre är öppen får inte skriva över den som visas.
+  const shownOrderId = useRef<string | null>(null);
+  shownOrderId.current = open ? orderId : null;
+
+  /** Hämtar ordern på nytt utan att tömma dialogen, t.ex. efter en återbetalning. */
+  async function refreshDetail() {
+    const requested = orderId;
+    if (!requested) return;
+    try {
+      const res = await rootsFetch(`${API_URL}/v1/dashboard/seller/orders/${requested}`);
+      if (!res.ok) return;
+      const json = (await res.json()) as OrderDetail;
+      if (shownOrderId.current === requested) setDetail(json);
+    } catch {
+      // Dialogen visar kvar det den hade; nästa öppning hämtar om.
+    }
+  }
 
   useEffect(() => {
     if (!open || !orderId) return;
@@ -201,6 +243,7 @@ export function OrderDetailDialog({
     setConfirming(false);
     setCancelOpen(false);
     setCancelReason("");
+    setRefundPayoutNote(null);
     setLoading(true);
     (async () => {
       try {
@@ -679,6 +722,107 @@ export function OrderDetailDialog({
                 </section>
               )}
 
+              {/* Delåterbetald: ordern är fortfarande betald, men en del av
+                  pengarna har gått tillbaka till kunden. */}
+              {!isClosed && (detail.order.refundedOre ?? 0) > 0 && (
+                <p className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                  {t.partiallyRefunded}:{" "}
+                  {formatSek(detail.order.refundedOre ?? 0, dateLocale, c.kr)}
+                </p>
+              )}
+
+              {refundPayoutNote && (
+                <p
+                  className="text-pretty rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
+                  role="status"
+                >
+                  {refundPayoutNote}
+                </p>
+              )}
+
+              {detail.unfinishedRefund && (
+                <p
+                  className="text-pretty rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
+                  role="alert"
+                >
+                  {tFill(t.refundUnfinished, {
+                    amount: formatSek(detail.unfinishedRefund.amountOre, dateLocale, c.kr),
+                  })}
+                </p>
+              )}
+
+              {/* Återbetalning via Stripe. Servern avgör vem som får. */}
+              {!isClosed && detail.order.canRefund && orderId && (
+                <OrderRefundSection
+                  orderId={orderId}
+                  totalOre={detail.order.totalOre}
+                  shippingOre={detail.order.shippingOre}
+                  refundedOre={detail.order.refundedOre ?? 0}
+                  refundedShippingOre={detail.order.refundedShippingOre ?? 0}
+                  sentToWarehouseAt={detail.order.sentToWarehouseAt}
+                  onRefunded={(status, note) => {
+                    setRefundPayoutNote(note);
+                    void refreshDetail();
+                    onStatusChange?.(orderId, status || detail.order.status);
+                  }}
+                  onUncertain={() => void refreshDetail()}
+                />
+              )}
+
+              {/* Lag och förening väntar på att Roots skickar ordern. */}
+              {!isClosed &&
+                detail.order.awaitingWarehouse &&
+                !detail.order.canManageFulfillment && (
+                  <p className="text-pretty text-xs text-muted-foreground">
+                    {t.awaitingWarehouse}
+                  </p>
+                )}
+
+              {/* Lag och förening kan inte återbetala en kortorder själva. */}
+              {!isClosed &&
+                isRevenue &&
+                detail.order.paymentMethod !== "DIRECT_TO_LEADER" &&
+                !detail.order.canRefund &&
+                !detail.order.canCancel && (
+                  <p className="text-pretty text-xs text-muted-foreground">
+                    {t.refundRootsOnly}
+                  </p>
+                )}
+
+              {(detail.refunds?.length ?? 0) > 0 && (
+                <section>
+                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {t.refundsHeading}
+                  </h3>
+                  <ul className="space-y-2 rounded-lg border p-4 text-sm">
+                    {detail.refunds!.map((r) => (
+                      <li key={r.id}>
+                        <div className="flex justify-between gap-3">
+                          <span className="text-muted-foreground">
+                            {formatDateTime(r.createdAt, dateLocale)}
+                          </span>
+                          <span className="tabular-nums font-medium">
+                            {formatSek(r.amountOre, dateLocale, c.kr)}
+                          </span>
+                        </div>
+                        {r.shippingOre > 0 && (
+                          <p className="text-xs text-muted-foreground">
+                            {tFill(t.refundRowShipping, {
+                              amount: formatSek(r.shippingOre, dateLocale, c.kr),
+                            })}
+                          </p>
+                        )}
+                        {r.reason && (
+                          <p className="text-xs text-muted-foreground">
+                            {t.reasonLabel}: {r.reason}
+                          </p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+
               {/* Avbokning. Skälet är obligatoriskt eftersom en avbokad order
                   tas ur intäkten, och då behöver någon kunna se varför. */}
               {!isClosed && detail.order.canCancel && (
@@ -932,6 +1076,14 @@ export function OrderDetailDialog({
                       {formatSek(detail.order.totalOre, dateLocale, c.kr)}
                     </span>
                   </div>
+                  {(detail.order.refundedOre ?? 0) > 0 && (
+                    <div className="flex justify-between text-destructive">
+                      <span>{t.refundedTotal}</span>
+                      <span className="tabular-nums">
+                        −{formatSek(detail.order.refundedOre ?? 0, dateLocale, c.kr)}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </section>
 

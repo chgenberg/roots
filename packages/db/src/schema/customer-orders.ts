@@ -3,6 +3,7 @@ import {
   uuid,
   varchar,
   integer,
+  serial,
   text,
   boolean,
   timestamp,
@@ -111,6 +112,27 @@ export const customerOrders = pgTable(
     cancelledAt: timestamp("cancelled_at"),
     cancelledByUserId: uuid("cancelled_by_user_id"),
     cancelReason: text("cancel_reason"),
+    // Summan som gått tillbaka till kunden via Stripe, och hur mycket av den
+    // som var frakt. En delåterbetalning ändrar inte status; ordern är då
+    // fortfarande betald, men avräkningen räknar bara på det som står kvar
+    // av varuvärdet. När hela beloppet är återbetalt blir status REFUNDED.
+    // Varje återbetalning finns som egen rad i `customer_order_refunds`.
+    refundedOre: integer("refunded_ore").notNull().default(0),
+    refundedShippingOre: integer("refunded_shipping_ore").notNull().default(0),
+    refundedAt: timestamp("refunded_at"),
+    // När ordern blev betald. `updatedAt` duger inte: den flyttas av varje
+    // senare ändring, och lagervyn behöver kunna svara på "vad kom in igår".
+    paidAt: timestamp("paid_at"),
+    // Vägen till lagret. En intern admin stämmer av ordern mot Stripe,
+    // godkänner och skickar plocklistan; då sätts tidpunkten och sändningen.
+    // Det är ingen egen orderstatus: ordern är fortfarande betald tills den
+    // markeras som skickad.
+    sentToWarehouseAt: timestamp("sent_to_warehouse_at"),
+    warehouseBatchId: uuid("warehouse_batch_id"),
+    // Senaste avstämningen mot Stripe (betald, rätt belopp, inte återbetald).
+    reconciledAt: timestamp("reconciled_at"),
+    reconcileStatus: varchar("reconcile_status", { length: 24 }),
+    reconcileNote: text("reconcile_note"),
     // P2.13 (audit 2026-05-26): klient-genererad nyckel (sha256 av
     // body) som dedup:ar /v1/checkout/create-retries. Unikt index i
     // 0010-migrationen.
@@ -132,6 +154,7 @@ export const customerOrders = pgTable(
     index("customer_orders_stripe_session_idx").on(
       table.stripeCheckoutSessionId
     ),
+    index("customer_orders_warehouse_batch_idx").on(table.warehouseBatchId),
     // P3.21 (audit 2026-05-26): notification + dashboard queries gör
     // ofta WHERE org_id = ? AND status = ? ORDER BY created_at DESC.
     // Pre-push fix: matcha SQL-migrationen 0011 (DESC på created_at).
@@ -147,6 +170,72 @@ export const customerOrders = pgTable(
     uniqueIndex("customer_orders_idempotency_key_uniq")
       .on(table.idempotencyKey)
       .where(sql`${table.idempotencyKey} IS NOT NULL`),
+  ]
+);
+
+/**
+ * En sändning till lagret: de ordrar en intern admin godkände och skickade
+ * plocklistan för vid ett tillfälle. `provider` säger hur den gick iväg
+ * (i dag en fil som skickas för hand, senare lagrets API) och
+ * `externalRef` är lagrets eget id när det finns ett.
+ */
+export const warehouseBatches = pgTable("warehouse_batches", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  /** Löpnummer att säga i telefon: "sändning 12". */
+  number: serial("number").notNull(),
+  orderCount: integer("order_count").notNull().default(0),
+  provider: varchar("provider", { length: 32 }).notNull().default("manual-file"),
+  externalRef: varchar("external_ref", { length: 255 }),
+  note: text("note"),
+  createdByUserId: uuid("created_by_user_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+/**
+ * En återbetalning till kunden. Görs av intern admin från portalen och går
+ * via Stripe. Raden skapas innan Stripe anropas, så att ett försök som
+ * avbryts halvvägs lämnar spår (status PENDING) i stället för att försvinna.
+ */
+export const customerOrderRefunds = pgTable(
+  "customer_order_refunds",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orderId: uuid("order_id")
+      .notNull()
+      .references(() => customerOrders.id),
+    /** Klientens nyckel för försöket. Samma nyckel ger aldrig två återbetalningar. */
+    requestId: varchar("request_id", { length: 64 }).notNull(),
+    /** Hela beloppet som återbetalas, inklusive eventuell frakt. */
+    amountOre: integer("amount_ore").notNull(),
+    /** Den del av beloppet som är frakt. */
+    shippingOre: integer("shipping_ore").notNull().default(0),
+    reason: text("reason").notNull(),
+    /** PENDING | SUCCEEDED | FAILED */
+    status: varchar("status", { length: 16 }).notNull().default("PENDING"),
+    stripeRefundId: varchar("stripe_refund_id", { length: 255 }),
+    failureMessage: text("failure_message"),
+    /**
+     * Hur många gånger Stripe anropats för försöket, och senast när. Bara
+     * det första anropets avslag bevisar att ingen återbetalning finns; efter
+     * ett avbrott kan ett tidigare anrop ha gått fram.
+     */
+    attempts: integer("attempts").notNull().default(0),
+    lastAttemptAt: timestamp("last_attempt_at"),
+    createdByUserId: uuid("created_by_user_id"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("customer_order_refunds_order_id_idx").on(table.orderId),
+    uniqueIndex("customer_order_refunds_request_id_uniq").on(table.requestId),
+    // Högst ett oavslutat försök per order, även om låset i Redis fallerar.
+    uniqueIndex("customer_order_refunds_one_pending_uniq")
+      .on(table.orderId)
+      .where(sql`${table.status} = 'PENDING'`),
+    // En återbetalning hos Stripe kan bara bokföras en gång.
+    uniqueIndex("customer_order_refunds_stripe_refund_uniq")
+      .on(table.stripeRefundId)
+      .where(sql`${table.stripeRefundId} IS NOT NULL`),
   ]
 );
 

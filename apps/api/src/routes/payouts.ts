@@ -28,6 +28,10 @@
 
 import { Hono } from "hono";
 import { and, desc, eq, isNull } from "drizzle-orm";
+import {
+  computeTeamSettlement,
+  payoutReviewState,
+} from "../lib/settlement/compute";
 import { db } from "@roots/db";
 import {
   payouts,
@@ -88,6 +92,10 @@ payoutsRoute.get("/", async (c) => {
         fortnoxInvoiceId: payouts.fortnoxInvoiceId,
         paidAt: payouts.paidAt,
         paymentReference: payouts.paymentReference,
+        reviewRequiredAt: payouts.reviewRequiredAt,
+        reviewResolvedAt: payouts.reviewResolvedAt,
+        reviewResolvedTeamShareOre: payouts.reviewResolvedTeamShareOre,
+        reviewNote: payouts.reviewNote,
         createdAt: payouts.createdAt,
         updatedAt: payouts.updatedAt,
       })
@@ -96,6 +104,17 @@ payoutsRoute.get("/", async (c) => {
       .leftJoin(organizations, eq(payouts.orgId, organizations.id))
       .orderBy(desc(payouts.createdAt))
       .limit(200);
+
+    // En flaggad utbetalning är fakturerad eller betald, och en order i
+    // underlaget har sedan återbetalats eller avbokats. Beloppen på raden
+    // rörs aldrig; här räknas bara fram vad som hade varit rätt, så att den
+    // som reglerar saken med föreningen ser mellanskillnaden.
+    const reviews = new Map<string, ReturnType<typeof payoutReviewState>>();
+    for (const row of rows) {
+      if (!row.reviewRequiredAt) continue;
+      const current = await computeTeamSettlement(db, row.campaignId, row.teamId);
+      reviews.set(row.id, payoutReviewState(row, current));
+    }
 
     return c.json({
       payouts: rows.map(({ campaignSlug, campaignName, orgName, ...rest }) => ({
@@ -106,6 +125,7 @@ payoutsRoute.get("/", async (c) => {
           campaignSlug
         ),
         orgName: localizeDemoOrgName(locale, orgName),
+        review: reviews.get(rest.id) ?? null,
       })),
     });
   } catch (err) {
@@ -193,7 +213,11 @@ payoutsRoute.patch("/:id/status", async (c) => {
     return c.json({ error: uiError(locale, "invalidId") }, 400);
   }
 
-  let body: { status?: TargetStatus; paymentReference?: string } = {};
+  let body: {
+    status?: TargetStatus;
+    paymentReference?: string;
+    expectedTeamShareOre?: number;
+  } = {};
   try {
     body = await c.req.json();
   } catch {
@@ -283,6 +307,23 @@ payoutsRoute.patch("/:id/status", async (c) => {
       );
     }
 
+    // En väntande utbetalning räknas om när en order återbetalas. Har
+    // beloppet ändrats sedan sidan laddades har den som betalar kanske fört
+    // över det gamla beloppet, och då ska det synas innan raden låses.
+    if (
+      targetStatus === "PAID" &&
+      typeof body.expectedTeamShareOre === "number" &&
+      body.expectedTeamShareOre !== payout.teamShareOre
+    ) {
+      return c.json(
+        {
+          error: uiError(locale, "payoutAmountChanged"),
+          teamShareOre: payout.teamShareOre,
+        },
+        409
+      );
+    }
+
     // Med Fortnox aktiv: PENDING → create-invoice → INVOICED → PAID.
     // Utan Fortnox (nuvarande prod-läge): INTERNAL_ADMIN får markera
     // PENDING → PAID manuellt efter banköverföring, med betalningsreferens.
@@ -345,8 +386,21 @@ payoutsRoute.patch("/:id/status", async (c) => {
           : {}),
         updatedAt: now,
       })
-      .where(eq(payouts.id, id))
+      .where(
+        and(
+          eq(payouts.id, id),
+          // Raden ska vara den vi nyss läste: samma status och samma belopp.
+          // En återbetalning som räknade om utbetalningen under tiden får
+          // inte låsas in med ett belopp ingen har sett.
+          eq(payouts.status, payout.status),
+          eq(payouts.teamShareOre, payout.teamShareOre)
+        )
+      )
       .returning();
+
+    if (!updated) {
+      return c.json({ error: uiError(locale, "payoutAmountChanged") }, 409);
+    }
 
     // ── Audit ────────────────────────────────────────────────────
     void auditLog({
@@ -449,6 +503,128 @@ payoutsRoute.patch("/:id/status", async (c) => {
     });
   } catch (err) {
     log.error({ err, payoutId: id }, "payout status patch failed");
+    return c.json({ error: uiError(locale, "couldNotUpdatePayout") }, 500);
+  }
+});
+
+// ────────────────────────────────────────────────────────────────────
+// POST /v1/payouts/:id/review/resolve  { note }
+// ────────────────────────────────────────────────────────────────────
+//
+// Kvitterar flaggan på en utbetalning som behövde regleras för hand (en
+// order återbetalades efter att föreningen fått sina pengar). Ändrar bara
+// flaggan: belopp, status och betaluppgifter rörs aldrig härifrån.
+payoutsRoute.post("/:id/review/resolve", async (c) => {
+  const session = await requireSession(c);
+  let locale = resolveUiLocale(c);
+  if (!session) return c.json({ error: uiError(locale, "notLoggedIn") }, 401);
+  if (session.role !== "INTERNAL_ADMIN") {
+    return c.json({ error: uiError(locale, "permissionDenied") }, 403);
+  }
+  if (isDemoSession(session)) {
+    return c.json({ error: uiError(locale, "demoCannotChangePayouts") }, 403);
+  }
+
+  const id = c.req.param("id");
+  if (!/^[0-9a-f-]{36}$/i.test(id)) {
+    return c.json({ error: uiError(locale, "invalidId") }, 400);
+  }
+
+  let body: { note?: unknown; expectedCorrectTeamShareOre?: unknown; locale?: unknown };
+  try {
+    const parsed: unknown = await c.req.json();
+    if (!parsed || typeof parsed !== "object") throw new Error("not an object");
+    body = parsed;
+  } catch {
+    return c.json({ error: uiError(locale, "invalidJsonShort") }, 400);
+  }
+  locale = resolveUiLocale(c, body.locale);
+  const note = typeof body.note === "string" ? body.note.trim() : "";
+  if (note.length < 3 || note.length > 500) {
+    return c.json({ error: uiError(locale, "payoutReviewNoteRequired") }, 400);
+  }
+
+  try {
+    const [payout] = await db
+      .select()
+      .from(payouts)
+      .where(eq(payouts.id, id))
+      .limit(1);
+    if (!payout) {
+      return c.json({ error: uiError(locale, "payoutNotFoundPeriod") }, 404);
+    }
+    const current = await computeTeamSettlement(db, payout.campaignId, payout.teamId);
+    const review = payoutReviewState(payout, current);
+    // Bara en flagga som faktiskt väntar kan kvitteras. Annars kunde en
+    // andra tryckning skriva över anteckningen från den första.
+    if (!review.needsReview) {
+      return c.json({ error: uiError(locale, "payoutNoReviewNeeded") }, 409);
+    }
+    // Den som kvitterar ska ha sett rätt belopp. Har en ny återbetalning
+    // kommit sedan sidan laddades gäller kvitteringen inte den.
+    if (
+      typeof body.expectedCorrectTeamShareOre === "number" &&
+      body.expectedCorrectTeamShareOre !== review.correctTeamShareOre
+    ) {
+      return c.json(
+        {
+          error: uiError(locale, "payoutReviewChanged"),
+          correctTeamShareOre: review.correctTeamShareOre,
+        },
+        409
+      );
+    }
+
+    const now = new Date();
+    const resolved = await db
+      .update(payouts)
+      .set({
+        reviewResolvedAt: now,
+        reviewResolvedByUserId: session.userId,
+        reviewResolvedTeamShareOre: review.correctTeamShareOre,
+        reviewNote: note,
+      })
+      .where(
+        and(
+          eq(payouts.id, id),
+          // Flaggan ska vara den vi nyss läste. En återbetalning som hann
+          // emellan sätter en ny tidpunkt, och då gäller kvitteringen inte.
+          payout.reviewRequiredAt
+            ? eq(payouts.reviewRequiredAt, payout.reviewRequiredAt)
+            : isNull(payouts.reviewRequiredAt),
+          // Och den ska fortfarande vänta: två samtidiga kvitteringar får
+          // inte skriva över varandra.
+          payout.reviewResolvedAt
+            ? eq(payouts.reviewResolvedAt, payout.reviewResolvedAt)
+            : isNull(payouts.reviewResolvedAt)
+        )
+      )
+      .returning({ id: payouts.id });
+    if (resolved.length === 0) {
+      return c.json({ error: uiError(locale, "payoutReviewChanged") }, 409);
+    }
+
+    void auditLog({
+      userId: session.userId,
+      action: "payout.review.resolved",
+      entityType: "payout",
+      entityId: id,
+      meta: {
+        ...requestContext((n) => c.req.header(n)),
+        orgId: payout.orgId,
+        campaignId: payout.campaignId,
+        payoutStatus: payout.status,
+        paidTeamShareOre: payout.teamShareOre,
+        correctTeamShareOre: review.correctTeamShareOre,
+        overpaidOre: review.overpaidOre,
+        resolvedNowOre: review.outstandingOre,
+        note,
+      },
+    });
+
+    return c.json({ ok: true, reviewResolvedAt: now, reviewNote: note });
+  } catch (err) {
+    log.error({ err, payoutId: id }, "payout review resolve failed");
     return c.json({ error: uiError(locale, "couldNotUpdatePayout") }, 500);
   }
 });

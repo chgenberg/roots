@@ -123,8 +123,6 @@ export const campaignsRouter = router({
           deliveryDate: input.deliveryDate ?? null,
           allowSalesOutsidePeriod: input.allowSalesOutsidePeriod,
           deliveryType: input.deliveryType,
-          shippingThresholdOre: input.shippingThresholdOre ?? 0,
-          shippingFeeOre: input.shippingFeeOre ?? 4900,
           marginPercent: LOCKED_MARGIN_PERCENT,
         })
         .returning();

@@ -28,6 +28,7 @@ import { GATE_CARD, GATE_PRIMARY_BTN, GateWordmark } from "@/components/gate-roo
 import { auth } from "@/i18n/dictionaries/auth";
 import { cn } from "@/lib/utils";
 import { tFill } from "@/i18n/format";
+import { InterestFlow } from "@/components/interest-flow";
 import { useLocale } from "@/i18n/locale-context";
 import { clubBrand } from "@/i18n/dictionaries/club-brand";
 import {
@@ -66,51 +67,29 @@ export default function RegisterPage() {
   const [website, setWebsite] = useState("");
   const [brand, setBrand] = useState<BrandDraft | null>(null);
 
-  // Team fields
-  const [teamName, setTeamName] = useState("");
-  const [newOrgName, setNewOrgName] = useState("");
-
   async function handleSubmit() {
     setError("");
     setLoading(true);
 
     try {
-      const body =
-        type === "association"
-          ? {
-              orgName,
-              orgNumber: orgNumber || undefined,
-              nationalFederation: nationalFederation || undefined,
-              sportType: sportType || undefined,
-              website: website.trim() || undefined,
-              brand: website.trim() && brand ? brand : undefined,
-              email,
-              password,
-              contactName,
-              phone: phone || undefined,
-              addressLine1: addressLine1 || undefined,
-              city: city || undefined,
-              postalCode: postalCode || undefined,
-            }
-          : {
-              teamName,
-              orgName: newOrgName || undefined,
-              email,
-              password,
-              contactName,
-              phone: phone || undefined,
-              addressLine1: addressLine1 || undefined,
-              city: city || undefined,
-              postalCode: postalCode || undefined,
-            };
-
-      const endpoint =
-        type === "association"
-          ? "/v1/auth/register/association"
-          : "/v1/auth/register/team-leader";
+      const body = {
+        orgName,
+        orgNumber: orgNumber || undefined,
+        nationalFederation: nationalFederation || undefined,
+        sportType: sportType || undefined,
+        website: website.trim() || undefined,
+        brand: website.trim() && brand ? brand : undefined,
+        email,
+        password,
+        contactName,
+        phone: phone || undefined,
+        addressLine1: addressLine1 || undefined,
+        city: city || undefined,
+        postalCode: postalCode || undefined,
+      };
 
       const { ok: resOk, data } = await apiFetch<{ error?: string }>(
-        endpoint,
+        "/v1/auth/register/association",
         { method: "POST", body }
       );
 
@@ -121,14 +100,10 @@ export default function RegisterPage() {
 
       setSuccess(true);
       setTimeout(() => {
-        if (type === "association") {
-          // MASTERPLAN_01 KC3.1: skicka ASSOCIATION_ADMIN till kom-igång-
-          // sidan istället för en tom dashboard. ?onboarding=1 låter
-          // sidan visa en specifik welcome-header för fresh signups.
-          router.push(href("/forening/kom-igang?onboarding=1"));
-        } else {
-          router.push(href("/lag"));
-        }
+        // MASTERPLAN_01 KC3.1: skicka ASSOCIATION_ADMIN till kom-igång-
+        // sidan istället för en tom dashboard. ?onboarding=1 låter
+        // sidan visa en specifik welcome-header för fresh signups.
+        router.push(href("/forening/kom-igang?onboarding=1"));
       }, 1500);
     } catch {
       setError(t.errorServer);
@@ -220,7 +195,59 @@ export default function RegisterPage() {
     );
   }
 
-  const totalSteps = type === "association" ? 3 : 3;
+  // Ett lag eller en klass startar aldrig en försäljning på egen hand. Valet
+  // leder därför till en förklaring och en intresseanmälan, inte till ett konto.
+  if (type === "team") {
+    return (
+      <Card className={cn(GATE_CARD, "mx-auto max-w-lg")}>
+        <CardHeader>
+          <GateWordmark href="/" ariaLabel={auth.layout[locale].ariaHome} />
+          <button
+            onClick={() => {
+              setType(null);
+              setStep(0);
+            }}
+            className="mt-6 flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            {t.back}
+          </button>
+          <CardTitle role="heading" aria-level={1} className="mt-4 text-xl">
+            {t.teamInfoTitle}
+          </CardTitle>
+          <CardDescription className="text-pretty leading-relaxed">
+            {t.teamInfoBody}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <p className="text-pretty rounded-xl bg-brand-50 p-4 text-sm leading-relaxed text-foreground">
+            {t.teamInfoInvite}
+          </p>
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight">
+              {t.teamInfoContactHeading}
+            </h2>
+            <p className="mt-1 text-pretty text-sm leading-relaxed text-muted-foreground">
+              {t.teamInfoContactBody}
+            </p>
+          </div>
+          <InterestFlow defaultCustomerType="lag" />
+        </CardContent>
+        <Separator />
+        <CardFooter className="justify-center pt-6 text-sm text-muted-foreground">
+          {t.alreadyHaveAccount}{" "}
+          <LocaleLink
+            href="/login"
+            className="ml-1 font-medium text-foreground underline-offset-4 hover:underline"
+          >
+            {t.loginLink}
+          </LocaleLink>
+        </CardFooter>
+      </Card>
+    );
+  }
+
+  const totalSteps = 3;
 
   return (
     <Card className={cn(GATE_CARD, "mx-auto max-w-lg")}>
@@ -256,14 +283,8 @@ export default function RegisterPage() {
           ))}
         </div>
         <CardTitle role="heading" aria-level={1} className="mt-4 text-xl">
-          {type === "association"
-            ? step === 1
-              ? t.stepClubInfo
-              : step === 2
-              ? t.stepYourDetails
-              : t.stepYourAccount
-            : step === 1
-            ? t.stepTeamInfo
+          {step === 1
+            ? t.stepClubInfo
             : step === 2
             ? t.stepYourDetails
             : t.stepYourAccount}
@@ -278,7 +299,7 @@ export default function RegisterPage() {
         )}
 
         {/* ASSOCIATION Step 1: Organization info */}
-        {type === "association" && step === 1 && (
+        {step === 1 && (
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="orgName">{t.orgName}</Label>
@@ -348,41 +369,7 @@ export default function RegisterPage() {
           </div>
         )}
 
-        {/* TEAM Step 1: Team + new club (existing clubs use an invite) */}
-        {type === "team" && step === 1 && (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="teamName">{t.teamName}</Label>
-              <Input
-                id="teamName"
-                placeholder={t.teamNamePlaceholder}
-                required
-                value={teamName}
-                onChange={(e) => setTeamName(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="newOrgName">{t.newOrgName}</Label>
-              <Input
-                id="newOrgName"
-                placeholder={t.newOrgNamePlaceholder}
-                value={newOrgName}
-                onChange={(e) => setNewOrgName(e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">{t.existingClubNote}</p>
-            </div>
-            <Button
-              className={GATE_PRIMARY_BTN}
-              disabled={!teamName.trim() || !newOrgName.trim()}
-              onClick={() => setStep(2)}
-            >
-              {t.next}
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-          </div>
-        )}
-
-        {/* Shared Step 2: Personal info */}
+        {/* Step 2: Personal info */}
         {/* MASTERPLAN_01 KC6.7: autoComplete-tokens så att Safari/Chrome
             password-manager + adressfyllning faktiskt fungerar. Annars
             tvingas användaren skriva för hand vilket är friction nr 1
@@ -458,7 +445,7 @@ export default function RegisterPage() {
           </div>
         )}
 
-        {/* Shared Step 3: Account */}
+        {/* Step 3: Account */}
         {step === 3 && (
           <div className="space-y-4">
             <div className="space-y-2">

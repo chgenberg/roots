@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { eq, and, sql, inArray } from "drizzle-orm";
-import { REVENUE_ORDER_STATUSES } from "@roots/contracts";
+import { REVENUE_ORDER_STATUSES, isHomeDeliveryAvailable } from "@roots/contracts";
 import { db } from "@roots/db";
 import {
   sellers,
@@ -13,9 +13,11 @@ import {
   bundleProducts,
 } from "@roots/db/schema";
 import { childLogger } from "../lib/logger";
+import { goodsSumSql } from "../lib/order-money";
 import { resolveCampaignCatalog, catalogToList } from "../lib/campaign-catalog";
 import { resolveUiLocale, uiError } from "../lib/ui-locale";
 import { loadOrgBrand } from "../lib/club-brand";
+import { getShippingSettings } from "../lib/platform-settings";
 import {
   localizedProductDescription,
   localizedProductName,
@@ -138,7 +140,7 @@ shop.get("/by-slug/:slug", async (c) => {
     // Målprogressen supportern ser ska matcha säljarens/dashboardens
     // siffror och avräkningen: alla betalda ordrar, även utanför säljperioden.
     const soldResult = await db
-      .select({ total: sql<number>`COALESCE(SUM(${customerOrders.totalOre}), 0)` })
+      .select({ total: goodsSumSql })
       .from(customerOrders)
       .where(
         and(
@@ -165,6 +167,8 @@ shop.get("/by-slug/:slug", async (c) => {
       ? localizeDemoCampaignFields(locale, campaign)
       : null;
 
+    const shippingSettings = await getShippingSettings();
+
     return c.json({
       seller: {
         id: seller.id,
@@ -186,11 +190,17 @@ shop.get("/by-slug/:slug", async (c) => {
             goalType: campaign.goalType,
             goalValue: campaign.goalValue,
             deliveryType: campaign.deliveryType,
-            shippingThresholdOre: campaign.shippingThresholdOre,
-            shippingFeeOre: campaign.shippingFeeOre,
             status: campaign.status,
           }
         : null,
+      // Frakten vid hemleverans är Roots inställning och samma för alla
+      // kampanjer. Kassan räknar med de här värdena, och API:t räknar om
+      // med samma funktion när ordern skapas.
+      shipping: {
+        homeDeliveryAvailable: isHomeDeliveryAvailable(shippingSettings),
+        homeDeliveryFeeOre: shippingSettings.homeDeliveryFeeOre,
+        freeShippingThresholdOre: shippingSettings.freeShippingThresholdOre,
+      },
       organization: org
         ? {
             name: localizeDemoOrgName(locale, org.name),

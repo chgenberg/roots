@@ -58,6 +58,10 @@ export const campaigns = pgTable(
     // Visas i förenings-/säljkalendern. Nullable för äldre kampanjer.
     deliveryDate: date("delivery_date"),
     deliveryType: deliveryTypeEnum("delivery_type").notNull().default("BULK"),
+    // Används inte längre. Frakten vid hemleverans är en inställning för hela
+    // Roots (`platform_settings`, nyckel `shipping`) och läses aldrig härifrån.
+    // Kolumnerna ligger kvar så att en äldre version av koden kan köra mot
+    // samma databas under en deploy.
     shippingThresholdOre: integer("shipping_threshold_ore").default(0),
     shippingFeeOre: integer("shipping_fee_ore").default(4900),
     marginPercent: integer("margin_percent").notNull().default(35),

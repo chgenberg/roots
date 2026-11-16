@@ -28,6 +28,7 @@ import { isDemoSession } from "../lib/session";
 import { requireSession } from "../lib/http-session";
 import { auditLog, requestContext } from "../lib/audit";
 import { childLogger } from "../lib/logger";
+import { goodsSumSql } from "../lib/order-money";
 import { resolveUiLocale, uiError } from "../lib/ui-locale";
 import { brandErrorKey, hasBrand, parseBrandInput, saveOrgBrand } from "../lib/club-brand";
 
@@ -243,7 +244,7 @@ sales.get("/calendar", async (c) => {
       const salesRows = await db
         .select({
           campaignId: customerOrders.campaignId,
-          total: sql<number>`COALESCE(SUM(${customerOrders.totalOre}), 0)`,
+          total: goodsSumSql,
           orders: sql<number>`COUNT(*)`,
         })
         .from(customerOrders)

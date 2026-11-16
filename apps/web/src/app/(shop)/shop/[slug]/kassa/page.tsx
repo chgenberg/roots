@@ -18,7 +18,12 @@ import { getBrowserApiBase } from "@/lib/api-base";
 import { apiFetch, rootsFetch } from "@/lib/api";
 import { useCart } from "@/lib/use-cart";
 import { formatKr } from "@/lib/format";
-import { vatOfGrossOre } from "@roots/contracts";
+import {
+  oreLeftToFreeShipping,
+  shippingOreForOrder,
+  vatOfGrossOre,
+  type ShippingSettings,
+} from "@roots/contracts";
 import { shop } from "@/i18n/dictionaries/shop";
 import { products as productDict } from "@/i18n/dictionaries/products";
 import { tFill } from "@/i18n/format";
@@ -50,8 +55,12 @@ interface CheckoutShop {
   campaign: {
     status: string;
     deliveryType?: string | null;
-    shippingFeeOre?: number | null;
-    shippingThresholdOre?: number | null;
+  } | null;
+  /** Roots fraktinställning vid hemleverans. Saknas avgift går hemleverans inte att välja. */
+  shipping?: {
+    homeDeliveryAvailable: boolean;
+    homeDeliveryFeeOre: number | null;
+    freeShippingThresholdOre: number | null;
   } | null;
 }
 
@@ -183,19 +192,37 @@ function CheckoutPageInner() {
 
   const subtotalOre = resolvedLines.reduce((s, l) => s + l.totalOre, 0);
 
-  // MASTERPLAN_01 KC4.2: spegla samma frakt-logik som API:t
-  // (checkout.ts ~235–254). Tidigare visade kassan ENDAST subtotal,
-  // sedan tog Stripe in subtotal + frakt → supportern betalade mer än
-  // vi visade. Bedrägeririsk + lagligt problem (prisindikering).
-  const shippingFee = shopData?.campaign?.shippingFeeOre ?? 0;
-  const shippingThreshold = shopData?.campaign?.shippingThresholdOre ?? 0;
+  // Vilka leveranssätt som går att välja: kampanjens inställning, och för
+  // hemleverans att Roots har bestämt en fraktavgift.
+  const campaignDelivery = shopData?.campaign?.deliveryType ?? "BULK";
+  const bulkOffered = campaignDelivery !== "DIRECT";
+  const homeOffered =
+    campaignDelivery !== "BULK" && shopData?.shipping?.homeDeliveryAvailable === true;
+  const noDeliveryOffered = shopData !== null && !bulkOffered && !homeOffered;
+
+  useEffect(() => {
+    if (!shopData) return;
+    if (deliveryType === "DIRECT" && !homeOffered && bulkOffered) {
+      setDeliveryType("BULK");
+    } else if (deliveryType === "BULK" && !bulkOffered && homeOffered) {
+      setDeliveryType("DIRECT");
+    }
+  }, [shopData, deliveryType, homeOffered, bulkOffered]);
+
+  // MASTERPLAN_01 KC4.2: frakten räknas med samma funktion som API:t
+  // använder när ordern skapas, så kunden ser det belopp som sedan dras.
+  const shippingSettings: ShippingSettings = {
+    homeDeliveryFeeOre: shopData?.shipping?.homeDeliveryFeeOre ?? null,
+    freeShippingThresholdOre: shopData?.shipping?.freeShippingThresholdOre ?? null,
+  };
+  const shippingFee = shippingSettings.homeDeliveryFeeOre;
+  const shippingThreshold = shippingSettings.freeShippingThresholdOre;
   const shippingOre =
-    deliveryType === "DIRECT" &&
-    shippingFee > 0 &&
-    shippingThreshold > 0 &&
-    subtotalOre < shippingThreshold
-      ? shippingFee
-      : 0;
+    shippingOreForOrder(shippingSettings, { deliveryType, goodsOre: subtotalOre }) ?? 0;
+  const leftToFreeShippingOre =
+    deliveryType === "DIRECT"
+      ? oreLeftToFreeShipping(shippingSettings, subtotalOre)
+      : null;
   const totalOre = subtotalOre + shippingOre;
   // Priserna är inklusive moms. Samma helper som API:t och orderbekräftelsen
   // använder, så kunden, Stripe och bokföringen ser samma öre.
@@ -373,22 +400,36 @@ function CheckoutPageInner() {
                         {formatKr(subtotalOre, locale)}
                       </span>
                     </div>
-                    {deliveryType === "DIRECT" && shippingFee > 0 && (
-                      <div className="flex items-center justify-between text-muted-foreground">
-                        <span>
-                          {t.shipping}
-                          {shippingOre === 0 && shippingThreshold > 0 ? (
-                            <span className="ml-1 text-xs">
-                              {tFill(t.freeOver, {
-                                amount: formatKr(shippingThreshold, locale),
-                              })}
-                            </span>
-                          ) : null}
-                        </span>
-                        <span className="tabular-nums">
-                          {formatKr(shippingOre, locale)}
-                        </span>
-                      </div>
+                    {deliveryType === "DIRECT" && homeOffered && (
+                      <>
+                        <div className="flex items-center justify-between text-muted-foreground">
+                          <span>
+                            {t.shippingHome}
+                            {shippingOre === 0 &&
+                            shippingFee !== null &&
+                            shippingFee > 0 &&
+                            shippingThreshold !== null ? (
+                              <span className="ml-1 text-xs">
+                                {tFill(t.freeOver, {
+                                  amount: formatKr(shippingThreshold, locale),
+                                })}
+                              </span>
+                            ) : null}
+                          </span>
+                          <span className="tabular-nums">
+                            {shippingOre === 0
+                              ? t.shippingFree
+                              : formatKr(shippingOre, locale)}
+                          </span>
+                        </div>
+                        {leftToFreeShippingOre !== null && (
+                          <p className="text-xs text-brand-700">
+                            {tFill(t.leftToFreeShipping, {
+                              amount: formatKr(leftToFreeShippingOre, locale),
+                            })}
+                          </p>
+                        )}
+                      </>
                     )}
                     <div className="flex items-center justify-between text-muted-foreground">
                       <span>{t.vatIncluded}</span>
@@ -461,7 +502,13 @@ function CheckoutPageInner() {
               <CardTitle className="text-base">{t.delivery}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {noDeliveryOffered && (
+                <p className="text-pretty rounded-lg bg-red-50 p-3 text-sm text-red-700">
+                  {t.noDeliveryAvailable}
+                </p>
+              )}
               <div className="grid gap-3 sm:grid-cols-2">
+                {bulkOffered && (
                 <button
                   type="button"
                   onClick={() => setDeliveryType("BULK")}
@@ -479,6 +526,8 @@ function CheckoutPageInner() {
                     </p>
                   </div>
                 </button>
+                )}
+                {homeOffered && (
                 <button
                   type="button"
                   onClick={() => setDeliveryType("DIRECT")}
@@ -492,10 +541,22 @@ function CheckoutPageInner() {
                   <div>
                     <p className="font-medium text-sm">{t.homeTitle}</p>
                     <p className="text-xs text-muted-foreground">
-                      {t.homeHint}
+                      {shippingFee === null
+                        ? t.homeHint
+                        : shippingFee === 0
+                          ? t.homeHintFree
+                          : shippingThreshold !== null
+                            ? tFill(t.homeHintFeeFreeOver, {
+                                amount: formatKr(shippingFee, locale),
+                                threshold: formatKr(shippingThreshold, locale),
+                              })
+                            : tFill(t.homeHintFee, {
+                                amount: formatKr(shippingFee, locale),
+                              })}
                     </p>
                   </div>
                 </button>
+                )}
               </div>
 
               {deliveryType === "DIRECT" && (
@@ -622,6 +683,7 @@ function CheckoutPageInner() {
                 items.length === 0 ||
                 !termsAccepted ||
                 (shopData !== null && !campaignAcceptsOrders) ||
+                noDeliveryOffered ||
                 // KC4.3 spegel: vid hemleverans måste alla tre adressfält
                 // vara ifyllda — annars går servern bara att blockera 400.
                 (deliveryType === "DIRECT" &&

@@ -236,6 +236,10 @@ const ERRORS = {
     sv: "Registreringen misslyckades.",
     en: "Registration failed.",
   },
+  teamStartsViaClub: {
+    sv: "Ett lag eller en klass startar försäljningen via sin förening eller tillsammans med Roots. Be föreningens admin om en inbjudan, eller gör en intresseanmälan så hör vi av oss.",
+    en: "A team or class starts its sale through the club or together with Roots. Ask the club administrator for an invite, or send us a request and we will get in touch.",
+  },
   useTeamInvite: {
     sv: "För att gå med i en befintlig förening, använd ett team-invite från föreningens admin.",
     en: "To join an existing club, use a team invite from the club administrator.",
@@ -616,6 +620,154 @@ const ERRORS = {
   fieldAddress: { sv: "adress", en: "address" },
   fieldCity: { sv: "ort", en: "town/city" },
   fieldPostalCode: { sv: "postnummer", en: "postcode" },
+  homeDeliveryUnavailable: {
+    sv: "Hemleverans går inte att välja just nu. Välj leverans via föreningen, eller hör av dig till hej@roots.nu.",
+    en: "Home delivery is not available right now. Choose delivery via the club, or contact hej@roots.nu.",
+  },
+  invalidShippingSettings: {
+    sv: "Ange fraktavgift och gräns för fri frakt som hela belopp. Lämna tomt för att inte sätta något värde.",
+    en: "Enter the shipping fee and the free shipping threshold as whole amounts. Leave empty to set no value.",
+  },
+  shippingThresholdNeedsFee: {
+    sv: "Sätt en fraktavgift innan du sätter en gräns för fri frakt.",
+    en: "Set a shipping fee before setting a free shipping threshold.",
+  },
+  demoNoWarehouseAccess: {
+    sv: "Demokonton har inte tillgång till kundordrar och lager. Logga in med ditt eget adminkonto.",
+    en: "Demo accounts have no access to customer orders and the warehouse. Sign in with your own admin account.",
+  },
+  demoCannotChangeSettings: {
+    sv: "Demokonton kan inte ändra inställningar.",
+    en: "Demo accounts cannot change settings.",
+  },
+  demoCannotRefund: {
+    sv: "Demokonton kan inte återbetala ordrar.",
+    en: "Demo accounts cannot refund orders.",
+  },
+  refundRequestIdRequired: {
+    sv: "Återbetalningen saknar en giltig nyckel. Ladda om sidan och försök igen.",
+    en: "The refund is missing a valid key. Reload the page and try again.",
+  },
+  refundAmountInvalid: {
+    sv: "Ange hur mycket som ska återbetalas.",
+    en: "Enter how much to refund.",
+  },
+  refundExceedsRemaining: {
+    sv: "Beloppet är större än det som finns kvar att återbetala på ordern.",
+    en: "The amount is larger than what is left to refund on the order.",
+  },
+  refundOnlyCardOrders: {
+    sv: "Bara kortbetalda ordrar kan återbetalas via Stripe.",
+    en: "Only card-paid orders can be refunded through Stripe.",
+  },
+  refundOnlyPaidOrders: {
+    sv: "Bara betalda ordrar kan återbetalas.",
+    en: "Only paid orders can be refunded.",
+  },
+  orderAlreadyRefunded: {
+    sv: "Ordern är redan helt återbetald.",
+    en: "The order is already fully refunded.",
+  },
+  refundAlreadyRunning: {
+    sv: "En återbetalning pågår redan för den här ordern. Vänta en stund och ladda om.",
+    en: "A refund is already in progress for this order. Wait a moment and reload.",
+  },
+  refundLockUnavailable: {
+    sv: "Återbetalningen kunde inte startas säkert just nu. Försök igen om en stund.",
+    en: "The refund could not be started safely right now. Try again shortly.",
+  },
+  refundStripeUnreachable: {
+    sv: "Vi fick inget tydligt svar från Stripe och vet inte om återbetalningen gick fram. Inget har ändrats på ordern. Försök igen, så slutförs samma återbetalning utan att kunden får pengarna två gånger. Hjälper det inte: stäng och tryck på Hämta återbetalningar från Stripe.",
+    en: "We got no clear answer from Stripe and do not know whether the refund went through. Nothing has changed on the order. Try again and the same refund is completed without the customer being refunded twice. If that does not help: close and press Fetch refunds from Stripe.",
+  },
+  refundStripeDeclined: {
+    sv: "Stripe tog inte emot återbetalningen. Inget har ändrats på ordern.",
+    en: "Stripe did not accept the refund. Nothing has changed on the order.",
+  },
+  refundDoneNotSaved: {
+    sv: "Pengarna är återbetalda hos Stripe, men ordern kunde inte uppdateras. Försök igen för att slutföra. Kunden får inte pengarna två gånger.",
+    en: "The money has been refunded at Stripe, but the order could not be updated. Try again to finish. The customer is not refunded twice.",
+  },
+  refundPreviousRecovered: {
+    sv: "En tidigare återbetalning på ordern hade gått igenom hos Stripe utan att bokföras. Den är bokförd nu. Kontrollera ordern innan du återbetalar mer.",
+    en: "An earlier refund on this order had gone through at Stripe without being recorded. It is recorded now. Check the order before refunding more.",
+  },
+  refundBooksMismatch: {
+    sv: "Stripe har återbetalat ett annat belopp på ordern än vad som är bokfört här. Tryck på Hämta återbetalningar från Stripe och kontrollera ordern innan du återbetalar mer.",
+    en: "Stripe has refunded a different amount on this order than what is recorded here. Press Fetch refunds from Stripe and check the order before refunding more.",
+  },
+  refundOrderChanged: {
+    sv: "Ordern har ändrats sedan sidan laddades, till exempel av en tidigare återbetalning. Kontrollera vad som är kvar och försök igen.",
+    en: "The order has changed since the page loaded, for example by an earlier refund. Check what is left and try again.",
+  },
+  refundSyncFailed: {
+    sv: "Återbetalningarna kunde inte hämtas från Stripe.",
+    en: "The refunds could not be fetched from Stripe.",
+  },
+  refundFailed: {
+    sv: "Återbetalningen kunde inte genomföras.",
+    en: "The refund could not be completed.",
+  },
+  refundViaRootsOnly: {
+    sv: "Kortbetalda ordrar återbetalas av Roots. Hör av dig till hej@roots.nu så hjälper vi kunden.",
+    en: "Card-paid orders are refunded by Roots. Contact hej@roots.nu and we will help the customer.",
+  },
+  payoutAmountChanged: {
+    sv: "Beloppet på utbetalningen har ändrats, troligen för att en order återbetalats. Ladda om sidan och kontrollera beloppet innan du markerar den som utbetald.",
+    en: "The payout amount has changed, probably because an order was refunded. Reload the page and check the amount before marking it as paid.",
+  },
+  payoutReviewChanged: {
+    sv: "En ny återbetalning har kommit sedan sidan laddades. Ladda om och kontrollera beloppet innan du kvitterar.",
+    en: "A new refund has arrived since the page loaded. Reload and check the amount before resolving.",
+  },
+  payoutReviewNoteRequired: {
+    sv: "Skriv kort hur mellanskillnaden har reglerats (3 till 500 tecken).",
+    en: "Describe briefly how the difference was settled (3 to 500 characters).",
+  },
+  payoutNoReviewNeeded: {
+    sv: "Den här utbetalningen har ingen flagga att kvittera.",
+    en: "This payout has no flag to resolve.",
+  },
+  warehouseSelectOrders: {
+    sv: "Välj minst en order (högst 100 åt gången).",
+    en: "Select at least one order (at most 100 at a time).",
+  },
+  warehouseReconcileFailed: {
+    sv: "Avstämningen mot Stripe kunde inte genomföras.",
+    en: "The reconciliation against Stripe could not be completed.",
+  },
+  warehouseDeviationsBlock: {
+    sv: "Urvalet innehåller ordrar som inte stämmer. Inget har skickats till lagret.",
+    en: "The selection contains orders that do not reconcile. Nothing has been sent to the warehouse.",
+  },
+  warehouseOrderChanged: {
+    sv: "En order ändrades medan sändningen skapades. Inget har skickats till lagret. Ladda om och försök igen.",
+    en: "An order changed while the shipment was being created. Nothing has been sent to the warehouse. Reload and try again.",
+  },
+  warehouseBusy: {
+    sv: "En annan sändning skapas just nu. Försök igen om en stund.",
+    en: "Another shipment is being created right now. Try again shortly.",
+  },
+  warehouseBatchFailed: {
+    sv: "Sändningen kunde inte skapas. Inget har skickats till lagret.",
+    en: "The shipment could not be created. Nothing has been sent to the warehouse.",
+  },
+  warehouseBatchNotFound: {
+    sv: "Sändningen hittades inte.",
+    en: "The shipment was not found.",
+  },
+  warehousePicklistFailed: {
+    sv: "Plocklistan kunde inte skapas.",
+    en: "The pick list could not be created.",
+  },
+  cardOrderAwaitingPayment: {
+    sv: "Ordern väntar på kundens kortbetalning och kan inte avbokas nu. Betalar kunden inte stängs den av sig själv inom ett par timmar.",
+    en: "The order is waiting for the customer's card payment and cannot be cancelled now. If the customer does not pay, it closes by itself within a couple of hours.",
+  },
+  orderNotSentFromWarehouse: {
+    sv: "Ordern har inte lämnat Roots lager än. Den kan markeras som skickad eller levererad först när Roots har skickat den.",
+    en: "The order has not left the Roots warehouse yet. It can be marked as shipped or delivered once Roots has sent it.",
+  },
   campaignBulkDeliveryOnly: {
     sv: "Den här kampanjen levererar samlat till föreningen — hemleverans är inte tillgänglig.",
     en: "This campaign delivers collected to the club — home delivery is not available.",

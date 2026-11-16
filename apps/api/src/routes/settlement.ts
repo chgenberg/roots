@@ -1,12 +1,11 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
-import { eq, and, sql, isNull, inArray } from "drizzle-orm";
-import { LOCKED_MARGIN_PERCENT, REVENUE_ORDER_STATUSES } from "@roots/contracts";
+import { eq, and, isNull } from "drizzle-orm";
+import { LOCKED_MARGIN_PERCENT } from "@roots/contracts";
 import { db } from "@roots/db";
 import {
   campaigns,
   teams,
-  customerOrders,
   payouts,
   organizations,
   users,
@@ -19,6 +18,10 @@ import { childLogger } from "../lib/logger";
 import { auditLog, requestContext } from "../lib/audit";
 import { noteConductorEvent } from "../lib/orchestrator/conductor-rules";
 import { redis } from "../lib/redis";
+import {
+  computeTeamSettlement,
+  lockCampaignSettlement,
+} from "../lib/settlement/compute";
 import { resolveUiLocale, uiError, uiErrorFill } from "../lib/ui-locale";
 
 const log = childLogger("settlement");
@@ -123,57 +126,22 @@ settlement.post("/generate/:campaignId", async (c) => {
     const results = await db.transaction(async (tx) => {
       const txResults: Array<Record<string, unknown>> = [];
 
-      for (const team of teamList) {
-        // Tre saker skiljer den här summeringen från den gamla:
-        //
-        //   1. Betald räknas via REVENUE_ORDER_STATUSES, inte bara `PAID`.
-        //      Tidigare föll varje order som markerats SHIPPED/DELIVERED ur
-        //      utbetalningen, eftersom leveransstatus skriver över
-        //      betalstatus i samma kolumn. Ett lag som skötte sig och
-        //      markerade sina ordrar som levererade fick alltså mindre
-        //      pengar än ett lag som lät dem ligga kvar.
-        //   2. Manuella ordrar (kontant i handen) räknas bara med när de
-        //      verifierats av lagledare eller föreningsadmin. Annars kunde
-        //      ett kapat säljarkonto skapa PAID-rader som blev pengar.
-        //   3. Team-andelen räknas per order med den marginal som gällde när
-        //      ordern lades, inte med kampanjens nuvarande marginal.
-        const salesResult = await tx
-          .select({
-            total: sql<number>`COALESCE(SUM(${customerOrders.totalOre}), 0)`,
-            teamShare: sql<number>`COALESCE(SUM(ROUND(${customerOrders.totalOre} * COALESCE(${customerOrders.marginPercentAtSale}, ${LOCKED_MARGIN_PERCENT})::numeric / 100)), 0)`,
-          })
-          .from(customerOrders)
-          .where(
-            and(
-              eq(customerOrders.teamId, team.id),
-              eq(customerOrders.campaignId, campaignId),
-              inArray(customerOrders.status, REVENUE_ORDER_STATUSES),
-              sql`(${customerOrders.isManual} = false OR ${customerOrders.verifiedAt} IS NOT NULL)`
-            )
-          );
+      // Samma lås som en återbetalning eller avbokning tar. Summorna nedan
+      // läses därför aldrig mitt i en orderändring, och en ändring som
+      // väntar på låset hittar utbetalningen när vi är klara.
+      await lockCampaignSettlement(tx, campaignId);
 
-        const totalSalesOre = Number(salesResult[0]?.total || 0);
-        const frozenTeamShareOre = Number(salesResult[0]?.teamShare || 0);
+      for (const team of teamList) {
+        // Samma beräkning som omräkningen efter en återbetalning och
+        // kontrollen av betalda utbetalningar (lib/settlement/compute.ts).
+        const computed = await computeTeamSettlement(tx, campaignId, team.id);
+        const totalSalesOre = computed.totalSalesOre;
+        const frozenTeamShareOre = computed.teamShareOre;
 
         // Vad som lämnats utanför, så att admin ser att det finns pengar
         // kvar att bekräfta istället för att undra över en låg summa.
-        const [pendingResult] = await tx
-          .select({
-            total: sql<number>`COALESCE(SUM(${customerOrders.totalOre}), 0)`,
-            count: sql<number>`COUNT(*)`,
-          })
-          .from(customerOrders)
-          .where(
-            and(
-              eq(customerOrders.teamId, team.id),
-              eq(customerOrders.campaignId, campaignId),
-              inArray(customerOrders.status, REVENUE_ORDER_STATUSES),
-              eq(customerOrders.isManual, true),
-              isNull(customerOrders.verifiedAt)
-            )
-          );
-        const unverifiedOre = Number(pendingResult?.total || 0);
-        const unverifiedCount = Number(pendingResult?.count || 0);
+        const unverifiedOre = computed.unverifiedManualOre;
+        const unverifiedCount = computed.unverifiedManualCount;
 
         // MASTERPLAN_01 KC1.8: don't manufacture payout-rows for teams
         // that didn't sell anything. They clutter Fortnox, confuse the
@@ -189,6 +157,7 @@ settlement.post("/generate/:campaignId", async (c) => {
               eq(payouts.teamId, team.id)
             )
           )
+          .for("update")
           .limit(1);
 
         if (totalSalesOre === 0 && !existing) {
@@ -257,7 +226,10 @@ settlement.post("/generate/:campaignId", async (c) => {
               teamShareOre,
               updatedAt: new Date(),
             })
-            .where(eq(payouts.id, existing.id));
+            // Bara en väntande utbetalning får nya belopp. Raden är låst
+            // ovan, så statusen kan inte ha ändrats sedan den lästes; det
+            // här är en andra spärr om någon skulle ta bort låset.
+            .where(and(eq(payouts.id, existing.id), eq(payouts.status, "PENDING")));
 
           txResults.push({
             teamId: team.id,

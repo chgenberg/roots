@@ -40,6 +40,23 @@ type Payout = {
   fortnoxInvoiceId: string | null;
   paidAt: string | null;
   paymentReference: string | null;
+  /** Satt när en order återbetalats efter att utbetalningen låsts. */
+  reviewRequiredAt: string | null;
+  reviewResolvedAt: string | null;
+  reviewNote: string | null;
+  /** Vad som hade varit rätt belopp i dag. Bara på flaggade utbetalningar. */
+  review: {
+    /** Flaggan väntar på att någon reglerar och kvitterar. */
+    needsReview: boolean;
+    correctTeamShareOre: number;
+    correctTotalSalesOre: number;
+    /** Total mellanskillnad mot det låsta beloppet. */
+    overpaidOre: number;
+    /** Det som tillkommit sedan senaste kvitteringen. */
+    outstandingOre: number;
+    /** Det som redan kvitterats. */
+    settledOre: number;
+  } | null;
   createdAt: string;
 };
 
@@ -54,6 +71,7 @@ export default function UtbetalningarPage() {
   const [error, setError] = useState<string | null>(null);
   const [actingId, setActingId] = useState<string | null>(null);
   const [refs, setRefs] = useState<Record<string, string>>({});
+  const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -83,7 +101,31 @@ export default function UtbetalningarPage() {
     void load();
   }, [load]);
 
-  async function markPaid(id: string) {
+  async function resolveReview(id: string, expectedCorrectTeamShareOre?: number) {
+    const note = (reviewNotes[id] || "").trim();
+    if (note.length < 3) return;
+    setActingId(id);
+    try {
+      const res = await apiFetch<{ error?: string; ok?: boolean }>(
+        `/v1/payouts/${id}/review/resolve`,
+        // Beloppet som stod på skärmen följer med. Har en ny återbetalning
+        // kommit sedan dess gäller kvitteringen inte den.
+        { method: "POST", body: { note, expectedCorrectTeamShareOre, locale } }
+      );
+      if (!res.ok) {
+        toast(res.data?.error || t.reviewResolveFail, "error");
+        if (res.status === 409) await load();
+        return;
+      }
+      setReviewNotes((prev) => ({ ...prev, [id]: "" }));
+      toast(t.reviewResolveOk, "success");
+      await load();
+    } finally {
+      setActingId(null);
+    }
+  }
+
+  async function markPaid(id: string, expectedTeamShareOre: number) {
     const paymentReference = (refs[id] || "").trim();
     if (!paymentReference) {
       toast(t.refRequired, "error");
@@ -95,9 +137,16 @@ export default function UtbetalningarPage() {
         `/v1/payouts/${id}/status`,
         {
           method: "PATCH",
-          body: { status: "PAID", paymentReference },
+          // Beloppet som stod på skärmen följer med. Har en återbetalning
+          // räknat om utbetalningen sedan dess säger servern ifrån.
+          body: { status: "PAID", paymentReference, expectedTeamShareOre },
         }
       );
+      if (res.status === 409) {
+        toast(res.data?.error || t.amountChanged, "error");
+        await load();
+        return;
+      }
       if (!res.ok) {
         toast(res.data?.error || t.markFail, "error");
         return;
@@ -202,6 +251,16 @@ export default function UtbetalningarPage() {
                     </Badge>
                   </div>
 
+                  <ReviewNotice
+                    payout={p}
+                    busy={busy}
+                    note={reviewNotes[p.id] || ""}
+                    onNote={(value) =>
+                      setReviewNotes((prev) => ({ ...prev, [p.id]: value }))
+                    }
+                    onResolve={() => void resolveReview(p.id, p.review?.correctTeamShareOre)}
+                  />
+
                   <div className="flex flex-wrap items-end gap-3">
                     <div className="min-w-[220px] flex-1">
                       <Label htmlFor={`ref-${p.id}`}>{t.paymentRef}</Label>
@@ -222,7 +281,7 @@ export default function UtbetalningarPage() {
                       disabled={busy || !(refs[p.id] || "").trim()}
                       onClick={() => {
                         if (!window.confirm(t.confirmPaid)) return;
-                        void markPaid(p.id);
+                        void markPaid(p.id, p.teamShareOre);
                       }}
                     >
                       {busy ? (
@@ -245,22 +304,132 @@ export default function UtbetalningarPage() {
           <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
             {tFill(t.paidSection, { count: paid.length })}
           </h2>
-          {paid.map((p) => (
-            <Card key={p.id}>
-              <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
-                <div>
-                  <p className="font-medium">{p.orgName}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {p.campaignName} · {formatKr(p.teamShareOre, locale)}
-                    {p.paymentReference ? ` · ${p.paymentReference}` : ""}
-                  </p>
-                </div>
-                <Badge variant="success">{t.paidBadge}</Badge>
-              </CardContent>
-            </Card>
-          ))}
+          {paid.map((p) => {
+            const needsReview = p.review?.needsReview === true;
+            return (
+              <Card key={p.id}>
+                <CardContent className="space-y-3 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="font-medium">{p.orgName}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {p.campaignName} · {formatKr(p.teamShareOre, locale)}
+                        {p.paymentReference ? ` · ${p.paymentReference}` : ""}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {needsReview && (
+                        <Badge variant="destructive">{t.reviewBadge}</Badge>
+                      )}
+                      <Badge variant="success">{t.paidBadge}</Badge>
+                    </div>
+                  </div>
+                  <ReviewNotice
+                    payout={p}
+                    busy={actingId === p.id}
+                    note={reviewNotes[p.id] || ""}
+                    onNote={(value) =>
+                      setReviewNotes((prev) => ({ ...prev, [p.id]: value }))
+                    }
+                    onResolve={() => void resolveReview(p.id, p.review?.correctTeamShareOre)}
+                  />
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Flaggan på en utbetalning som är fakturerad eller betald, där en order
+ * sedan återbetalats. Beloppen på utbetalningen ändras aldrig; här står vad
+ * som skiljer, och en människa kvitterar när det är reglerat med föreningen.
+ */
+function ReviewNotice({
+  payout,
+  busy,
+  note,
+  onNote,
+  onResolve,
+}: {
+  payout: Payout;
+  busy: boolean;
+  note: string;
+  onNote: (value: string) => void;
+  onResolve: () => void;
+}) {
+  const { locale } = useLocale();
+  const t = portalPages.utbetalningar[locale];
+  if (!payout.reviewRequiredAt || !payout.review) return null;
+
+  if (!payout.review.needsReview && payout.reviewResolvedAt) {
+    return (
+      <p className="text-pretty text-xs text-muted-foreground">
+        {tFill(t.reviewResolved, {
+          date: new Date(payout.reviewResolvedAt).toLocaleDateString(
+            locale === "en" ? "en-GB" : "sv-SE"
+          ),
+          note: payout.reviewNote || "",
+        })}
+      </p>
+    );
+  }
+
+  return (
+    <div
+      role="alert"
+      className="space-y-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm"
+    >
+      <div className="flex items-start gap-2">
+        <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+        <div className="space-y-1">
+          <p className="font-semibold">{t.reviewTitle}</p>
+          <p className="text-pretty text-muted-foreground">{t.reviewBody}</p>
+          <p className="text-pretty">
+            {tFill(t.reviewNumbers, {
+              paid: formatKr(payout.teamShareOre, locale),
+              correct: formatKr(payout.review.correctTeamShareOre, locale),
+              over: formatKr(payout.review.overpaidOre, locale),
+            })}
+          </p>
+          {payout.review.settledOre > 0 && (
+            <p className="text-pretty">
+              {tFill(t.reviewOutstanding, {
+                settled: formatKr(payout.review.settledOre, locale),
+                outstanding: formatKr(payout.review.outstandingOre, locale),
+              })}
+            </p>
+          )}
+        </div>
+      </div>
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="min-w-[220px] flex-1">
+          <Label htmlFor={`review-${payout.id}`}>{t.reviewNoteLabel}</Label>
+          <Input
+            id={`review-${payout.id}`}
+            value={note}
+            maxLength={500}
+            onChange={(e) => onNote(e.target.value)}
+            placeholder={t.reviewNotePlaceholder}
+          />
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={busy || note.trim().length < 3}
+          onClick={onResolve}
+        >
+          {busy ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <CheckCircle2 className="mr-2 h-4 w-4" />
+          )}
+          {t.reviewResolve}
+        </Button>
+      </div>
     </div>
   );
 }

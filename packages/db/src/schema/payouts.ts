@@ -3,6 +3,7 @@ import {
   uuid,
   varchar,
   integer,
+  text,
   timestamp,
   pgEnum,
   index,
@@ -47,6 +48,25 @@ export const payouts = pgTable(
     paidAt: timestamp("paid_at"),
     paidByUserId: uuid("paid_by_user_id"),
     paymentReference: varchar("payment_reference", { length: 64 }),
+    /**
+     * En order återbetalades eller avbokades efter att utbetalningen
+     * fakturerats eller betalats. Beloppen på raden rörs aldrig då; flaggan
+     * säger att en människa behöver reglera mellanskillnaden med föreningen.
+     * Mellanskillnaden räknas fram vid läsning och sparas inte.
+     *
+     * Raden behöver hanteras när `reviewRequiredAt` är satt och är senare
+     * än `reviewResolvedAt` (eller ingen kvittering finns).
+     */
+    reviewRequiredAt: timestamp("review_required_at"),
+    reviewResolvedAt: timestamp("review_resolved_at"),
+    reviewResolvedByUserId: uuid("review_resolved_by_user_id"),
+    reviewNote: text("review_note"),
+    /**
+     * Vad som var rätt andel när flaggan senast kvitterades. En senare
+     * återbetalning flaggar raden igen; då syns hur mycket av
+     * mellanskillnaden som redan är reglerad och hur mycket som är nytt.
+     */
+    reviewResolvedTeamShareOre: integer("review_resolved_team_share_ore"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },

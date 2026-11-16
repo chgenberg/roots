@@ -808,6 +808,10 @@ export const fundraisingPages = {
     {
       titleFallback: "Lag-dashboard",
       loadFailed: "Kunde inte hämta lagdata. Försök igen.",
+      noTeamTitle: "Du har inget lag än",
+      noTeamBody:
+        "Ett lag eller en klass startar försäljningen via sin förening, eller tillsammans med Roots. Be föreningens admin om en inbjudan, eller hör av dig till oss så hjälper vi er igång.",
+      noTeamContact: "Kontakta oss",
       teamEarnings: "Lagets förtjänst",
       teamEarningsHint: "{pct} % av {gross}",
       nextInvite: "Dela inbjudan",
@@ -834,6 +838,10 @@ export const fundraisingPages = {
     {
       titleFallback: "Team dashboard",
       loadFailed: "Could not load team data. Please try again.",
+      noTeamTitle: "You do not have a team yet",
+      noTeamBody:
+        "A team or class starts its sale through the club, or together with Roots. Ask the club admin for an invite, or get in touch and we will help you get started.",
+      noTeamContact: "Contact us",
       teamEarnings: "Team earnings",
       teamEarningsHint: "{pct}% of {gross}",
       nextInvite: "Share the invite",
@@ -1489,6 +1497,58 @@ export const fundraisingPages = {
       forceCancelConfirm:
         "{error}\n\nVill du avboka ordern ändå? Den försvinner ur underlaget men det redan utbetalda beloppet ändras inte.",
       refundedWithManual: "Ordern är markerad som återbetald. {manual}",
+      refundStart: "Återbetala via Stripe",
+      refundTitle: "Återbetala till kunden",
+      refundIntro:
+        "Pengarna går tillbaka till kundens kort via Stripe. Föreningens andel räknas om på det som står kvar av varorna.",
+      refundRemaining: "Kvar att återbetala: {amount}",
+      refundRemainingShipping: "varav frakt {amount}",
+      refundFull: "Hela beloppet ({amount})",
+      refundPartial: "Del av beloppet",
+      refundGoodsLabel: "Varor att återbetala (kr)",
+      refundGoodsHint: "Högst {amount}.",
+      refundShippingToo: "Återbetala frakten också ({amount})",
+      refundReasonPlaceholder: "T.ex. kunden ångrade köpet inom 14 dagar",
+      refundContinue: "Fortsätt",
+      refundConfirmTitle: "Bekräfta återbetalningen",
+      refundConfirmBody:
+        "Du betalar tillbaka {amount} till kundens kort. Det går inte att ångra.",
+      refundConfirmBreakdown: "Varor {goods}, frakt {shipping}.",
+      refundConfirmButton: "Ja, återbetala {amount}",
+      refundBack: "Tillbaka",
+      refundWorking: "Återbetalar…",
+      refundDone: "{amount} är återbetalt till kunden.",
+      refundPayoutRecalculated:
+        "Lagets väntande utbetalning är omräknad: föreningens andel är nu {amount}.",
+      refundPayoutFlagged:
+        "Lagets utbetalning är redan fakturerad eller betald och har inte ändrats. Föreningen har fått {amount} för mycket. Den är flaggad under Utbetalningar för manuell hantering.",
+      refundAmountInvalid: "Ange ett belopp i kronor, högst {amount}.",
+      refundFailedGeneric: "Återbetalningen kunde inte genomföras.",
+      refundStripeSaid: "Stripe svarade: {message}",
+      refundRetry: "Försök igen",
+      refundRecovered:
+        "En tidigare återbetalning på {amount} hade gått igenom hos Stripe och är nu bokförd. Kontrollera ordern innan du återbetalar mer.",
+      refundSentToWarehouse:
+        "Ordern är redan lämnad till lagret. Säg till lagret om den inte ska skickas.",
+      refundUnfinished:
+        "Ett återbetalningsförsök på {amount} blev inte klart. Tryck på Hämta återbetalningar från Stripe för att se om pengarna gått tillbaka.",
+      refundSync: "Hämta återbetalningar från Stripe",
+      refundSyncing: "Hämtar…",
+      refundSyncHint:
+        "Använd den om en återbetalning gjorts direkt i Stripe, eller om ett försök här blev avbrutet.",
+      refundSyncNothing: "Stripe har inga återbetalningar som saknas här.",
+      refundSyncDone: "Bokfört från Stripe: {amount} ({count} st).",
+      refundSyncMissing:
+        "{count} återbetalning som är bokförd här finns inte längre hos Stripe. Kontrollera betalningen i Stripe.",
+      refundSyncFailed: "Kunde inte hämta återbetalningarna från Stripe.",
+      awaitingWarehouse:
+        "Ordern har inte lämnat Roots lager än. Den kan markeras som skickad eller levererad när Roots har skickat den.",
+      refundsHeading: "Återbetalningar",
+      refundRowShipping: "varav frakt {amount}",
+      partiallyRefunded: "Delvis återbetald",
+      refundedTotal: "Återbetalt",
+      refundRootsOnly:
+        "Kortbetalda ordrar återbetalas av Roots. Hör av dig till hej@roots.nu så hjälper vi kunden.",
       undoConfirmBtn: "Ta tillbaka bekräftelsen",
       registeredAwaiting:
         "{amount} är registrerat som mottaget av säljaren, men räknas inte med i avräkningen förrän någon annan bekräftat att pengarna finns.",
@@ -1572,6 +1632,58 @@ export const fundraisingPages = {
       forceCancelConfirm:
         "{error}\n\nCancel the order anyway? It will leave the payout base, but any amount already paid out will not change.",
       refundedWithManual: "Order marked as refunded. {manual}",
+      refundStart: "Refund through Stripe",
+      refundTitle: "Refund the customer",
+      refundIntro:
+        "The money goes back to the customer's card through Stripe. The club's share is recalculated on what remains of the goods.",
+      refundRemaining: "Left to refund: {amount}",
+      refundRemainingShipping: "of which shipping {amount}",
+      refundFull: "The whole amount ({amount})",
+      refundPartial: "Part of the amount",
+      refundGoodsLabel: "Goods to refund (SEK)",
+      refundGoodsHint: "At most {amount}.",
+      refundShippingToo: "Refund the shipping too ({amount})",
+      refundReasonPlaceholder: "E.g. the customer withdrew within 14 days",
+      refundContinue: "Continue",
+      refundConfirmTitle: "Confirm the refund",
+      refundConfirmBody:
+        "You are refunding {amount} to the customer's card. This cannot be undone.",
+      refundConfirmBreakdown: "Goods {goods}, shipping {shipping}.",
+      refundConfirmButton: "Yes, refund {amount}",
+      refundBack: "Back",
+      refundWorking: "Refunding…",
+      refundDone: "{amount} has been refunded to the customer.",
+      refundPayoutRecalculated:
+        "The team's pending payout has been recalculated: the club's share is now {amount}.",
+      refundPayoutFlagged:
+        "The team's payout is already invoiced or paid and has not been changed. The club has received {amount} too much. It is flagged under Payouts for manual handling.",
+      refundAmountInvalid: "Enter an amount in SEK, at most {amount}.",
+      refundFailedGeneric: "The refund could not be completed.",
+      refundStripeSaid: "Stripe answered: {message}",
+      refundRetry: "Try again",
+      refundRecovered:
+        "An earlier refund of {amount} had gone through at Stripe and is now recorded. Check the order before refunding more.",
+      refundSentToWarehouse:
+        "The order has already been handed to the warehouse. Tell the warehouse if it should not be shipped.",
+      refundUnfinished:
+        "A refund attempt of {amount} was not completed. Press Fetch refunds from Stripe to see whether the money has gone back.",
+      refundSync: "Fetch refunds from Stripe",
+      refundSyncing: "Fetching…",
+      refundSyncHint:
+        "Use it if a refund was made directly in Stripe, or if an attempt here was interrupted.",
+      refundSyncNothing: "Stripe has no refunds that are missing here.",
+      refundSyncDone: "Recorded from Stripe: {amount} ({count}).",
+      refundSyncMissing:
+        "{count} refund recorded here no longer exists at Stripe. Check the payment in Stripe.",
+      refundSyncFailed: "Could not fetch the refunds from Stripe.",
+      awaitingWarehouse:
+        "The order has not left the Roots warehouse yet. It can be marked as shipped or delivered once Roots has sent it.",
+      refundsHeading: "Refunds",
+      refundRowShipping: "of which shipping {amount}",
+      partiallyRefunded: "Partially refunded",
+      refundedTotal: "Refunded",
+      refundRootsOnly:
+        "Card-paid orders are refunded by Roots. Contact hej@roots.nu and we will help the customer.",
       undoConfirmBtn: "Withdraw confirmation",
       registeredAwaiting:
         "{amount} is registered as received by the seller, but does not count in the payout statement until someone else confirms the money is there.",

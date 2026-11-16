@@ -92,9 +92,12 @@ interface ShopData {
     goalType: string;
     goalValue: number;
     deliveryType: string;
-    shippingThresholdOre: number | null;
-    shippingFeeOre: number | null;
     status: string;
+  } | null;
+  shipping?: {
+    homeDeliveryAvailable: boolean;
+    homeDeliveryFeeOre: number | null;
+    freeShippingThresholdOre: number | null;
   } | null;
   organization: { name: string; brand?: OrgBrand | null } | null;
   products: Product[];
@@ -333,15 +336,22 @@ export default function SellerShopPage() {
             ) : null}
 
             <p className="mt-6 text-sm text-muted-foreground">
-              {shopData.campaign?.deliveryType === "BULK"
+              {shopData.campaign?.deliveryType === "BULK" ||
+              (shopData.campaign?.deliveryType === "BOTH" &&
+                !shopData.shipping?.homeDeliveryAvailable)
                 ? t.deliveryBulk
                 : shopData.campaign?.deliveryType === "BOTH"
                   ? t.deliveryChoice
-                  : t.deliveryDirect}
-              {shopData.campaign?.shippingThresholdOre
+                  : shopData.shipping?.homeDeliveryAvailable
+                    ? t.deliveryDirect
+                    : ""}
+              {shopData.campaign?.deliveryType !== "BULK" &&
+              shopData.shipping?.homeDeliveryAvailable &&
+              shopData.shipping.homeDeliveryFeeOre &&
+              shopData.shipping.freeShippingThresholdOre
                 ? tFill(t.freeShippingOver, {
                     amount: formatKr(
-                      shopData.campaign.shippingThresholdOre,
+                      shopData.shipping.freeShippingThresholdOre,
                       locale
                     ),
                   })

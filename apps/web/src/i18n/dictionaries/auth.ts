@@ -166,15 +166,22 @@ export const auth = {
         "Registrera föreningen och samla lag, mål och utbetalning på ett ställe.",
       teamTitle: "Lag eller klass",
       teamDescription:
-        "Eget lag eller egen klass, utan förening i Roots ännu.",
+        "Vill ni starta en försäljning? Kontakta oss så hjälper vi er igång.",
       chooserHint:
         "Har föreningen redan Roots? Be föreningsadmin om en inbjudningslänk.",
+      teamInfoTitle: "Försäljningen startas via föreningen",
+      teamInfoBody:
+        "Ett lag eller en klass säljer alltid genom sin förening, eller tillsammans med Roots. Då finns det någon som följer försäljningen hela vägen, från start till utbetalning.",
+      teamInfoInvite:
+        "Har föreningen redan Roots? Be föreningens admin om en inbjudningslänk, så är ni igång direkt.",
+      teamInfoContactHeading: "Vill ni starta en försäljning? Kontakta oss.",
+      teamInfoContactBody:
+        "Lämna era uppgifter här, så hör vi av oss och hjälper er igång.",
       alreadyHaveAccount: "Har ni redan konto?",
       loginLink: "Logga in",
       back: "Tillbaka",
       stepOf: "Steg {step} av {total}",
       stepClubInfo: "Din förening",
-      stepTeamInfo: "Ditt lag eller klass",
       stepYourDetails: "Dina uppgifter",
       stepYourAccount: "Ditt konto",
       next: "Nästa",
@@ -190,15 +197,6 @@ export const auth = {
       nationalFederationPlaceholder: "T.ex. Riksidrottsförbundet",
       sportType: "Idrott / Verksamhet",
       sportTypePlaceholder: "T.ex. Fotboll",
-      teamName: "Lag-/klassnamn *",
-      teamNamePlaceholder: "T.ex. P13 Blå",
-      orgSearch: "Tillhör en förening?",
-      orgSearchPlaceholder: "Sök efter din förening...",
-      existingClubNote:
-        "Redan en förening i Roots? Be föreningsadmin om en inbjudningslänk. Du kan inte koppla ett nytt lag till en befintlig förening här.",
-      changeOrg: "Ändra",
-      newOrgName: "Föreningens namn",
-      newOrgNamePlaceholder: "Er förening eller skola",
       contactName: "Ditt namn *",
       contactNamePlaceholder: "Förnamn Efternamn",
       phone: "Telefon",
@@ -229,15 +227,22 @@ export const auth = {
         "Register the club and keep teams, goals and payouts in one place.",
       teamTitle: "Team or class",
       teamDescription:
-        "Your own team or class, without a club already on Roots.",
+        "Want to start a sale? Contact us and we will help you get going.",
       chooserHint:
         "Is the club already on Roots? Ask the club admin for an invite link.",
+      teamInfoTitle: "Sales start through the club",
+      teamInfoBody:
+        "A team or class always sells through its club, or together with Roots. That way someone follows the sale all the way, from start to payout.",
+      teamInfoInvite:
+        "Is the club already on Roots? Ask the club admin for an invite link and you are up and running right away.",
+      teamInfoContactHeading: "Want to start a sale? Contact us.",
+      teamInfoContactBody:
+        "Leave your details here and we will get in touch and help you get started.",
       alreadyHaveAccount: "Already have an account?",
       loginLink: "Sign in",
       back: "Back",
       stepOf: "Step {step} of {total}",
       stepClubInfo: "Your club",
-      stepTeamInfo: "Your team or class",
       stepYourDetails: "Your details",
       stepYourAccount: "Your account",
       next: "Next",
@@ -253,15 +258,6 @@ export const auth = {
       nationalFederationPlaceholder: "e.g. Swedish Sports Confederation",
       sportType: "Sport / activity",
       sportTypePlaceholder: "e.g. Football",
-      teamName: "Team / class name *",
-      teamNamePlaceholder: "e.g. U13 Blue",
-      orgSearch: "Part of a club?",
-      orgSearchPlaceholder: "Search for your club...",
-      existingClubNote:
-        "Already a club on Roots? Ask the club admin for an invite link. You cannot attach a new team to an existing club here.",
-      changeOrg: "Change",
-      newOrgName: "Club name",
-      newOrgNamePlaceholder: "Your club or school",
       contactName: "Your name *",
       contactNamePlaceholder: "First name Last name",
       phone: "Phone",

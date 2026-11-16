@@ -1,5 +1,6 @@
 export * from "./organizations";
 export * from "./organization-brands";
+export * from "./platform-settings";
 export * from "./users";
 export * from "./products";
 export * from "./orders";

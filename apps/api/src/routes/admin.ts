@@ -27,12 +27,18 @@ import {
   contactMessages,
   trafficEvents,
 } from "@roots/db/schema";
+import { ShippingSettingsSchema } from "@roots/contracts";
+import { isDemoSession } from "../lib/session";
 import type { SessionData } from "../lib/session";
 import { requireSession } from "../lib/http-session";
 import { childLogger } from "../lib/logger";
 import { auditLog, requestContext } from "../lib/audit";
 import { resolveUiLocale, uiError } from "../lib/ui-locale";
 import { pendingOrgReviewWhere } from "../lib/org-approval";
+import {
+  getShippingSettingsMeta,
+  setShippingSettings,
+} from "../lib/platform-settings";
 
 const log = childLogger("admin");
 
@@ -520,6 +526,77 @@ admin.get("/traffic", async (c) => {
     clicks: kindCounts.find((k) => k.kind === "click")?.n ?? 0,
     topPages: topPages.map((p) => ({ path: p.path, count: p.n })),
   });
+});
+
+// ── Frakt vid hemleverans ────────────────────────────────────────
+//
+// Avgiften och gränsen för fri frakt är priser mot kund. De sätts bara här,
+// av en inloggad intern admin, och varje ändring hamnar i audit-loggen med
+// värdet före och efter. Föreningar och kampanjer kan inte sätta frakt.
+
+admin.get("/settings/shipping", async (c) => {
+  const guard = await requireInternalAdmin(c);
+  if (!guard.ok) return c.json({ error: guard.error }, guard.status);
+  try {
+    const { settings, updatedAt } = await getShippingSettingsMeta();
+    return c.json({ shipping: settings, updatedAt });
+  } catch (err) {
+    log.error({ err }, "shipping settings fetch failed");
+    return c.json({ error: uiError(resolveUiLocale(c), "couldNotFetchData") }, 500);
+  }
+});
+
+admin.put("/settings/shipping", async (c) => {
+  const guard = await requireInternalAdmin(c);
+  if (!guard.ok) return c.json({ error: guard.error }, guard.status);
+  let locale = resolveUiLocale(c);
+  if (isDemoSession(guard.session)) {
+    return c.json({ error: uiError(locale, "demoCannotChangeSettings") }, 403);
+  }
+
+  let body: unknown;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: uiError(locale, "invalidJson") }, 400);
+  }
+  locale = resolveUiLocale(c, (body as { locale?: unknown } | null)?.locale);
+
+  const parsed = ShippingSettingsSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: uiError(locale, "invalidShippingSettings") }, 400);
+  }
+  // En gräns för fri frakt utan avgift betyder ingenting, och ser i
+  // efterhand ut som att hemleverans är öppen fast den inte är det.
+  if (
+    parsed.data.homeDeliveryFeeOre === null &&
+    parsed.data.freeShippingThresholdOre !== null
+  ) {
+    return c.json({ error: uiError(locale, "shippingThresholdNeedsFee") }, 400);
+  }
+
+  try {
+    const { previous, current } = await setShippingSettings(
+      parsed.data,
+      guard.session.userId
+    );
+    void auditLog({
+      userId: guard.session.userId,
+      action: "settings.shipping.updated",
+      entityType: "platform_setting",
+      entityId: null,
+      meta: {
+        ...requestContext((n) => c.req.header(n)),
+        key: "shipping",
+        previous,
+        current,
+      },
+    });
+    return c.json({ ok: true, shipping: current });
+  } catch (err) {
+    log.error({ err }, "shipping settings update failed");
+    return c.json({ error: uiError(locale, "couldNotSave") }, 500);
+  }
 });
 
 // keep `lte`/`requireInternalAdmin`-helpers from being tree-shaken if

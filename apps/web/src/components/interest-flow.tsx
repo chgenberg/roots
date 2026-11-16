@@ -129,7 +129,14 @@ function StepIndicator({ step, t }: { step: Step; t: Dict }) {
   );
 }
 
-export function InterestFlow({ gated = false }: { gated?: boolean }) {
+export function InterestFlow({
+  gated = false,
+  defaultCustomerType = "",
+}: {
+  gated?: boolean;
+  /** Förvald kundtyp när ytan redan vet vem som anmäler sig (t.ex. lag eller klass). */
+  defaultCustomerType?: InterestCustomerType | "";
+}) {
   const { locale } = useLocale();
   const t = interest[locale];
   const [step, setStep] = useState<Step>(1);
@@ -151,6 +158,7 @@ export function InterestFlow({ gated = false }: { gated?: boolean }) {
       {step === 1 && (
         <InterestForm
           t={t}
+          defaultCustomerType={defaultCustomerType}
           onSent={(id) => {
             setLeadId(id);
             setStep(id ? 2 : 3);
@@ -172,12 +180,22 @@ export function InterestFlow({ gated = false }: { gated?: boolean }) {
   );
 }
 
-function InterestForm({ t, onSent }: { t: Dict; onSent: (id: string | null) => void }) {
+function InterestForm({
+  t,
+  defaultCustomerType,
+  onSent,
+}: {
+  t: Dict;
+  defaultCustomerType: InterestCustomerType | "";
+  onSent: (id: string | null) => void;
+}) {
   const { locale } = useLocale();
   const [intent, setIntent] = useState<InterestIntent>("start");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
-  const [customerType, setCustomerType] = useState<InterestCustomerType | "">("");
+  const [customerType, setCustomerType] = useState<InterestCustomerType | "">(
+    defaultCustomerType
+  );
   const [consent, setConsent] = useState(false);
   const [website, setWebsite] = useState("");
   const [touched, setTouched] = useState({ phone: false, email: false });

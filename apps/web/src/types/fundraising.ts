@@ -55,7 +55,16 @@ export interface CustomerOrder {
   id: string;
   customerName: string;
   customerEmail: string | null;
+  /** Vad kunden betalade, inklusive eventuell frakt. */
   totalOre: number;
+  shippingOre?: number;
+  /** Summan som gått tillbaka till kunden. */
+  refundedOre?: number;
+  /**
+   * Varuvärdet som försäljning och föreningens andel räknas på: utan frakt
+   * och utan det som återbetalats.
+   */
+  goodsOre?: number;
   status: string;
   paymentMethod: string | null;
   selectedPaymentMethod?: string | null;
@@ -160,6 +169,8 @@ export interface SellerDashboard {
     id: string;
     customerName: string;
     totalOre: number;
+    /** Varuvärdet: utan frakt och utan det som återbetalats. */
+    goodsOre?: number;
     status: string;
     createdAt: string;
     isManual?: boolean;

@@ -119,8 +119,6 @@ describe("GET /v1/shop/by-slug/:slug", () => {
           goalType: "AMOUNT",
           goalValue: 100_000,
           deliveryType: "PICKUP",
-          shippingThresholdOre: 0,
-          shippingFeeOre: 0,
           status: "ACTIVE",
         },
       ],
@@ -168,6 +166,8 @@ describe("GET /v1/shop/by-slug/:slug", () => {
       [{ total: 38700 }],
       // orderCountResult
       [{ count: 3 }],
+      // platform_settings (frakt vid hemleverans, Roots inställning)
+      [{ value: { homeDeliveryFeeOre: 5500, freeShippingThresholdOre: 80000 } }],
     ]);
 
     const out = await callShop("/by-slug/anna-roots-2026");

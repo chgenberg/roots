@@ -9,7 +9,6 @@ import {
   organizations,
   teams,
   sellers,
-  campaigns,
 } from "@roots/db/schema";
 import {
   createSession,
@@ -1805,191 +1804,23 @@ auth.post("/register/association", async (c) => {
   }
 });
 
+/**
+ * Ett lag eller en klass startar aldrig en försäljning på egen hand. Vägen in
+ * är föreningens inbjudan (`/v1/association/team-invites/claim`) eller en
+ * intresseanmälan som blir en lead i pipelinen. Adressen svarar 410 i stället
+ * för att tas bort, så att en äldre klient får en förklaring och inte ett 404.
+ */
 auth.post("/register/team-leader", async (c) => {
-  // MASTERPLAN_01 KC2.9: cap 5 registrations/h/IP.
-  const ip =
-    c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-  const rl = await registrationRateLimit(ip);
-  if (!rl.allowed) {
-    c.header("Retry-After", String(rl.resetInSeconds));
-    return c.json(
-      { error: uiError(resolveUiLocale(c), "registrationRateLimited") },
-      429
-    );
-  }
-
-  let body: any;
+  let bodyLocale: unknown;
   try {
-    body = await c.req.json();
+    bodyLocale = ((await c.req.json()) as { locale?: unknown } | null)?.locale;
   } catch {
-    return c.json({ error: uiError(resolveUiLocale(c), "invalidJson") }, 400);
+    bodyLocale = undefined;
   }
-  const locale = resolveUiLocale(c, body?.locale);
-
-  const {
-    teamName,
-    orgName,
-    existingOrgId,
-    email,
-    password,
-    contactName,
-    phone,
-    addressLine1,
-    city,
-    postalCode,
-  } = body;
-
-  if (!teamName || !email || !password || !contactName) {
-    return c.json({ error: uiError(locale, "requiredFieldsMustFill") }, 400);
-  }
-
-  const pwErr = validatePassword(password, locale);
-  if (pwErr) return c.json({ error: pwErr }, 400);
-
-  // P2.5 (audit 2026-05-26): tidigare lät endpointen vem som helst
-  // ansluta sin nya team-leader till en valfri existerande
-  // organisations-UUID utan att äga den. Det betydde att en angripare
-  // kunde gissa/läcka org-IDt och sätta sig själv som TEAM_LEADER
-  // i en annan förening. Den enda legitima vägen in i en befintlig
-  // förening är via team-invite (`/v1/association/team-invites/claim`).
-  // Vi avvisar därför `existingOrgId` här explicit; klienten ska
-  // använda invite-flödet i stället.
-  if (existingOrgId !== undefined && existingOrgId !== null && existingOrgId !== "") {
-    return c.json({ error: uiError(locale, "useTeamInvite") }, 400);
-  }
-
-  try {
-    const [existing] = await db
-      .select()
-      .from(users)
-      .where(eq(users.email, email.toLowerCase().trim()))
-      .limit(1);
-
-    if (existing) {
-      return c.json({ error: uiError(locale, "emailAlreadyRegistered") }, 409);
-    }
-
-    const passwordHash = await hash(password, ARGON2_OPTIONS);
-
-    let validatedOrgId: string | null = null;
-    let resolvedOrgName = orgName || teamName;
-
-    // Captured inside the tx and consumed AFTER commit. Must be `let` (and
-    // declared outside the closure) so the enqueue call below the tx can see
-    // whether a new org was actually created.
-    let newlyCreatedOrgId: string | null = null;
-
-    const txResult = await db.transaction(async (tx) => {
-      let orgId: string | null = validatedOrgId;
-
-      if (!orgId && orgName) {
-        const [org] = await tx
-          .insert(organizations)
-          .values({ name: orgName, type: "club" })
-          .returning();
-        orgId = org.id;
-        resolvedOrgName = org.name;
-        newlyCreatedOrgId = org.id;
-      } else if (!orgId) {
-        const [org] = await tx
-          .insert(organizations)
-          .values({ name: teamName, type: "team" })
-          .returning();
-        orgId = org.id;
-        resolvedOrgName = org.name;
-        newlyCreatedOrgId = org.id;
-      }
-
-      const [user] = await tx
-        .insert(users)
-        .values({
-          email: email.toLowerCase().trim(),
-          passwordHash,
-          role: "TEAM_LEADER",
-          orgId,
-          contactName,
-          phone: phone || null,
-          addressLine1: addressLine1 || null,
-          city: city || null,
-          postalCode: postalCode || null,
-        })
-        .returning();
-
-      let createdTeamId: string | null = null;
-
-      const [activeCampaign] = await tx
-        .select()
-        .from(campaigns)
-        .where(and(eq(campaigns.orgId, orgId!), eq(campaigns.status, "ACTIVE")))
-        .orderBy(campaigns.createdAt)
-        .limit(1);
-
-      if (activeCampaign) {
-        const inviteToken = crypto.randomUUID().replace(/-/g, "").slice(0, 32);
-        const [team] = await tx
-          .insert(teams)
-          .values({
-            orgId: orgId!,
-            campaignId: activeCampaign.id,
-            leaderId: user.id,
-            name: teamName,
-            inviteToken,
-          })
-          .returning();
-        createdTeamId = team.id;
-      }
-
-      return { orgId: orgId!, user, createdTeamId };
-    });
-
-    // Enqueue AFTER tx commits — see note in /register/association above.
-    if (newlyCreatedOrgId) {
-      scheduleOrgNormalize(newlyCreatedOrgId);
-      void noteConductorEvent("org.pending", newlyCreatedOrgId);
-    }
-
-    const sessionData: SessionData = {
-      userId: txResult.user.id,
-      role: "TEAM_LEADER",
-      orgId: txResult.orgId,
-      createdAt: Date.now(),
-    };
-
-    const sessionId = await createSession(sessionData);
-    setCookie(c, SESSION_COOKIE_NAME, sessionId, SESSION_COOKIE_OPTIONS);
-
-    void auditLog({
-      userId: txResult.user.id,
-      action: "auth.register.team_leader",
-      entityType: "team",
-      entityId: txResult.createdTeamId,
-      meta: { ...requestContext((n) => c.req.header(n)), orgId: txResult.orgId },
-    });
-
-    getEmailSender()
-      .sendEmail({
-        to: txResult.user.email,
-        ...welcomeEmail(contactName, "TEAM_LEADER", locale),
-      })
-      .catch((e) => log.error({ err: e }, "Team leader registration email failed"));
-
-    return c.json({
-      ok: true,
-      user: {
-        email: txResult.user.email,
-        role: txResult.user.role,
-        name: txResult.user.contactName,
-        orgName: resolvedOrgName,
-        orgId: txResult.orgId,
-        userId: txResult.user.id,
-      },
-      teamName,
-      teamId: txResult.createdTeamId,
-    });
-  } catch (err) {
-    log.error({ err }, "Team leader registration failed");
-    return c.json({ error: uiError(locale, "registrationFailed") }, 500);
-  }
+  return c.json(
+    { error: uiError(resolveUiLocale(c, bodyLocale), "teamStartsViaClub") },
+    410
+  );
 });
 
 // Inbjudningslänken till säljare: lagets och föreningens namn och profil,

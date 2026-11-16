@@ -9,6 +9,7 @@ import {
   users,
   customerOrders,
   customerOrderLines,
+  customerOrderRefunds,
   teamGoals,
   products,
   payouts,
@@ -17,6 +18,7 @@ import {
   LOCKED_MARGIN_PERCENT,
   REVENUE_ORDER_STATUSES,
   countsAsRevenue,
+  goodsNetOre,
 } from "@roots/contracts";
 import { isDemoSession } from "../lib/session";
 import { requireSession } from "../lib/http-session";
@@ -25,6 +27,9 @@ import { getEmailSender } from "../lib/email";
 import { welcomeEmail } from "../lib/email/templates";
 import { childLogger } from "../lib/logger";
 import { stockholmDateIso } from "../lib/date";
+import { goodsSumSql } from "../lib/order-money";
+import { beginPayoutAdjustment } from "../lib/settlement/compute";
+import { fulfillmentPatch, fulfillmentRefusal } from "../lib/fulfillment";
 import { auditLog, requestContext } from "../lib/audit";
 import { validatePassword } from "./auth";
 import { resolveUiLocale, uiError } from "../lib/ui-locale";
@@ -42,6 +47,45 @@ const ARGON2_OPTIONS = {
 };
 
 const log = childLogger("dashboard");
+
+/**
+ * Var en kortorder befinner sig i förhållande till pengarna. Avbokning,
+ * leveransmarkering och knapparna i orderdialogen utgår från samma svar.
+ */
+/**
+ * Stripes betalsida lever i två timmar (se `expires_at` i stripe.ts). Efter
+ * tre har den säkert löpt ut och kan inte längre betalas.
+ */
+const CHECKOUT_SESSION_GONE_MS = 3 * 60 * 60 * 1000;
+
+function cardOrderState(order: {
+  paymentMethod: string;
+  stripeCheckoutSessionId: string | null;
+  status: string;
+  sentToWarehouseAt: Date | null;
+  createdAt: Date;
+}) {
+  const isCard = order.paymentMethod === "STRIPE" || order.paymentMethod === "KLARNA";
+  const hasStripePayment = order.paymentMethod === "STRIPE" && !!order.stripeCheckoutSessionId;
+  return {
+    isCard,
+    hasStripePayment,
+    /**
+     * Betalsidan hos Stripe kan fortfarande vara öppen, eller är på väg att
+     * skapas (DRAFT, innan ordern fått sitt sessions-id).
+     */
+    awaitingPayment:
+      order.paymentMethod === "STRIPE" &&
+      (order.status === "PENDING" || order.status === "DRAFT") &&
+      Date.now() - order.createdAt.getTime() < CHECKOUT_SESSION_GONE_MS,
+    paid: isCard && countsAsRevenue(order.status),
+    /** Betald hos Stripe men ännu inte lämnad till lagret av Roots. */
+    awaitingWarehouse:
+      hasStripePayment &&
+      !order.sentToWarehouseAt &&
+      (order.status === "PAID" || order.status === "CONFIRMED"),
+  };
+}
 
 export const dashboard = new Hono();
 
@@ -98,7 +142,7 @@ async function dailySeries(scope: ReturnType<typeof and> | undefined) {
   const rows = await db
     .select({
       day: sql<string>`to_char(date_trunc('day', ${customerOrders.createdAt}), 'YYYY-MM-DD')`,
-      salesOre: sql<number>`COALESCE(SUM(${customerOrders.totalOre}), 0)`,
+      salesOre: goodsSumSql,
       orders: sql<number>`COUNT(*)`,
     })
     .from(customerOrders)
@@ -117,13 +161,13 @@ async function paymentSeries(scope: ReturnType<typeof and> | undefined) {
   const methodExpr = sql<string>`LOWER(COALESCE(NULLIF(${customerOrders.selectedPaymentMethod}, ''), ${customerOrders.paymentMethod}::text, 'unknown'))`;  const rows = await db
     .select({
       method: methodExpr,
-      salesOre: sql<number>`COALESCE(SUM(${customerOrders.totalOre}), 0)`,
+      salesOre: goodsSumSql,
       count: sql<number>`COUNT(*)`,
     })
     .from(customerOrders)
     .where(and(scope, PAID_IN_STATS))
     .groupBy(methodExpr)
-    .orderBy(sql`COALESCE(SUM(${customerOrders.totalOre}), 0) DESC`);
+    .orderBy(sql`${goodsSumSql} DESC`);
   return rows.map((r) => ({
     method: r.method,
     salesOre: Number(r.salesOre),
@@ -140,7 +184,7 @@ async function weekdaySeries(
   const rows = await db
     .select({
       dow: dowExpr,
-      salesOre: sql<number>`COALESCE(SUM(${customerOrders.totalOre}), 0)`,
+      salesOre: goodsSumSql,
       orders: sql<number>`COUNT(*)`,
     })
     .from(customerOrders)
@@ -199,7 +243,7 @@ dashboard.get("/association", async (c) => {
     const salesByTeam = await db
       .select({
         teamId: customerOrders.teamId,
-        total: sql<number>`COALESCE(SUM(${customerOrders.totalOre}), 0)`,
+        total: goodsSumSql,
         count: sql<number>`COUNT(*)`,
       })
       .from(customerOrders)
@@ -271,6 +315,9 @@ dashboard.get("/association", async (c) => {
         customerName: o.customerName,
         customerEmail: o.customerEmail,
         totalOre: o.totalOre,
+        shippingOre: o.shippingOre,
+        refundedOre: o.refundedOre,
+        goodsOre: goodsNetOre(o),
         status: o.status,
         paymentMethod: o.paymentMethod,
         selectedPaymentMethod: o.selectedPaymentMethod,
@@ -448,7 +495,7 @@ dashboard.get("/team/:teamId", async (c) => {
     const salesBySeller = await db
       .select({
         sellerId: customerOrders.sellerId,
-        total: sql<number>`COALESCE(SUM(${customerOrders.totalOre}), 0)`,
+        total: goodsSumSql,
         count: sql<number>`COUNT(*)`,
       })
       .from(customerOrders)
@@ -476,7 +523,7 @@ dashboard.get("/team/:teamId", async (c) => {
     const unverifiedManual = orders.reduce(
       (acc, o) => {
         if (o.isManual && countsAsRevenue(o.status) && !o.verifiedAt) {
-          acc.ore += o.totalOre;
+          acc.ore += goodsNetOre(o);
           acc.count += 1;
         }
         return acc;
@@ -548,6 +595,9 @@ dashboard.get("/team/:teamId", async (c) => {
         customerName: o.customerName,
         customerEmail: o.customerEmail,
         totalOre: o.totalOre,
+        shippingOre: o.shippingOre,
+        refundedOre: o.refundedOre,
+        goodsOre: goodsNetOre(o),
         status: o.status,
         paymentMethod: o.paymentMethod,
         selectedPaymentMethod: o.selectedPaymentMethod,
@@ -1273,7 +1323,7 @@ dashboard.get("/seller", async (c) => {
 
     const salesResult = await db
       .select({
-        total: sql<number>`COALESCE(SUM(${customerOrders.totalOre}), 0)`,
+        total: goodsSumSql,
         count: sql<number>`COUNT(*)`,
       })
       .from(customerOrders)
@@ -1349,6 +1399,9 @@ dashboard.get("/seller", async (c) => {
         id: o.id,
         customerName: o.customerName,
         totalOre: o.totalOre,
+        shippingOre: o.shippingOre,
+        refundedOre: o.refundedOre,
+        goodsOre: goodsNetOre(o),
         status: o.status,
         createdAt: o.createdAt,
         // Säljaren ska se att en egen registrerad order väntar på
@@ -1443,6 +1496,45 @@ dashboard.get("/seller/orders/:orderId", async (c) => {
       return c.json({ error: uiError(locale, "permissionDenied") }, 403);
     }
 
+    const card = cardOrderState(order);
+
+    // Genomförda återbetalningar visas för den som får se ordern. Skälet är
+    // en intern anteckning och följer bara med till intern admin.
+    const refunds = await db
+      .select({
+        id: customerOrderRefunds.id,
+        amountOre: customerOrderRefunds.amountOre,
+        shippingOre: customerOrderRefunds.shippingOre,
+        reason: customerOrderRefunds.reason,
+        createdAt: customerOrderRefunds.createdAt,
+      })
+      .from(customerOrderRefunds)
+      .where(
+        and(
+          eq(customerOrderRefunds.orderId, order.id),
+          eq(customerOrderRefunds.status, "SUCCEEDED")
+        )
+      )
+      .orderBy(customerOrderRefunds.createdAt);
+
+    // Ett försök som blev liggande: Stripe kan ha betalat tillbaka utan att
+    // det är bokfört. Intern admin ska se det och kunna reda ut det.
+    const [unfinishedRefund] = isInternalAdmin
+      ? await db
+          .select({
+            amountOre: customerOrderRefunds.amountOre,
+            createdAt: customerOrderRefunds.createdAt,
+          })
+          .from(customerOrderRefunds)
+          .where(
+            and(
+              eq(customerOrderRefunds.orderId, order.id),
+              eq(customerOrderRefunds.status, "PENDING")
+            )
+          )
+          .limit(1)
+      : [];
+
     // Load order lines + product names in one query. We intentionally
     // don't ship product description/price-history fields — the dialog
     // only needs name, qty and the unit price captured at order time
@@ -1478,6 +1570,13 @@ dashboard.get("/seller/orders/:orderId", async (c) => {
         deliveredAt: order.deliveredAt,
         cancelledAt: order.cancelledAt,
         cancelReason: order.cancelReason,
+        refundedOre: order.refundedOre,
+        refundedShippingOre: order.refundedShippingOre,
+        refundedAt: order.refundedAt,
+        sentToWarehouseAt: order.sentToWarehouseAt,
+        // Betald, men Roots har inte lämnat den till lagret än. Lag och
+        // förening kan då inte markera den som skickad eller levererad.
+        awaitingWarehouse: card.awaitingWarehouse,
         createdAt: order.createdAt,
         updatedAt: order.updatedAt,
         // Säljaren ser att den egna ordern väntar på lagledaren, och
@@ -1490,17 +1589,33 @@ dashboard.get("/seller/orders/:orderId", async (c) => {
         // visas för fyra olika roller och skulle annars behöva känna till
         // reglerna själv — och då hamnar en knapp förr eller senare framför
         // någon som inte får trycka på den.
-        canManageFulfillment: isInternalAdmin || isTeamLeader || isAssocAdmin,
-        canCancel:
+        canManageFulfillment:
           isInternalAdmin ||
-          isTeamLeader ||
-          isAssocAdmin ||
-          // Säljaren får rätta sin egen felregistrering fram till att
-          // lagledaren bekräftat den.
-          (isOwner &&
-            order.isManual &&
-            !order.verifiedAt &&
-            order.placedByUserId === session.userId),
+          ((isTeamLeader || isAssocAdmin) && !card.awaitingWarehouse),
+        // En kortorder kan inte avbokas eller markeras återbetald av lag
+        // eller förening: pengarna ligger hos Stripe och går bara tillbaka
+        // via Roots återbetalning. Medan kunden kan stå på betalsidan får
+        // ingen stänga den. Samma regler som i /cancel nedan.
+        canCancel:
+          !card.awaitingPayment &&
+          (card.paid
+            ? isInternalAdmin && !card.hasStripePayment
+            : isInternalAdmin ||
+              isTeamLeader ||
+              isAssocAdmin ||
+              // Säljaren får rätta sin egen felregistrering fram till att
+              // lagledaren bekräftat den.
+              (isOwner &&
+                order.isManual &&
+                !order.verifiedAt &&
+                order.placedByUserId === session.userId)),
+        // Återbetalning via Stripe: bara intern admin, bara betalda kortordrar.
+        canRefund:
+          isInternalAdmin &&
+          !isDemoSession(session) &&
+          card.paid &&
+          card.hasStripePayment &&
+          order.refundedOre < order.totalOre,
         customer: {
           name: order.customerName,
           email: order.customerEmail,
@@ -1525,6 +1640,14 @@ dashboard.get("/seller/orders/:orderId", async (c) => {
         unitPriceOre: l.unitPriceOre,
         lineTotalOre: l.qty * l.unitPriceOre,
       })),
+      refunds: refunds.map((r) => ({
+        id: r.id,
+        amountOre: r.amountOre,
+        shippingOre: r.shippingOre,
+        reason: isInternalAdmin ? r.reason : null,
+        createdAt: r.createdAt,
+      })),
+      unfinishedRefund: unfinishedRefund ?? null,
     });
   } catch (err) {
     log.error({ err, orderId }, "Failed to fetch seller order detail");
@@ -1591,16 +1714,11 @@ dashboard.patch("/orders/:orderId/fulfillment", async (c) => {
         orderTeam.leaderId === session.userId);
     if (!hasAccess) return c.json({ error: uiError(locale, "permissionDenied") }, 403);
 
-    // En avbokad eller återbetald order är stängd. Utan den här kontrollen
-    // kunde "ångra leveransmarkering" (status: PAID) sätta tillbaka den till
-    // betald från vilket läge som helst, och därmed återuppliva pengar som
-    // redan lämnat systemet. Vägen tillbaka går via en ny order, inte via
-    // leveransstatus.
-    if (
-      order.status === "CANCELLED" ||
-      order.status === "REFUNDED" ||
-      order.status === "FAILED"
-    ) {
+    // Spärrarna ligger i lib/fulfillment.ts och delas med gruppmarkeringen i
+    // lagervyn: en stängd order (avbokad, återbetald, misslyckad) får aldrig
+    // tillbaka en betald status, och bara en betald order kan skickas.
+    const refusal = fulfillmentRefusal(order);
+    if (refusal === "closed") {
       return c.json(
         {
           error: uiError(locale, "orderCancelledOrRefundedLocked"),
@@ -1608,39 +1726,25 @@ dashboard.patch("/orders/:orderId/fulfillment", async (c) => {
         400
       );
     }
-
-    // Leveransstatus rör bara ordrar som redan är betalda. Det gäller också
-    // "ångra leveransmarkering" (status: PAID): utan kravet kunde en order
-    // som aldrig betalats sättas som betald den vägen, och sedan räknas in
-    // i avräkningen.
-    if (
-      order.status !== "PAID" &&
-      order.status !== "CONFIRMED" &&
-      order.status !== "SHIPPED" &&
-      order.status !== "DELIVERED"
-    ) {
+    if (refusal === "not_paid") {
       return c.json(
         { error: uiError(locale, "onlyPaidOrdersShipDeliver") },
         400
       );
     }
 
-    const patch: {
-      status: "SHIPPED" | "DELIVERED" | "PAID";
-      shippedAt?: Date | null;
-      deliveredAt?: Date | null;
-      updatedAt: Date;
-    } = { status, updatedAt: new Date() };
-    if (status === "SHIPPED") {
-      patch.shippedAt = order.shippedAt ?? new Date();
-    } else if (status === "DELIVERED") {
-      patch.shippedAt = order.shippedAt ?? new Date();
-      patch.deliveredAt = new Date();
-    } else if (status === "PAID") {
-      // Ångra leverans-flaggning.
-      patch.shippedAt = null;
-      patch.deliveredAt = null;
+    // Roots lämnar ordern till lagret (avstämd mot Stripe och godkänd) innan
+    // den kan vara skickad eller levererad. Annars kunde en markering från
+    // laget ta ordern ur lagerkön utan att den någonsin plockats.
+    if (
+      session.role !== "INTERNAL_ADMIN" &&
+      status !== "PAID" &&
+      cardOrderState(order).awaitingWarehouse
+    ) {
+      return c.json({ error: uiError(locale, "orderNotSentFromWarehouse") }, 400);
     }
+
+    const patch = fulfillmentPatch(order, status);
 
     const [updated] = await db
       .update(customerOrders)
@@ -1900,16 +2004,28 @@ dashboard.post("/orders/:orderId/cancel", async (c) => {
       return c.json({ error: uiError(locale, "permissionDenied") }, 403);
     }
 
-    // Kundens pengar ligger hos Stripe. Att bara markera ordern som avbokad
-    // hos oss lämnar dem där, så den vägen måste gå via återbetalning.
-    if (
-      target === "CANCELLED" &&
-      (order.paymentMethod === "STRIPE" || order.paymentMethod === "KLARNA") &&
-      countsAsRevenue(order.status)
-    ) {
+    const card = cardOrderState(order);
+
+    // Kunden kan stå på Stripes betalsida just nu. Stängde vi ordern här
+    // och betalningen sedan gick igenom hade kortet dragits utan att någon
+    // order blev betald. Ordern stängs av sig själv när betalsidan löper ut.
+    if (card.awaitingPayment) {
+      return c.json({ error: uiError(locale, "cardOrderAwaitingPayment") }, 400);
+    }
+
+    // Kundens pengar ligger hos Stripe. En statusändring här flyttar dem
+    // inte, så en kortbetald order kan varken avbokas eller markeras som
+    // återbetald den här vägen. Återbetalningen görs av intern admin via
+    // Stripe (POST /v1/admin/orders/:id/refund), och det är den som sätter
+    // REFUNDED när pengarna faktiskt gått tillbaka.
+    //
+    // Undantaget är äldre kortordrar utan betalning hos Stripe (från tiden
+    // före Stripe). Dem finns det inget att återbetala via, så intern admin
+    // får stänga dem för hand.
+    if (card.paid && (card.hasStripePayment || session.role !== "INTERNAL_ADMIN")) {
       return c.json(
         {
-          error: uiError(locale, "orderPaidUseRefund"),
+          error: uiError(locale, "refundViaRootsOnly"),
         },
         400
       );
@@ -1944,23 +2060,37 @@ dashboard.post("/orders/:orderId/cancel", async (c) => {
     }
 
     const now = new Date();
-    const [updated] = await db
-      .update(customerOrders)
-      .set({
-        status: target,
-        cancelledAt: now,
-        cancelledByUserId: session.userId,
-        cancelReason: reason,
-        updatedAt: now,
-      })
-      .where(
-        and(
-          eq(customerOrders.id, orderId),
-          // Optimistisk låsning: någon annan kan ha avbokat under tiden.
-          eq(customerOrders.status, order.status)
+    // Orderändringen och utbetalningen hör ihop: en väntande utbetalning
+    // räknas om direkt, en fakturerad eller betald flaggas för manuell
+    // hantering. Görs i samma transaktion så att de inte kan glida isär.
+    const { updated, payoutAdjustment } = await db.transaction(async (tx) => {
+      const payout = countsAsRevenue(order.status)
+        ? await beginPayoutAdjustment(tx, {
+            campaignId: order.campaignId,
+            teamId: order.teamId,
+            orderId: order.id,
+          })
+        : null;
+      const [row] = await tx
+        .update(customerOrders)
+        .set({
+          status: target,
+          cancelledAt: now,
+          cancelledByUserId: session.userId,
+          cancelReason: reason,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(customerOrders.id, orderId),
+            // Optimistisk låsning: någon annan kan ha avbokat under tiden.
+            eq(customerOrders.status, order.status)
+          )
         )
-      )
-      .returning();
+        .returning();
+      if (!row) return { updated: undefined, payoutAdjustment: null };
+      return { updated: row, payoutAdjustment: payout ? await payout.finish() : null };
+    });
 
     if (!updated) {
       return c.json(
@@ -1985,6 +2115,7 @@ dashboard.post("/orders/:orderId/cancel", async (c) => {
         reason,
         countedInLockedPayout: countedInPayout,
         forced: countedInPayout && body.force === true,
+        payout: payoutAdjustment,
       },
     });
 
@@ -1996,13 +2127,7 @@ dashboard.post("/orders/:orderId/cancel", async (c) => {
         cancelledAt: updated.cancelledAt,
         cancelReason: updated.cancelReason,
       },
-      // Stripe-återbetalningen kan vi inte utföra själva ännu, så säg det
-      // rakt ut istället för att låta användaren tro att pengarna är på väg.
-      manualStepRequired:
-        target === "REFUNDED" &&
-        (order.paymentMethod === "STRIPE" || order.paymentMethod === "KLARNA")
-          ? uiError(locale, "stripeRefundManualStep")
-          : null,
+      payout: payoutAdjustment,
     });
   } catch (err) {
     log.error({ err, orderId }, "Failed to cancel order");
@@ -2062,7 +2187,12 @@ dashboard.post("/campaign/:campaignId/ship-bulk", async (c) => {
           // Endast samlade BULK-ordrar skickas till klubben på en gång.
           // Hemleveranser (DIRECT) skickas individuellt och får inte
           // flaggas som skickade av bulk-knappen.
-          eq(customerOrders.deliveryType, "BULK")
+          eq(customerOrders.deliveryType, "BULK"),
+          // Föreningen kan bara markera det Roots redan lämnat till lagret.
+          // Kortordrar som väntar i lagerkön rörs inte härifrån.
+          session.role === "INTERNAL_ADMIN"
+            ? undefined
+            : sql`(${customerOrders.sentToWarehouseAt} IS NOT NULL OR ${customerOrders.paymentMethod} <> 'STRIPE' OR ${customerOrders.stripeCheckoutSessionId} IS NULL)`
         )
       )
       .returning({ id: customerOrders.id });
@@ -2110,14 +2240,14 @@ dashboard.get("/association/stats", async (c) => {
       .select({
         id: teams.id,
         name: teams.name,
-        salesOre: sql<number>`COALESCE(SUM(${customerOrders.totalOre}), 0)`,
+        salesOre: goodsSumSql,
         orders: sql<number>`COUNT(*)`,
       })
       .from(customerOrders)
       .innerJoin(teams, eq(customerOrders.teamId, teams.id))
       .where(and(eq(customerOrders.orgId, orgId), PAID_IN_STATS))
       .groupBy(teams.id, teams.name)
-      .orderBy(sql`COALESCE(SUM(${customerOrders.totalOre}), 0) DESC`);
+      .orderBy(sql`${goodsSumSql} DESC`);
 
     // Mål-gaugen visar kronor, så summera bara AMOUNT-mål (× 100 = öre).
     // PACKAGES-mål (antal paket) kan inte summeras in i en kr-gauge —
@@ -2131,7 +2261,7 @@ dashboard.get("/association/stats", async (c) => {
 
     const totalsRow = await db
       .select({
-        sales: sql<number>`COALESCE(SUM(${customerOrders.totalOre}), 0)`,
+        sales: goodsSumSql,
         orders: sql<number>`COUNT(*)`,
       })
       .from(customerOrders)
@@ -2206,14 +2336,14 @@ dashboard.get("/team/:teamId/stats", async (c) => {
       .select({
         id: sellers.id,
         name: sellers.displayName,
-        salesOre: sql<number>`COALESCE(SUM(${customerOrders.totalOre}), 0)`,
+        salesOre: goodsSumSql,
         orders: sql<number>`COUNT(*)`,
       })
       .from(customerOrders)
       .innerJoin(sellers, eq(customerOrders.sellerId, sellers.id))
       .where(and(eq(customerOrders.teamId, teamId), PAID_IN_STATS))
       .groupBy(sellers.id, sellers.displayName)
-      .orderBy(sql`COALESCE(SUM(${customerOrders.totalOre}), 0) DESC`);
+      .orderBy(sql`${goodsSumSql} DESC`);
 
     const [campaign] = await db
       .select()
@@ -2233,7 +2363,7 @@ dashboard.get("/team/:teamId/stats", async (c) => {
 
     const totalsRow = await db
       .select({
-        sales: sql<number>`COALESCE(SUM(${customerOrders.totalOre}), 0)`,
+        sales: goodsSumSql,
         orders: sql<number>`COUNT(*)`,
       })
       .from(customerOrders)
@@ -2321,7 +2451,7 @@ dashboard.get("/seller/stats", async (c) => {
 
     const totalsRow = await db
       .select({
-        sales: sql<number>`COALESCE(SUM(${customerOrders.totalOre}), 0)`,
+        sales: goodsSumSql,
         orders: sql<number>`COUNT(*)`,
       })
       .from(customerOrders)

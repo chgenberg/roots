@@ -17,6 +17,7 @@ import {
 import { usePortalUser } from "@/lib/portal-context";
 import { Shield, Bell, Palette, AlertTriangle, KeyRound } from "lucide-react";
 import { MfaSection } from "@/components/mfa-section";
+import { ShippingSettingsCard } from "@/components/shipping-settings-card";
 import { useToast } from "@/components/ui/toast";
 import { apiFetch } from "@/lib/api";
 import { broadcastLogout } from "@/lib/use-cross-tab-logout";
@@ -410,6 +411,8 @@ export default function InstallningarPage() {
           </div>
         </CardContent>
       </Card>
+
+      {user.role === "INTERNAL_ADMIN" && <ShippingSettingsCard />}
 
       <Card>
         <CardContent className="space-y-6 p-6">

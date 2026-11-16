@@ -30,8 +30,8 @@ export const CreateCampaignSchema = z.object({
   // false = försäljning blockeras helt utanför start/slut.
   allowSalesOutsidePeriod: z.boolean().default(true),
   deliveryType: DeliveryTypeEnum.default("BULK"),
-  shippingThresholdOre: z.number().int().optional(),
-  shippingFeeOre: z.number().int().optional(),
+  // Frakt sätts inte per kampanj. Avgiften vid hemleverans är Roots
+  // inställning (se shipping.ts), så en förening kan inte ändra den.
   marginPercent: z
     .number()
     .int()

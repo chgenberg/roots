@@ -159,6 +159,8 @@ export function orderConfirmationEmail(params: {
   totalOre: number;
   shopSlug: string;
   items: Array<{ name: string; qty: number; unitPriceOre: number }>;
+  /** Frakt vid hemleverans. Visas som egen rad när kunden betalat frakt. */
+  shippingOre?: number;
   /**
    * P1.5 (audit 2026-05-26): signerad token som låser order-status-
    * länken till just den här kunden. Utan token är endpointen 401:ad.
@@ -177,6 +179,14 @@ export function orderConfirmationEmail(params: {
   );
   const orderUrl = `${url}${orderPath}?t=${encodeURIComponent(params.viewToken)}`;
   const termsPath = withLocalePath("/villkor", locale);
+  const shippingOre = params.shippingOre ?? 0;
+  const shippingRow =
+    shippingOre > 0
+      ? `<tr>
+          <td style="padding:4px 0;color:#666;font-size:13px">${locale === "en" ? "Shipping, home delivery" : "Frakt, hemleverans"}</td>
+          <td style="padding:4px 0;text-align:right;color:#666;font-size:13px">${fmtMoney(shippingOre, locale)}</td>
+        </tr>`
+      : "";
 
   if (locale === "en") {
     const itemRows = params.items
@@ -207,6 +217,7 @@ export function orderConfirmationEmail(params: {
         ${itemRows}
       </table>
       <table width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 16px">
+        ${shippingRow}
         <tr>
           <td style="padding:4px 0;color:#666;font-size:13px">Subtotal excl. VAT</td>
           <td style="padding:4px 0;text-align:right;color:#666;font-size:13px">${fmtMoney(totalExVatOre, locale)}</td>
@@ -265,6 +276,7 @@ export function orderConfirmationEmail(params: {
         ${itemRows}
       </table>
       <table width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 16px">
+        ${shippingRow}
         <tr>
           <td style="padding:4px 0;color:#666;font-size:13px">Summa exkl. moms</td>
           <td style="padding:4px 0;text-align:right;color:#666;font-size:13px">${fmtMoney(totalExVatOre, locale)}</td>

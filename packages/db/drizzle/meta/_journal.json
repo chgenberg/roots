@@ -204,6 +204,27 @@
       "when": 1792493000000,
       "tag": "0028_organization_brands",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1792496000000,
+      "tag": "0029_platform_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1792499000000,
+      "tag": "0030_refunds",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1792502000000,
+      "tag": "0031_warehouse",
+      "breakpoints": true
     }
   ]
 }

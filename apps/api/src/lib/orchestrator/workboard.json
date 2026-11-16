@@ -1,6 +1,56 @@
 {
-  "updatedAt": "2026-10-27T12:00:00.000Z",
+  "updatedAt": "2026-11-16T15:30:00.000Z",
   "cards": [
+    {
+      "id": "wb-bara-kort-nov12",
+      "title": "Bara kortbetalning: manuella ordrar (kontant/Swish vid dörren) stängs av",
+      "body": "Beslut Christopher 12 nov: kontantbetalning ska inte gälla alls, bara kort i kassan. POST /v1/dashboard/seller/orders svarar 410, knappen Registrera order och dialogen tas bort ur Min shop, rutan Betala till ansvarig visas bara om äldre manuella ordrar finns. Äldre manuella rader hanteras som förut av bekräftelse, avbokning och avräkning. Publika texter som lovar Swish ändras till kort. 35 % och priser orörda. Deployad 150065e efter 'Pusha' 12 nov 17:56 (diffgenomgång utan CRITICAL/HIGH, 314 tester, bygg grönt). Web + API SUCCESS, CI grön. Verifierat i prod: säljare får 410 och ingen order skapas, knappen borta ur Min shop.",
+      "status": "done",
+      "domainId": "money",
+      "playbook": "club-campaign",
+      "files": [
+        "apps/api/src/routes/dashboard.ts",
+        "apps/web/src/app/(fundraising)/min-shop/page.tsx",
+        "apps/web/src/app/(fundraising)/lag/avrakning/page.tsx",
+        "apps/web/src/i18n/dictionaries/pages.ts"
+      ],
+      "gate": "deploy",
+      "source": "cursor",
+      "createdAt": "2026-11-12T16:55:00.000Z",
+      "updatedAt": "2026-11-12T16:55:00.000Z"
+    },
+    {
+      "id": "wb-prodklar-nov12",
+      "title": "Produktionsklart: betalflöde i testläge, rollgenomgång, septemberpunkter, tåligare utskick",
+      "body": "Val av Christopher 12 nov: (1) hela betalflödet i Stripes testläge, (2) ny total genomgång av alla roller mot roots.nu, (3) laga Stripe-webhook som svarar 200 när ordern saknas + tom MFA_REQUIRED_ROLES i prod, (4) vardagsutskicket väntar in nätet. Larm ska gå till info@roots.nu (ALERT_EMAIL sätts ihop med deployen, kräver ja). Inga live-nycklar, inga priser, 35 % orörd, ingen deploy utan bug-hunt + ja. LÄGE 12 nov 16:40: allt lagat lokalt, inget committat eller deployat. Betalflöde lokalt mot Stripes testläge 15/15 (kort i SEK, euro via Adaptive Pricing, webhook, dubblett, nekat kort, utgången session), avräkning 1 595 kr → 558,25 kr. Rollgenomgång roots.nu 284 sidor utan fel. Lagat: obetald order kunde sättas PAID via leveransstatus; /portal/members utan rollkontroll; klubbprofilens hämtning (IPv4-mappad IPv6, DNS vid anslutning, linjär tolkning, tak för alla besökare); webhook 404 när vår order saknas; tom MFA_REQUIRED_ROLES fäller boot; dagstak bara admin + lås per avsändare; egen Idempotency-Key per manuell order och portalorder. 312 API-tester, typecheck, lint, bygg gröna. Deployad 5c7b554 efter ja 12 nov 17:42: två granskare, två HIGH i hämtningen (uppackning fortsatte efter taket, hängande anslutning) lagade före push, sedan 313 tester + bygg gröna. Web + API SUCCESS, readyz ok, synthetic 7/7, CI grön. Verifierat i prod: säljare och lagledare får 403 på medlemslistan, klubbprofilen ger namn + logga och spärrar interna adresser. ALERT_EMAIL=info@roots.nu satt; inget larm har gått än, så leveransen dit är oprövad. Ett kontofynd hanterar Christopher själv. Öppna beslut i memory/2026-11-12.md.",
+      "status": "done",
+      "domainId": "money",
+      "playbook": "supporter-buy",
+      "files": [
+        "apps/api/src/routes/checkout.ts",
+        "apps/api/src/lib/validate-env.ts",
+        "scripts/roots-walkthrough/audit-all-roles.js"
+      ],
+      "gate": "deploy",
+      "source": "cursor",
+      "createdAt": "2026-11-12T14:50:00.000Z",
+      "updatedAt": "2026-11-12T16:55:00.000Z"
+    },
+    {
+      "id": "wb-wix-logo-nov11",
+      "title": "Klubbprofil: Wix-sajter fick tom logga",
+      "body": "asbygden.se (Wix) gav 'Loggan kommer från…' men tom ruta. Orsak: Accept bad om avif → Wix svarade avif → avvisad typ → fallback till Wix tomma standard-favicon (parastorage pfavico.ico). Fix i scrape.ts: ingen avif i Accept (webp), plattformens standardikoner filtreras, fullt namn från <title> när og:site_name är kapat (Wix 20 tecken). Bug-hunt utan CRITICAL/HIGH, tsc + lint gröna. Deployad 8c1b753 efter ja (med 3 docs/scripts-commits som låg före), verifierad på roots.nu: fullt namn + webp-logga.",
+      "status": "done",
+      "domainId": "public",
+      "playbook": "",
+      "files": [
+        "apps/web/src/lib/club-brand/scrape.ts"
+      ],
+      "gate": "deploy",
+      "source": "cursor",
+      "createdAt": "2026-11-11T22:05:00.000Z",
+      "updatedAt": "2026-11-11T22:05:00.000Z"
+    },
     {
       "id": "wb-fredrik-revision-oct15",
       "title": "Fredriks revision + Så här går det till",
@@ -719,7 +769,7 @@
     {
       "id": "wb-lead-batch2-oct23",
       "title": "Lead-mejl sats 2: Kents och Niclas lista + uppvärmning",
-      "body": "Sats 2 enligt Johans arbetsplan (23 okt): brett introduktionsmejl vecka 1 (Kent/Niclas avsändare på sina, övriga från namngiven HK-kontakt), personligt mejl med räkneexempel efter 5–7 arbetsdagar. Klart: ~/Desktop/Leadslista_utskick_Kent_Niclas.xlsx (docs/leads/build_utskick.py, antal deltagare = alla medlemmar), Umeå Ryttarförening i klubbkarusellen. Kvar: introläge utan räkneexempel, kontaktsida 'Jag vill veta mer', öppning/klick via Resend-webhooks, avregistreringslänk, dagstak per dag, DNS (DKIM/DMARC) + Resend-nyckel + mejlpaus = Christopher. Umeå deployat 6ef8287. Start intro tis 27 okt; avsändare utanför distrikten Johan; Niclas = Örebro/Uppsala/Södermanland/Västmanland.",
+      "body": "Sats 2 enligt Johans arbetsplan (23 okt). launchd nu.roots.outreach mån–fre 09:15. 5 nov: fixade Desktop-TCC (tsx via absolut node+cli.mjs, cwd ~/.roots). Skickat Niclas 21–30 (10). Kent kö slut. Kvar ~129 Niclas. Öppet: Niclas cap 10→15 när uppvärmning ok; introläge, webbhooks, avreg. 13 nov: ny export av Google-arket – 31 nya personliga importerade (Kent 7–35, Niclas 160–161), 3 väntar på Kontrollera. Tak 10/5→20 (arkets plan v.46). Studsskyddet (3 i senaste 100) stoppade extrabatchen: 3/96 = 3,1 %, beslut om skyddet hos Christopher. Register ~/Desktop/Roots_utskicksregister_2026-11-13.xlsx. 16 nov: studsskyddet stoppade 09:24 (5 av senaste 100). Christopher valde att räkna skyddet på alla lead-mejl senaste 30 dagarna (samma gräns 4 %) och skicka båda: Niclas 101–120 + Kent 27–35, 29 av 29 levererade, 0 studsar, totalt 5/155 = 3,23 %. Kö: Niclas 41, Kent 0.",
       "status": "doing",
       "domainId": "fundraising",
       "playbook": "",
@@ -731,7 +781,7 @@
       "gate": "email",
       "source": "cursor",
       "createdAt": "2026-10-23T10:45:00.000Z",
-      "updatedAt": "2026-10-23T16:45:00.000Z"
+      "updatedAt": "2026-11-16T12:45:00.000Z"
     },
     {
       "id": "wb-club-brand-oct27",
@@ -749,6 +799,125 @@
       "source": "cursor",
       "createdAt": "2026-10-27T12:00:00.000Z",
       "updatedAt": "2026-10-27T16:10:00.000Z"
+    },
+    {
+      "id": "wb-sek-only-nov16",
+      "title": "Bara kronor i kassan (Adaptive Pricing av)",
+      "body": "Beslut 3: kunder betalar alltid i SEK. Checkout-sessionen skapas med adaptive_pricing.enabled=false. Deploy kräver bug-hunt + ja. Kod och test klara 16 nov, provat mot Stripes testläge. Väntar på deploy-ja.",
+      "status": "doing",
+      "domainId": "shop",
+      "playbook": "",
+      "files": [
+        "apps/api/src/lib/payments/stripe.ts",
+        "apps/api/src/lib/payments/stripe-session.test.ts"
+      ],
+      "gate": "deploy",
+      "source": "claude-code",
+      "createdAt": "2026-11-16T12:00:00.000Z",
+      "updatedAt": "2026-11-16T15:30:00.000Z"
+    },
+    {
+      "id": "wb-lagledare-via-forening-nov16",
+      "title": "Lagledare startar alltid via föreningen",
+      "body": "Beslut 5: ingen självregistrering av lag/klass. Vänlig sida + intresseanmälan som blir lead i pipelinen. /v1/auth/register/team-leader stängs (410). Kod och test klara 16 nov. Väntar på deploy-ja.",
+      "status": "doing",
+      "domainId": "auth",
+      "playbook": "",
+      "files": [
+        "apps/api/src/routes/auth.ts",
+        "apps/web/src/app/(auth)/registrera/page.tsx",
+        "apps/web/src/app/(fundraising)/lag/page.tsx"
+      ],
+      "gate": "deploy",
+      "source": "claude-code",
+      "createdAt": "2026-11-16T12:00:00.000Z",
+      "updatedAt": "2026-11-16T15:30:00.000Z"
+    },
+    {
+      "id": "wb-frakt-hemleverans-nov16",
+      "title": "Frakt vid hemleverans: kunden betalar, inställning",
+      "body": "Beslut 2: fraktavgift och fri-frakt-gräns som inställning (platform_settings), bara intern admin. Inget värde sätts i prod utan Christophers ja. 35 % bara på varor. Frakt syns i kassa, order och kvitto. Kod och test klara 16 nov (migration 0029). Inget värde satt: hemleverans stängd tills Christopher sätter avgiften på /portal/installningar. Väntar på deploy-ja och fraktbelopp.",
+      "status": "doing",
+      "domainId": "shop",
+      "playbook": "",
+      "files": [
+        "packages/db/src/schema/platform-settings.ts",
+        "apps/api/src/routes/checkout.ts",
+        "apps/api/src/routes/shop.ts",
+        "apps/api/src/routes/settlement.ts",
+        "packages/contracts/src/campaigns.ts"
+      ],
+      "gate": "money",
+      "source": "claude-code",
+      "createdAt": "2026-11-16T12:00:00.000Z",
+      "updatedAt": "2026-11-16T15:30:00.000Z"
+    },
+    {
+      "id": "wb-aterbetalning-avrakning-nov16",
+      "title": "Återbetalning minskar föreningens andel i avräkningen",
+      "body": "Beslut 1: återbetalt räknas bort ur de 35 %. Väntande utbetalning räknas om automatiskt. Fakturerad/betald utbetalning rörs aldrig, flaggas för manuell hantering. Kod och test klara 16 nov (lib/settlement/compute.ts, migration 0030). Väntar på deploy-ja.",
+      "status": "doing",
+      "domainId": "money",
+      "playbook": "",
+      "files": [
+        "apps/api/src/lib/settlement/compute.ts",
+        "apps/api/src/routes/settlement.ts",
+        "apps/api/src/routes/payouts.ts",
+        "apps/api/src/lib/order-money.ts"
+      ],
+      "gate": "money",
+      "source": "claude-code",
+      "createdAt": "2026-11-16T12:00:00.000Z",
+      "updatedAt": "2026-11-16T15:30:00.000Z"
+    },
+    {
+      "id": "wb-aterbetalning-portal-nov16",
+      "title": "Återbetalning från portalen via Stripe (intern admin)",
+      "body": "Beslut 4: ingen automatisk återbetalning. INTERNAL_ADMIN återbetalar hel eller del av en order från portalen, via Stripe, med bekräftelse och audit-logg. Bara Stripe testläge i test. Kod och test klara 16 nov (routes/refunds.ts, orderdialogen, sync från Stripe). Bara stubbat Stripe i test. Väntar på deploy-ja.",
+      "status": "doing",
+      "domainId": "money",
+      "playbook": "",
+      "files": [
+        "apps/api/src/routes/refunds.ts",
+        "apps/api/src/lib/payments/stripe.ts",
+        "apps/web/src/components/order-refund-section.tsx",
+        "apps/web/src/components/order-detail-dialog.tsx"
+      ],
+      "gate": "money",
+      "source": "claude-code",
+      "createdAt": "2026-11-16T12:00:00.000Z",
+      "updatedAt": "2026-11-16T15:30:00.000Z"
+    },
+    {
+      "id": "wb-barnkonton-samtycke-nov16",
+      "title": "Barns säljarkonton: samtycke och byte av lösenord",
+      "body": "Beslut 6: VÄNTAR. Vi kollar först hur Newbody gör. Ingen kod ändras förrän beslut finns.",
+      "status": "todo",
+      "domainId": "auth",
+      "playbook": "",
+      "files": [],
+      "gate": "none",
+      "source": "claude-code",
+      "createdAt": "2026-11-16T12:00:00.000Z",
+      "updatedAt": "2026-11-16T12:00:00.000Z"
+    },
+    {
+      "id": "wb-lager-avstamning-nov16",
+      "title": "Från betald order till lagret: daglig avstämning",
+      "body": "Beslut 7: /portal/lager för intern admin. Betalda ordrar som inte skickats till lagret, avstämning mot Stripe, godkänn + plocklista (Excel/CSV), markera skickad. Förberett för lager-API (Ongoing). 3PL inte valt. Kod och test klara 16 nov (/portal/kundordrar, migration 0031). Väntar på deploy-ja och val av 3PL.",
+      "status": "doing",
+      "domainId": "admin",
+      "playbook": "",
+      "files": [
+        "apps/api/src/routes/warehouse.ts",
+        "apps/api/src/lib/warehouse",
+        "apps/api/src/lib/fulfillment.ts",
+        "apps/web/src/app/(portal)/portal/kundordrar/page.tsx"
+      ],
+      "gate": "deploy",
+      "source": "claude-code",
+      "createdAt": "2026-11-16T12:00:00.000Z",
+      "updatedAt": "2026-11-16T15:30:00.000Z"
     }
   ]
 }

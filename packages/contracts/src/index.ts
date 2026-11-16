@@ -5,6 +5,7 @@ export * from "./customer-order-status";
 export * from "./auth";
 export * from "./invoicing";
 export * from "./campaigns";
+export * from "./shipping";
 export * from "./portal";
 export * from "./calculator";
 export * from "./pricing";

@@ -52,6 +52,7 @@ describe.skipIf(!HAS_DB)("pengavägen (integration)", () => {
     sellerUser: "",
     leaderUser: "",
     adminUser: "",
+    internalUser: "",
     productA: "",
     productB: "",
   };
@@ -141,11 +142,21 @@ describe.skipIf(!HAS_DB)("pengavägen (integration)", () => {
           orgId: org.id,
           contactName: "Testadmin",
         },
+        {
+          // Återbetalning via Stripe görs bara av intern admin, som kräver MFA.
+          email: `e2e-intern-${run}@roots-test.local`,
+          passwordHash: "not-used-in-this-test",
+          role: "INTERNAL_ADMIN",
+          orgId: null,
+          contactName: "Testintern",
+          mfaEnabledAt: new Date(),
+        },
       ])
       .returning();
     ids.sellerUser = users[0].id;
     ids.leaderUser = users[1].id;
     ids.adminUser = users[2].id;
+    ids.internalUser = users[3].id;
 
     // Perioden omfattar dagens datum så ordrar räknas i statistiken.
     const today = new Date();
@@ -233,6 +244,9 @@ describe.skipIf(!HAS_DB)("pengavägen (integration)", () => {
       await db
         .delete(schema.customerOrderLines)
         .where(inArray(schema.customerOrderLines.orderId, orderIds));
+      await db
+        .delete(schema.customerOrderRefunds)
+        .where(inArray(schema.customerOrderRefunds.orderId, orderIds));
     }
     if (ids.campaign) {
       await db
@@ -256,9 +270,12 @@ describe.skipIf(!HAS_DB)("pengavägen (integration)", () => {
         .delete(schema.campaigns)
         .where(eq(schema.campaigns.id, ids.campaign));
     }
-    const userIds = [ids.sellerUser, ids.leaderUser, ids.adminUser].filter(
-      Boolean
-    );
+    const userIds = [
+      ids.sellerUser,
+      ids.leaderUser,
+      ids.adminUser,
+      ids.internalUser,
+    ].filter(Boolean);
     if (userIds.length > 0) {
       await db.delete(schema.users).where(inArray(schema.users.id, userIds));
     }
@@ -642,6 +659,23 @@ describe.skipIf(!HAS_DB)("pengavägen (integration)", () => {
     // finns för att felet inte ska kunna komma tillbaka.
     const paidOnlineOrderId = orderIds[0];
     const leader = await asUser(ids.leaderUser);
+
+    // Laget kan inte markera leverans innan Roots lämnat ordern till
+    // lagret: annars försvann den ur lagerkön utan att ha plockats.
+    const tooEarly = await request(
+      `/v1/dashboard/orders/${paidOnlineOrderId}/fulfillment`,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json", cookie: leader.cookie },
+        body: JSON.stringify({ status: "DELIVERED" }),
+      }
+    );
+    expect(tooEarly.status).toBe(400);
+    await db
+      .update(schema.customerOrders)
+      .set({ sentToWarehouseAt: new Date() })
+      .where(eq(schema.customerOrders.id, paidOnlineOrderId));
+
     const shipRes = await request(
       `/v1/dashboard/orders/${paidOnlineOrderId}/fulfillment`,
       {
@@ -828,8 +862,10 @@ describe.skipIf(!HAS_DB)("pengavägen (integration)", () => {
 
   it("tar en återbetald order ur avräkningen", async () => {
     const paidOnlineOrderId = orderIds[0];
+    // Lagledaren kan inte själv markera en kortorder som återbetald: då
+    // hade ordern fallit ur avräkningen medan kundens pengar låg kvar.
     const leader = await asUser(ids.leaderUser);
-    const res = await request(
+    const marked = await request(
       `/v1/dashboard/orders/${paidOnlineOrderId}/cancel`,
       {
         method: "POST",
@@ -840,11 +876,31 @@ describe.skipIf(!HAS_DB)("pengavägen (integration)", () => {
         }),
       }
     );
+    expect(marked.status).toBe(400);
+
+    // Återbetalningen görs av intern admin och går via Stripe.
+    const internal = await asUser(ids.internalUser);
+    const res = await request(
+      `/v1/admin/orders/${paidOnlineOrderId}/refund`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie: internal.cookie },
+        body: JSON.stringify({
+          requestId: `money-path-${randomUUID()}`,
+          reason: "Kunden ångrade sig inom ångerrätten",
+          expectedRefundedOre: 0,
+          full: true,
+        }),
+      }
+    );
     expect(res.status).toBe(200);
-    const refund = (await res.json()) as { manualStepRequired: string | null };
-    // Stripe-återbetalningen kan vi inte utföra själva, och då ska svaret
-    // säga det rakt ut i stället för att låta någon tro att den är gjord.
-    expect(refund.manualStepRequired).toBeTruthy();
+    const refund = (await res.json()) as {
+      order: { status: string; refundedOre: number; totalOre: number };
+      refund: { stripeRefundId: string | null };
+    };
+    expect(refund.order.status).toBe("REFUNDED");
+    expect(refund.order.refundedOre).toBe(refund.order.totalOre);
+    expect(refund.refund.stripeRefundId).toBeTruthy();
 
     await db
       .update(schema.campaigns)

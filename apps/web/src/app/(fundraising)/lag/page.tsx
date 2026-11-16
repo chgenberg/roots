@@ -48,6 +48,7 @@ export default function TeamDashboard() {
   const [data, setData] = useState<TeamDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [noTeam, setNoTeam] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailOrderId, setDetailOrderId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -56,10 +57,16 @@ export default function TeamDashboard() {
   const load = useCallback(async (silent = false) => {
     try {
       const myTeamRes = await rootsFetch(`${API_URL}/v1/dashboard/my-team`);
+      if (myTeamRes.status === 404) {
+        // Kontot har inget lag. Det är inget fel: laget skapas av föreningen.
+        setNoTeam(true);
+        return;
+      }
       if (!myTeamRes.ok) {
         if (!silent) setError(t.loadFailed);
         return;
       }
+      setNoTeam(false);
       const { teamId } = await myTeamRes.json();
 
       const teamRes = await rootsFetch(`${API_URL}/v1/dashboard/team/${teamId}`);
@@ -78,10 +85,11 @@ export default function TeamDashboard() {
   useEffect(() => {
     load();
     // Live-uppdatering var 20:e sekund så topplista och ordrar uppdateras
-    // i realtid medan säljarna jobbar.
+    // i realtid medan säljarna jobbar. Utan lag finns inget att uppdatera.
+    if (noTeam) return;
     const id = setInterval(() => load(true), 20000);
     return () => clearInterval(id);
-  }, [load]);
+  }, [load, noTeam]);
 
   function copyInviteLink() {
     if (!data?.team?.inviteToken) return;
@@ -103,6 +111,20 @@ export default function TeamDashboard() {
     return (
       <div className="flex items-center justify-center py-20">
         <Loader2 className="h-6 w-6 animate-spin text-brand-400" />
+      </div>
+    );
+  }
+
+  if (noTeam) {
+    return (
+      <div className="mx-auto flex max-w-md flex-col items-center gap-3 py-20 text-center">
+        <h1 className="text-xl font-semibold tracking-tight">{t.noTeamTitle}</h1>
+        <p className="text-pretty text-sm leading-relaxed text-muted-foreground">
+          {t.noTeamBody}
+        </p>
+        <Button asChild variant="outline" className="mt-2">
+          <LocaleLink href="/kontakt">{t.noTeamContact}</LocaleLink>
+        </Button>
       </div>
     );
   }

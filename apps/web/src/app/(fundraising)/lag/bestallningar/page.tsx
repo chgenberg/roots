@@ -162,7 +162,10 @@ export default function TeamOrdersPage() {
 
   const paidTotal = orders
     .filter((o: CustomerOrder) => countsAsRevenue(o.status))
-    .reduce((sum: number, o: CustomerOrder) => sum + (o.totalOre || 0), 0);
+    .reduce(
+      (sum: number, o: CustomerOrder) => sum + (o.goodsOre ?? o.totalOre ?? 0),
+      0
+    );
 
   const filterButtons: FilterStatus[] = ["ALL", "PAID", "PENDING", "CANCELLED"];
 

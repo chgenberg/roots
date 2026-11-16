@@ -42,7 +42,10 @@ import {
   TERMS_VERSION,
   LOCKED_MARGIN_PERCENT,
   resolveCanonicalSiteUrl,
+  shippingOreForOrder,
+  countsAsRevenue,
 } from "@roots/contracts";
+import { getShippingSettings } from "../lib/platform-settings";
 import { isEmailPaused } from "../lib/orchestrator/probes";
 import { stockholmDateIso } from "../lib/date";
 import { wasWebhookEventSeen, clearWebhookEventSeen } from "../lib/webhook-dedup";
@@ -133,6 +136,7 @@ async function sendOrderConfirmationIfNeeded(
         customerName: order.customerName,
         orderId: order.id,
         totalOre: order.totalOre,
+        shippingOre: order.shippingOre,
         shopSlug: seller?.shopSlug || "",
         items: orderLines.map((l) => ({
           name: localizedProductName(locale, {
@@ -242,6 +246,7 @@ async function markOrderPaidFromStripe(opts: {
     .set({
       status: "PAID",
       selectedPaymentMethod: snapshot.selectedPaymentMethod,
+      paidAt: new Date(),
       updatedAt: new Date(),
     })
     .where(
@@ -249,7 +254,52 @@ async function markOrderPaidFromStripe(opts: {
     )
     .returning({ id: customerOrders.id });
 
-  if (updated.length === 0) return "already";
+  if (updated.length === 0) {
+    // Vanligast är att ordern redan är betald (webhook och polling möts).
+    // Men är den stängd har kortet dragits för en order som inte finns
+    // kvar, och det får aldrig passera tyst: någon måste betala tillbaka.
+    const [current] = await db
+      .select({
+        status: customerOrders.status,
+        totalOre: customerOrders.totalOre,
+        refundedOre: customerOrders.refundedOre,
+      })
+      .from(customerOrders)
+      .where(eq(customerOrders.id, order.id))
+      .limit(1);
+    // En order som betalats och sedan återbetalats i sin helhet är stängd på
+    // rätt sätt. Larmet gäller ordrar som stängts utan att pengarna gått
+    // tillbaka.
+    const refundedInFull =
+      current?.status === "REFUNDED" && current.refundedOre >= current.totalOre;
+    if (
+      current &&
+      !countsAsRevenue(current.status) &&
+      current.status !== "PENDING" &&
+      !refundedInFull
+    ) {
+      log.error(
+        { orderId: order.id, status: current.status, source, stripeSessionId: snapshot.sessionId },
+        "Stripe reports a payment for an order that is closed — the customer has paid and must be refunded"
+      );
+      void auditLog({
+        userId: null,
+        action: "order.paid_after_closed",
+        entityType: "customer_order",
+        entityId: order.id,
+        meta: {
+          ...requestContext(header),
+          source,
+          status: current.status,
+          stripeSessionId: snapshot.sessionId,
+          stripeAmountOre: snapshot.amountTotalOre,
+          orgId: order.orgId,
+        },
+      });
+      void noteConductorEvent("order.failed", order.id);
+    }
+    return "already";
+  }
 
   void auditLog({
     userId: null,
@@ -685,26 +735,33 @@ checkout.post("/create", async (c) => {
       return c.json({ error: uiError(locale, "emptyCart") }, 400);
     }
 
-    let shippingOre = 0;
-    if (
-      deliveryType === "DIRECT" &&
-      campaign.shippingFeeOre &&
-      campaign.shippingThresholdOre
-    ) {
-      if (totalOre < campaign.shippingThresholdOre) {
-        shippingOre = campaign.shippingFeeOre;
-        orderLines.push({
-          type: "shipping_fee",
-          reference: "SHIPPING",
-          name: shippingLineName(locale),
-          quantity: 1,
-          unit_price: shippingOre,
-          tax_rate: VAT_RATE_BASIS_POINTS,
-          total_amount: shippingOre,
-          total_tax_amount: vatOfGrossOre(shippingOre),
-        });
-        totalOre += shippingOre;
-      }
+    // Frakten kommer från Roots inställning, aldrig från kampanjen eller
+    // klienten. Kunden betalar den vid hemleverans, och den läggs som egen
+    // rad så att den syns på Stripes betalsida och hålls utanför varuvärdet
+    // som föreningens andel räknas på.
+    const goodsOre = totalOre;
+    const resolvedShippingOre = shippingOreForOrder(await getShippingSettings(), {
+      deliveryType: requestedDelivery,
+      goodsOre,
+    });
+    if (resolvedShippingOre === null) {
+      // Ingen fraktavgift är bestämd. Hemleverans är då stängd i stället för
+      // gratis.
+      return c.json({ error: uiError(locale, "homeDeliveryUnavailable") }, 400);
+    }
+    const shippingOre = resolvedShippingOre;
+    if (shippingOre > 0) {
+      orderLines.push({
+        type: "shipping_fee",
+        reference: "SHIPPING",
+        name: shippingLineName(locale),
+        quantity: 1,
+        unit_price: shippingOre,
+        tax_rate: VAT_RATE_BASIS_POINTS,
+        total_amount: shippingOre,
+        total_tax_amount: vatOfGrossOre(shippingOre),
+      });
+      totalOre += shippingOre;
     }
 
     // MASTERPLAN_01 KC4.3: normalisera adress-fält så databasen aldrig
@@ -861,7 +918,9 @@ checkout.post("/create", async (c) => {
         status: "PENDING",
         updatedAt: new Date(),
       })
-      .where(eq(customerOrders.id, order.id));
+      // Bara från DRAFT. En order som hunnit stängas under tiden ska inte
+      // öppnas igen.
+      .where(and(eq(customerOrders.id, order.id), eq(customerOrders.status, "DRAFT")));
 
     void noteConductorEvent("order.created", order.id);
     void auditLog({
@@ -876,6 +935,7 @@ checkout.post("/create", async (c) => {
         campaignId: seller.campaignId,
         stripeSessionId: stripeSession.sessionId,
         totalOre,
+        shippingOre,
         itemCount: dbOrderLines.length,
       },
     });

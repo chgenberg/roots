@@ -24,8 +24,6 @@ exports[`GET /v1/shop/by-slug/:slug > returns full shop payload for an active se
     "goalValue": 100000,
     "id": "00000000-0000-0000-0000-000000000444",
     "name": "Vårkampanj 2026",
-    "shippingFeeOre": 0,
-    "shippingThresholdOre": 0,
     "startDate": "2026-04-01T00:00:00.000Z",
     "status": "ACTIVE",
     "story": "Vi samlar pengar till nytt cuplag.",
@@ -53,6 +51,11 @@ exports[`GET /v1/shop/by-slug/:slug > returns full shop payload for an active se
     "id": "00000000-0000-0000-0000-000000000111",
     "individualGoal": 5000,
     "shopSlug": "anna-roots-2026",
+  },
+  "shipping": {
+    "freeShippingThresholdOre": 80000,
+    "homeDeliveryAvailable": true,
+    "homeDeliveryFeeOre": 5500,
   },
   "stats": {
     "orderCount": 3,

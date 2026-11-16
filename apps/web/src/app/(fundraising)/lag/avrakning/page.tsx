@@ -112,12 +112,14 @@ export default function TeamSettlementPage() {
     (o: CustomerOrder) => o.deliveryType === "DIRECT"
   );
 
+  // Varuvärdet, samma underlag som försäljningen och förtjänsten ovan:
+  // utan frakt och utan det som återbetalats.
   const klarnaPaidTotal = klarnaOrders.reduce(
-    (sum: number, o: CustomerOrder) => sum + (o.totalOre || 0),
+    (sum: number, o: CustomerOrder) => sum + (o.goodsOre ?? o.totalOre ?? 0),
     0
   );
   const directPaidTotal = directOrders.reduce(
-    (sum: number, o: CustomerOrder) => sum + (o.totalOre || 0),
+    (sum: number, o: CustomerOrder) => sum + (o.goodsOre ?? o.totalOre ?? 0),
     0
   );
 

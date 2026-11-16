@@ -140,7 +140,7 @@ export default function SellerOrdersPage() {
 
   const totalOre = sortedFiltered
     .filter((o) => countsAsRevenue(o.status))
-    .reduce((acc, o) => acc + o.totalOre, 0);
+    .reduce((acc, o) => acc + (o.goodsOre ?? o.totalOre), 0);
   const orderCount = sortedFiltered.length;
 
   function exportCsv() {
